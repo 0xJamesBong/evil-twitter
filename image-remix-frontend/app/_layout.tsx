@@ -22,8 +22,10 @@ import {
   Wand2,
   Plus,
 } from "lucide-react-native";
-import { StoreProvider, useAuthStore } from "../stores/store-provider";
+import { StoreProvider } from "../stores/store-provider";
 import AuthModal from "../components/auth/AuthModal";
+import ProtectedRoute from "../components/auth/ProtectedRoute";
+import { useAuthStore } from "../stores/authStore";
 
 // Prevent the splash screen from auto-hiding before asset loading is complete.
 SplashScreen.preventAutoHideAsync();
@@ -31,7 +33,7 @@ SplashScreen.preventAutoHideAsync();
 function RootLayoutNav() {
   const router = useRouter();
   const pathname = usePathname();
-  const isAuthenticated = useAuthStore(state => state.isAuthenticated);
+  const { isAuthenticated, logout } = useAuthStore();
   const [screenWidth, setScreenWidth] = useState(
     Dimensions.get("window").width,
   );
@@ -49,128 +51,101 @@ function RootLayoutNav() {
   const shouldShowButtonText = Platform.OS === "web" && screenWidth > 768;
 
   const handleAuthModalClose = useCallback(() => {
+    console.log('Auth modal closed');
     setShowAuthModal(false);
   }, []);
 
   const handleAuthSuccess = useCallback(() => {
+    console.log('Auth success');
     setShowAuthModal(false);
   }, []);
 
   return (
     <SafeAreaView className="flex-1 bg-black">
-      {/* Top Navigation Bar */}
-      <View className="flex-row items-center justify-between px-4 py-3 border-b border-gray-700 bg-black">
-        {/* Logo */}
-        <TouchableOpacity
-          className="flex-row items-center"
-          onPress={() => router.push("/")}
-        >
-          <Image
-            source={{
-              uri: "https://images.unsplash.com/photo-1579546929518-9e396f3cc809?w=200&q=80",
-            }}
-            style={{ width: 32, height: 32 }}
-            className="rounded-full"
-          />
-          <Text className="ml-2 text-xl font-bold text-white">
-            SocialFeed
-          </Text>
-        </TouchableOpacity>
-
-        {/* Navigation Links */}
-        <View className="flex-row items-center">
+      <StatusBar style="light" />
+      <View className="flex-1 bg-black">
+        {/* Header */}
+        <View className="flex-row justify-between items-center p-4 border-b border-gray-800">
           <TouchableOpacity
-            className={`mx-3 items-center ${pathname === "/feed" ? "opacity-100" : "opacity-50"}`}
-            onPress={() => router.push("/feed")}
-          >
-            <MessageCircle size={20} color="#fff" />
-            {shouldShowButtonText && (
-              <Text className="text-xs text-white">Feed</Text>
-            )}
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            className={`mx-3 items-center ${pathname === "/" ? "opacity-100" : "opacity-50"}`}
+            className="flex-row items-center"
             onPress={() => router.push("/")}
           >
-            <ImageIcon size={20} color="#fff" />
+            {/* <Image
+              source={require("../assets/logo.png")}
+              style={{ width: 32, height: 32 }}
+              className="rounded-lg"
+            /> */}
             {shouldShowButtonText && (
-              <Text className="text-xs text-white">Gallery</Text>
+              <Text className="text-white font-bold text-xl ml-2">
+                Image Remix
+              </Text>
             )}
           </TouchableOpacity>
 
-          <TouchableOpacity
-            className={`mx-3 items-center ${pathname === "/profile" ? "opacity-100" : "opacity-50"}`}
-            onPress={() => router.push("/profile")}
-          >
-            <User size={20} color="#fff" />
-            {shouldShowButtonText && (
-              <Text className="text-xs text-white">Profile</Text>
-            )}
-          </TouchableOpacity>
-        </View>
-
-        {/* Action Buttons */}
-        <View className="flex-row">
-          <TouchableOpacity
-            className={`bg-purple-600 rounded-full ${shouldShowButtonText ? "px-4 py-2" : "p-2"} mr-2 flex-row items-center`}
-            onPress={() => router.push("/gallery?showSidebar=true")}
-          >
-            <Wand2 size={20} color="white" />
-            {shouldShowButtonText && (
-              <Text className="text-white font-medium ml-2">Generate</Text>
-            )}
-          </TouchableOpacity>
-
-          {isAuthenticated ? (
-            <TouchableOpacity className="bg-blue-500 rounded-full p-2">
-              <Plus size={20} color="white" />
-            </TouchableOpacity>
-          ) : (
+          <View className="flex-row">
             <TouchableOpacity
-              className="bg-blue-500 py-2 px-4 rounded-full"
-              onPress={() => setShowAuthModal(true)}
+              className={`bg-purple-600 rounded-full ${shouldShowButtonText ? "px-4 py-2" : "p-2"} mr-2 flex-row items-center`}
+              onPress={() => router.push("/gallery?showSidebar=true")}
             >
-              <Text className="text-white font-medium">Login</Text>
+              <Wand2 size={20} color="white" />
+              {shouldShowButtonText && (
+                <Text className="text-white font-medium ml-2">Generate</Text>
+              )}
             </TouchableOpacity>
-          )}
+
+            {isAuthenticated ? (
+              <TouchableOpacity
+                className="bg-blue-500 rounded-full p-2"
+                onPress={logout}
+              >
+                <Text className="text-white font-medium">Logout</Text>
+              </TouchableOpacity>
+            ) : (
+              <TouchableOpacity
+                className="bg-blue-500 py-2 px-4 rounded-full"
+                onPress={() => {
+                  console.log('Login button pressed');
+                  setShowAuthModal(true);
+                }}
+              >
+                <Text className="text-white font-medium">Login</Text>
+              </TouchableOpacity>
+            )}
+          </View>
         </View>
-      </View>
 
-      <View className="flex-1">
-        <Stack
-          screenOptions={({ route }) => ({
-            headerShown: false,
-          })}
-        >
-          <Stack.Screen name="index" options={{ headerShown: false }} />
-        </Stack>
-        <StatusBar style="auto" />
-      </View>
+        <View className="flex-1">
+          <Stack
+            screenOptions={({ route }) => ({
+              headerShown: false,
+            })}
+          >
+            <Stack.Screen name="index" options={{ headerShown: false }} />
+          </Stack>
+          <StatusBar style="auto" />
+        </View>
 
-      {/* Auth Modal */}
-      {showAuthModal && (
-        <AuthModal
-          isOpen={showAuthModal}
-          onClose={handleAuthModalClose}
-          onAuthSuccess={handleAuthSuccess}
-        />
-      )}
+        {/* Auth Modal */}
+        {showAuthModal && (
+          <AuthModal
+            isOpen={showAuthModal}
+            onClose={handleAuthModalClose}
+            onAuthSuccess={handleAuthSuccess}
+          />
+        )}
+      </View>
     </SafeAreaView>
   );
 }
 
 export default function RootLayout() {
-  const [loaded] = useFonts({
-    SpaceMono: require("../assets/fonts/SpaceMono-Regular.ttf"),
+  const [loaded, error] = useFonts({
+    // Add your custom fonts here if needed
   });
 
   useEffect(() => {
-    if (process.env.EXPO_PUBLIC_TEMPO && Platform.OS === "web") {
-      const { TempoDevtools } = require("tempo-devtools");
-      TempoDevtools.init();
-    }
-  }, []);
+    if (error) throw error;
+  }, [error]);
 
   useEffect(() => {
     if (loaded) {
@@ -185,7 +160,9 @@ export default function RootLayout() {
   return (
     <StoreProvider>
       <ThemeProvider value={DarkTheme}>
-        <RootLayoutNav />
+        <ProtectedRoute>
+          <RootLayoutNav />
+        </ProtectedRoute>
       </ThemeProvider>
     </StoreProvider>
   );

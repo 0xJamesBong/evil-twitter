@@ -1,93 +1,156 @@
-import { createStore } from "zustand/vanilla";
+import { create } from "zustand";
 import { supabase } from "../supabase/supabase";
+import { User as SupabaseUser } from "@supabase/supabase-js";
 
-export type AuthStates = {
-  user: any;
-  token: string | null;
+export type User = SupabaseUser;
+
+export type AuthState = {
+  user: User | null;
+  session: any | null;
   isAuthenticated: boolean;
-  loginError: string | null;
+  isLoading: boolean;
+  error: string | null;
 };
-
-export type AuthLoadingStates = {
-  isLoginLoading: boolean;
-  isLogoutLoading: boolean;
-  isRefreshLoading: boolean;
-};
-
-const defaultAuthStates: AuthStates = {
-  user: null,
-  token: null,
-  isAuthenticated: false,
-  loginError: null,
-};
-
-const defaultAuthLoadingStates: AuthLoadingStates = {
-  isLoginLoading: false,
-  isLogoutLoading: false,
-  isRefreshLoading: false,
-};
-
-export type AuthStoreStates = AuthStates & AuthLoadingStates;
 
 export type AuthActions = {
   login: (email: string, password: string) => Promise<void>;
+  signUp: (
+    email: string,
+    password: string
+  ) => Promise<{ success: boolean; error?: string }>;
   logout: () => Promise<void>;
-  refresh: () => Promise<void>;
+  resetPassword: (
+    email: string
+  ) => Promise<{ success: boolean; error?: string }>;
+  updateUser: (data: any) => Promise<{ success: boolean; error?: string }>;
+  refreshSession: () => Promise<void>;
 };
 
-export type AuthStore = AuthStoreStates & AuthActions;
+export const useAuthStore = create<AuthState & AuthActions>((set, get) => ({
+  user: null,
+  session: null,
+  isAuthenticated: false,
+  isLoading: false,
+  error: null,
 
-export const createAuthStore = () => {
-  return createStore<AuthStore>((set, get) => ({
-    ...defaultAuthStates,
-    ...defaultAuthLoadingStates,
+  login: async (email: string, password: string) => {
+    console.log("Auth store: Attempting login...");
+    set({ isLoading: true, error: null });
+    try {
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email,
+        password,
+      });
 
-    login: async (email, password) => {
-      set({ isLoginLoading: true, loginError: null });
-      try {
-        const { error } = await supabase.auth.signInWithPassword({ email, password });
-        if (error) throw error;
+      if (error) {
+        console.error("Auth store: Login error:", error);
+        throw error;
+      }
 
-        const { data } = await supabase.auth.getSession();
+      console.log("Auth store: Login successful", data);
+      set({
+        user: data.user,
+        session: data.session,
+        isAuthenticated: true,
+        isLoading: false,
+      });
+    } catch (error: any) {
+      console.error("Auth store: Login failed:", error);
+      set({ error: error.message, isLoading: false });
+      throw error;
+    }
+  },
+
+  signUp: async (email: string, password: string) => {
+    set({ isLoading: true, error: null });
+    try {
+      const { error } = await supabase.auth.signUp({
+        email,
+        password,
+      });
+
+      if (error) throw error;
+
+      set({ isLoading: false });
+      return { success: true };
+    } catch (error: any) {
+      set({ error: error.message, isLoading: false });
+      return { success: false, error: error.message };
+    }
+  },
+
+  logout: async () => {
+    set({ isLoading: true, error: null });
+    try {
+      const { error } = await supabase.auth.signOut();
+      if (error) throw error;
+
+      set({
+        user: null,
+        session: null,
+        isAuthenticated: false,
+        isLoading: false,
+      });
+    } catch (error: any) {
+      set({ error: error.message, isLoading: false });
+      throw error;
+    }
+  },
+
+  resetPassword: async (email: string) => {
+    set({ isLoading: true, error: null });
+    try {
+      const { error } = await supabase.auth.resetPasswordForEmail(email);
+      if (error) throw error;
+
+      set({ isLoading: false });
+      return { success: true };
+    } catch (error: any) {
+      set({ error: error.message, isLoading: false });
+      return { success: false, error: error.message };
+    }
+  },
+
+  updateUser: async (data: any) => {
+    set({ isLoading: true, error: null });
+    try {
+      const { error } = await supabase.auth.updateUser(data);
+      if (error) throw error;
+
+      set({ isLoading: false });
+      return { success: true };
+    } catch (error: any) {
+      set({ error: error.message, isLoading: false });
+      return { success: false, error: error.message };
+    }
+  },
+
+  refreshSession: async () => {
+    set({ isLoading: true, error: null });
+    try {
+      const {
+        data: { session },
+        error,
+      } = await supabase.auth.getSession();
+      if (error) throw error;
+
+      if (session) {
         set({
-          user: data.session?.user,
-          token: data.session?.access_token,
+          user: session.user,
+          session,
           isAuthenticated: true,
-          isLoginLoading: false,
+          isLoading: false,
         });
-      } catch (error: any) {
-        set({ loginError: error.message || "Login failed", isLoginLoading: false });
-      }
-    },
-
-    logout: async () => {
-      set({ isLogoutLoading: true });
-      try {
-        await supabase.auth.signOut();
+      } else {
         set({
-          ...defaultAuthStates,
-          isLogoutLoading: false,
+          user: null,
+          session: null,
+          isAuthenticated: false,
+          isLoading: false,
         });
-      } catch (error) {
-        console.error("Logout failed:", error);
-        set({ isLogoutLoading: false });
       }
-    },
-
-    refresh: async () => {
-      set({ isRefreshLoading: true });
-      try {
-        const { data } = await supabase.auth.getSession();
-        set({
-          user: data.session?.user,
-          token: data.session?.access_token,
-          isAuthenticated: !!data.session?.user,
-          isRefreshLoading: false,
-        });
-      } catch (error) {
-        console.error("Refresh session failed:", error);
-        set({ isRefreshLoading: false });
-      }
-    },
-  }));
-};
+    } catch (error: any) {
+      set({ error: error.message, isLoading: false });
+    }
+  },
+}));
