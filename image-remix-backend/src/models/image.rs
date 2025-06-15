@@ -28,3 +28,11 @@ pub struct Image {
                                      // pub views: Option<i32>,
                                      // pub is_public: Option<bool>,
 }
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct RemixMaterial {
+    pub id: Option<ObjectId>,
+    pub images: Vec<Image>,
+    pub prompt: String,
+    pub size: String,
+}
