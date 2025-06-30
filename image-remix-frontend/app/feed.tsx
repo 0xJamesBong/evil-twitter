@@ -119,17 +119,17 @@ export default function MainFeedScreen() {
       {/* Auth Modal */}
       {showAuthModal && (
         <AuthModal
-          isVisible={showAuthModal}
+          isOpen={showAuthModal}
           onClose={() => setShowAuthModal(false)}
-          onLogin={handleLogin}
+          onAuthSuccess={handleLogin}
         />
       )}
 
       {/* AI Chat Box */}
       {showChatBox && (
         <AIChatBox
-          isVisible={showChatBox}
-          onClose={() => setShowChatBox(false)}
+          isExpanded={showChatBox}
+          onToggleExpand={() => setShowChatBox(!showChatBox)}
         />
       )}
 
