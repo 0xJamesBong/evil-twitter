@@ -4,15 +4,38 @@ use futures::StreamExt;
 use mongodb::bson::DateTime;
 use mongodb::{Cursor, Database, bson::doc};
 use std::sync::Arc;
+use utoipa::OpenApi;
 
 pub struct AppState {
     pub db: Database,
 }
 
+/// Health check endpoint
+#[utoipa::path(
+    get,
+    path = "/ping",
+    tag = "health",
+    responses(
+        (status = 200, description = "Health check successful", body = String)
+    )
+)]
 pub async fn ping_handler() -> &'static str {
     "pong"
 }
 
+/// Create a new image
+#[utoipa::path(
+    post,
+    path = "/images",
+    tag = "images",
+    request_body(
+        content = NewImage,
+        description = "The image data to create"
+    ),
+    responses(
+        (status = 200, description = "Image created successfully", body = Image)
+    )
+)]
 pub async fn create_image(
     State(state): State<Arc<AppState>>,
     Json(new_image): Json<NewImage>,
@@ -48,7 +71,16 @@ pub async fn create_image(
 //     new_image
 // }
 
-pub async fn list_images(State(state): State<Arc<AppState>>) -> Json<Vec<Image>> {
+/// List all images
+#[utoipa::path(
+    get,
+    path = "/images",
+    tag = "images",
+    responses(
+        (status = 200, description = "List of images retrieved successfully", body = Vec<Image>)
+    )
+)]
+pub async fn get_images(State(state): State<Arc<AppState>>) -> Json<Vec<Image>> {
     let collection = state.db.collection::<Image>("images");
     let mut cursor = collection.find(doc! {}).await.unwrap();
     let mut images = Vec::new();
@@ -57,4 +89,5 @@ pub async fn list_images(State(state): State<Arc<AppState>>) -> Json<Vec<Image>>
     }
     Json(images)
 }
+
 // https://raw.githubusercontent.com/0xJamesBong/image-remix/refs/heads/main/image-remix-frontend/assets/pics/tom_holland_7.jpg?token=GHSAT0AAAAAADAVO7HJ7M47JH2GXGLELKFM2CODMKQ

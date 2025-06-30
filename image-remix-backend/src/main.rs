@@ -9,6 +9,9 @@ use dotenvy::dotenv;
 use mongodb::{Client, Database};
 
 use std::{net::SocketAddr, sync::Arc}; // adjust path
+use utoipa::OpenApi;
+use utoipa_axum::{router::OpenApiRouter, routes};
+use utoipa_swagger_ui::SwaggerUi;
 
 mod models;
 mod routes;
@@ -18,7 +21,34 @@ use routes::image::AppState;
 // async fn ping_handler() -> &'static str {
 //     "pong"
 // }
-use routes::image::{create_image, list_images, ping_handler};
+use routes::image::{create_image, get_images, ping_handler};
+
+/// API documentation
+#[derive(OpenApi)]
+#[openapi(
+    paths(
+        routes::image::ping_handler,
+        routes::image::create_image,
+        routes::image::get_images
+    ),
+    components(
+        schemas(
+            models::image::Image,
+            models::image::NewImage,
+            models::image::RemixMaterial
+        )
+    ),
+    tags(
+        (name = "health", description = "Health check endpoints"),
+        (name = "images", description = "Image management endpoints")
+    ),
+    info(
+        title = "Image Remix API",
+        version = "1.0.0",
+        description = "API for managing and remixing images"
+    )
+)]
+struct ApiDoc;
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
@@ -30,15 +60,22 @@ async fn main() -> anyhow::Result<()> {
 
     let shared_state = Arc::new(AppState { db });
 
-    let app = Router::new()
+    let (app, api) = OpenApiRouter::with_openapi(ApiDoc::openapi())
         .route("/ping", get(ping_handler))
-        .route("/images", post(create_image).get(list_images))
+        .route("/images", post(create_image).get(get_images))
+        .split_for_parts();
+
+    let app = app
+        .merge(SwaggerUi::new("/doc").url("/api-docs/openapi.json", api))
         .with_state(shared_state);
+
+    // let app = app.map_state(|_state: Arc<AppState>| ());
 
     let listener = tokio::net::TcpListener::bind("0.0.0.0:3000").await?;
     println!("🚀 Listening on http://0.0.0.0:3000");
+    println!("📚 Swagger UI available at http://0.0.0.0:3000/doc");
 
-    axum::serve(listener, app).await?;
+    axum::serve(listener, app.into_make_service()).await?;
 
     Ok(())
 }
