@@ -69,8 +69,6 @@ async fn main() -> anyhow::Result<()> {
         .merge(SwaggerUi::new("/doc").url("/api-docs/openapi.json", api))
         .with_state(shared_state);
 
-    // let app = app.map_state(|_state: Arc<AppState>| ());
-
     let listener = tokio::net::TcpListener::bind("0.0.0.0:3000").await?;
     println!("🚀 Listening on http://0.0.0.0:3000");
     println!("📚 Swagger UI available at http://0.0.0.0:3000/doc");

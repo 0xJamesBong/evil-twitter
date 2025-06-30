@@ -13,3 +13,7 @@ curl -X POST http://localhost:3000/images \
     "parent_id": null
   }'
 ```
+
+Make sure your shit is turned on and running.
+
+<!-- https://cloud.mongodb.com/v2/684e229e95a6f0430311c847#/overview -->
