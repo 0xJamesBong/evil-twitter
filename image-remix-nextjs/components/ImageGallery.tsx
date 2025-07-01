@@ -71,7 +71,23 @@ export function ImageGallery() {
                                 className="w-full h-48 object-cover"
                                 onError={(e) => {
                                     const target = e.target as HTMLImageElement;
-                                    target.src = '/pics/tom_holland_7.jpg';
+                                    const fallbackImages = [
+                                        '/pics/candy-1.jpg',
+                                        '/pics/candy-2.jpg',
+                                        '/pics/candy-3.jpg',
+                                        '/pics/candy-4.jpg',
+                                        '/pics/candy-5.jpg',
+                                        '/pics/candy-6.jpg',
+                                        '/pics/candy-7.jpg',
+                                        '/pics/candy-8.jpg',
+                                        '/pics/candy-9.jpg',
+                                        '/pics/candy-10.jpg',
+                                        '/pics/candy-11.jpg',
+                                        '/pics/candy-12.jpg',
+                                        '/pics/candy-13.jpg',
+                                    ];
+                                    const randomImage = fallbackImages[Math.floor(Math.random() * fallbackImages.length)];
+                                    target.src = randomImage;
                                 }}
                             />
                             <div className="p-4">
