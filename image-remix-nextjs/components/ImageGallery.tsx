@@ -12,6 +12,19 @@ export function ImageGallery() {
         fetchAllImages();
     }, []);
 
+    // Filter out images with invalid URLs that cause 404 errors
+    const validImages = images.filter(image => {
+        // Skip images with /pics/ URLs (old data that causes 404s)
+        if (image.url && image.url.startsWith('/pics/')) {
+            return false;
+        }
+        // Skip images with GitHub URLs that might be expired
+        if (image.url && image.url.includes('githubusercontent.com')) {
+            return false;
+        }
+        return true;
+    });
+
     if (isLoading) {
         return (
             <div className="p-4 bg-gray-800 rounded-lg m-4">
@@ -35,7 +48,7 @@ export function ImageGallery() {
         <div className="p-4 bg-gray-800 rounded-lg m-4">
             <div className="flex justify-between items-center mb-4">
                 <h3 className="text-white text-xl font-bold">
-                    Image Gallery ({images.length} images)
+                    Image Gallery ({validImages.length} images)
                 </h3>
                 <button
                     onClick={() => setShowUploader(!showUploader)}
@@ -51,7 +64,7 @@ export function ImageGallery() {
                 </div>
             )}
 
-            {images.length === 0 ? (
+            {validImages.length === 0 ? (
                 <div className="text-center py-8">
                     <p className="text-gray-400 text-lg">No images found</p>
                     <p className="text-gray-500 text-sm mt-2">
@@ -59,9 +72,8 @@ export function ImageGallery() {
                     </p>
                 </div>
             ) : (
-
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                    {images.map((image, index) => (
+                    {validImages.map((image, index) => (
                         <div
                             key={image.id || `image-${index}`}
                             className="bg-gray-700 rounded-lg overflow-hidden hover:shadow-lg transition-shadow"
@@ -70,26 +82,6 @@ export function ImageGallery() {
                                 src={image.url}
                                 alt={image.title || 'Image'}
                                 className="w-full h-48 object-cover"
-                                onError={(e) => {
-                                    const target = e.target as HTMLImageElement;
-                                    const fallbackImages = [
-                                        '/pics/candy-1.jpg',
-                                        '/pics/candy-2.jpg',
-                                        '/pics/candy-3.jpg',
-                                        '/pics/candy-4.jpg',
-                                        '/pics/candy-5.jpg',
-                                        '/pics/candy-6.jpg',
-                                        '/pics/candy-7.jpg',
-                                        '/pics/candy-8.jpg',
-                                        '/pics/candy-9.jpg',
-                                        '/pics/candy-10.jpg',
-                                        '/pics/candy-11.jpg',
-                                        '/pics/candy-12.jpg',
-                                        '/pics/candy-13.jpg',
-                                    ];
-                                    const randomImage = fallbackImages[Math.floor(Math.random() * fallbackImages.length)];
-                                    target.src = randomImage;
-                                }}
                             />
                             <div className="p-4">
                                 <h4 className="text-white font-semibold mb-2">

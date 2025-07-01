@@ -55,16 +55,18 @@ export default function HomePage() {
             <ImageGallery />
           </div>
         </div>
-      </main>
+      </main >
 
       {/* Auth Modal */}
-      {showAuthModal && (
-        <AuthModal
-          isOpen={showAuthModal}
-          onClose={() => setShowAuthModal(false)}
-          onAuthSuccess={handleLogin}
-        />
-      )}
-    </div>
+      {
+        showAuthModal && (
+          <AuthModal
+            isOpen={showAuthModal}
+            onClose={() => setShowAuthModal(false)}
+            onAuthSuccess={handleLogin}
+          />
+        )
+      }
+    </div >
   );
 }

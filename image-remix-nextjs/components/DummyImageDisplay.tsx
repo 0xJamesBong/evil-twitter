@@ -3,8 +3,8 @@
 import React from 'react';
 
 export function DummyImageDisplay() {
-    const imageUrl = "https://raw.githubusercontent.com/0xJamesBong/image-remix/refs/heads/main/stock-image/men/men.1.jpg?token=GHSAT0AAAAAADAVO7HJVCANPYOJIJBKWLGC2DEK3BA";
-
+    // Use a local image from the public directory instead of the problematic GitHub URL
+    const imageUrl = "/pics/candy-1.jpg";
 
     return (
         <div className="p-4 bg-gray-800 rounded-lg m-4">
@@ -12,14 +12,14 @@ export function DummyImageDisplay() {
             <div className="bg-gray-700 rounded-lg overflow-hidden">
                 <img
                     src={imageUrl}
-                    alt="Daniel Craig"
+                    alt="Sample Image"
                     className="w-full h-64 object-cover"
                 />
                 <div className="p-4">
-                    <h4 className="text-white font-semibold mb-2">Daniel Craig</h4>
-                    <p className="text-gray-300 text-sm">This is a test image from the backend</p>
+                    <h4 className="text-white font-semibold mb-2">Sample Image</h4>
+                    <p className="text-gray-300 text-sm">This is a test image from the public directory</p>
                     <div className="mt-2 text-xs text-gray-400">
-                        URL: {imageUrl.substring(0, 50)}...
+                        URL: {imageUrl}
                     </div>
                 </div>
             </div>

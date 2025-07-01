@@ -78,12 +78,12 @@ class ApiService {
           "Content-Type": "application/json",
         },
       });
-
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
       }
       console.log("getImages response", response);
       return await response.json();
+      return [];
     } catch (error) {
       console.error("Error fetching images:", error);
       throw error;

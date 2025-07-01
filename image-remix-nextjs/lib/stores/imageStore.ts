@@ -122,12 +122,10 @@ export const useImageStore = create<ImageState & ImageActions>((set, get) => ({
         url: updates.url,
         uploader: updates.user_id,
       };
-
       const backendImage = await apiService.updateImage(
         imageId,
         backendUpdates
       );
-
       // Convert backend response to frontend format
       const updatedImage: Image = {
         id: backendImage.id || "",
@@ -139,7 +137,6 @@ export const useImageStore = create<ImageState & ImageActions>((set, get) => ({
         created_at: backendImage.created_at,
         updated_at: backendImage.created_at,
       };
-
       // Update local state
       set((state) => ({
         images: state.images.map((img) =>
@@ -147,7 +144,6 @@ export const useImageStore = create<ImageState & ImageActions>((set, get) => ({
         ),
         isLoading: false,
       }));
-
       return { success: true };
     } catch (error: any) {
       set({ error: error.message, isLoading: false });
