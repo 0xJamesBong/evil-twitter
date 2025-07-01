@@ -1,9 +1,10 @@
 use axum::{
     Json, Router,
     extract::State,
-    routing::{get, post},
+    routing::{delete, get, post, put},
 };
 use dotenvy::dotenv;
+use tower_http::cors::{Any, CorsLayer};
 
 // use image_remix_api::{db::connect_to_db, models::image::Image};
 use mongodb::{Client, Database};
@@ -21,7 +22,7 @@ use routes::image::AppState;
 // async fn ping_handler() -> &'static str {
 //     "pong"
 // }
-use routes::image::{create_image, get_images, ping_handler};
+use routes::image::{create_image, delete_image, get_images, ping_handler, update_image};
 
 /// API documentation
 #[derive(OpenApi)]
@@ -29,7 +30,9 @@ use routes::image::{create_image, get_images, ping_handler};
     paths(
         routes::image::ping_handler,
         routes::image::create_image,
-        routes::image::get_images
+        routes::image::get_images,
+        routes::image::delete_image,
+        routes::image::update_image
     ),
     components(
         schemas(
@@ -60,14 +63,22 @@ async fn main() -> anyhow::Result<()> {
 
     let shared_state = Arc::new(AppState { db });
 
+    // Configure CORS
+    let cors = CorsLayer::new()
+        .allow_origin(Any)
+        .allow_methods(Any)
+        .allow_headers(Any);
+
     let (app, api) = OpenApiRouter::with_openapi(ApiDoc::openapi())
         .route("/ping", get(ping_handler))
         .route("/images", post(create_image).get(get_images))
+        .route("/images/{id}", delete(delete_image).put(update_image))
         .split_for_parts();
 
     let app = app
         .merge(SwaggerUi::new("/doc").url("/api-docs/openapi.json", api))
-        .with_state(shared_state);
+        .with_state(shared_state)
+        .layer(cors);
 
     let listener = tokio::net::TcpListener::bind("0.0.0.0:3000").await?;
     println!("🚀 Listening on http://0.0.0.0:3000");
