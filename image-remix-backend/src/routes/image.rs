@@ -1,9 +1,10 @@
 use crate::models::image::{Image, NewImage};
 use axum::{
     Json,
-    extract::{Path, State},
+    extract::{Multipart, Path, State},
     http::StatusCode,
 };
+use base64;
 use futures::StreamExt;
 use mongodb::bson::DateTime;
 use mongodb::{Cursor, Database, bson::doc};
@@ -33,8 +34,8 @@ pub async fn ping_handler() -> &'static str {
     path = "/images",
     tag = "images",
     request_body(
-        content = NewImage,
-        description = "The image data to create"
+        content = String,
+        description = "Multipart form data with file and metadata"
     ),
     responses(
         (status = 200, description = "Image created successfully", body = Image)
@@ -42,24 +43,74 @@ pub async fn ping_handler() -> &'static str {
 )]
 pub async fn create_image(
     State(state): State<Arc<AppState>>,
-    Json(new_image): Json<NewImage>,
-) -> Json<Image> {
+    mut multipart: Multipart,
+) -> Result<Json<Image>, StatusCode> {
     let collection = state.db.collection::<Image>("images");
+
+    let mut uploader = String::new();
+    let mut title = String::new();
+    let mut description = String::new();
+    let mut tags = String::new();
+    let mut file_data = Vec::new();
+    let mut file_name = String::new();
+
+    while let Some(field) = multipart
+        .next_field()
+        .await
+        .map_err(|_| StatusCode::BAD_REQUEST)?
+    {
+        let field_name = field.name().unwrap_or("").to_string();
+
+        match field_name.as_str() {
+            "file" => {
+                if let Some(name) = field.file_name() {
+                    file_name = name.to_string();
+                }
+                let data = field.bytes().await.map_err(|_| StatusCode::BAD_REQUEST)?;
+                file_data = data.to_vec();
+            }
+            "uploader" => {
+                uploader = field.text().await.map_err(|_| StatusCode::BAD_REQUEST)?;
+            }
+            "title" => {
+                title = field.text().await.unwrap_or_default();
+            }
+            "description" => {
+                description = field.text().await.unwrap_or_default();
+            }
+            "tags" => {
+                tags = field.text().await.unwrap_or_default();
+            }
+            _ => {}
+        }
+    }
+
+    if file_data.is_empty() || uploader.is_empty() {
+        return Err(StatusCode::BAD_REQUEST);
+    }
+
+    // For now, we'll store the file data as base64 in the URL field
+    // In a real implementation, you'd save this to a file system or cloud storage
+    let base64_data = base64::encode(&file_data);
+    let url = format!("data:image/jpeg;base64,{}", base64_data);
 
     let image = Image {
         id: None,
-        url: new_image.url,
-        uploader: new_image.uploader,
+        url,
+        uploader,
         created_at: DateTime::now(),
-        parent_id: new_image.parent_id,
+        parent_id: None,
     };
 
-    let insert_result = collection.insert_one(&image).await.unwrap();
+    let insert_result = collection
+        .insert_one(&image)
+        .await
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
     let mut saved_image = image;
     saved_image.id = Some(insert_result.inserted_id.as_object_id().unwrap());
 
     println!("saved_image: {:?}", saved_image);
-    Json(saved_image)
+    Ok(Json(saved_image))
 }
 
 // pub async fn create_image(

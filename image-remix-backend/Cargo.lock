@@ -1194,6 +1194,7 @@ dependencies = [
  "async-trait",
  "axum 0.8.4",
  "axum-extra",
+ "base64 0.21.7",
  "bson",
  "chrono",
  "derive_builder",

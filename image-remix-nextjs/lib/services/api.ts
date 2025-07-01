@@ -34,37 +34,29 @@ class ApiService {
     metadata: { title?: string; description?: string; tags?: string[] }
   ): Promise<BackendImage> {
     try {
-      // 1. Upload file to Supabase Storage first
-      const fileExt = file.name.split(".").pop();
-      const fileName = `${Math.random()}.${fileExt}`;
-      const filePath = `${fileName}`;
-
-      const { error: uploadError, data } = await supabase.storage
-        .from("images")
-        .upload(filePath, file);
-
-      if (uploadError) throw uploadError;
-
-      // 2. Get the public URL
-      const {
-        data: { publicUrl },
-      } = supabase.storage.from("images").getPublicUrl(filePath);
-
-      // 3. Get current user
+      // Get current user
       const {
         data: { user },
       } = await supabase.auth.getUser();
       if (!user) throw new Error("Not authenticated");
 
-      // 4. Send to backend
+      // Create FormData to send file directly to backend
+      const formData = new FormData();
+      formData.append("file", file);
+      formData.append("uploader", user.id);
+      if (metadata.title) formData.append("title", metadata.title);
+      if (metadata.description)
+        formData.append("description", metadata.description);
+      if (metadata.tags) formData.append("tags", JSON.stringify(metadata.tags));
+
+      // Send file directly to backend
       const response = await fetch(`${API_BASE_URL}/images`, {
         method: "POST",
-        headers: await this.getAuthHeaders(),
-        body: JSON.stringify({
-          url: publicUrl,
-          uploader: user.id,
-          parent_id: undefined,
-        } as NewImageRequest),
+        headers: {
+          // Don't set Content-Type, let browser set it with boundary for FormData
+          ...(await this.getAuthHeaders()),
+        },
+        body: formData,
       });
 
       if (!response.ok) {

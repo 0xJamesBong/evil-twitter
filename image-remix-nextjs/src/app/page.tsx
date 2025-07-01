@@ -6,6 +6,7 @@ import { UserStats } from '../../components/UserStats';
 import { ApiTest } from '../../components/ApiTest';
 import { ImageGallery } from '../../components/ImageGallery';
 import { AuthModal } from '../../components/AuthModal';
+import { DummyImageDisplay } from '../../components/DummyImageDisplay';
 import { useAuthStore } from '../../lib/stores/authStore';
 
 export default function HomePage() {
@@ -50,6 +51,7 @@ export default function HomePage() {
 
           {/* Main Content Area */}
           <div className="lg:col-span-3">
+            <DummyImageDisplay />
             <ImageGallery />
           </div>
         </div>
