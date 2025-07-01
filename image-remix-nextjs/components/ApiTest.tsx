@@ -6,15 +6,17 @@ import { apiService } from '../lib/services/api';
 export function ApiTest() {
     const [isLoading, setIsLoading] = useState(false);
     const [pingResult, setPingResult] = useState<string>('');
+    const [imagesResult, setImagesResult] = useState<string>('');
 
     const testPing = async () => {
         setIsLoading(true);
+        setPingResult('');
+        setImagesResult('');
         try {
             const result = await apiService.ping();
-            setPingResult(result);
-            alert(`Backend responded: ${result}`);
+            setPingResult(`Backend responded: ${result}`);
         } catch (error: any) {
-            alert(`Failed to ping backend: ${error.message}`);
+            setPingResult(`Failed to ping backend: ${error.message}`);
         } finally {
             setIsLoading(false);
         }
@@ -22,11 +24,13 @@ export function ApiTest() {
 
     const testGetImages = async () => {
         setIsLoading(true);
+        setPingResult('');
+        setImagesResult('');
         try {
             const images = await apiService.getImages();
-            alert(`Found ${images.length} images`);
+            setImagesResult(`Found ${images.length} images`);
         } catch (error: any) {
-            alert(`Failed to get images: ${error.message}`);
+            setImagesResult(`Failed to get images: ${error.message}`);
         } finally {
             setIsLoading(false);
         }
@@ -57,9 +61,19 @@ export function ApiTest() {
             </button>
 
             {pingResult && (
-                <p className="text-green-400 text-center">
-                    Last ping result: {pingResult}
-                </p>
+                <div className="mb-3 p-3 bg-gray-700 rounded-lg">
+                    <p className="text-green-400 text-sm">
+                        {pingResult}
+                    </p>
+                </div>
+            )}
+
+            {imagesResult && (
+                <div className="mb-3 p-3 bg-gray-700 rounded-lg">
+                    <p className="text-green-400 text-sm">
+                        {imagesResult}
+                    </p>
+                </div>
             )}
         </div>
     );

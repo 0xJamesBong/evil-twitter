@@ -1,5 +1,5 @@
 import { create } from "zustand";
-import { supabase } from "../supabase";
+
 import { apiService, BackendImage } from "../services/api";
 
 export type Image = {

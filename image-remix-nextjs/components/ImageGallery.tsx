@@ -10,7 +10,7 @@ export function ImageGallery() {
 
     useEffect(() => {
         fetchAllImages();
-    }, [fetchAllImages]);
+    }, []);
 
     if (isLoading) {
         return (
@@ -59,6 +59,7 @@ export function ImageGallery() {
                     </p>
                 </div>
             ) : (
+
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                     {images.map((image, index) => (
                         <div

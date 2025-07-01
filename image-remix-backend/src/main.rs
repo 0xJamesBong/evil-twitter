@@ -22,13 +22,14 @@ use routes::image::AppState;
 // async fn ping_handler() -> &'static str {
 //     "pong"
 // }
-use routes::image::{create_image, delete_image, get_images, ping_handler, update_image};
+use routes::image::{create_image, delete_image, get_images, update_image};
+use routes::ping::ping_handler;
 
 /// API documentation
 #[derive(OpenApi)]
 #[openapi(
     paths(
-        routes::image::ping_handler,
+        routes::ping::ping_handler,
         routes::image::create_image,
         routes::image::get_images,
         routes::image::delete_image,

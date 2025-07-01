@@ -11,7 +11,7 @@ use utoipa_axum::{router::OpenApiRouter, routes};
     )
 )]
 pub async fn ping_handler() -> Result<String, String> {
-    Ok("pong".to_string())
+    Ok("pongdongpong".to_string())
 }
 
 pub fn ping_routes() -> OpenApiRouter {

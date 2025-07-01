@@ -3,7 +3,7 @@
 import React from 'react';
 
 export function DummyImageDisplay() {
-    const imageUrl = "https://raw.githubusercontent.com/0xJamesBong/image-remix/main/stock-image/men/men.1.jpg";
+    const imageUrl = "https://raw.githubusercontent.com/0xJamesBong/image-remix/refs/heads/main/stock-image/men/men.1.jpg?token=GHSAT0AAAAAADAVO7HJVCANPYOJIJBKWLGC2DEK3BA";
 
 
     return (

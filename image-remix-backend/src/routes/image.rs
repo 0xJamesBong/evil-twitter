@@ -15,18 +15,18 @@ pub struct AppState {
     pub db: Database,
 }
 
-/// Health check endpoint
-#[utoipa::path(
-    get,
-    path = "/ping",
-    tag = "health",
-    responses(
-        (status = 200, description = "Health check successful", body = String)
-    )
-)]
-pub async fn ping_handler() -> &'static str {
-    "pong"
-}
+// /// Health check endpoint
+// #[utoipa::path(
+//     get,
+//     path = "/ping",
+//     tag = "health",
+//     responses(
+//         (status = 200, description = "Health check successful", body = String)
+//     )
+// )]
+// pub async fn ping_handler() -> &'static str {
+//     "pong"
+// }
 
 /// Create a new image
 #[utoipa::path(
