@@ -5,7 +5,7 @@ import * as SplashScreen from "expo-splash-screen";
 import { StatusBar } from "expo-status-bar";
 import { useEffect, useState, useCallback } from "react";
 import "react-native-reanimated";
-import "../global.css";
+// import "../global.css";
 import {
   Platform,
   View,
@@ -30,10 +30,12 @@ import { useAuthStore } from "../stores/authStore";
 // Prevent the splash screen from auto-hiding before asset loading is complete.
 SplashScreen.preventAutoHideAsync();
 
+
+
 function RootLayoutNav() {
   const router = useRouter();
   const pathname = usePathname();
-  const { isAuthenticated, logout } = useAuthStore();
+  const { isAuthenticated, logout, user } = useAuthStore();
   const [screenWidth, setScreenWidth] = useState(
     Dimensions.get("window").width,
   );
@@ -94,12 +96,19 @@ function RootLayoutNav() {
             </TouchableOpacity>
 
             {isAuthenticated ? (
-              <TouchableOpacity
-                className="bg-blue-500 rounded-full p-2"
-                onPress={logout}
-              >
-                <Text className="text-white font-medium">Logout</Text>
-              </TouchableOpacity>
+              <View className="flex-row items-center">
+                <View className="mr-3">
+                  <Text className="text-white text-sm">
+                    {user?.user_metadata?.full_name || user?.email?.split('@')[0] || 'User'}
+                  </Text>
+                </View>
+                <TouchableOpacity
+                  className="bg-red-500 rounded-full p-2"
+                  onPress={logout}
+                >
+                  <Text className="text-white font-medium text-sm">Logout</Text>
+                </TouchableOpacity>
+              </View>
             ) : (
               <TouchableOpacity
                 className="bg-blue-500 py-2 px-4 rounded-full"

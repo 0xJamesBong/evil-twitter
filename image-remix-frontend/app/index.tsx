@@ -8,6 +8,8 @@ import ImageGalleryWithAPI from "../components/gallery/ImageGalleryWithAPI";
 import AuthModal from "../components/auth/AuthModal";
 import AIChatBox from "../components/chat/AIChatBox";
 import { ApiTest } from "../components/ApiTest";
+import { UserProfile } from "../components/UserProfile";
+import { UserStats } from "../components/UserStats";
 
 export default function HomeScreen() {
   const router = useRouter();
@@ -26,6 +28,8 @@ export default function HomeScreen() {
       <View className="flex-1 bg-black">
         {/* Main Content */}
         <ScrollView className="flex-1">
+          <UserProfile />
+          <UserStats />
           <ApiTest />
           <View className="flex-1">
             <ImageGalleryWithAPI initialSidebarOpen={true} />
