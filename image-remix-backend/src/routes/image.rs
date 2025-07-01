@@ -1,5 +1,9 @@
 use crate::models::image::{Image, NewImage};
-use axum::{Json, extract::State};
+use axum::{
+    Json,
+    extract::{Path, State},
+    http::StatusCode,
+};
 use futures::StreamExt;
 use mongodb::bson::DateTime;
 use mongodb::{Cursor, Database, bson::doc};
@@ -88,6 +92,87 @@ pub async fn get_images(State(state): State<Arc<AppState>>) -> Json<Vec<Image>> 
         images.push(doc.unwrap());
     }
     Json(images)
+}
+
+/// Delete an image by ID
+#[utoipa::path(
+    delete,
+    path = "/images/{id}",
+    tag = "images",
+    params(
+        ("id" = String, Path, description = "Image ID")
+    ),
+    responses(
+        (status = 200, description = "Image deleted successfully"),
+        (status = 404, description = "Image not found")
+    )
+)]
+pub async fn delete_image(
+    State(state): State<Arc<AppState>>,
+    Path(id): Path<String>,
+) -> StatusCode {
+    let collection = state.db.collection::<Image>("images");
+
+    // Convert string ID to ObjectId
+    let object_id = match mongodb::bson::oid::ObjectId::parse_str(&id) {
+        Ok(oid) => oid,
+        Err(_) => return StatusCode::BAD_REQUEST,
+    };
+
+    let result = collection.delete_one(doc! { "_id": object_id }).await;
+
+    match result {
+        Ok(delete_result) if delete_result.deleted_count > 0 => StatusCode::OK,
+        Ok(_) => StatusCode::NOT_FOUND,
+        Err(_) => StatusCode::INTERNAL_SERVER_ERROR,
+    }
+}
+
+/// Update an image by ID
+#[utoipa::path(
+    put,
+    path = "/images/{id}",
+    tag = "images",
+    params(
+        ("id" = String, Path, description = "Image ID")
+    ),
+    request_body(
+        content = Image,
+        description = "The updated image data"
+    ),
+    responses(
+        (status = 200, description = "Image updated successfully", body = Image),
+        (status = 404, description = "Image not found")
+    )
+)]
+pub async fn update_image(
+    State(state): State<Arc<AppState>>,
+    Path(id): Path<String>,
+    Json(updates): Json<Image>,
+) -> Result<Json<Image>, StatusCode> {
+    let collection = state.db.collection::<Image>("images");
+
+    // Convert string ID to ObjectId
+    let object_id = match mongodb::bson::oid::ObjectId::parse_str(&id) {
+        Ok(oid) => oid,
+        Err(_) => return Err(StatusCode::BAD_REQUEST),
+    };
+
+    let result = collection
+        .find_one_and_update(
+            doc! { "_id": object_id },
+            doc! { "$set": {
+                "url": updates.url,
+                "uploader": updates.uploader,
+            }},
+        )
+        .await;
+
+    match result {
+        Ok(Some(updated_image)) => Ok(Json(updated_image)),
+        Ok(None) => Err(StatusCode::NOT_FOUND),
+        Err(_) => Err(StatusCode::INTERNAL_SERVER_ERROR),
+    }
 }
 
 // https://raw.githubusercontent.com/0xJamesBong/image-remix/refs/heads/main/image-remix-frontend/assets/pics/tom_holland_7.jpg?token=GHSAT0AAAAAADAVO7HJ7M47JH2GXGLELKFM2CODMKQ

@@ -9,7 +9,7 @@ import {
 import { Stack, useRouter } from "expo-router";
 import { Image } from "expo-image";
 import { MessageCircle, Image as ImageIcon, User } from "lucide-react-native";
-import ImageGallery from "../components/gallery/ImageGallery";
+import ImageGalleryWithAPI from "../components/gallery/ImageGalleryWithAPI";
 
 export default function GalleryScreen() {
   const router = useRouter();
@@ -22,7 +22,7 @@ export default function GalleryScreen() {
       {/* Header removed - now in _layout.tsx */}
 
       <View className="flex-1 bg-black">
-        <ImageGallery />
+        <ImageGalleryWithAPI />
       </View>
 
       {/* Bottom Navigation removed - now in _layout.tsx */}

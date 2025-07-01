@@ -1,5 +1,6 @@
 import { create } from "zustand";
 import { supabase } from "../supabase/supabase";
+import { apiService, BackendImage } from "../services/api";
 
 export type Image = {
   id: string;
@@ -23,7 +24,7 @@ type ImageActions = {
     file: File,
     metadata: { title?: string; description?: string; tags?: string[] }
   ) => Promise<{ success: boolean; error?: string; image?: Image }>;
-  fetchUserImages: () => Promise<void>;
+  fetchAllImages: () => Promise<void>;
   deleteImage: (
     imageId: string
   ) => Promise<{ success: boolean; error?: string }>;
@@ -41,40 +42,22 @@ export const useImageStore = create<ImageState & ImageActions>((set, get) => ({
   uploadImage: async (file, metadata) => {
     set({ isLoading: true, error: null });
     try {
-      // 1. Upload file to Supabase Storage
-      const fileExt = file.name.split(".").pop();
-      const fileName = `${Math.random()}.${fileExt}`;
-      const filePath = `${fileName}`;
+      // Use the backend API service
+      const backendImage = await apiService.uploadImage(file, metadata);
 
-      const { error: uploadError, data } = await supabase.storage
-        .from("images")
-        .upload(filePath, file);
+      // Convert backend image to frontend format
+      const image: Image = {
+        id: backendImage.id || "",
+        user_id: backendImage.uploader,
+        url: backendImage.url,
+        title: metadata.title,
+        description: metadata.description,
+        tags: metadata.tags || [],
+        created_at: backendImage.created_at,
+        updated_at: backendImage.created_at,
+      };
 
-      if (uploadError) throw uploadError;
-
-      // 2. Get the public URL
-      const {
-        data: { publicUrl },
-      } = supabase.storage.from("images").getPublicUrl(filePath);
-
-      // 3. Create image record in the database
-      const { data: image, error: dbError } = await supabase
-        .from("images")
-        .insert([
-          {
-            user_id: (await supabase.auth.getUser()).data.user?.id,
-            url: publicUrl,
-            title: metadata.title,
-            description: metadata.description,
-            tags: metadata.tags || [],
-          },
-        ])
-        .select()
-        .single();
-
-      if (dbError) throw dbError;
-
-      // 4. Update local state
+      // Update local state
       set((state) => ({
         images: [...state.images, image],
         isLoading: false,
@@ -87,19 +70,24 @@ export const useImageStore = create<ImageState & ImageActions>((set, get) => ({
     }
   },
 
-  fetchUserImages: async () => {
+  fetchAllImages: async () => {
     set({ isLoading: true, error: null });
     try {
-      const { data: user } = await supabase.auth.getUser();
-      if (!user.user) throw new Error("Not authenticated");
+      // Use the backend API service to get all images
+      const backendImages = await apiService.getImages();
+      console.log("backendImages", backendImages);
 
-      const { data: images, error } = await supabase
-        .from("images")
-        .select("*")
-        .eq("user_id", user.user.id)
-        .order("created_at", { ascending: false });
-
-      if (error) throw error;
+      // Convert backend images to frontend format
+      const images: Image[] = backendImages.map((backendImage) => ({
+        id: backendImage.id || "",
+        user_id: backendImage.uploader,
+        url: backendImage.url,
+        title: undefined,
+        description: undefined,
+        tags: [],
+        created_at: backendImage.created_at,
+        updated_at: backendImage.created_at,
+      }));
 
       set({ images, isLoading: false });
     } catch (error: any) {
@@ -110,34 +98,10 @@ export const useImageStore = create<ImageState & ImageActions>((set, get) => ({
   deleteImage: async (imageId: string) => {
     set({ isLoading: true, error: null });
     try {
-      // 1. Get the image to delete
-      const { data: image, error: fetchError } = await supabase
-        .from("images")
-        .select("*")
-        .eq("id", imageId)
-        .single();
+      // Use the backend API service
+      await apiService.deleteImage(imageId);
 
-      if (fetchError) throw fetchError;
-
-      // 2. Delete from storage
-      const filePath = image.url.split("/").pop();
-      if (filePath) {
-        const { error: storageError } = await supabase.storage
-          .from("images")
-          .remove([filePath]);
-
-        if (storageError) throw storageError;
-      }
-
-      // 3. Delete from database
-      const { error: dbError } = await supabase
-        .from("images")
-        .delete()
-        .eq("id", imageId);
-
-      if (dbError) throw dbError;
-
-      // 4. Update local state
+      // Update local state
       set((state) => ({
         images: state.images.filter((img) => img.id !== imageId),
         isLoading: false,
@@ -153,19 +117,33 @@ export const useImageStore = create<ImageState & ImageActions>((set, get) => ({
   updateImage: async (imageId: string, updates: Partial<Image>) => {
     set({ isLoading: true, error: null });
     try {
-      const { data: image, error } = await supabase
-        .from("images")
-        .update(updates)
-        .eq("id", imageId)
-        .select()
-        .single();
+      // Convert frontend updates to backend format
+      const backendUpdates: Partial<BackendImage> = {
+        url: updates.url,
+        uploader: updates.user_id,
+      };
 
-      if (error) throw error;
+      const backendImage = await apiService.updateImage(
+        imageId,
+        backendUpdates
+      );
+
+      // Convert backend response to frontend format
+      const updatedImage: Image = {
+        id: backendImage.id || "",
+        user_id: backendImage.uploader,
+        url: backendImage.url,
+        title: updates.title,
+        description: updates.description,
+        tags: updates.tags || [],
+        created_at: backendImage.created_at,
+        updated_at: backendImage.created_at,
+      };
 
       // Update local state
       set((state) => ({
         images: state.images.map((img) =>
-          img.id === imageId ? { ...img, ...image } : img
+          img.id === imageId ? updatedImage : img
         ),
         isLoading: false,
       }));

@@ -9,14 +9,13 @@ interface ImageGridProps {
 }
 
 export function ImageGrid({ onImagePress }: ImageGridProps) {
-    const { images, isLoading, error, fetchUserImages } = useImageStore();
+    const { images, isLoading, error, fetchAllImages } = useImageStore();
     const { isAuthenticated } = useAuthStore();
 
     useEffect(() => {
-        if (isAuthenticated) {
-            fetchUserImages();
-        }
-    }, [isAuthenticated]);
+        // Always fetch images, regardless of authentication status
+        fetchAllImages();
+    }, [fetchAllImages]);
 
     if (!isAuthenticated) {
         return (

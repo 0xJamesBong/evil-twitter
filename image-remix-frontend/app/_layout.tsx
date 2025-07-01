@@ -159,11 +159,11 @@ export default function RootLayout() {
 
   return (
     <StoreProvider>
-      <ThemeProvider value={DarkTheme}>
-        <ProtectedRoute>
-          <RootLayoutNav />
-        </ProtectedRoute>
-      </ThemeProvider>
+      {/* <ThemeProvider value={DarkTheme}> */}
+      <ProtectedRoute>
+        <RootLayoutNav />
+      </ProtectedRoute>
+      {/* </ThemeProvider> */}
     </StoreProvider>
   );
 }

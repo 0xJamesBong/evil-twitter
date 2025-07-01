@@ -1,11 +1,13 @@
 import React, { useState } from "react";
-import { View, SafeAreaView, StatusBar, TouchableOpacity } from "react-native";
+import { View, SafeAreaView, StatusBar, TouchableOpacity, ScrollView } from "react-native";
 import { useRouter } from "expo-router";
 import { MessageCircle } from "lucide-react-native";
 
 import ImageGallery from "../components/gallery/ImageGallery";
+import ImageGalleryWithAPI from "../components/gallery/ImageGalleryWithAPI";
 import AuthModal from "../components/auth/AuthModal";
 import AIChatBox from "../components/chat/AIChatBox";
+import { ApiTest } from "../components/ApiTest";
 
 export default function HomeScreen() {
   const router = useRouter();
@@ -23,9 +25,12 @@ export default function HomeScreen() {
       <StatusBar barStyle="light-content" />
       <View className="flex-1 bg-black">
         {/* Main Content */}
-        <View className="flex-1">
-          <ImageGallery initialSidebarOpen={true} />
-        </View>
+        <ScrollView className="flex-1">
+          <ApiTest />
+          <View className="flex-1">
+            <ImageGalleryWithAPI initialSidebarOpen={true} />
+          </View>
+        </ScrollView>
 
         {/* AI Chat Button */}
         {isAuthenticated && (
