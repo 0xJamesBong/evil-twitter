@@ -11,6 +11,10 @@ export type Image = {
   tags: string[];
   created_at: string;
   updated_at: string;
+  file_id?: string;
+  file_name?: string;
+  file_size?: number;
+  mime_type?: string;
 };
 
 type ImageState = {
@@ -34,6 +38,38 @@ type ImageActions = {
   ) => Promise<{ success: boolean; error?: string }>;
 };
 
+// Helper function to extract ID from backend response
+const extractId = (backendImage: BackendImage): string => {
+  if (backendImage._id?.$oid) {
+    return backendImage._id.$oid;
+  }
+  if (backendImage.id) {
+    return backendImage.id;
+  }
+  return "";
+};
+
+// Helper function to extract created_at from backend response
+const extractCreatedAt = (backendImage: BackendImage): string => {
+  if (typeof backendImage.created_at === "string") {
+    return backendImage.created_at;
+  }
+  if (backendImage.created_at?.$date?.$numberLong) {
+    return new Date(
+      parseInt(backendImage.created_at.$date.$numberLong)
+    ).toISOString();
+  }
+  return new Date().toISOString();
+};
+
+// Helper function to extract file_id from backend response
+const extractFileId = (backendImage: BackendImage): string | undefined => {
+  if (backendImage.file_id?.$oid) {
+    return backendImage.file_id.$oid;
+  }
+  return undefined;
+};
+
 export const useImageStore = create<ImageState & ImageActions>((set, get) => ({
   images: [],
   isLoading: false,
@@ -47,14 +83,18 @@ export const useImageStore = create<ImageState & ImageActions>((set, get) => ({
 
       // Convert backend image to frontend format
       const image: Image = {
-        id: backendImage.id || "",
+        id: extractId(backendImage),
         user_id: backendImage.uploader,
         url: backendImage.url,
-        title: metadata.title,
-        description: metadata.description,
-        tags: metadata.tags || [],
-        created_at: backendImage.created_at,
-        updated_at: backendImage.created_at,
+        title: backendImage.title || metadata.title,
+        description: backendImage.description || metadata.description,
+        tags: backendImage.tags || metadata.tags || [],
+        created_at: extractCreatedAt(backendImage),
+        updated_at: extractCreatedAt(backendImage),
+        file_id: extractFileId(backendImage),
+        file_name: backendImage.file_name,
+        file_size: backendImage.file_size,
+        mime_type: backendImage.mime_type,
       };
 
       // Update local state
@@ -79,14 +119,18 @@ export const useImageStore = create<ImageState & ImageActions>((set, get) => ({
 
       // Convert backend images to frontend format
       const images: Image[] = backendImages.map((backendImage) => ({
-        id: backendImage.id || "",
+        id: extractId(backendImage),
         user_id: backendImage.uploader,
         url: backendImage.url,
-        title: undefined,
-        description: undefined,
-        tags: [],
-        created_at: backendImage.created_at,
-        updated_at: backendImage.created_at,
+        title: backendImage.title,
+        description: backendImage.description,
+        tags: backendImage.tags || [],
+        created_at: extractCreatedAt(backendImage),
+        updated_at: extractCreatedAt(backendImage),
+        file_id: extractFileId(backendImage),
+        file_name: backendImage.file_name,
+        file_size: backendImage.file_size,
+        mime_type: backendImage.mime_type,
       }));
 
       set({ images, isLoading: false });
@@ -119,8 +163,9 @@ export const useImageStore = create<ImageState & ImageActions>((set, get) => ({
     try {
       // Convert frontend updates to backend format
       const backendUpdates: Partial<BackendImage> = {
-        url: updates.url,
-        uploader: updates.user_id,
+        title: updates.title,
+        description: updates.description,
+        tags: updates.tags,
       };
       const backendImage = await apiService.updateImage(
         imageId,
@@ -128,14 +173,18 @@ export const useImageStore = create<ImageState & ImageActions>((set, get) => ({
       );
       // Convert backend response to frontend format
       const updatedImage: Image = {
-        id: backendImage.id || "",
+        id: extractId(backendImage),
         user_id: backendImage.uploader,
         url: backendImage.url,
-        title: updates.title,
-        description: updates.description,
-        tags: updates.tags || [],
-        created_at: backendImage.created_at,
-        updated_at: backendImage.created_at,
+        title: backendImage.title,
+        description: backendImage.description,
+        tags: backendImage.tags || [],
+        created_at: extractCreatedAt(backendImage),
+        updated_at: extractCreatedAt(backendImage),
+        file_id: extractFileId(backendImage),
+        file_name: backendImage.file_name,
+        file_size: backendImage.file_size,
+        mime_type: backendImage.mime_type,
       };
       // Update local state
       set((state) => ({

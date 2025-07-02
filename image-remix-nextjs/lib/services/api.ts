@@ -3,11 +3,25 @@ import { supabase } from "../supabase";
 const API_BASE_URL = "http://localhost:3000"; // Update this to your backend URL
 
 export interface BackendImage {
-  id?: string;
+  _id?: { $oid: string };
+  id?: string; // For backward compatibility
   url: string;
   uploader: string;
-  created_at: string;
-  parent_id?: string;
+  created_at: { $date: { $numberLong: string } } | string;
+  parent_id?: { $oid: string };
+  title?: string;
+  description?: string;
+  tags?: string[];
+  file_id?: { $oid: string };
+  file_name?: string;
+  file_size?: number;
+  mime_type?: string;
+  ai_processed?: boolean;
+  ai_model_version?: string;
+  ai_processing_status?: string;
+  ai_features?: string[];
+  remix_count?: number;
+  original_image_id?: { $oid: string };
 }
 
 export interface NewImageRequest {
@@ -17,12 +31,12 @@ export interface NewImageRequest {
 }
 
 class ApiService {
-  private async getAuthHeaders() {
+  private async getAuthHeaders(contentType: string = "application/json") {
     const {
       data: { session },
     } = await supabase.auth.getSession();
     return {
-      "Content-Type": "application/json",
+      "Content-Type": contentType,
       ...(session?.access_token && {
         Authorization: `Bearer ${session.access_token}`,
       }),
@@ -40,6 +54,11 @@ class ApiService {
       } = await supabase.auth.getUser();
       if (!user) throw new Error("Not authenticated");
 
+      // Get session for auth token
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+
       // Create FormData to send file directly to backend
       const formData = new FormData();
       formData.append("file", file);
@@ -47,20 +66,26 @@ class ApiService {
       if (metadata.title) formData.append("title", metadata.title);
       if (metadata.description)
         formData.append("description", metadata.description);
-      if (metadata.tags) formData.append("tags", JSON.stringify(metadata.tags));
+      if (metadata.tags) formData.append("tags", metadata.tags.join(","));
 
       // Send file directly to backend
       const response = await fetch(`${API_BASE_URL}/images`, {
         method: "POST",
         headers: {
           // Don't set Content-Type, let browser set it with boundary for FormData
-          ...(await this.getAuthHeaders()),
+          // Only include auth headers if needed
+          ...(session?.access_token && {
+            Authorization: `Bearer ${session.access_token}`,
+          }),
         },
         body: formData,
       });
 
       if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
+        const errorText = await response.text();
+        throw new Error(
+          `HTTP error! status: ${response.status}, message: ${errorText}`
+        );
       }
 
       return await response.json();
@@ -83,7 +108,6 @@ class ApiService {
       }
       console.log("getImages response", response);
       return await response.json();
-      return [];
     } catch (error) {
       console.error("Error fetching images:", error);
       throw error;
