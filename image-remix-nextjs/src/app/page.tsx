@@ -5,6 +5,7 @@ import { UserProfile } from '../../components/UserProfile';
 import { UserStats } from '../../components/UserStats';
 import { ApiTest } from '../../components/ApiTest';
 import { ImageGallery } from '../../components/ImageGallery';
+import { ImageRemixer } from '../../components/ImageRemixer';
 import { AuthModal } from '../../components/AuthModal';
 import { DummyImageDisplay } from '../../components/DummyImageDisplay';
 import { useAuthStore } from '../../lib/stores/authStore';
@@ -50,7 +51,8 @@ export default function HomePage() {
           </div>
 
           {/* Main Content Area */}
-          <div className="lg:col-span-3">
+          <div className="lg:col-span-3 space-y-8">
+            <ImageRemixer />
             <DummyImageDisplay />
             <ImageGallery />
           </div>
