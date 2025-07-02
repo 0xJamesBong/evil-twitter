@@ -28,6 +28,14 @@ type ImageActions = {
     file: File,
     metadata: { title?: string; description?: string; tags?: string[] }
   ) => Promise<{ success: boolean; error?: string; image?: Image }>;
+  uploadMultipleImages: (
+    files: File[],
+    metadata: { title?: string; description?: string; tags?: string[] }
+  ) => Promise<{
+    success: boolean;
+    error?: string;
+    results: Array<{ success: boolean; error?: string; image?: Image }>;
+  }>;
   fetchAllImages: () => Promise<void>;
   deleteImage: (
     imageId: string
@@ -36,6 +44,7 @@ type ImageActions = {
     imageId: string,
     updates: Partial<Image>
   ) => Promise<{ success: boolean; error?: string }>;
+  refreshImages: () => Promise<void>;
 };
 
 // Helper function to extract ID from backend response
@@ -107,6 +116,26 @@ export const useImageStore = create<ImageState & ImageActions>((set, get) => ({
     } catch (error: any) {
       set({ error: error.message, isLoading: false });
       return { success: false, error: error.message };
+    }
+  },
+
+  uploadMultipleImages: async (files, metadata) => {
+    set({ isLoading: true, error: null });
+    try {
+      const results: Array<{
+        success: boolean;
+        error?: string;
+        image?: Image;
+      }> = [];
+      for (const file of files) {
+        const result = await get().uploadImage(file, metadata);
+        results.push(result);
+      }
+      set({ isLoading: false });
+      return { success: true, results };
+    } catch (error: any) {
+      set({ error: error.message, isLoading: false });
+      return { success: false, error: error.message, results: [] };
     }
   },
 
@@ -198,5 +227,9 @@ export const useImageStore = create<ImageState & ImageActions>((set, get) => ({
       set({ error: error.message, isLoading: false });
       return { success: false, error: error.message };
     }
+  },
+
+  refreshImages: async () => {
+    await get().fetchAllImages();
   },
 }));
