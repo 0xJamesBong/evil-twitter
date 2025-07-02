@@ -19,11 +19,15 @@ mod routes;
 mod services;
 
 use routes::image::AppState;
+use services::ai_processor::AiProcessorService;
 
 // async fn ping_handler() -> &'static str {
 //     "pong"
 // }
-use routes::image::{create_image, delete_image, download_image_file, get_images, update_image};
+use routes::image::{
+    apply_style_transfer, create_image, delete_image, download_image_file,
+    get_ai_processing_status, get_images, process_image_with_ai, update_image,
+};
 use routes::ping::ping_handler;
 
 /// API documentation
@@ -35,7 +39,10 @@ use routes::ping::ping_handler;
         routes::image::get_images,
         routes::image::delete_image,
         routes::image::update_image,
-        routes::image::download_image_file
+        routes::image::download_image_file,
+        routes::image::process_image_with_ai,
+        routes::image::get_ai_processing_status,
+        routes::image::apply_style_transfer
     ),
     components(
         schemas(
@@ -66,7 +73,12 @@ async fn main() -> anyhow::Result<()> {
     let client = Client::with_uri_str(&mongo_uri).await?;
     let db = client.database(&mongo_db);
 
-    let shared_state = Arc::new(AppState { db });
+    // Initialize AI processor service
+    let python_service_url =
+        std::env::var("PYTHON_SERVICE_URL").unwrap_or_else(|_| "http://localhost:8000".to_string());
+    let ai_processor = Arc::new(AiProcessorService::new(python_service_url));
+
+    let shared_state = Arc::new(AppState { db, ai_processor });
 
     // Configure CORS
     let cors = CorsLayer::new()
@@ -79,6 +91,9 @@ async fn main() -> anyhow::Result<()> {
         .route("/images", post(create_image).get(get_images))
         .route("/images/{id}", delete(delete_image).put(update_image))
         .route("/images/{id}/file", get(download_image_file))
+        .route("/images/{id}/process", post(process_image_with_ai))
+        .route("/images/{id}/process/status", get(get_ai_processing_status))
+        .route("/images/{id}/style-transfer", post(apply_style_transfer))
         .split_for_parts();
 
     let app = app
