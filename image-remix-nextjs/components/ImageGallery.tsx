@@ -8,10 +8,11 @@ import { ImageUploader } from './ImageUploader';
 type GalleryMode = 'all' | 'my';
 
 export function ImageGallery() {
-    const { images, fetchAllImages, fetchUserImages, isLoading, error } = useImageStore();
+    const { images, fetchAllImages, fetchUserImages, deleteImage, isLoading, error } = useImageStore();
     const { user, isAuthenticated } = useAuthStore();
     const [showUploader, setShowUploader] = useState(false);
     const [galleryMode, setGalleryMode] = useState<GalleryMode>('all');
+    const [deletingImageId, setDeletingImageId] = useState<string | null>(null);
 
     useEffect(() => {
         if (galleryMode === 'my' && user) {
@@ -25,6 +26,35 @@ export function ImageGallery() {
     const filteredImages = galleryMode === 'my' && user
         ? images.filter(image => image.user_id === user.id)
         : images;
+
+    const handleDeleteImage = async (imageId: string) => {
+        if (!confirm('Are you sure you want to delete this image? This action cannot be undone.')) {
+            return;
+        }
+
+        setDeletingImageId(imageId);
+        try {
+            const result = await deleteImage(imageId);
+            if (result.success) {
+                // Refresh the images after successful deletion
+                if (galleryMode === 'my' && user) {
+                    fetchUserImages(user.id);
+                } else {
+                    fetchAllImages();
+                }
+            } else {
+                alert(`Failed to delete image: ${result.error}`);
+            }
+        } catch (error) {
+            alert('An error occurred while deleting the image');
+        } finally {
+            setDeletingImageId(null);
+        }
+    };
+
+    const canDeleteImage = (imageUserId: string) => {
+        return isAuthenticated && user && imageUserId === user.id;
+    };
 
     const fallbackImages = () => {
         const images = [
@@ -145,9 +175,25 @@ export function ImageGallery() {
                                 }}
                             />
                             <div className="p-4">
-                                <h4 className="text-white font-semibold mb-2">
-                                    {image.title || 'Untitled'}
-                                </h4>
+                                <div className="flex justify-between items-start mb-2">
+                                    <h4 className="text-white font-semibold">
+                                        {image.title || 'Untitled'}
+                                    </h4>
+                                    {canDeleteImage(image.user_id) && (
+                                        <button
+                                            onClick={() => handleDeleteImage(image.id)}
+                                            disabled={deletingImageId === image.id}
+                                            className="bg-red-500 hover:bg-red-600 disabled:bg-red-700 text-white text-xs px-2 py-1 rounded transition-colors"
+                                            title="Delete image"
+                                        >
+                                            {deletingImageId === image.id ? (
+                                                <div className="animate-spin rounded-full h-3 w-3 border-b border-white"></div>
+                                            ) : (
+                                                '🗑️'
+                                            )}
+                                        </button>
+                                    )}
+                                </div>
                                 {image.description && (
                                     <p className="text-gray-300 text-sm mb-2">
                                         {image.description}
