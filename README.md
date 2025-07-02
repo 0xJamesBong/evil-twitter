@@ -1,6 +1,6 @@
 # Image Remix Application
 
-A full-stack AI image remixing application built with Rust, Python, and Next.js. Upload images and transform them using AI-powered Stable Diffusion.
+A full-stack AI image remixing application built with Rust, Python, and Next.js. Upload images and transform them using AI-powered Stable Diffusion with multiple model options.
 
 ## 🏗️ Architecture
 
@@ -9,6 +9,37 @@ A full-stack AI image remixing application built with Rust, Python, and Next.js.
 - **AI Service**: Python with FastAPI and Stable Diffusion
 - **Database**: MongoDB for image storage and metadata
 
+## 🤖 Available AI Models
+
+The application supports multiple Stable Diffusion models for different artistic styles:
+
+### **General Models**
+
+- **Stable Diffusion v1.5** - Classic model for general transformations
+- **Stable Diffusion v2.1** - Improved version with better quality
+- **Deliberate v2** - Controlled transformations with high quality
+
+### **Artistic Models**
+
+- **Openjourney** - Midjourney-style artistic transformations
+- **Dreamlike Diffusion** - Dreamlike and surreal artistic style
+
+### **Anime Models**
+
+- **Anything v3** - Anime and manga style transformations
+- **Counterfeit v3** - High-quality anime style with detail
+
+### **Realistic Models**
+
+- **Realistic Vision v5** - Highly realistic photorealistic transformations
+
+Each model has:
+
+- Custom default parameters
+- Example prompts
+- Category-specific tags
+- Optimized parameter ranges
+
 ## 📁 Project Structure
 
 ```
@@ -16,6 +47,9 @@ image-remix/
 ├── image-remix-nextjs/     # Next.js frontend
 ├── image-remix-backend/    # Rust backend API
 ├── ai-remix-service/       # Python AI service
+│   ├── main.py            # FastAPI application
+│   ├── models_config.py   # Model configurations
+│   └── requirements.txt   # Python dependencies
 ├── backend/                # Legacy backend (not used)
 └── stock-image/           # Sample images for testing
 ```
@@ -123,21 +157,40 @@ Open your browser and navigate to `http://localhost:3001`
 
 ### 2. Upload and Remix Images
 
-1. **Upload an image** using the file picker in the AI Image Remixer section
-2. **Enter a prompt** describing how you want to transform the image
-3. **Adjust parameters**:
+1. **Select an AI Model** from the dropdown menu based on your desired style
+2. **Upload an image** using the file picker in the AI Image Remixer section
+3. **Enter a prompt** describing how you want to transform the image, or click an example prompt
+4. **Adjust parameters**:
    - **Strength** (0.1-1.0): How much to transform (subtle to dramatic)
    - **Guidance Scale** (1-20): How closely to follow the prompt
-4. **Click "Remix Image"** and wait for processing
-5. **Download your result** when complete
+5. **Click "Remix Image"** and wait for processing
+6. **Download your result** when complete
 
-### 3. Example Prompts
+### 3. Model-Specific Prompts
+
+#### **General Models**
 
 - "Turn this into a watercolor painting"
 - "Make it look like a vintage photograph"
 - "Transform into a cyberpunk style"
-- "Convert to anime art style"
-- "Make it look like an oil painting"
+
+#### **Artistic Models**
+
+- "Transform into a dreamy fantasy landscape"
+- "Make it look like a concept art piece"
+- "Convert to a magical illustration"
+
+#### **Anime Models**
+
+- "Convert to anime style"
+- "Transform into a manga illustration"
+- "Make it look like a Studio Ghibli scene"
+
+#### **Realistic Models**
+
+- "Make it look like a professional studio photo"
+- "Transform into a hyperrealistic painting"
+- "Convert to a high-resolution photograph"
 
 ## 🔍 API Endpoints
 
@@ -153,8 +206,10 @@ Open your browser and navigate to `http://localhost:3001`
 ### Python AI Service (Port 8000)
 
 - `GET /health` - Health check
-- `POST /remix` - Remix uploaded image
-- `POST /remix-url` - Remix image from URL
+- `GET /models` - Get list of available models
+- `GET /models/{model_id}` - Get specific model information
+- `POST /remix` - Remix uploaded image with model selection
+- `POST /remix-url` - Remix image from URL with model selection
 - `GET /results/{filename}` - Get remixed image
 
 ## 🛠️ Development
@@ -221,13 +276,19 @@ gunicorn main:app -w 4 -k uvicorn.workers.UvicornWorker --bind 0.0.0.0:8000
    pip install -r requirements.txt
    ```
 
-3. **MongoDB connection issues**
+3. **Model loading issues**
+
+   - Models are downloaded on first use (may take time)
+   - Check internet connection for model downloads
+   - Ensure sufficient disk space for model storage
+
+4. **MongoDB connection issues**
 
    - Ensure MongoDB is running
    - Check connection string in backend configuration
    - Verify network access
 
-4. **CORS issues**
+5. **CORS issues**
    - Check that all services are running on correct ports
    - Verify CORS configuration in backend
 
@@ -238,6 +299,10 @@ gunicorn main:app -w 4 -k uvicorn.workers.UvicornWorker --bind 0.0.0.0:8000
 curl http://localhost:3000/ping
 curl http://localhost:8000/health
 curl http://localhost:3001
+
+# Test model endpoints
+curl http://localhost:8000/models
+curl http://localhost:8000/models/stable-diffusion-v1-5
 ```
 
 ## 📦 Dependencies

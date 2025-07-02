@@ -35,12 +35,35 @@ export interface RemixRequest {
   prompt: string;
   strength?: number;
   guidance_scale?: number;
+  model_id?: string;
 }
 
 export interface RemixResponse {
   success: boolean;
   result_url?: string;
   error?: string;
+  model_used?: string;
+}
+
+export interface ModelInfo {
+  id: string;
+  name: string;
+  description: string;
+  category: string;
+  tags: string[];
+  example_prompts: string[];
+  default_strength: number;
+  default_guidance_scale: number;
+  max_strength: number;
+  min_strength: number;
+  max_guidance_scale: number;
+  min_guidance_scale: number;
+  loaded?: boolean;
+}
+
+export interface ModelsResponse {
+  models: ModelInfo[];
+  categories: Record<string, ModelInfo[]>;
 }
 
 class ApiService {
@@ -196,11 +219,38 @@ class ApiService {
     }
   }
 
+  async getModels(): Promise<ModelsResponse> {
+    try {
+      const response = await fetch(`${AI_SERVICE_URL}/models`);
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+      return await response.json();
+    } catch (error) {
+      console.error("Error fetching models:", error);
+      throw error;
+    }
+  }
+
+  async getModelInfo(modelId: string): Promise<ModelInfo> {
+    try {
+      const response = await fetch(`${AI_SERVICE_URL}/models/${modelId}`);
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+      return await response.json();
+    } catch (error) {
+      console.error("Error fetching model info:", error);
+      throw error;
+    }
+  }
+
   async remixImage(
     imageUrl: string,
     prompt: string,
     strength: number = 0.6,
-    guidance_scale: number = 7.5
+    guidance_scale: number = 7.5,
+    modelId: string = "stable-diffusion-v1-5"
   ): Promise<RemixResponse> {
     try {
       // Call the Rust backend's remix endpoint
@@ -214,6 +264,7 @@ class ApiService {
           prompt,
           strength,
           guidance_scale,
+          model_id: modelId,
         }),
       });
 
@@ -235,7 +286,8 @@ class ApiService {
     file: File,
     prompt: string,
     strength: number = 0.6,
-    guidance_scale: number = 7.5
+    guidance_scale: number = 7.5,
+    modelId: string = "stable-diffusion-v1-5"
   ): Promise<RemixResponse> {
     try {
       // Call the Python AI service directly
@@ -244,6 +296,7 @@ class ApiService {
       formData.append("prompt", prompt);
       formData.append("strength", strength.toString());
       formData.append("guidance_scale", guidance_scale.toString());
+      formData.append("model_id", modelId);
 
       const response = await fetch(`${AI_SERVICE_URL}/remix`, {
         method: "POST",
