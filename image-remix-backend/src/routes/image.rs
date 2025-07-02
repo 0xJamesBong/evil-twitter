@@ -1,5 +1,5 @@
 use crate::models::image::{Image, NewImage};
-use crate::services::ai_processor::{AiProcessingRequest, AiProcessorService};
+use crate::services::ai_remix::AiRemixService;
 use crate::services::gridfs_storage::GridFSStorageService;
 use axum::{
     Json,
@@ -17,7 +17,7 @@ use utoipa::OpenApi;
 
 pub struct AppState {
     pub db: Database,
-    pub ai_processor: Arc<AiProcessorService>,
+    pub ai_remix: Arc<AiRemixService>,
 }
 
 // /// Health check endpoint
@@ -340,158 +340,29 @@ pub async fn update_image(
     }
 }
 
-// https://raw.githubusercontent.com/0xJamesBong/image-remix/refs/heads/main/image-remix-frontend/assets/pics/tom_holland_7.jpg?token=GHSAT0AAAAAADAVO7HJ7M47JH2GXGLELKFM2CODMKQ
-
-#[derive(Deserialize, utoipa::ToSchema)]
-pub struct AiProcessingQuery {
-    processing_type: String,
-    style_preset: Option<String>,
-    parameters: Option<serde_json::Value>,
-}
-
-/// Process an image with AI
+/// Remix an image with AI
 #[utoipa::path(
     post,
-    path = "/images/{id}/process",
-    tag = "images",
-    params(
-        ("id" = String, Path, description = "Image ID")
-    ),
-    request_body(
-        content = AiProcessingQuery,
-        description = "AI processing parameters"
-    ),
-    responses(
-        (status = 200, description = "AI processing started successfully"),
-        (status = 404, description = "Image not found"),
-        (status = 500, description = "AI processing failed")
-    )
-)]
-pub async fn process_image_with_ai(
-    State(state): State<Arc<AppState>>,
-    Path(id): Path<String>,
-    Json(query): Json<AiProcessingQuery>,
-) -> Result<Json<serde_json::Value>, StatusCode> {
-    let collection = state.db.collection::<Image>("images");
-
-    // Convert string ID to ObjectId
-    let object_id = match mongodb::bson::oid::ObjectId::parse_str(&id) {
-        Ok(oid) => oid,
-        Err(_) => return Err(StatusCode::BAD_REQUEST),
-    };
-
-    // Get the image
-    let image = match collection.find_one(doc! { "_id": object_id }).await {
-        Ok(img) => img,
-        Err(_) => return Err(StatusCode::INTERNAL_SERVER_ERROR),
-    };
-
-    let image = match image {
-        Some(img) => img,
-        None => return Err(StatusCode::NOT_FOUND),
-    };
-
-    // Process with AI
-    let result = match state
-        .ai_processor
-        .process_image(
-            &image,
-            &query.processing_type,
-            query.parameters,
-            query.style_preset,
-        )
-        .await
-    {
-        Ok(result) => result,
-        Err(_) => return Err(StatusCode::INTERNAL_SERVER_ERROR),
-    };
-
-    // Update image status
-    let _ = collection
-        .update_one(
-            doc! { "_id": object_id },
-            doc! { "$set": {
-                "ai_processing_status": "processing",
-                "ai_model_version": "v1.0"
-            }},
-        )
-        .await;
-
-    Ok(Json(serde_json::json!({
-        "success": result.success,
-        "processing_id": result.processing_id,
-        "status": "processing"
-    })))
-}
-
-/// Get AI processing status
-#[utoipa::path(
-    get,
-    path = "/images/{id}/process/status",
-    tag = "images",
-    params(
-        ("id" = String, Path, description = "Image ID")
-    ),
-    responses(
-        (status = 200, description = "Processing status retrieved successfully"),
-        (status = 404, description = "Image not found")
-    )
-)]
-pub async fn get_ai_processing_status(
-    State(state): State<Arc<AppState>>,
-    Path(id): Path<String>,
-) -> Result<Json<serde_json::Value>, StatusCode> {
-    let collection = state.db.collection::<Image>("images");
-
-    // Convert string ID to ObjectId
-    let object_id = match mongodb::bson::oid::ObjectId::parse_str(&id) {
-        Ok(oid) => oid,
-        Err(_) => return Err(StatusCode::BAD_REQUEST),
-    };
-
-    // Get the image
-    let image = match collection.find_one(doc! { "_id": object_id }).await {
-        Ok(img) => img,
-        Err(_) => return Err(StatusCode::INTERNAL_SERVER_ERROR),
-    };
-
-    let image = match image {
-        Some(img) => img,
-        None => return Err(StatusCode::NOT_FOUND),
-    };
-
-    Ok(Json(serde_json::json!({
-        "image_id": id,
-        "ai_processing_status": image.ai_processing_status,
-        "ai_processed": image.ai_processed,
-        "ai_model_version": image.ai_model_version
-    })))
-}
-
-/// Apply style transfer to an image
-#[utoipa::path(
-    post,
-    path = "/images/{id}/style-transfer",
+    path = "/images/{id}/remix",
     tag = "images",
     params(
         ("id" = String, Path, description = "Image ID")
     ),
     request_body(
         content = serde_json::Value,
-        description = "Style transfer parameters"
+        description = "Remix parameters"
     ),
     responses(
-        (status = 200, description = "Style transfer started successfully"),
-        (status = 404, description = "Image not found")
+        (status = 200, description = "Image remixed successfully"),
+        (status = 404, description = "Image not found"),
+        (status = 500, description = "AI remix failed")
     )
 )]
-pub async fn apply_style_transfer(
+pub async fn remix_image(
     State(state): State<Arc<AppState>>,
     Path(id): Path<String>,
     Json(body): Json<serde_json::Value>,
 ) -> Result<Json<serde_json::Value>, StatusCode> {
-    let style_preset = body["style_preset"].as_str().unwrap_or("vintage");
-
     let collection = state.db.collection::<Image>("images");
 
     // Convert string ID to ObjectId
@@ -511,20 +382,67 @@ pub async fn apply_style_transfer(
         None => return Err(StatusCode::NOT_FOUND),
     };
 
-    // Apply style transfer
+    // Extract remix parameters
+    let prompt = body["prompt"].as_str().unwrap_or("enhance this image");
+    let strength = body["strength"].as_f64().map(|s| s as f32);
+    let guidance_scale = body["guidance_scale"].as_f64().map(|s| s as f32);
+
+    // Remix with AI
     let result = match state
-        .ai_processor
-        .apply_style_transfer(&image, style_preset)
+        .ai_remix
+        .remix_image_from_url(&image, prompt, strength, guidance_scale)
         .await
     {
         Ok(result) => result,
         Err(_) => return Err(StatusCode::INTERNAL_SERVER_ERROR),
     };
 
+    if result.success {
+        // Update image with remix info
+        let _ = collection
+            .update_one(
+                doc! { "_id": object_id },
+                doc! { "$set": {
+                    "ai_processed": true,
+                    "ai_model_version": "stable-diffusion-v1-5",
+                    "ai_processing_status": "completed",
+                    "remix_count": { "$inc": 1 }
+                }},
+            )
+            .await;
+
+        Ok(Json(serde_json::json!({
+            "success": true,
+            "result_url": result.result_url,
+            "message": "Image remixed successfully"
+        })))
+    } else {
+        Ok(Json(serde_json::json!({
+            "success": false,
+            "error": result.error
+        })))
+    }
+}
+
+/// Check AI service health
+#[utoipa::path(
+    get,
+    path = "/ai/health",
+    tag = "ai",
+    responses(
+        (status = 200, description = "AI service health check")
+    )
+)]
+pub async fn ai_health_check(
+    State(state): State<Arc<AppState>>,
+) -> Result<Json<serde_json::Value>, StatusCode> {
+    let is_healthy = match state.ai_remix.health_check().await {
+        Ok(healthy) => healthy,
+        Err(_) => false,
+    };
+
     Ok(Json(serde_json::json!({
-        "success": result.success,
-        "processing_id": result.processing_id,
-        "style_preset": style_preset,
-        "status": "processing"
+        "ai_service_healthy": is_healthy,
+        "service": "image-remix-backend"
     })))
 }

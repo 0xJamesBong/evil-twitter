@@ -1,6 +1,7 @@
 import { supabase } from "../supabase";
 
 const API_BASE_URL = "http://localhost:3000"; // Update this to your backend URL
+const AI_SERVICE_URL = "http://localhost:8000"; // AI service URL
 
 export interface BackendImage {
   _id?: { $oid: string };
@@ -28,6 +29,18 @@ export interface NewImageRequest {
   url: string;
   uploader: string;
   parent_id?: string;
+}
+
+export interface RemixRequest {
+  prompt: string;
+  strength?: number;
+  guidance_scale?: number;
+}
+
+export interface RemixResponse {
+  success: boolean;
+  result_url?: string;
+  error?: string;
 }
 
 class ApiService {
@@ -179,6 +192,81 @@ class ApiService {
       return await response.text();
     } catch (error) {
       console.error("Error pinging backend:", error);
+      throw error;
+    }
+  }
+
+  async remixImage(
+    imageUrl: string,
+    prompt: string,
+    strength: number = 0.6,
+    guidance_scale: number = 7.5
+  ): Promise<RemixResponse> {
+    try {
+      // Call the Rust backend's remix endpoint
+      const response = await fetch(`${API_BASE_URL}/remix`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          image_url: imageUrl,
+          prompt,
+          strength,
+          guidance_scale,
+        }),
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(
+          `HTTP error! status: ${response.status}, message: ${errorText}`
+        );
+      }
+
+      return await response.json();
+    } catch (error) {
+      console.error("Error remixing image:", error);
+      throw error;
+    }
+  }
+
+  async remixImageDirect(
+    file: File,
+    prompt: string,
+    strength: number = 0.6,
+    guidance_scale: number = 7.5
+  ): Promise<RemixResponse> {
+    try {
+      // Call the Python AI service directly
+      const formData = new FormData();
+      formData.append("file", file);
+      formData.append("prompt", prompt);
+      formData.append("strength", strength.toString());
+      formData.append("guidance_scale", guidance_scale.toString());
+
+      const response = await fetch(`${AI_SERVICE_URL}/remix`, {
+        method: "POST",
+        body: formData,
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(
+          `HTTP error! status: ${response.status}, message: ${errorText}`
+        );
+      }
+
+      const result = await response.json();
+
+      // Convert the result URL to include the AI service base URL
+      if (result.success && result.result_url) {
+        result.result_url = `${AI_SERVICE_URL}${result.result_url}`;
+      }
+
+      return result;
+    } catch (error) {
+      console.error("Error remixing image directly:", error);
       throw error;
     }
   }
