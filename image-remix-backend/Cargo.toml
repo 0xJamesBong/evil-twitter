@@ -23,7 +23,7 @@ tower = "0.5.1"
 tower-http = { version = "0.6.1", features = ["trace", "cors", "timeout", "compression-gzip", "catch-panic"] }
 serde_json = "1"
 serde_bytes = "0.11"
-reqwest = { version = "0.12", features = ["json"] }
+reqwest = { version = "0.12", features = ["json", "multipart"] }
 hyper = "1.6.0"
 uuid = { version = "1.7.0", features = ["v4", "serde"] }
 chrono = { version = "0.4", features = ["serde"] }

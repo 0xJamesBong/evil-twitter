@@ -1,123 +1,100 @@
-# Image Remix AI Service
+# AI Remix Service
 
-A Python microservice for AI-powered image processing and remixing.
+This service provides a REST API for AI-powered image remixing using Stable Diffusion (img2img). It is designed to be called by your Rust backend, but you can also use it directly for testing.
 
-## Features
+---
 
-- **Style Transfer**: Apply artistic styles to images (vintage, cartoon, sketch)
-- **Background Removal**: Remove backgrounds from images
-- **Image Enhancement**: Enhance image quality (sharpness, color, brightness)
-- **Async Processing**: Background task processing with status tracking
-- **RESTful API**: FastAPI-based REST API
+## 🚀 Quickstart
 
-## Setup
+### 1. Install Dependencies
 
-1. **Install Dependencies**:
-
-   ```bash
-   pip install -r requirements.txt
-   ```
-
-2. **Environment Variables** (optional):
-
-   ```bash
-   # Create .env file
-   PYTHON_SERVICE_URL=http://localhost:8000
-   ```
-
-3. **Run the Service**:
-
-   ```bash
-   python main.py
-   ```
-
-   Or with uvicorn:
-
-   ```bash
-   uvicorn main:app --host 0.0.0.0 --port 8000 --reload
-   ```
-
-## API Endpoints
-
-### Process Image
-
-```http
-POST /process
-Content-Type: application/json
-
-{
-  "image_id": "123",
-  "processing_type": "style_transfer",
-  "style_preset": "vintage",
-  "source_image_url": "http://example.com/image.jpg",
-  "parameters": {
-    "strength": 0.8
-  }
-}
+```bash
+cd ai-remix-service
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
 ```
 
-### Get Processing Status
+### 2. Run the FastAPI Service
 
-```http
-GET /status/{processing_id}
+```bash
+uvicorn main:app --reload --host 0.0.0.0 --port 8000
 ```
+
+- The API will be available at [http://localhost:8000](http://localhost:8000)
+
+### 3. (In a separate terminal) Start the Rust Backend
+
+```bash
+cd /Users/hongjan/Documents/image-remix/image-remix-backend
+cargo run
+```
+
+- The backend will be available at [http://localhost:3000](http://localhost:3000)
+
+---
+
+## How It Works
+
+- The Rust backend POSTs to `/images/{id}/remix`.
+- The backend calls this Python service at `/remix-url` (or `/remix` for file upload).
+- The Python service runs the AI remix and returns a result URL.
+- The backend returns this to the client.
+
+---
+
+## Example API Usage
 
 ### Health Check
 
-```http
-GET /health
+```bash
+curl http://localhost:8000/health
 ```
 
-## Processing Types
+### Remix an Image from a URL (direct call)
 
-### Style Transfer
+```bash
+curl -X POST http://localhost:8000/remix-url \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "prompt": "A cyberpunk anime style portrait",
+    "image_url": "https://example.com/image.jpg"
+  }'
+```
 
-- `vintage`: Apply vintage/retro style
-- `cartoon`: Apply cartoon/animation style
-- `sketch`: Apply sketch/drawing style
+### Remix an Uploaded Image (direct call)
 
-### Background Removal
+```bash
+curl -X POST http://localhost:8000/remix \
+  -F 'file=@/path/to/image.jpg' \
+  -F 'prompt=A cyberpunk anime style portrait'
+```
 
-- Simple chroma key removal (light backgrounds)
-
-### Image Enhancement
-
-- `sharpness`: Enhance image sharpness
-- `color`: Enhance color saturation
-- `brightness`: Adjust brightness
-- `general`: Apply general enhancements
+---
 
 ## Integration with Rust Backend
 
-The Rust backend communicates with this service via HTTP requests. The service URL is configured via the `PYTHON_SERVICE_URL` environment variable.
+- The Rust backend expects this service to be running at `http://localhost:8000` (configurable via `PYTHON_SERVICE_URL`).
+- When you POST to `/images/{id}/remix` on the backend, it will automatically call this service.
 
-## Production Considerations
+---
 
-1. **Model Loading**: In production, pre-load models to avoid cold starts
-2. **Queue System**: Use Redis or RabbitMQ for job queuing
-3. **Storage**: Use cloud storage (S3, GCS) for processed images
-4. **Scaling**: Deploy multiple instances behind a load balancer
-5. **Monitoring**: Add logging and metrics collection
+## Troubleshooting
+
+- **Both services must be running** for remixing to work.
+- If you get connection errors, make sure the Python service is running and accessible at the expected URL.
+- Check your `.env` or config for `PYTHON_SERVICE_URL` if you changed ports.
+
+---
 
 ## Development
 
-### Adding New Styles
+- `main.py`: FastAPI service (run this!)
+- `ai_processor.py`: Helper module for image processing (imported by main.py)
+- `minimal-example.py`: Standalone script for local testing (not an API)
 
-1. Add new style method to `StyleTransferProcessor`
-2. Update the `process` method to handle the new style
-3. Test with sample images
+---
 
-### Adding New Processing Types
+## License
 
-1. Create new processor class
-2. Add to the main processing logic in `main.py`
-3. Update API documentation
-
-## Dependencies
-
-- **FastAPI**: Web framework
-- **Pillow**: Image processing
-- **OpenCV**: Computer vision operations
-- **NumPy**: Numerical operations
-- **PyTorch**: Deep learning (for future diffusion models)
-- **Diffusers**: Hugging Face diffusion models (for future use)
+MIT
