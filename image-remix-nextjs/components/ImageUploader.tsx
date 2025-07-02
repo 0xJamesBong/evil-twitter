@@ -87,15 +87,17 @@ export function ImageUploader() {
         setIsUploading(true);
 
         try {
-            // Upload all files simultaneously
-            const uploadPromises = selectedFiles.map((file, index) => uploadSingleFile(file, index));
-            await Promise.allSettled(uploadPromises);
+            // Upload all files simultaneously and track results
+            const uploadResults = await Promise.allSettled(
+                selectedFiles.map((file, index) => uploadSingleFile(file, index))
+            );
 
-            // Check if all uploads were successful
-            const allSuccessful = uploadProgress.every(p => p.status === 'success');
+            // Count successful and failed uploads
+            const successfulUploads = uploadResults.filter(result => result.status === 'fulfilled').length;
+            const failedUploads = uploadResults.filter(result => result.status === 'rejected').length;
 
-            if (allSuccessful) {
-                // Reset form only if all uploads succeeded
+            if (failedUploads === 0) {
+                // All uploads succeeded
                 setTitle('');
                 setDescription('');
                 setTags('');
@@ -105,11 +107,9 @@ export function ImageUploader() {
                     fileInputRef.current.value = '';
                 }
                 await refreshImages();
-                alert('All images uploaded successfully!');
+                alert(`All ${successfulUploads} images uploaded successfully!`);
             } else {
-                const successCount = uploadProgress.filter(p => p.status === 'success').length;
-                const errorCount = uploadProgress.filter(p => p.status === 'error').length;
-                alert(`Upload completed: ${successCount} successful, ${errorCount} failed`);
+                alert(`Upload completed: ${successfulUploads} successful, ${failedUploads} failed`);
             }
         } catch (error: any) {
             alert(`Upload failed: ${error.message}`);
