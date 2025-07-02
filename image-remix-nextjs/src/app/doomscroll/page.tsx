@@ -75,8 +75,8 @@ export default function DoomscrollPage() {
 
     return (
         <div className="min-h-screen bg-black">
-            {/* Header with column controls */}
-            <div className="sticky top-0 z-50 bg-black/80 backdrop-blur-sm border-b border-gray-800">
+            {/* Column controls */}
+            <div className="sticky top-16 z-40 bg-black/80 backdrop-blur-sm border-b border-gray-800">
                 <div className="max-w-7xl mx-auto px-4 py-4">
                     <div className="flex justify-between items-center">
                         <h1 className="text-white text-2xl font-bold">Doomscroll</h1>
@@ -90,8 +90,8 @@ export default function DoomscrollPage() {
                                         key={option}
                                         onClick={() => setColumns(option)}
                                         className={`px-3 py-1 rounded-md text-sm font-medium transition-colors ${columns === option
-                                                ? 'bg-purple-500 text-white'
-                                                : 'text-gray-300 hover:text-white'
+                                            ? 'bg-purple-500 text-white'
+                                            : 'text-gray-300 hover:text-white'
                                             }`}
                                     >
                                         {option}
