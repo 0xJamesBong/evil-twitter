@@ -16,13 +16,14 @@ use utoipa_swagger_ui::SwaggerUi;
 
 mod models;
 mod routes;
+mod services;
 
 use routes::image::AppState;
 
 // async fn ping_handler() -> &'static str {
 //     "pong"
 // }
-use routes::image::{create_image, delete_image, get_images, update_image};
+use routes::image::{create_image, delete_image, download_image_file, get_images, update_image};
 use routes::ping::ping_handler;
 
 /// API documentation
@@ -33,13 +34,16 @@ use routes::ping::ping_handler;
         routes::image::create_image,
         routes::image::get_images,
         routes::image::delete_image,
-        routes::image::update_image
+        routes::image::update_image,
+        routes::image::download_image_file
     ),
     components(
         schemas(
             models::image::Image,
             models::image::NewImage,
-            models::image::RemixMaterial
+            models::image::RemixMaterial,
+            models::image::AiProcessingRequest,
+            models::image::AiProcessingResult
         )
     ),
     tags(
@@ -49,7 +53,7 @@ use routes::ping::ping_handler;
     info(
         title = "Image Remix API",
         version = "1.0.0",
-        description = "API for managing and remixing images"
+        description = "API for managing and remixing images with GridFS storage"
     )
 )]
 struct ApiDoc;
@@ -74,6 +78,7 @@ async fn main() -> anyhow::Result<()> {
         .route("/ping", get(ping_handler))
         .route("/images", post(create_image).get(get_images))
         .route("/images/{id}", delete(delete_image).put(update_image))
+        .route("/images/{id}/file", get(download_image_file))
         .split_for_parts();
 
     let app = app

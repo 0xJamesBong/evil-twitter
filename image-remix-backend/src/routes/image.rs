@@ -1,10 +1,12 @@
 use crate::models::image::{Image, NewImage};
+use crate::services::gridfs_storage::GridFSStorageService;
 use axum::{
     Json,
+    body::Body,
     extract::{Multipart, Path, State},
     http::StatusCode,
+    response::Response,
 };
-use base64;
 use futures::StreamExt;
 use mongodb::bson::DateTime;
 use mongodb::{Cursor, Database, bson::doc};
@@ -53,6 +55,7 @@ pub async fn create_image(
     let mut tags = String::new();
     let mut file_data = Vec::new();
     let mut file_name = String::new();
+    let mut mime_type = String::from("image/jpeg"); // default
 
     while let Some(field) = multipart
         .next_field()
@@ -65,6 +68,17 @@ pub async fn create_image(
             "file" => {
                 if let Some(name) = field.file_name() {
                     file_name = name.to_string();
+                    // Determine MIME type from file extension
+                    if let Some(ext) = name.split('.').last() {
+                        mime_type = match ext.to_lowercase().as_str() {
+                            "png" => "image/png",
+                            "gif" => "image/gif",
+                            "webp" => "image/webp",
+                            "bmp" => "image/bmp",
+                            _ => "image/jpeg",
+                        }
+                        .to_string();
+                    }
                 }
                 let data = field.bytes().await.map_err(|_| StatusCode::BAD_REQUEST)?;
                 file_data = data.to_vec();
@@ -89,17 +103,45 @@ pub async fn create_image(
         return Err(StatusCode::BAD_REQUEST);
     }
 
-    // For now, we'll store the file data as base64 in the URL field
-    // In a real implementation, you'd save this to a file system or cloud storage
-    let base64_data = base64::encode(&file_data);
-    let url = format!("data:image/jpeg;base64,{}", base64_data);
+    // Upload to GridFS
+    let storage_service =
+        GridFSStorageService::new(state.db.clone(), "http://localhost:3000".to_string());
+
+    let upload_result = storage_service
+        .upload_image(file_data, &file_name, &mime_type, &uploader)
+        .await
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+
+    // Parse tags
+    let tags_vec = if !tags.is_empty() {
+        Some(tags.split(',').map(|s| s.trim().to_string()).collect())
+    } else {
+        None
+    };
 
     let image = Image {
         id: None,
-        url,
+        url: upload_result.url,
         uploader,
         created_at: DateTime::now(),
         parent_id: None,
+        title: if !title.is_empty() { Some(title) } else { None },
+        description: if !description.is_empty() {
+            Some(description)
+        } else {
+            None
+        },
+        tags: tags_vec,
+        file_id: Some(upload_result.file_id),
+        file_name: Some(upload_result.file_name),
+        file_size: Some(upload_result.file_size),
+        mime_type: Some(upload_result.mime_type),
+        ai_processed: Some(false),
+        ai_model_version: None,
+        ai_processing_status: Some("pending".to_string()),
+        ai_features: None,
+        remix_count: Some(0),
+        original_image_id: None,
     };
 
     let insert_result = collection
@@ -113,18 +155,51 @@ pub async fn create_image(
     Ok(Json(saved_image))
 }
 
-// pub async fn create_image(
-//     State(state): State<Arc<AppState>>,
-//     mut new_image: Json<Image>,
-// ) -> Json<Image> {
-//     let collection = state.db.collection::<Image>("images");
-//     new_image.created_at = DateTime::now();
-//     let insert_result = collection.insert_one(new_image.0.clone()).await.unwrap();
+/// Download image file from GridFS
+#[utoipa::path(
+    get,
+    path = "/images/{id}/file",
+    tag = "images",
+    params(
+        ("id" = String, Path, description = "Image ID")
+    ),
+    responses(
+        (status = 200, description = "Image file retrieved successfully", content_type = "image/*"),
+        (status = 404, description = "Image not found")
+    )
+)]
+pub async fn download_image_file(
+    State(state): State<Arc<AppState>>,
+    Path(id): Path<String>,
+) -> Result<Response<Body>, StatusCode> {
+    let object_id =
+        mongodb::bson::oid::ObjectId::parse_str(&id).map_err(|_| StatusCode::BAD_REQUEST)?;
 
-//     new_image.id = Some(insert_result.inserted_id.as_object_id().unwrap());
+    let storage_service =
+        GridFSStorageService::new(state.db.clone(), "http://localhost:3000".to_string());
 
-//     new_image
-// }
+    let file_data = storage_service
+        .download_image(&object_id)
+        .await
+        .map_err(|_| StatusCode::NOT_FOUND)?;
+
+    // Get metadata for content type
+    let metadata = storage_service
+        .get_file_metadata(&object_id)
+        .await
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+
+    let content_type = metadata
+        .get_document("metadata")
+        .and_then(|m| m.get_str("mime_type"))
+        .unwrap_or("image/jpeg");
+
+    Ok(Response::builder()
+        .header("Content-Type", content_type)
+        .header("Cache-Control", "public, max-age=31536000") // Cache for 1 year
+        .body(Body::from(file_data))
+        .unwrap())
+}
 
 /// List all images
 #[utoipa::path(
@@ -170,6 +245,22 @@ pub async fn delete_image(
         Err(_) => return StatusCode::BAD_REQUEST,
     };
 
+    // First, get the image to find the GridFS file_id
+    let image = match collection.find_one(doc! { "_id": object_id }).await {
+        Ok(img) => img,
+        Err(_) => return StatusCode::INTERNAL_SERVER_ERROR,
+    };
+
+    if let Some(image) = image {
+        // Delete from GridFS if file_id exists
+        if let Some(file_id) = image.file_id {
+            let storage_service =
+                GridFSStorageService::new(state.db.clone(), "http://localhost:3000".to_string());
+            let _ = storage_service.delete_image(&file_id).await; // Ignore errors for now
+        }
+    }
+
+    // Delete from images collection
     let result = collection.delete_one(doc! { "_id": object_id }).await;
 
     match result {
@@ -213,8 +304,9 @@ pub async fn update_image(
         .find_one_and_update(
             doc! { "_id": object_id },
             doc! { "$set": {
-                "url": updates.url,
-                "uploader": updates.uploader,
+                "title": updates.title,
+                "description": updates.description,
+                "tags": updates.tags,
             }},
         )
         .await;
