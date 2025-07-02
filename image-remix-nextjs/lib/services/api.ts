@@ -114,6 +114,24 @@ class ApiService {
     }
   }
 
+  async getUserImages(userId: string): Promise<BackendImage[]> {
+    try {
+      const response = await fetch(`${API_BASE_URL}/images?user=${userId}`, {
+        method: "GET",
+        headers: {
+          "Content-Type": "application/json",
+        },
+      });
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+      return await response.json();
+    } catch (error) {
+      console.error("Error fetching user images:", error);
+      throw error;
+    }
+  }
+
   async deleteImage(imageId: string): Promise<void> {
     try {
       const response = await fetch(`${API_BASE_URL}/images/${imageId}`, {

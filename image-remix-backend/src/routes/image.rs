@@ -3,7 +3,7 @@ use crate::services::gridfs_storage::GridFSStorageService;
 use axum::{
     Json,
     body::Body,
-    extract::{Multipart, Path, State},
+    extract::{Multipart, Path, Query, State},
     http::StatusCode,
     response::Response,
 };
@@ -201,18 +201,37 @@ pub async fn download_image_file(
         .unwrap())
 }
 
+#[derive(serde::Deserialize)]
+pub struct ImageQuery {
+    user: Option<String>,
+}
+
 /// List all images
 #[utoipa::path(
     get,
     path = "/images",
     tag = "images",
+    params(
+        ("user" = Option<String>, Query, description = "Filter by user ID")
+    ),
     responses(
         (status = 200, description = "List of images retrieved successfully", body = Vec<Image>)
     )
 )]
-pub async fn get_images(State(state): State<Arc<AppState>>) -> Json<Vec<Image>> {
+pub async fn get_images(
+    State(state): State<Arc<AppState>>,
+    Query(query): Query<ImageQuery>,
+) -> Json<Vec<Image>> {
     let collection = state.db.collection::<Image>("images");
-    let mut cursor = collection.find(doc! {}).await.unwrap();
+
+    // Build filter based on query parameters
+    let filter = if let Some(user_id) = query.user {
+        doc! { "uploader": user_id }
+    } else {
+        doc! {}
+    };
+
+    let mut cursor = collection.find(filter).await.unwrap();
     let mut images = Vec::new();
     while let Some(doc) = cursor.next().await {
         images.push(doc.unwrap());

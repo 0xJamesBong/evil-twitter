@@ -37,6 +37,7 @@ type ImageActions = {
     results: Array<{ success: boolean; error?: string; image?: Image }>;
   }>;
   fetchAllImages: () => Promise<void>;
+  fetchUserImages: (userId: string) => Promise<void>;
   deleteImage: (
     imageId: string
   ) => Promise<{ success: boolean; error?: string }>;
@@ -45,6 +46,7 @@ type ImageActions = {
     updates: Partial<Image>
   ) => Promise<{ success: boolean; error?: string }>;
   refreshImages: () => Promise<void>;
+  getImagesByUser: (userId: string) => Image[];
 };
 
 // Helper function to extract ID from backend response
@@ -168,6 +170,37 @@ export const useImageStore = create<ImageState & ImageActions>((set, get) => ({
     }
   },
 
+  fetchUserImages: async (userId: string) => {
+    set({ isLoading: true, error: null });
+    try {
+      // Use the backend API service to get user-specific images
+      const backendImages = await apiService.getUserImages(userId);
+      console.log("backendImages", backendImages);
+
+      // Convert backend images to frontend format
+      const images: Image[] = backendImages.map(
+        (backendImage: BackendImage) => ({
+          id: extractId(backendImage),
+          user_id: backendImage.uploader,
+          url: backendImage.url,
+          title: backendImage.title,
+          description: backendImage.description,
+          tags: backendImage.tags || [],
+          created_at: extractCreatedAt(backendImage),
+          updated_at: extractCreatedAt(backendImage),
+          file_id: extractFileId(backendImage),
+          file_name: backendImage.file_name,
+          file_size: backendImage.file_size,
+          mime_type: backendImage.mime_type,
+        })
+      );
+
+      set({ images, isLoading: false });
+    } catch (error: any) {
+      set({ error: error.message, isLoading: false });
+    }
+  },
+
   deleteImage: async (imageId: string) => {
     set({ isLoading: true, error: null });
     try {
@@ -231,5 +264,9 @@ export const useImageStore = create<ImageState & ImageActions>((set, get) => ({
 
   refreshImages: async () => {
     await get().fetchAllImages();
+  },
+
+  getImagesByUser: (userId: string) => {
+    return get().images.filter((image) => image.user_id === userId);
   },
 }));

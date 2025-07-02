@@ -2,15 +2,29 @@
 
 import React, { useEffect, useState } from 'react';
 import { useImageStore } from '../lib/stores/imageStore';
+import { useAuthStore } from '../lib/stores/authStore';
 import { ImageUploader } from './ImageUploader';
 
+type GalleryMode = 'all' | 'my';
+
 export function ImageGallery() {
-    const { images, fetchAllImages, isLoading, error } = useImageStore();
+    const { images, fetchAllImages, fetchUserImages, isLoading, error } = useImageStore();
+    const { user, isAuthenticated } = useAuthStore();
     const [showUploader, setShowUploader] = useState(false);
+    const [galleryMode, setGalleryMode] = useState<GalleryMode>('all');
 
     useEffect(() => {
-        fetchAllImages();
-    }, []);
+        if (galleryMode === 'my' && user) {
+            fetchUserImages(user.id);
+        } else {
+            fetchAllImages();
+        }
+    }, [galleryMode, user]);
+
+    // Filter images based on gallery mode
+    const filteredImages = galleryMode === 'my' && user
+        ? images.filter(image => image.user_id === user.id)
+        : images;
 
     const fallbackImages = () => {
         const images = [
@@ -30,9 +44,6 @@ export function ImageGallery() {
 
         return images[Math.floor(Math.random() * images.length)];
     }
-
-
-
 
     if (isLoading) {
         return (
@@ -56,15 +67,42 @@ export function ImageGallery() {
     return (
         <div className="p-4 bg-gray-800 rounded-lg m-4">
             <div className="flex justify-between items-center mb-4">
-                <h3 className="text-white text-xl font-bold">
-                    Image Gallery ({images.length} images)
-                </h3>
-                <button
-                    onClick={() => setShowUploader(!showUploader)}
-                    className="bg-purple-500 px-4 py-2 rounded-lg text-white hover:bg-purple-600 transition-colors"
-                >
-                    {showUploader ? 'Hide Uploader' : 'Upload Image'}
-                </button>
+                <div className="flex items-center space-x-4">
+                    <h3 className="text-white text-xl font-bold">
+                        {galleryMode === 'all' ? 'All Images' : 'My Images'} ({filteredImages.length} images)
+                    </h3>
+
+                    {/* Gallery Mode Toggle */}
+                    <div className="flex bg-gray-700 rounded-lg p-1">
+                        <button
+                            onClick={() => setGalleryMode('all')}
+                            className={`px-3 py-1 rounded-md text-sm font-medium transition-colors ${galleryMode === 'all'
+                                ? 'bg-purple-500 text-white'
+                                : 'text-gray-300 hover:text-white'
+                                }`}
+                        >
+                            All Images
+                        </button>
+                        <button
+                            onClick={() => setGalleryMode('my')}
+                            className={`px-3 py-1 rounded-md text-sm font-medium transition-colors ${galleryMode === 'my'
+                                ? 'bg-purple-500 text-white'
+                                : 'text-gray-300 hover:text-white'
+                                }`}
+                        >
+                            My Images
+                        </button>
+                    </div>
+                </div>
+
+                {isAuthenticated && (
+                    <button
+                        onClick={() => setShowUploader(!showUploader)}
+                        className="bg-purple-500 px-4 py-2 rounded-lg text-white hover:bg-purple-600 transition-colors"
+                    >
+                        {showUploader ? 'Hide Uploader' : 'Upload Image'}
+                    </button>
+                )}
             </div>
 
             {showUploader && (
@@ -73,16 +111,24 @@ export function ImageGallery() {
                 </div>
             )}
 
-            {images.length === 0 ? (
+            {filteredImages.length === 0 ? (
                 <div className="text-center py-8">
-                    <p className="text-gray-400 text-lg">No images found</p>
+                    <p className="text-gray-400 text-lg">
+                        {galleryMode === 'all'
+                            ? 'No images found in the gallery'
+                            : 'You haven\'t uploaded any images yet'
+                        }
+                    </p>
                     <p className="text-gray-500 text-sm mt-2">
-                        Upload your first image to get started!
+                        {galleryMode === 'all'
+                            ? 'Be the first to upload an image!'
+                            : 'Upload your first image to get started!'
+                        }
                     </p>
                 </div>
             ) : (
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                    {images.map((image, index) => (
+                    {filteredImages.map((image, index) => (
                         <div
                             key={image.id || `image-${index}`}
                             className="bg-gray-700 rounded-lg overflow-hidden hover:shadow-lg transition-shadow"
@@ -98,7 +144,6 @@ export function ImageGallery() {
                                     }
                                 }}
                             />
-                            <div>url: {image.url}</div>
                             <div className="p-4">
                                 <h4 className="text-white font-semibold mb-2">
                                     {image.title || 'Untitled'}
@@ -109,7 +154,9 @@ export function ImageGallery() {
                                     </p>
                                 )}
                                 <div className="flex justify-between items-center text-xs text-gray-400">
-                                    <span>By: {image.user_id}</span>
+                                    {galleryMode === 'all' && (
+                                        <span>By: {image.user_id}</span>
+                                    )}
                                     <span>
                                         {new Date(image.created_at).toLocaleDateString()}
                                     </span>
