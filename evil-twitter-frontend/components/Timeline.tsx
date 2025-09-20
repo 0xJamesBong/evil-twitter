@@ -101,9 +101,20 @@ export function Timeline() {
             </div>
 
             {/* Compose Tweet */}
-            {isAuthenticated && (
+            {isAuthenticated ? (
                 <div className="border-b border-gray-800">
                     <ComposeTweet onTweetCreated={handleTweetCreated} />
+                </div>
+            ) : (
+                <div className="border-b border-gray-800 p-6 text-center">
+                    <h2 className="text-xl font-bold text-white mb-2">Welcome to Evil Twitter</h2>
+                    <p className="text-gray-400 mb-4">Sign in to see tweets and join the conversation!</p>
+                    <a
+                        href="/login"
+                        className="inline-block bg-blue-500 hover:bg-blue-600 text-white font-bold py-2 px-6 rounded-full transition-colors"
+                    >
+                        Sign In
+                    </a>
                 </div>
             )}
 
@@ -111,7 +122,7 @@ export function Timeline() {
             <div className="divide-y divide-gray-800">
                 {tweets.length === 0 ? (
                     <div className="p-8 text-center text-gray-500">
-                        <p>No tweets yet. Be the first to tweet!</p>
+                        <p>{isAuthenticated ? 'No tweets yet. Be the first to tweet!' : 'Sign in to see tweets'}</p>
                     </div>
                 ) : (
                     tweets.map((tweet) => (

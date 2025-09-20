@@ -26,7 +26,7 @@ export function AuthModal({ isOpen, onClose, onAuthSuccess }: AuthModalProps) {
             if (isLogin) {
                 await login(email, password);
             } else {
-                const result = await signUp(email, password);
+                const result = await signUp(email, password, fullName);
                 if (result.success) {
                     alert('Check your email to confirm your account!');
                     setIsLogin(true);

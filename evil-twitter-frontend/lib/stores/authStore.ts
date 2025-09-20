@@ -1,22 +1,24 @@
 import { create } from "zustand";
 import { supabase } from "../supabase";
-import { User as SupabaseUser } from "@supabase/supabase-js";
+import { User as SupabaseUser, Session } from "@supabase/supabase-js";
 
 export type User = SupabaseUser;
 
 export type AuthState = {
   user: User | null;
-  session: any | null;
+  session: Session | null;
   isAuthenticated: boolean;
   isLoading: boolean;
   error: string | null;
+  initialized: boolean;
 };
 
 export type AuthActions = {
   login: (email: string, password: string) => Promise<void>;
   signUp: (
     email: string,
-    password: string
+    password: string,
+    fullName?: string
   ) => Promise<{ success: boolean; error?: string }>;
   logout: () => Promise<void>;
   resetPassword: (
@@ -24,6 +26,9 @@ export type AuthActions = {
   ) => Promise<{ success: boolean; error?: string }>;
   updateUser: (data: any) => Promise<{ success: boolean; error?: string }>;
   refreshSession: () => Promise<void>;
+  initialize: () => Promise<void>;
+  setUser: (user: User | null) => void;
+  setSession: (session: Session | null) => void;
 };
 
 export const useAuthStore = create<AuthState & AuthActions>((set, get) => ({
@@ -32,6 +37,73 @@ export const useAuthStore = create<AuthState & AuthActions>((set, get) => ({
   isAuthenticated: false,
   isLoading: false,
   error: null,
+  initialized: false,
+
+  initialize: async () => {
+    if (get().initialized) return;
+
+    set({ isLoading: true });
+    try {
+      // Get initial session
+      const {
+        data: { session },
+        error,
+      } = await supabase.auth.getSession();
+
+      if (error) {
+        console.error("Auth initialization error:", error);
+        set({ error: error.message, isLoading: false, initialized: true });
+        return;
+      }
+
+      if (session) {
+        set({
+          user: session.user,
+          session,
+          isAuthenticated: true,
+          isLoading: false,
+          initialized: true,
+        });
+      } else {
+        set({
+          user: null,
+          session: null,
+          isAuthenticated: false,
+          isLoading: false,
+          initialized: true,
+        });
+      }
+
+      // Set up auth state listener
+      supabase.auth.onAuthStateChange((event, session) => {
+        console.log("Auth state changed:", event, session);
+        if (session) {
+          set({
+            user: session.user,
+            session,
+            isAuthenticated: true,
+          });
+        } else {
+          set({
+            user: null,
+            session: null,
+            isAuthenticated: false,
+          });
+        }
+      });
+    } catch (error: any) {
+      console.error("Auth initialization failed:", error);
+      set({ error: error.message, isLoading: false, initialized: true });
+    }
+  },
+
+  setUser: (user: User | null) => {
+    set({ user, isAuthenticated: !!user });
+  },
+
+  setSession: (session: Session | null) => {
+    set({ session, user: session?.user || null, isAuthenticated: !!session });
+  },
 
   login: async (email: string, password: string) => {
     console.log("Auth store: Attempting login...");
@@ -61,12 +133,20 @@ export const useAuthStore = create<AuthState & AuthActions>((set, get) => ({
     }
   },
 
-  signUp: async (email: string, password: string) => {
+  signUp: async (email: string, password: string, fullName?: string) => {
     set({ isLoading: true, error: null });
     try {
-      const { error } = await supabase.auth.signUp({
+      const { data, error } = await supabase.auth.signUp({
         email,
         password,
+        options: {
+          data: {
+            display_name: fullName,
+            username:
+              fullName?.toLowerCase().replace(/\s+/g, "_") ||
+              email.split("@")[0],
+          },
+        },
       });
 
       if (error) throw error;

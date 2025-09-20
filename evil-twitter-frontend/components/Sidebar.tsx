@@ -13,7 +13,7 @@ export function Sidebar() {
         { name: 'Notifications', href: '/notifications', icon: '🔔' },
         { name: 'Messages', href: '/messages', icon: '✉️' },
         { name: 'Bookmarks', href: '/bookmarks', icon: '🔖' },
-        { name: 'Profile', href: '/profile', icon: '👤' },
+        { name: 'Profile', href: isAuthenticated ? '/profile' : '/login', icon: '👤' },
     ];
 
     return (
@@ -66,19 +66,8 @@ export function Sidebar() {
                 </div>
             ) : (
                 <div className="p-4 border-t border-gray-800">
-                    <div className="space-y-2">
-                        <Link
-                            href="/login"
-                            className="block w-full bg-blue-500 hover:bg-blue-600 text-white font-bold py-2 px-4 rounded-full text-center transition-colors"
-                        >
-                            Log in
-                        </Link>
-                        <Link
-                            href="/signup"
-                            className="block w-full border border-gray-600 hover:bg-gray-800 text-white font-bold py-2 px-4 rounded-full text-center transition-colors"
-                        >
-                            Sign up
-                        </Link>
+                    <div className="text-center text-gray-400 text-sm">
+                        Please log in to access all features
                     </div>
                 </div>
             )}
