@@ -3,20 +3,20 @@
 import React from 'react';
 
 interface Tweet {
-    id: string;
+    id: string | { $oid: string };
     content: string;
-    created_at: string;
+    created_at: string | { $date: { $numberLong: string } };
     likes_count: number;
     retweets_count: number;
     replies_count: number;
     is_liked: boolean;
     is_retweeted: boolean;
     media_urls?: string[];
-    author_id: string;
-    author_username: string;
+    author_id: string | { $oid: string };
+    author_username: string | null;
     author_display_name: string;
-    author_avatar_url?: string;
-    author_is_verified: boolean;
+    author_avatar_url?: string | null;
+    author_is_verified?: boolean;
 }
 
 interface TweetCardProps {
@@ -25,8 +25,23 @@ interface TweetCardProps {
 }
 
 export function TweetCard({ tweet, onLike }: TweetCardProps) {
-    const formatTimeAgo = (dateString: string) => {
-        const date = new Date(dateString);
+    // Helper function to extract ID from either string or ObjectId format
+    const getTweetId = () => {
+        return typeof tweet.id === 'string' ? tweet.id : tweet.id?.$oid || '';
+    };
+
+    // Helper function to format date from either string or MongoDB date format
+    const formatTimeAgo = (dateInput: string | { $date: { $numberLong: string } }) => {
+        let date: Date;
+
+        if (typeof dateInput === 'string') {
+            date = new Date(dateInput);
+        } else {
+            // Handle MongoDB date format
+            const timestamp = parseInt(dateInput.$date.$numberLong);
+            date = new Date(timestamp);
+        }
+
         const now = new Date();
         const diffInSeconds = Math.floor((now.getTime() - date.getTime()) / 1000);
 
@@ -38,7 +53,7 @@ export function TweetCard({ tweet, onLike }: TweetCardProps) {
     };
 
     const handleLike = () => {
-        onLike(tweet.id);
+        onLike(getTweetId());
     };
 
     return (
@@ -54,7 +69,7 @@ export function TweetCard({ tweet, onLike }: TweetCardProps) {
                         />
                     ) : (
                         <div className="text-white text-sm font-medium">
-                            {tweet.author_display_name.charAt(0).toUpperCase()}
+                            {tweet.author_display_name ? tweet.author_display_name.charAt(0).toUpperCase() : "😈"}
                         </div>
                     )}
                 </div>

@@ -2,20 +2,20 @@ import { create } from "zustand";
 import { supabase } from "../supabase";
 
 export interface Tweet {
-  id: string;
+  id: string | { $oid: string };
   content: string;
-  created_at: string;
+  created_at: string | { $date: { $numberLong: string } };
   likes_count: number;
   retweets_count: number;
   replies_count: number;
   is_liked: boolean;
   is_retweeted: boolean;
   media_urls?: string[];
-  author_id: string;
+  author_id: string | { $oid: string };
   author_username: string;
   author_display_name: string;
-  author_avatar_url?: string;
-  author_is_verified: boolean;
+  author_avatar_url?: string | null;
+  author_is_verified?: boolean;
 }
 
 export interface TweetsState {
@@ -31,6 +31,7 @@ export interface TweetsActions {
   createTweet: (
     content: string
   ) => Promise<{ success: boolean; error?: string; tweet?: Tweet }>;
+  generateFakeTweets: () => Promise<{ success: boolean; error?: string }>;
   likeTweet: (tweetId: string) => Promise<void>;
   unlikeTweet: (tweetId: string) => Promise<void>;
   addTweet: (tweet: Tweet) => void;
@@ -121,6 +122,37 @@ export const useTweetsStore = create<TweetsState & TweetsActions>(
       }
     },
 
+    generateFakeTweets: async () => {
+      set({ isLoading: true, error: null });
+
+      try {
+        const response = await fetch("http://localhost:3000/tweets/fake", {
+          method: "POST",
+        });
+
+        if (!response.ok) {
+          throw new Error("Failed to generate fake tweets");
+        }
+
+        const data = await response.json();
+        const tweets = data.tweets || [];
+
+        set({
+          tweets,
+          isLoading: false,
+          lastFetchedAt: new Date(),
+          hasMore: tweets.length > 0,
+        });
+
+        return { success: true };
+      } catch (error) {
+        const errorMessage =
+          error instanceof Error ? error.message : "An error occurred";
+        set({ error: errorMessage, isLoading: false });
+        return { success: false, error: errorMessage };
+      }
+    },
+
     likeTweet: async (tweetId: string) => {
       const { session } = useAuthStore.getState();
 
@@ -141,15 +173,19 @@ export const useTweetsStore = create<TweetsState & TweetsActions>(
 
         if (response.ok) {
           set((state) => ({
-            tweets: state.tweets.map((tweet) =>
-              tweet.id === tweetId
+            tweets: state.tweets.map((tweet) => {
+              // Handle both string and ObjectId formats for comparison
+              const currentTweetId =
+                typeof tweet.id === "string" ? tweet.id : tweet.id?.$oid;
+
+              return currentTweetId === tweetId
                 ? {
                     ...tweet,
                     is_liked: !tweet.is_liked,
                     likes_count: tweet.likes_count + (tweet.is_liked ? -1 : 1),
                   }
-                : tweet
-            ),
+                : tweet;
+            }),
           }));
         }
       } catch (error) {
@@ -170,15 +206,21 @@ export const useTweetsStore = create<TweetsState & TweetsActions>(
 
     updateTweet: (tweetId: string, updates: Partial<Tweet>) => {
       set((state) => ({
-        tweets: state.tweets.map((tweet) =>
-          tweet.id === tweetId ? { ...tweet, ...updates } : tweet
-        ),
+        tweets: state.tweets.map((tweet) => {
+          const currentTweetId =
+            typeof tweet.id === "string" ? tweet.id : tweet.id?.$oid;
+          return currentTweetId === tweetId ? { ...tweet, ...updates } : tweet;
+        }),
       }));
     },
 
     removeTweet: (tweetId: string) => {
       set((state) => ({
-        tweets: state.tweets.filter((tweet) => tweet.id !== tweetId),
+        tweets: state.tweets.filter((tweet) => {
+          const currentTweetId =
+            typeof tweet.id === "string" ? tweet.id : tweet.id?.$oid;
+          return currentTweetId !== tweetId;
+        }),
       }));
     },
 

@@ -1,6 +1,4 @@
-use axum::{
-    routing::{delete, get, post},
-};
+use axum::routing::{delete, get, post};
 use dotenvy::dotenv;
 use tower_http::cors::{Any, CorsLayer};
 
@@ -12,10 +10,10 @@ use utoipa_swagger_ui::SwaggerUi;
 mod models;
 mod routes;
 
-use routes::ping::ping_handler;
-use routes::user::{create_user, get_user, get_users, login_user};
-use routes::tweet::{create_tweet, get_tweet, get_tweets, like_tweet};
 use routes::follow::{follow_user, unfollow_user};
+use routes::ping::ping_handler;
+use routes::tweet::{create_tweet, generate_fake_tweets, get_tweet, get_tweets, like_tweet};
+use routes::user::{create_user, get_user, get_users, login_user};
 
 /// API documentation
 #[derive(OpenApi)]
@@ -30,6 +28,7 @@ use routes::follow::{follow_user, unfollow_user};
         routes::tweet::get_tweet,
         routes::tweet::get_tweets,
         routes::tweet::like_tweet,
+        routes::tweet::generate_fake_tweets,
         routes::follow::follow_user,
         routes::follow::unfollow_user
     ),
@@ -83,6 +82,7 @@ async fn main() -> anyhow::Result<()> {
         .route("/tweets", post(create_tweet).get(get_tweets))
         .route("/tweets/{id}", get(get_tweet))
         .route("/tweets/{id}/like", post(like_tweet))
+        .route("/tweets/fake", post(generate_fake_tweets))
         .route("/follows", post(follow_user))
         .route("/follows/{following_id}", delete(unfollow_user))
         .split_for_parts();

@@ -9,7 +9,7 @@ export default function DebugTweetPage() {
     const [result, setResult] = useState<string>('');
     const [loading, setLoading] = useState(false);
     const { session, isAuthenticated } = useAuthStore();
-    const { tweets, fetchTweets, createTweet } = useTweetsStore();
+    const { tweets, fetchTweets, createTweet, generateFakeTweets } = useTweetsStore();
     const { content, setContent, submitTweet } = useComposeStore();
 
     const testTweet = async () => {
@@ -55,6 +55,27 @@ export default function DebugTweetPage() {
         setResult(prev => prev + `Set content to: ${content}\n`);
     };
 
+    const testFakeTweets = async () => {
+        setLoading(true);
+        setResult('Testing fake tweets generation...\n');
+
+        try {
+            setResult(prev => prev + 'Using Zustand store to generate fake tweets\n');
+            const result = await generateFakeTweets();
+
+            if (result.success) {
+                setResult(prev => prev + '✅ Fake tweets generated successfully!\n');
+                setResult(prev => prev + `Generated ${tweets.length} fake tweets\n`);
+            } else {
+                setResult(prev => prev + `❌ Fake tweets generation failed: ${result.error}\n`);
+            }
+        } catch (error) {
+            setResult(prev => prev + `❌ Error: ${error}\n`);
+        } finally {
+            setLoading(false);
+        }
+    };
+
     return (
         <div className="min-h-screen bg-black text-white p-8">
             <h1 className="text-3xl font-bold mb-8">Debug Tweet Page</h1>
@@ -93,6 +114,14 @@ export default function DebugTweetPage() {
                     className="bg-purple-500 hover:bg-purple-600 px-4 py-2 rounded"
                 >
                     Test Compose Store
+                </button>
+
+                <button
+                    onClick={testFakeTweets}
+                    disabled={loading}
+                    className="bg-orange-500 hover:bg-orange-600 px-4 py-2 rounded disabled:opacity-50"
+                >
+                    {loading ? 'Generating...' : 'Generate Fake Tweets'}
                 </button>
             </div>
 

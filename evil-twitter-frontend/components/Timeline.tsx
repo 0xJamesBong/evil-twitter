@@ -13,7 +13,8 @@ export function Timeline() {
         isLoading,
         error,
         fetchTweets,
-        likeTweet
+        likeTweet,
+        generateFakeTweets
     } = useTweetsStore();
 
     useEffect(() => {
@@ -72,15 +73,30 @@ export function Timeline() {
                 {tweets.length === 0 ? (
                     <div className="p-8 text-center text-gray-500">
                         <p>{isAuthenticated ? 'No tweets yet. Be the first to tweet!' : 'Sign in to see tweets'}</p>
+                        {isAuthenticated && (
+                            <button
+                                onClick={() => generateFakeTweets()}
+                                className="mt-4 bg-orange-500 hover:bg-orange-600 text-white font-bold py-2 px-4 rounded-full transition-colors"
+                            >
+                                Generate Sample Tweets
+                            </button>
+                        )}
                     </div>
                 ) : (
-                    tweets.map((tweet, index) => (
-                        <TweetCard
-                            key={tweet.id || `tweet-${index}`}
-                            tweet={tweet}
-                            onLike={() => likeTweet(tweet.id)}
-                        />
-                    ))
+                    tweets.map((tweet, index) => {
+                        // Handle MongoDB ObjectId format - extract the actual ID string
+                        const tweetId = typeof tweet.id === 'string'
+                            ? tweet.id
+                            : tweet.id?.$oid || `tweet-${index}`;
+
+                        return (
+                            <TweetCard
+                                key={tweetId}
+                                tweet={tweet}
+                                onLike={() => likeTweet(tweetId)}
+                            />
+                        );
+                    })
                 )}
             </div>
         </div>
