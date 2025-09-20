@@ -1,77 +1,26 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useEffect } from 'react';
 import { ComposeTweet } from './ComposeTweet';
 import { TweetCard } from './TweetCard';
 import { useAuthStore } from '../lib/stores/authStore';
-
-interface Tweet {
-    id: string;
-    content: string;
-    created_at: string;
-    likes_count: number;
-    retweets_count: number;
-    replies_count: number;
-    is_liked: boolean;
-    is_retweeted: boolean;
-    media_urls?: string[];
-    author_id: string;
-    author_username: string;
-    author_display_name: string;
-    author_avatar_url?: string;
-    author_is_verified: boolean;
-}
+import { useTweetsStore } from '../lib/stores/tweetsStore';
 
 export function Timeline() {
-    const [tweets, setTweets] = useState<Tweet[]>([]);
-    const [loading, setLoading] = useState(true);
-    const [error, setError] = useState<string | null>(null);
     const { isAuthenticated } = useAuthStore();
+    const {
+        tweets,
+        isLoading,
+        error,
+        fetchTweets,
+        likeTweet
+    } = useTweetsStore();
 
     useEffect(() => {
         fetchTweets();
-    }, []);
+    }, [fetchTweets]);
 
-    const fetchTweets = async () => {
-        try {
-            setLoading(true);
-            const response = await fetch('http://localhost:3000/tweets');
-            if (!response.ok) {
-                throw new Error('Failed to fetch tweets');
-            }
-            const data = await response.json();
-            setTweets(data.tweets || []);
-        } catch (err) {
-            setError(err instanceof Error ? err.message : 'An error occurred');
-        } finally {
-            setLoading(false);
-        }
-    };
-
-    const handleTweetCreated = (newTweet: Tweet) => {
-        setTweets(prev => [newTweet, ...prev]);
-    };
-
-    const handleLike = async (tweetId: string) => {
-        try {
-            const response = await fetch(`http://localhost:3000/tweets/${tweetId}/like`, {
-                method: 'POST',
-            });
-            if (response.ok) {
-                setTweets(prev =>
-                    prev.map(tweet =>
-                        tweet.id === tweetId
-                            ? { ...tweet, is_liked: !tweet.is_liked, likes_count: tweet.likes_count + (tweet.is_liked ? -1 : 1) }
-                            : tweet
-                    )
-                );
-            }
-        } catch (err) {
-            console.error('Failed to like tweet:', err);
-        }
-    };
-
-    if (loading) {
+    if (isLoading) {
         return (
             <div className="flex items-center justify-center h-64">
                 <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500"></div>
@@ -103,7 +52,7 @@ export function Timeline() {
             {/* Compose Tweet */}
             {isAuthenticated ? (
                 <div className="border-b border-gray-800">
-                    <ComposeTweet onTweetCreated={handleTweetCreated} />
+                    <ComposeTweet />
                 </div>
             ) : (
                 <div className="border-b border-gray-800 p-6 text-center">
@@ -125,11 +74,11 @@ export function Timeline() {
                         <p>{isAuthenticated ? 'No tweets yet. Be the first to tweet!' : 'Sign in to see tweets'}</p>
                     </div>
                 ) : (
-                    tweets.map((tweet) => (
+                    tweets.map((tweet, index) => (
                         <TweetCard
-                            key={tweet.id}
+                            key={tweet.id || `tweet-${index}`}
                             tweet={tweet}
-                            onLike={handleLike}
+                            onLike={() => likeTweet(tweet.id)}
                         />
                     ))
                 )}

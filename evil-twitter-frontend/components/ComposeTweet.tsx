@@ -1,50 +1,23 @@
 'use client';
 
-import React, { useState } from 'react';
+import React from 'react';
+import { useComposeStore } from '../lib/stores/composeStore';
 
-interface ComposeTweetProps {
-    onTweetCreated: (tweet: any) => void;
-}
-
-export function ComposeTweet({ onTweetCreated }: ComposeTweetProps) {
-    const [content, setContent] = useState('');
-    const [isSubmitting, setIsSubmitting] = useState(false);
-    const [error, setError] = useState<string | null>(null);
+export function ComposeTweet() {
+    const {
+        content,
+        isSubmitting,
+        error,
+        remainingChars,
+        isOverLimit,
+        setContent,
+        submitTweet,
+    } = useComposeStore();
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
-        if (!content.trim() || content.length > 280) return;
-
-        setIsSubmitting(true);
-        setError(null);
-
-        try {
-            const response = await fetch('http://localhost:3000/tweets', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({
-                    content: content.trim(),
-                }),
-            });
-
-            if (!response.ok) {
-                throw new Error('Failed to create tweet');
-            }
-
-            const newTweet = await response.json();
-            onTweetCreated(newTweet);
-            setContent('');
-        } catch (err) {
-            setError(err instanceof Error ? err.message : 'An error occurred');
-        } finally {
-            setIsSubmitting(false);
-        }
+        await submitTweet();
     };
-
-    const remainingChars = 280 - content.length;
-    const isOverLimit = remainingChars < 0;
 
     return (
         <div className="p-4">
