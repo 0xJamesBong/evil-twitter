@@ -28,7 +28,7 @@ pub async fn test_db_connection(
 ) -> Result<Json<TestResponse>, (StatusCode, Json<serde_json::Value>)> {
     let collection: Collection<User> = db.collection("users");
     
-    match collection.count_documents(doc! {}, None).await {
+    match collection.count_documents(doc! {}).await {
         Ok(count) => Ok(Json(TestResponse {
             message: format!("Database connected successfully. Users count: {}", count),
             db_connected: true,
