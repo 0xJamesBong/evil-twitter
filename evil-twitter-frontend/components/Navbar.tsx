@@ -2,6 +2,15 @@
 
 import React, { useState } from 'react';
 import Link from 'next/link';
+import {
+    AppBar,
+    Toolbar,
+    Typography,
+    Button,
+    Box,
+    Stack,
+    IconButton,
+} from '@mui/material';
 import { useAuthStore } from '../lib/stores/authStore';
 import { AuthModal } from './AuthModal';
 import { TestPing } from './TestPing';
@@ -34,61 +43,80 @@ export default function Navbar() {
             )}
 
             {/* Navbar Content */}
-            <nav className="bg-gray-900 border-b border-gray-800">
-                <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-                    <div className="flex justify-between items-center h-16">
+            <AppBar position="static" sx={{ backgroundColor: 'background.paper' }}>
+                <Toolbar sx={{ justifyContent: 'space-between' }}>
+                    {/* Left side - TestPing */}
+                    <Box>
                         <TestPing />
-                        {/* Logo */}
-                        <div className="flex-shrink-0">
-                            <Link href="/" className="text-2xl font-bold text-white">
-                                Evil Twitter
-                            </Link>
-                        </div>
+                    </Box>
 
-                        {/* Navigation */}
-                        <div className="hidden md:block">
-                            <div className="ml-10 flex items-baseline space-x-4">
-                                <Link href="/" className="text-gray-300 hover:text-white px-3 py-2 rounded-md text-sm font-medium">
-                                    Home
-                                </Link>
-                                <Link href="/explore" className="text-gray-300 hover:text-white px-3 py-2 rounded-md text-sm font-medium">
-                                    Explore
-                                </Link>
-                                <Link href="/notifications" className="text-gray-300 hover:text-white px-3 py-2 rounded-md text-sm font-medium">
-                                    Notifications
-                                </Link>
-                            </div>
-                        </div>
+                    {/* Center - Logo */}
+                    <Box sx={{ flexGrow: 0 }}>
+                        <Link href="/" style={{ textDecoration: 'none', color: 'inherit' }}>
+                            <Typography variant="h6" component="div" sx={{ fontWeight: 'bold' }}>
+                                Evil Twitter
+                            </Typography>
+                        </Link>
+                    </Box>
+
+                    {/* Right side - Navigation and Auth */}
+                    <Stack direction="row" spacing={2} alignItems="center">
+                        {/* Navigation Links */}
+                        <Box sx={{ display: { xs: 'none', md: 'flex' }, gap: 1 }}>
+                            <Button
+                                component={Link}
+                                href="/"
+                                color="inherit"
+                                sx={{ textTransform: 'none' }}
+                            >
+                                Home
+                            </Button>
+                            <Button
+                                component={Link}
+                                href="/explore"
+                                color="inherit"
+                                sx={{ textTransform: 'none' }}
+                            >
+                                Explore
+                            </Button>
+                            <Button
+                                component={Link}
+                                href="/notifications"
+                                color="inherit"
+                                sx={{ textTransform: 'none' }}
+                            >
+                                Notifications
+                            </Button>
+                        </Box>
 
                         {/* Auth Section */}
-                        <div className="flex items-center space-x-4">
-
-                            {isAuthenticated && user ? (
-                                <div className="flex items-center space-x-4">
-                                    <span className="text-white text-sm">
-                                        Welcome, {user.user_metadata?.display_name || user.email}
-                                    </span>
-                                    <button
-                                        onClick={handleLogout}
-                                        className="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-md text-sm font-medium"
-                                    >
-                                        Logout
-                                    </button>
-                                </div>
-                            ) : (
-                                <div className="flex items-center space-x-2">
-                                    <button
-                                        onClick={() => setShowAuthModal(true)}
-                                        className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-md text-sm font-medium"
-                                    >
-                                        Login
-                                    </button>
-                                </div>
-                            )}
-                        </div>
-                    </div>
-                </div>
-            </nav>
+                        {isAuthenticated && user ? (
+                            <Stack direction="row" spacing={2} alignItems="center">
+                                <Typography variant="body2" color="text.secondary">
+                                    Welcome, {user.user_metadata?.display_name || user.email}
+                                </Typography>
+                                <Button
+                                    onClick={handleLogout}
+                                    variant="contained"
+                                    color="error"
+                                    size="small"
+                                >
+                                    Logout
+                                </Button>
+                            </Stack>
+                        ) : (
+                            <Button
+                                onClick={() => setShowAuthModal(true)}
+                                variant="contained"
+                                color="primary"
+                                size="small"
+                            >
+                                Login
+                            </Button>
+                        )}
+                    </Stack>
+                </Toolbar>
+            </AppBar>
         </>
     );
 } 
