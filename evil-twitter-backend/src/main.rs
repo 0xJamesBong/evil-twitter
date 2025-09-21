@@ -14,6 +14,7 @@ use routes::follow::{follow_user, unfollow_user};
 use routes::ping::ping_handler;
 use routes::tweet::{
     clear_all_data, create_tweet, generate_fake_tweets, get_tweet, get_tweets, like_tweet,
+    quote_tweet, retweet_tweet,
 };
 use routes::user::{create_user, get_user, get_users};
 
@@ -29,6 +30,8 @@ use routes::user::{create_user, get_user, get_users};
         routes::tweet::get_tweet,
         routes::tweet::get_tweets,
         routes::tweet::like_tweet,
+        routes::tweet::retweet_tweet,
+        routes::tweet::quote_tweet,
         routes::tweet::generate_fake_tweets,
         routes::tweet::clear_all_data,
         routes::follow::follow_user,
@@ -39,6 +42,7 @@ use routes::user::{create_user, get_user, get_users};
             models::user::User,
             models::user::CreateUser,
             models::tweet::Tweet,
+            models::tweet::TweetType,
             models::tweet::CreateTweet,
             models::follow::Follow,
             models::follow::CreateFollow
@@ -80,6 +84,8 @@ async fn main() -> anyhow::Result<()> {
         .route("/tweets", post(create_tweet).get(get_tweets))
         .route("/tweets/{id}", get(get_tweet))
         .route("/tweets/{id}/like", post(like_tweet))
+        .route("/tweets/{id}/retweet", post(retweet_tweet))
+        .route("/tweets/{id}/quote", post(quote_tweet))
         .route("/tweets/fake", post(generate_fake_tweets))
         .route("/admin/clear-all", post(clear_all_data))
         .route("/follows", post(follow_user))

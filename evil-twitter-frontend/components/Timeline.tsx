@@ -14,6 +14,8 @@ export function Timeline() {
         error,
         fetchTweets,
         likeTweet,
+        retweetTweet,
+        quoteTweet,
         generateFakeTweets
     } = useTweetsStore();
 
@@ -94,6 +96,8 @@ export function Timeline() {
                                 key={tweetId}
                                 tweet={tweet}
                                 onLike={() => likeTweet(tweetId)}
+                                onRetweet={() => retweetTweet(tweetId)}
+                                onQuote={(tweetId, content) => quoteTweet(tweetId, content)}
                             />
                         );
                     })

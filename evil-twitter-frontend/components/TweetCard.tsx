@@ -1,10 +1,13 @@
 'use client';
 
 import React from 'react';
+import { useTweetsStore } from '../lib/stores/tweetsStore';
 
 interface Tweet {
     id: string | { $oid: string };
     content: string;
+    tweet_type: "Original" | "Retweet" | "Quote";
+    original_tweet_id?: string | { $oid: string };
     created_at: string | { $date: { $numberLong: string } };
     likes_count: number;
     retweets_count: number;
@@ -22,9 +25,21 @@ interface Tweet {
 interface TweetCardProps {
     tweet: Tweet;
     onLike: (tweetId: string) => void;
+    onRetweet: (tweetId: string) => void;
+    onQuote: (tweetId: string, content: string) => void;
 }
 
-export function TweetCard({ tweet, onLike }: TweetCardProps) {
+export function TweetCard({ tweet, onLike, onRetweet, onQuote }: TweetCardProps) {
+    const {
+        showQuoteModal,
+        quoteTweetId,
+        quoteContent,
+        openQuoteModal,
+        closeQuoteModal,
+        setQuoteContent,
+        clearQuoteData
+    } = useTweetsStore();
+
     // Helper function to extract ID from either string or ObjectId format
     const getTweetId = () => {
         return typeof tweet.id === 'string' ? tweet.id : tweet.id?.$oid || '';
@@ -54,6 +69,21 @@ export function TweetCard({ tweet, onLike }: TweetCardProps) {
 
     const handleLike = () => {
         onLike(getTweetId());
+    };
+
+    const handleRetweet = () => {
+        onRetweet(getTweetId());
+    };
+
+    const handleQuote = () => {
+        openQuoteModal(getTweetId());
+    };
+
+    const handleQuoteSubmit = () => {
+        if (quoteContent.trim()) {
+            onQuote(getTweetId(), quoteContent.trim());
+            clearQuoteData();
+        }
     };
 
     return (
@@ -94,6 +124,20 @@ export function TweetCard({ tweet, onLike }: TweetCardProps) {
                         </button>
                     </div>
 
+                    {/* Tweet Type Indicator */}
+                    {tweet.tweet_type === "Retweet" && (
+                        <div className="flex items-center text-gray-500 text-sm mb-2">
+                            <span className="mr-2">🔄</span>
+                            <span>Retweeted</span>
+                        </div>
+                    )}
+                    {tweet.tweet_type === "Quote" && (
+                        <div className="flex items-center text-gray-500 text-sm mb-2">
+                            <span className="mr-2">💬</span>
+                            <span>Quoted</span>
+                        </div>
+                    )}
+
                     {/* Tweet Text */}
                     <div className="text-white text-base mb-3 whitespace-pre-wrap">
                         {tweet.content}
@@ -121,11 +165,24 @@ export function TweetCard({ tweet, onLike }: TweetCardProps) {
                         </button>
 
                         {/* Retweet */}
-                        <button className="flex items-center space-x-2 text-gray-500 hover:text-green-500 transition-colors group">
+                        <button
+                            onClick={handleRetweet}
+                            className="flex items-center space-x-2 text-gray-500 hover:text-green-500 transition-colors group"
+                        >
                             <div className="p-2 group-hover:bg-green-500 group-hover:bg-opacity-10 rounded-full">
                                 <span className="text-lg">🔄</span>
                             </div>
                             <span className="text-sm">{tweet.retweets_count}</span>
+                        </button>
+
+                        {/* Quote */}
+                        <button
+                            onClick={handleQuote}
+                            className="flex items-center space-x-2 text-gray-500 hover:text-blue-500 transition-colors group"
+                        >
+                            <div className="p-2 group-hover:bg-blue-500 group-hover:bg-opacity-10 rounded-full">
+                                <span className="text-lg">💬</span>
+                            </div>
                         </button>
 
                         {/* Like */}
@@ -159,6 +216,37 @@ export function TweetCard({ tweet, onLike }: TweetCardProps) {
                     </div>
                 </div>
             </div>
+
+            {/* Quote Tweet Modal */}
+            {showQuoteModal && quoteTweetId === getTweetId() && (
+                <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+                    <div className="bg-gray-900 rounded-lg p-6 w-full max-w-md mx-4">
+                        <h3 className="text-white text-lg font-semibold mb-4">Quote Tweet</h3>
+                        <textarea
+                            value={quoteContent}
+                            onChange={(e) => setQuoteContent(e.target.value)}
+                            placeholder="Add a comment..."
+                            className="w-full h-24 bg-gray-800 text-white rounded-lg p-3 resize-none focus:outline-none focus:ring-2 focus:ring-blue-500"
+                            maxLength={280}
+                        />
+                        <div className="flex justify-end space-x-3 mt-4">
+                            <button
+                                onClick={closeQuoteModal}
+                                className="px-4 py-2 text-gray-400 hover:text-white transition-colors"
+                            >
+                                Cancel
+                            </button>
+                            <button
+                                onClick={handleQuoteSubmit}
+                                disabled={!quoteContent.trim()}
+                                className="px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-600 disabled:cursor-not-allowed text-white rounded-lg transition-colors"
+                            >
+                                Quote Tweet
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 }

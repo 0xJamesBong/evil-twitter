@@ -11,7 +11,7 @@ use mongodb::{
 use serde::Serialize;
 use utoipa::ToSchema;
 
-use crate::models::tweet::{CreateTweet, Tweet};
+use crate::models::tweet::{CreateTweet, Tweet, TweetType};
 
 #[derive(Debug, Serialize, ToSchema)]
 pub struct TweetListResponse {
@@ -84,6 +84,8 @@ pub async fn create_tweet(
         id,
         author_id: user.id.unwrap(),
         content: payload.content,
+        tweet_type: TweetType::Original,
+        original_tweet_id: None,
         created_at: now,
         likes_count: 0,
         retweets_count: 0,
@@ -338,6 +340,8 @@ pub async fn generate_fake_tweets(
             replies_count: 3,
             is_liked: false,
             is_retweeted: false,
+            tweet_type: TweetType::Original,
+            original_tweet_id: None,
             author_username: None,
             author_display_name: None,
             author_avatar_url: None,
@@ -352,6 +356,8 @@ pub async fn generate_fake_tweets(
             replies_count: 5,
             is_liked: false,
             is_retweeted: false,
+            tweet_type: TweetType::Original,
+            original_tweet_id: None,
             author_username: None,
             author_display_name: None,
             author_avatar_url: None,
@@ -366,6 +372,8 @@ pub async fn generate_fake_tweets(
             replies_count: 7,
             is_liked: false,
             is_retweeted: false,
+            tweet_type: TweetType::Original,
+            original_tweet_id: None,
             author_username: None,
             author_display_name: None,
             author_avatar_url: None,
@@ -380,6 +388,8 @@ pub async fn generate_fake_tweets(
             replies_count: 2,
             is_liked: false,
             is_retweeted: false,
+            tweet_type: TweetType::Original,
+            original_tweet_id: None,
             author_username: None,
             author_display_name: None,
             author_avatar_url: None,
@@ -394,6 +404,8 @@ pub async fn generate_fake_tweets(
             replies_count: 4,
             is_liked: false,
             is_retweeted: false,
+            tweet_type: TweetType::Original,
+            original_tweet_id: None,
             author_username: None,
             author_display_name: None,
             author_avatar_url: None,
@@ -442,6 +454,264 @@ pub async fn generate_fake_tweets(
             })),
         )),
     }
+}
+
+/// Retweet a tweet
+#[utoipa::path(
+    post,
+    path = "/tweets/{id}/retweet",
+    responses(
+        (status = 201, description = "Tweet retweeted successfully", body = Tweet),
+        (status = 400, description = "Invalid tweet ID"),
+        (status = 404, description = "Original tweet not found")
+    ),
+    tag = "tweets"
+)]
+pub async fn retweet_tweet(
+    State(db): State<Database>,
+    Path(tweet_id): Path<String>,
+    headers: axum::http::HeaderMap,
+) -> Result<(StatusCode, Json<Tweet>), (StatusCode, Json<serde_json::Value>)> {
+    let collection: Collection<Tweet> = db.collection("tweets");
+    let user_collection: Collection<crate::models::user::User> = db.collection("users");
+
+    // Extract Supabase user ID from Authorization header
+    let auth_header = headers
+        .get("authorization")
+        .and_then(|h| h.to_str().ok())
+        .ok_or_else(|| {
+            (
+                StatusCode::UNAUTHORIZED,
+                Json(serde_json::json!({"error": "Missing authorization header"})),
+            )
+        })?;
+
+    let supabase_id = if auth_header.starts_with("Bearer ") {
+        "87cda46d-edb6-42ec-8bb1-b580d1ca2c6e" // Placeholder for testing
+    } else {
+        return Err((
+            StatusCode::UNAUTHORIZED,
+            Json(serde_json::json!({"error": "Invalid authorization format"})),
+        ));
+    };
+
+    // Find the retweeting user
+    let user = user_collection
+        .find_one(doc! {"supabase_id": supabase_id})
+        .await
+        .map_err(|_| {
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(serde_json::json!({"error": "Database error"})),
+            )
+        })?
+        .ok_or_else(|| {
+            (
+                StatusCode::NOT_FOUND,
+                Json(serde_json::json!({"error": "User not found"})),
+            )
+        })?;
+
+    // Find the original tweet
+    let original_tweet_id = ObjectId::parse_str(&tweet_id).map_err(|_| {
+        (
+            StatusCode::BAD_REQUEST,
+            Json(serde_json::json!({"error": "Invalid tweet ID"})),
+        )
+    })?;
+
+    let _original_tweet = collection
+        .find_one(doc! {"_id": original_tweet_id})
+        .await
+        .map_err(|_| {
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(serde_json::json!({"error": "Database error"})),
+            )
+        })?
+        .ok_or_else(|| {
+            (
+                StatusCode::NOT_FOUND,
+                Json(serde_json::json!({"error": "Original tweet not found"})),
+            )
+        })?;
+
+    let now = mongodb::bson::DateTime::now();
+    let id = Some(ObjectId::new());
+
+    // Create the retweet
+    let retweet = Tweet {
+        id,
+        author_id: user.id.unwrap(),
+        content: "".to_string(), // Retweets don't have content
+        tweet_type: TweetType::Retweet,
+        original_tweet_id: Some(original_tweet_id),
+        created_at: now,
+        likes_count: 0,
+        retweets_count: 0,
+        replies_count: 0,
+        is_liked: false,
+        is_retweeted: false,
+        author_username: Some(user.username),
+        author_display_name: Some(user.display_name),
+        author_avatar_url: user.avatar_url,
+    };
+
+    let result = collection.insert_one(&retweet).await.map_err(|_| {
+        (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(serde_json::json!({"error": "Failed to create retweet"})),
+        )
+    })?;
+
+    let mut created_retweet = retweet;
+    created_retweet.id = Some(result.inserted_id.as_object_id().unwrap());
+
+    // Update the original tweet's retweet count
+    collection
+        .update_one(
+            doc! {"_id": original_tweet_id},
+            doc! {"$inc": {"retweets_count": 1}},
+        )
+        .await
+        .map_err(|_| {
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(serde_json::json!({"error": "Failed to update retweet count"})),
+            )
+        })?;
+
+    Ok((StatusCode::CREATED, Json(created_retweet)))
+}
+
+/// Quote tweet a tweet
+#[utoipa::path(
+    post,
+    path = "/tweets/{id}/quote",
+    request_body = CreateTweet,
+    responses(
+        (status = 201, description = "Tweet quoted successfully", body = Tweet),
+        (status = 400, description = "Invalid tweet ID"),
+        (status = 404, description = "Original tweet not found")
+    ),
+    tag = "tweets"
+)]
+pub async fn quote_tweet(
+    State(db): State<Database>,
+    Path(tweet_id): Path<String>,
+    headers: axum::http::HeaderMap,
+    Json(payload): Json<CreateTweet>,
+) -> Result<(StatusCode, Json<Tweet>), (StatusCode, Json<serde_json::Value>)> {
+    let collection: Collection<Tweet> = db.collection("tweets");
+    let user_collection: Collection<crate::models::user::User> = db.collection("users");
+
+    // Extract Supabase user ID from Authorization header
+    let auth_header = headers
+        .get("authorization")
+        .and_then(|h| h.to_str().ok())
+        .ok_or_else(|| {
+            (
+                StatusCode::UNAUTHORIZED,
+                Json(serde_json::json!({"error": "Missing authorization header"})),
+            )
+        })?;
+
+    let supabase_id = if auth_header.starts_with("Bearer ") {
+        "87cda46d-edb6-42ec-8bb1-b580d1ca2c6e" // Placeholder for testing
+    } else {
+        return Err((
+            StatusCode::UNAUTHORIZED,
+            Json(serde_json::json!({"error": "Invalid authorization format"})),
+        ));
+    };
+
+    // Find the quoting user
+    let user = user_collection
+        .find_one(doc! {"supabase_id": supabase_id})
+        .await
+        .map_err(|_| {
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(serde_json::json!({"error": "Database error"})),
+            )
+        })?
+        .ok_or_else(|| {
+            (
+                StatusCode::NOT_FOUND,
+                Json(serde_json::json!({"error": "User not found"})),
+            )
+        })?;
+
+    // Find the original tweet
+    let original_tweet_id = ObjectId::parse_str(&tweet_id).map_err(|_| {
+        (
+            StatusCode::BAD_REQUEST,
+            Json(serde_json::json!({"error": "Invalid tweet ID"})),
+        )
+    })?;
+
+    let _original_tweet = collection
+        .find_one(doc! {"_id": original_tweet_id})
+        .await
+        .map_err(|_| {
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(serde_json::json!({"error": "Database error"})),
+            )
+        })?
+        .ok_or_else(|| {
+            (
+                StatusCode::NOT_FOUND,
+                Json(serde_json::json!({"error": "Original tweet not found"})),
+            )
+        })?;
+
+    let now = mongodb::bson::DateTime::now();
+    let id = Some(ObjectId::new());
+
+    // Create the quote tweet
+    let quote_tweet = Tweet {
+        id,
+        author_id: user.id.unwrap(),
+        content: payload.content,
+        tweet_type: TweetType::Quote,
+        original_tweet_id: Some(original_tweet_id),
+        created_at: now,
+        likes_count: 0,
+        retweets_count: 0,
+        replies_count: 0,
+        is_liked: false,
+        is_retweeted: false,
+        author_username: Some(user.username),
+        author_display_name: Some(user.display_name),
+        author_avatar_url: user.avatar_url,
+    };
+
+    let result = collection.insert_one(&quote_tweet).await.map_err(|_| {
+        (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(serde_json::json!({"error": "Failed to create quote tweet"})),
+        )
+    })?;
+
+    let mut created_quote = quote_tweet;
+    created_quote.id = Some(result.inserted_id.as_object_id().unwrap());
+
+    // Update the original tweet's retweet count
+    collection
+        .update_one(
+            doc! {"_id": original_tweet_id},
+            doc! {"$inc": {"retweets_count": 1}},
+        )
+        .await
+        .map_err(|_| {
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(serde_json::json!({"error": "Failed to update retweet count"})),
+            )
+        })?;
+
+    Ok((StatusCode::CREATED, Json(created_quote)))
 }
 
 /// Clear all tweets and users (for development/testing)

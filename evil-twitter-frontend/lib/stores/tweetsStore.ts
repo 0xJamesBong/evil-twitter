@@ -4,6 +4,8 @@ import { supabase } from "../supabase";
 export interface Tweet {
   id: string | { $oid: string };
   content: string;
+  tweet_type: "Original" | "Retweet" | "Quote";
+  original_tweet_id?: string | { $oid: string };
   created_at: string | { $date: { $numberLong: string } };
   likes_count: number;
   retweets_count: number;
@@ -25,6 +27,10 @@ export interface TweetsState {
   error: string | null;
   hasMore: boolean;
   lastFetchedAt: Date | null;
+  // Quote tweet modal state
+  showQuoteModal: boolean;
+  quoteTweetId: string | null;
+  quoteContent: string;
 }
 
 export interface TweetsActions {
@@ -33,6 +39,13 @@ export interface TweetsActions {
   createTweet: (
     content: string
   ) => Promise<{ success: boolean; error?: string; tweet?: Tweet }>;
+  retweetTweet: (
+    tweetId: string
+  ) => Promise<{ success: boolean; error?: string }>;
+  quoteTweet: (
+    tweetId: string,
+    content: string
+  ) => Promise<{ success: boolean; error?: string }>;
   generateFakeTweets: () => Promise<{ success: boolean; error?: string }>;
   likeTweet: (tweetId: string) => Promise<void>;
   unlikeTweet: (tweetId: string) => Promise<void>;
@@ -42,6 +55,11 @@ export interface TweetsActions {
   clearTweets: () => void;
   setError: (error: string | null) => void;
   setLoading: (loading: boolean) => void;
+  // Quote tweet modal actions
+  openQuoteModal: (tweetId: string) => void;
+  closeQuoteModal: () => void;
+  setQuoteContent: (content: string) => void;
+  clearQuoteData: () => void;
 }
 
 export const useTweetsStore = create<TweetsState & TweetsActions>(
@@ -52,6 +70,10 @@ export const useTweetsStore = create<TweetsState & TweetsActions>(
     error: null,
     hasMore: true,
     lastFetchedAt: null,
+    // Quote tweet modal state
+    showQuoteModal: false,
+    quoteTweetId: null,
+    quoteContent: "",
     ping: async () => {
       const response = await fetch("http://localhost:3000/ping");
       if (!response.ok) {
@@ -211,6 +233,101 @@ export const useTweetsStore = create<TweetsState & TweetsActions>(
       await get().likeTweet(tweetId);
     },
 
+    retweetTweet: async (tweetId: string) => {
+      try {
+        const {
+          data: { session },
+        } = await supabase.auth.getSession();
+        if (!session) {
+          return { success: false, error: "Not authenticated" };
+        }
+
+        const response = await fetch(
+          `http://localhost:3000/tweets/${tweetId}/retweet`,
+          {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${session.access_token}`,
+            },
+          }
+        );
+
+        if (!response.ok) {
+          const errorData = await response.json().catch(() => ({}));
+          return {
+            success: false,
+            error: errorData.error || "Failed to retweet",
+          };
+        }
+
+        const retweet = await response.json();
+        get().addTweet(retweet);
+
+        // Update the original tweet's retweet count
+        get().updateTweet(tweetId, {
+          retweets_count:
+            (get().tweets.find((t) => {
+              const currentId = typeof t.id === "string" ? t.id : t.id?.$oid;
+              return currentId === tweetId;
+            })?.retweets_count || 0) + 1,
+        });
+
+        return { success: true };
+      } catch (error) {
+        console.error("Failed to retweet:", error);
+        return { success: false, error: "Failed to retweet" };
+      }
+    },
+
+    quoteTweet: async (tweetId: string, content: string) => {
+      try {
+        const {
+          data: { session },
+        } = await supabase.auth.getSession();
+        if (!session) {
+          return { success: false, error: "Not authenticated" };
+        }
+
+        const response = await fetch(
+          `http://localhost:3000/tweets/${tweetId}/quote`,
+          {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${session.access_token}`,
+            },
+            body: JSON.stringify({ content }),
+          }
+        );
+
+        if (!response.ok) {
+          const errorData = await response.json().catch(() => ({}));
+          return {
+            success: false,
+            error: errorData.error || "Failed to quote tweet",
+          };
+        }
+
+        const quoteTweet = await response.json();
+        get().addTweet(quoteTweet);
+
+        // Update the original tweet's retweet count
+        get().updateTweet(tweetId, {
+          retweets_count:
+            (get().tweets.find((t) => {
+              const currentId = typeof t.id === "string" ? t.id : t.id?.$oid;
+              return currentId === tweetId;
+            })?.retweets_count || 0) + 1,
+        });
+
+        return { success: true };
+      } catch (error) {
+        console.error("Failed to quote tweet:", error);
+        return { success: false, error: "Failed to quote tweet" };
+      }
+    },
+
     addTweet: (tweet: Tweet) => {
       set((state) => ({
         tweets: [tweet, ...state.tweets],
@@ -247,6 +364,35 @@ export const useTweetsStore = create<TweetsState & TweetsActions>(
 
     setLoading: (loading: boolean) => {
       set({ isLoading: loading });
+    },
+
+    // Quote tweet modal actions
+    openQuoteModal: (tweetId: string) => {
+      set({
+        showQuoteModal: true,
+        quoteTweetId: tweetId,
+        quoteContent: "",
+      });
+    },
+
+    closeQuoteModal: () => {
+      set({
+        showQuoteModal: false,
+        quoteTweetId: null,
+        quoteContent: "",
+      });
+    },
+
+    setQuoteContent: (content: string) => {
+      set({ quoteContent: content });
+    },
+
+    clearQuoteData: () => {
+      set({
+        showQuoteModal: false,
+        quoteTweetId: null,
+        quoteContent: "",
+      });
     },
   })
 );
