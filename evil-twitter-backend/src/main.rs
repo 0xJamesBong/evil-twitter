@@ -40,7 +40,6 @@ use routes::user::{create_user, get_user, get_users, login_user};
             models::user::LoginResponse,
             models::tweet::Tweet,
             models::tweet::CreateTweet,
-            models::tweet::TweetWithAuthor,
             models::follow::Follow,
             models::follow::CreateFollow
         )

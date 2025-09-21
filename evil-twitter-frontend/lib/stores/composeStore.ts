@@ -60,7 +60,7 @@ export const useComposeStore = create<ComposeState & ComposeActions>(
       try {
         const { createTweet } = useTweetsStore.getState();
         const result = await createTweet(content);
-
+        console.log("createTweet result:", result);
         if (result.success) {
           get().clearContent();
         } else {

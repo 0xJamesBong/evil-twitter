@@ -118,6 +118,7 @@ export const useTweetsStore = create<TweetsState & TweetsActions>(
         }
 
         const newTweet = await response.json();
+        console.log("newTweet:", newTweet);
 
         // Add the new tweet to the beginning of the list
         set((state) => ({

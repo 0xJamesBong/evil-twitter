@@ -11,11 +11,11 @@ use mongodb::{
 use serde::Serialize;
 use utoipa::ToSchema;
 
-use crate::models::tweet::{CreateTweet, Tweet, TweetWithAuthor};
+use crate::models::tweet::{CreateTweet, Tweet};
 
 #[derive(Debug, Serialize, ToSchema)]
 pub struct TweetListResponse {
-    pub tweets: Vec<TweetWithAuthor>,
+    pub tweets: Vec<Tweet>,
     pub total: i64,
 }
 
@@ -32,17 +32,32 @@ pub struct TweetListResponse {
 )]
 pub async fn create_tweet(
     State(db): State<Database>,
-    headers: axum::http::HeaderMap,
+    _headers: axum::http::HeaderMap,
     Json(payload): Json<CreateTweet>,
 ) -> Result<(StatusCode, Json<Tweet>), (StatusCode, Json<serde_json::Value>)> {
     let collection: Collection<Tweet> = db.collection("tweets");
+    let user_collection: Collection<crate::models::user::User> = db.collection("users");
 
     // For now, just use the test user ID - we'll fix the auth later
     let author_id = ObjectId::parse_str("68d048ef74c7b991a0cba54c").unwrap();
 
     let now = mongodb::bson::DateTime::now();
+    // geneerate new id for the tweet
+    let id = Some(ObjectId::new());
+    // find the author_username and author_display_name and author_avatar_url
+    let author = user_collection
+        .find_one(doc! {"_id": author_id})
+        .await
+        .map_err(|_| {
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(serde_json::json!({"error": "Database error"})),
+            )
+        })
+        .unwrap()
+        .unwrap();
     let tweet = Tweet {
-        id: None,
+        id,
         author_id,
         content: payload.content,
         created_at: now,
@@ -51,6 +66,9 @@ pub async fn create_tweet(
         replies_count: 0,
         is_liked: false,
         is_retweeted: false,
+        author_username: Some(author.username),
+        author_display_name: Some(author.display_name),
+        author_avatar_url: author.avatar_url,
     };
 
     let result = collection.insert_one(&tweet).await.map_err(|_| {
@@ -74,7 +92,7 @@ pub async fn create_tweet(
         ("id" = String, Path, description = "Tweet ID")
     ),
     responses(
-        (status = 200, description = "Tweet found", body = TweetWithAuthor),
+        (status = 200, description = "Tweet found", body = Tweet),
         (status = 404, description = "Tweet not found")
     ),
     tag = "tweets"
@@ -82,7 +100,7 @@ pub async fn create_tweet(
 pub async fn get_tweet(
     State(db): State<Database>,
     Path(id): Path<String>,
-) -> Result<Json<TweetWithAuthor>, (StatusCode, Json<serde_json::Value>)> {
+) -> Result<Json<Tweet>, (StatusCode, Json<serde_json::Value>)> {
     let tweet_collection: Collection<Tweet> = db.collection("tweets");
     let user_collection: Collection<crate::models::user::User> = db.collection("users");
 
@@ -117,20 +135,10 @@ pub async fn get_tweet(
 
             match author {
                 Some(author) => {
-                    let tweet_with_author = TweetWithAuthor {
-                        id: tweet.id.unwrap(),
-                        content: tweet.content,
-                        created_at: tweet.created_at,
-                        likes_count: tweet.likes_count,
-                        retweets_count: tweet.retweets_count,
-                        replies_count: tweet.replies_count,
-                        is_liked: tweet.is_liked,
-                        is_retweeted: tweet.is_retweeted,
-                        author_id: tweet.author_id,
-                        author_username: author.username,
-                        author_display_name: author.display_name,
-                        author_avatar_url: author.avatar_url,
-                    };
+                    let mut tweet_with_author = tweet;
+                    tweet_with_author.author_username = Some(author.username);
+                    tweet_with_author.author_display_name = Some(author.display_name);
+                    tweet_with_author.author_avatar_url = author.avatar_url;
                     Ok(Json(tweet_with_author))
                 }
                 None => Err((
@@ -212,25 +220,15 @@ pub async fn get_tweets(
         .map(|author| (author.id.unwrap(), author))
         .collect();
 
-    let tweets_with_authors: Vec<TweetWithAuthor> = tweets
+    let tweets_with_authors: Vec<Tweet> = tweets
         .into_iter()
-        .filter_map(|tweet| {
-            author_map
-                .get(&tweet.author_id)
-                .map(|author| TweetWithAuthor {
-                    id: tweet.id.unwrap(),
-                    content: tweet.content,
-                    created_at: tweet.created_at,
-                    likes_count: tweet.likes_count,
-                    retweets_count: tweet.retweets_count,
-                    replies_count: tweet.replies_count,
-                    is_liked: tweet.is_liked,
-                    is_retweeted: tweet.is_retweeted,
-                    author_id: tweet.author_id,
-                    author_username: author.username.clone(),
-                    author_display_name: author.display_name.clone(),
-                    author_avatar_url: author.avatar_url.clone(),
-                })
+        .filter_map(|mut tweet| {
+            author_map.get(&tweet.author_id).map(|author| {
+                tweet.author_username = Some(author.username.clone());
+                tweet.author_display_name = Some(author.display_name.clone());
+                tweet.author_avatar_url = author.avatar_url.clone();
+                tweet
+            })
         })
         .collect();
 
@@ -316,6 +314,9 @@ pub async fn generate_fake_tweets(
             replies_count: 3,
             is_liked: false,
             is_retweeted: false,
+            author_username: None,
+            author_display_name: None,
+            author_avatar_url: None,
         },
         Tweet {
             id: None,
@@ -327,6 +328,9 @@ pub async fn generate_fake_tweets(
             replies_count: 5,
             is_liked: false,
             is_retweeted: false,
+            author_username: None,
+            author_display_name: None,
+            author_avatar_url: None,
         },
         Tweet {
             id: None,
@@ -338,6 +342,9 @@ pub async fn generate_fake_tweets(
             replies_count: 7,
             is_liked: false,
             is_retweeted: false,
+            author_username: None,
+            author_display_name: None,
+            author_avatar_url: None,
         },
         Tweet {
             id: None,
@@ -349,6 +356,9 @@ pub async fn generate_fake_tweets(
             replies_count: 2,
             is_liked: false,
             is_retweeted: false,
+            author_username: None,
+            author_display_name: None,
+            author_avatar_url: None,
         },
         Tweet {
             id: None,
@@ -360,6 +370,9 @@ pub async fn generate_fake_tweets(
             replies_count: 4,
             is_liked: false,
             is_retweeted: false,
+            author_username: None,
+            author_display_name: None,
+            author_avatar_url: None,
         },
     ];
 
@@ -385,21 +398,11 @@ pub async fn generate_fake_tweets(
                     })),
                 )
             })? {
-                // Convert to TweetWithAuthor (simplified for now)
-                let tweet_with_author = TweetWithAuthor {
-                    id: tweet.id.expect("Tweet should have an ID after insertion"),
-                    content: tweet.content,
-                    created_at: tweet.created_at,
-                    likes_count: tweet.likes_count,
-                    retweets_count: tweet.retweets_count,
-                    replies_count: tweet.replies_count,
-                    is_liked: tweet.is_liked,
-                    is_retweeted: tweet.is_retweeted,
-                    author_id: tweet.author_id,
-                    author_username: "test_user".to_string(),
-                    author_display_name: "Test User".to_string(),
-                    author_avatar_url: None,
-                };
+                // Convert to Tweet (simplified for now)
+                let mut tweet_with_author = tweet;
+                tweet_with_author.author_username = Some("test_user".to_string());
+                tweet_with_author.author_display_name = Some("Test User".to_string());
+                tweet_with_author.author_avatar_url = None;
                 tweets.push(tweet_with_author);
             }
 
