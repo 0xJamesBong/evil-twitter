@@ -32,14 +32,18 @@ pub struct TweetListResponse {
 )]
 pub async fn create_tweet(
     State(db): State<Database>,
+    headers: axum::http::HeaderMap,
     Json(payload): Json<CreateTweet>,
 ) -> Result<(StatusCode, Json<Tweet>), (StatusCode, Json<serde_json::Value>)> {
     let collection: Collection<Tweet> = db.collection("tweets");
 
+    // For now, just use the test user ID - we'll fix the auth later
+    let author_id = ObjectId::parse_str("68d048ef74c7b991a0cba54c").unwrap();
+
     let now = mongodb::bson::DateTime::now();
     let tweet = Tweet {
         id: None,
-        author_id: ObjectId::parse_str("507f1f77bcf86cd799439011").unwrap(), // TODO: Get from auth
+        author_id,
         content: payload.content,
         created_at: now,
         likes_count: 0,

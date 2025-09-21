@@ -19,6 +19,7 @@ export interface Tweet {
 }
 
 export interface TweetsState {
+  ping_result: string | null;
   tweets: Tweet[];
   isLoading: boolean;
   error: string | null;
@@ -27,6 +28,7 @@ export interface TweetsState {
 }
 
 export interface TweetsActions {
+  ping: () => Promise<void>;
   fetchTweets: () => Promise<void>;
   createTweet: (
     content: string
@@ -44,11 +46,21 @@ export interface TweetsActions {
 
 export const useTweetsStore = create<TweetsState & TweetsActions>(
   (set, get) => ({
+    ping_result: null,
     tweets: [],
     isLoading: false,
     error: null,
     hasMore: true,
     lastFetchedAt: null,
+    ping: async () => {
+      const response = await fetch("http://localhost:3000/ping");
+      if (!response.ok) {
+        throw new Error("Failed to ping backend");
+      }
+      const result = await response.json();
+      console.log(result);
+      set({ ping_result: result.message });
+    },
 
     fetchTweets: async () => {
       const { isLoading } = get();

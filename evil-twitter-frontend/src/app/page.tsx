@@ -6,6 +6,7 @@ import { Sidebar } from '../../components/Sidebar';
 import { Timeline } from '../../components/Timeline';
 import { RightSidebar } from '../../components/RightSidebar';
 import { useAuthStore } from '../../lib/stores/authStore';
+import { TestPing } from '../../components/TestPing';
 
 export default function HomePage() {
   const { isAuthenticated, initialized } = useAuthStore();
@@ -23,6 +24,7 @@ export default function HomePage() {
       <Navbar />
 
       <div className="max-w-6xl mx-auto flex pt-16">
+
         {/* Left Sidebar */}
         <div className="w-64 fixed left-0 top-16 h-full border-r border-gray-800">
           <Sidebar />

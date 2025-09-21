@@ -10,5 +10,5 @@ use axum::Json;
     tag = "health"
 )]
 pub async fn ping_handler() -> Json<serde_json::Value> {
-    Json(serde_json::json!({"status": "ok", "message": "Evil Twitter API is running"}))
+    Json(serde_json::json!({"status": "ok", "message": "😈 Evil Twitter API is running"}))
 }
