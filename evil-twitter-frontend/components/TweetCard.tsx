@@ -1,6 +1,30 @@
 'use client';
 
 import React from 'react';
+import {
+    Card,
+    CardContent,
+    Avatar,
+    Typography,
+    IconButton,
+    Box,
+    Chip,
+    Dialog,
+    DialogTitle,
+    DialogContent,
+    DialogActions,
+    TextField,
+    Button,
+    Stack,
+} from '@mui/material';
+import {
+    Favorite,
+    FavoriteBorder,
+    Repeat,
+    ChatBubbleOutline,
+    Share,
+    MoreHoriz,
+} from '@mui/icons-material';
 import { useTweetsStore } from '../lib/stores/tweetsStore';
 
 interface Tweet {
@@ -86,167 +110,213 @@ export function TweetCard({ tweet, onLike, onRetweet, onQuote }: TweetCardProps)
         }
     };
 
+    const getTweetTypeColor = (type: string) => {
+        switch (type) {
+            case 'Retweet':
+                return 'success';
+            case 'Quote':
+                return 'primary';
+            default:
+                return 'default';
+        }
+    };
+
+    const getTweetTypeIcon = (type: string) => {
+        switch (type) {
+            case 'Retweet':
+                return <Repeat fontSize="small" />;
+            case 'Quote':
+                return <ChatBubbleOutline fontSize="small" />;
+            default:
+                return undefined;
+        }
+    };
+
     return (
-        <div className="p-4 hover:bg-gray-900 transition-colors">
-            <div className="flex space-x-3">
-                {/* Avatar */}
-                <div className="w-10 h-10 bg-gray-600 rounded-full flex-shrink-0 flex items-center justify-center">
-                    {tweet.author_avatar_url ? (
-                        <img
-                            src={tweet.author_avatar_url}
-                            alt={tweet.author_display_name}
-                            className="w-full h-full rounded-full object-cover"
-                        />
-                    ) : (
-                        <div className="text-white text-sm font-medium">
-                            {tweet.author_display_name ? tweet.author_display_name.charAt(0).toUpperCase() : "😈"}
-                        </div>
-                    )}
-                </div>
-
-                {/* Tweet Content */}
-                <div className="flex-1 min-w-0">
-                    {/* Header */}
-                    <div className="flex items-center space-x-2 mb-1">
-                        <span className="font-bold text-white hover:underline cursor-pointer">
-                            {tweet.author_display_name}
-                        </span>
-                        {tweet.author_is_verified && (
-                            <span className="text-blue-500">✓</span>
-                        )}
-                        <span className="text-gray-500">@{tweet.author_username}</span>
-                        <span className="text-gray-500">·</span>
-                        <span className="text-gray-500 hover:underline cursor-pointer">
-                            {formatTimeAgo(tweet.created_at)}
-                        </span>
-                        <button className="ml-auto p-1 hover:bg-gray-800 rounded-full transition-colors">
-                            <span className="text-gray-500">⋯</span>
-                        </button>
-                    </div>
-
-                    {/* Tweet Type Indicator */}
-                    {tweet.tweet_type === "Retweet" && (
-                        <div className="flex items-center text-gray-500 text-sm mb-2">
-                            <span className="mr-2">🔄</span>
-                            <span>Retweeted</span>
-                        </div>
-                    )}
-                    {tweet.tweet_type === "Quote" && (
-                        <div className="flex items-center text-gray-500 text-sm mb-2">
-                            <span className="mr-2">💬</span>
-                            <span>Quoted</span>
-                        </div>
-                    )}
-
-                    {/* Tweet Text */}
-                    <div className="text-white text-base mb-3 whitespace-pre-wrap">
-                        {tweet.content}
-                    </div>
-
-                    {/* Media */}
-                    {tweet.media_urls && tweet.media_urls.length > 0 && (
-                        <div className="mb-3 rounded-2xl overflow-hidden">
-                            <img
-                                src={tweet.media_urls[0]}
-                                alt="Tweet media"
-                                className="w-full max-h-96 object-cover"
-                            />
-                        </div>
-                    )}
-
-                    {/* Actions */}
-                    <div className="flex items-center justify-between max-w-md">
-                        {/* Reply */}
-                        <button className="flex items-center space-x-2 text-gray-500 hover:text-blue-500 transition-colors group">
-                            <div className="p-2 group-hover:bg-blue-500 group-hover:bg-opacity-10 rounded-full">
-                                <span className="text-lg">💬</span>
-                            </div>
-                            <span className="text-sm">{tweet.replies_count}</span>
-                        </button>
-
-                        {/* Retweet */}
-                        <button
-                            onClick={handleRetweet}
-                            className="flex items-center space-x-2 text-gray-500 hover:text-green-500 transition-colors group"
+        <>
+            <Card
+                sx={{
+                    backgroundColor: 'background.paper',
+                    border: '1px solid',
+                    borderColor: 'divider',
+                    borderRadius: 2,
+                    mb: 1,
+                    '&:hover': {
+                        backgroundColor: 'rgba(255, 255, 255, 0.03)',
+                    }
+                }}
+            >
+                <CardContent sx={{ p: 2, '&:last-child': { pb: 2 } }}>
+                    <Box sx={{ display: 'flex', gap: 2 }}>
+                        {/* Avatar */}
+                        <Avatar
+                            src={tweet.author_avatar_url || undefined}
+                            sx={{ width: 48, height: 48 }}
                         >
-                            <div className="p-2 group-hover:bg-green-500 group-hover:bg-opacity-10 rounded-full">
-                                <span className="text-lg">🔄</span>
-                            </div>
-                            <span className="text-sm">{tweet.retweets_count}</span>
-                        </button>
+                            {tweet.author_display_name?.charAt(0).toUpperCase() || '😈'}
+                        </Avatar>
 
-                        {/* Quote */}
-                        <button
-                            onClick={handleQuote}
-                            className="flex items-center space-x-2 text-gray-500 hover:text-blue-500 transition-colors group"
-                        >
-                            <div className="p-2 group-hover:bg-blue-500 group-hover:bg-opacity-10 rounded-full">
-                                <span className="text-lg">💬</span>
-                            </div>
-                        </button>
-
-                        {/* Like */}
-                        <button
-                            onClick={handleLike}
-                            className="flex items-center space-x-2 text-gray-500 hover:text-red-500 transition-colors group"
-                        >
-                            <div className="p-2 group-hover:bg-red-500 group-hover:bg-opacity-10 rounded-full">
-                                {tweet.is_liked ? (
-                                    <span className="text-lg text-red-500">❤️</span>
-                                ) : (
-                                    <span className="text-lg">🤍</span>
+                        {/* Tweet Content */}
+                        <Box sx={{ flex: 1, minWidth: 0 }}>
+                            {/* Header */}
+                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
+                                <Typography variant="subtitle2" sx={{ fontWeight: 600 }}>
+                                    {tweet.author_display_name}
+                                </Typography>
+                                {tweet.author_is_verified && (
+                                    <Typography color="primary" sx={{ fontSize: '0.875rem' }}>
+                                        ✓
+                                    </Typography>
                                 )}
-                            </div>
-                            <span className="text-sm">{tweet.likes_count}</span>
-                        </button>
+                                <Typography variant="body2" color="text.secondary">
+                                    @{tweet.author_username}
+                                </Typography>
+                                <Typography variant="body2" color="text.secondary">
+                                    ·
+                                </Typography>
+                                <Typography variant="body2" color="text.secondary">
+                                    {formatTimeAgo(tweet.created_at)}
+                                </Typography>
+                                <IconButton size="small" sx={{ ml: 'auto' }}>
+                                    <MoreHoriz fontSize="small" />
+                                </IconButton>
+                            </Box>
 
-                        {/* Bookmark */}
-                        <button className="flex items-center space-x-2 text-gray-500 hover:text-blue-500 transition-colors group">
-                            <div className="p-2 group-hover:bg-blue-500 group-hover:bg-opacity-10 rounded-full">
-                                <span className="text-lg">🔖</span>
-                            </div>
-                        </button>
+                            {/* Tweet Type Indicator */}
+                            {tweet.tweet_type !== 'Original' && (
+                                <Box sx={{ mb: 1 }}>
+                                    <Chip
+                                        icon={getTweetTypeIcon(tweet.tweet_type)}
+                                        label={tweet.tweet_type === 'Retweet' ? 'Retweeted' : 'Quoted'}
+                                        size="small"
+                                        color={getTweetTypeColor(tweet.tweet_type)}
+                                        variant="outlined"
+                                    />
+                                </Box>
+                            )}
 
-                        {/* Share */}
-                        <button className="flex items-center space-x-2 text-gray-500 hover:text-blue-500 transition-colors group">
-                            <div className="p-2 group-hover:bg-blue-500 group-hover:bg-opacity-10 rounded-full">
-                                <span className="text-lg">📤</span>
-                            </div>
-                        </button>
-                    </div>
-                </div>
-            </div>
+                            {/* Tweet Text */}
+                            <Typography
+                                variant="body1"
+                                sx={{
+                                    mb: tweet.media_urls?.length ? 2 : 1,
+                                    whiteSpace: 'pre-wrap',
+                                    wordBreak: 'break-word'
+                                }}
+                            >
+                                {tweet.content}
+                            </Typography>
+
+                            {/* Media */}
+                            {tweet.media_urls && tweet.media_urls.length > 0 && (
+                                <Box sx={{ mb: 2, borderRadius: 2, overflow: 'hidden' }}>
+                                    <img
+                                        src={tweet.media_urls[0]}
+                                        alt="Tweet media"
+                                        style={{
+                                            width: '100%',
+                                            maxHeight: '300px',
+                                            objectFit: 'cover',
+                                        }}
+                                    />
+                                </Box>
+                            )}
+
+                            {/* Actions */}
+                            <Stack direction="row" spacing={4} sx={{ mt: 1 }}>
+                                {/* Reply */}
+                                <IconButton size="small" color="default">
+                                    <ChatBubbleOutline fontSize="small" />
+                                    <Typography variant="caption" sx={{ ml: 0.5 }}>
+                                        {tweet.replies_count}
+                                    </Typography>
+                                </IconButton>
+
+                                {/* Retweet */}
+                                <IconButton
+                                    size="small"
+                                    color="success"
+                                    onClick={handleRetweet}
+                                >
+                                    <Repeat fontSize="small" />
+                                    <Typography variant="caption" sx={{ ml: 0.5 }}>
+                                        {tweet.retweets_count}
+                                    </Typography>
+                                </IconButton>
+
+                                {/* Quote */}
+                                <IconButton
+                                    size="small"
+                                    color="primary"
+                                    onClick={handleQuote}
+                                >
+                                    <ChatBubbleOutline fontSize="small" />
+                                </IconButton>
+
+                                {/* Like */}
+                                <IconButton
+                                    size="small"
+                                    color={tweet.is_liked ? 'error' : 'default'}
+                                    onClick={handleLike}
+                                >
+                                    {tweet.is_liked ? (
+                                        <Favorite fontSize="small" />
+                                    ) : (
+                                        <FavoriteBorder fontSize="small" />
+                                    )}
+                                    <Typography variant="caption" sx={{ ml: 0.5 }}>
+                                        {tweet.likes_count}
+                                    </Typography>
+                                </IconButton>
+
+                                {/* Share */}
+                                <IconButton size="small" color="default">
+                                    <Share fontSize="small" />
+                                </IconButton>
+                            </Stack>
+                        </Box>
+                    </Box>
+                </CardContent>
+            </Card>
 
             {/* Quote Tweet Modal */}
-            {showQuoteModal && quoteTweetId === getTweetId() && (
-                <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-                    <div className="bg-gray-900 rounded-lg p-6 w-full max-w-md mx-4">
-                        <h3 className="text-white text-lg font-semibold mb-4">Quote Tweet</h3>
-                        <textarea
-                            value={quoteContent}
-                            onChange={(e) => setQuoteContent(e.target.value)}
-                            placeholder="Add a comment..."
-                            className="w-full h-24 bg-gray-800 text-white rounded-lg p-3 resize-none focus:outline-none focus:ring-2 focus:ring-blue-500"
-                            maxLength={280}
-                        />
-                        <div className="flex justify-end space-x-3 mt-4">
-                            <button
-                                onClick={closeQuoteModal}
-                                className="px-4 py-2 text-gray-400 hover:text-white transition-colors"
-                            >
-                                Cancel
-                            </button>
-                            <button
-                                onClick={handleQuoteSubmit}
-                                disabled={!quoteContent.trim()}
-                                className="px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-600 disabled:cursor-not-allowed text-white rounded-lg transition-colors"
-                            >
-                                Quote Tweet
-                            </button>
-                        </div>
-                    </div>
-                </div>
-            )}
-        </div>
+            <Dialog
+                open={showQuoteModal && quoteTweetId === getTweetId()}
+                onClose={closeQuoteModal}
+                maxWidth="sm"
+                fullWidth
+            >
+                <DialogTitle>Quote Tweet</DialogTitle>
+                <DialogContent>
+                    <TextField
+                        autoFocus
+                        multiline
+                        rows={4}
+                        fullWidth
+                        variant="outlined"
+                        placeholder="Add a comment..."
+                        value={quoteContent}
+                        onChange={(e) => setQuoteContent(e.target.value)}
+                        inputProps={{ maxLength: 280 }}
+                        sx={{ mt: 1 }}
+                    />
+                    <Typography variant="caption" color="text.secondary" sx={{ mt: 1, display: 'block' }}>
+                        {quoteContent.length}/280
+                    </Typography>
+                </DialogContent>
+                <DialogActions>
+                    <Button onClick={closeQuoteModal}>
+                        Cancel
+                    </Button>
+                    <Button
+                        onClick={handleQuoteSubmit}
+                        variant="contained"
+                        disabled={!quoteContent.trim()}
+                    >
+                        Quote Tweet
+                    </Button>
+                </DialogActions>
+            </Dialog>
+        </>
     );
 }
