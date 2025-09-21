@@ -75,7 +75,7 @@ async fn main() -> anyhow::Result<()> {
 
     let (app, api) = OpenApiRouter::with_openapi(ApiDoc::openapi())
         .route("/ping", get(ping_handler))
-        .route("/users/create", post(create_user).get(get_users))
+        .route("/users", post(create_user).get(get_users))
         .route("/users/{id}", get(get_user))
         .route("/tweets", post(create_tweet).get(get_tweets))
         .route("/tweets/{id}", get(get_tweet))

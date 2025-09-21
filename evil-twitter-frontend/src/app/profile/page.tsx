@@ -10,6 +10,12 @@ export default function ProfilePage() {
     const { user, logout } = useAuthStore();
     const { user: backendUser, fetchUser, isLoading: backendLoading } = useBackendUserStore();
 
+    const handleSyncWithSupabase = async () => {
+        if (user?.id) {
+            console.log('Syncing with Supabase', user);
+            await useBackendUserStore.getState().syncWithSupabase(user);
+        }
+    };
     // Fetch backend user data when component mounts
     useEffect(() => {
         if (user?.id) {
@@ -116,6 +122,14 @@ export default function ProfilePage() {
                                 className="bg-red-600 hover:bg-red-700 text-white px-6 py-2 rounded-lg font-semibold transition-colors"
                             >
                                 Sign Out
+                            </button>
+                        </div>
+                        <div className="pt-6">
+                            <button
+                                onClick={handleSyncWithSupabase}
+                                className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded-lg font-semibold transition-colors"
+                            >
+                                Sync with Supabase
                             </button>
                         </div>
                     </div>

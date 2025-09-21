@@ -124,9 +124,6 @@ export const useAuthStore = create<AuthState & AuthActions>((set, get) => ({
         throw error;
       }
 
-      // Check if user exists in backend database, create if not
-      useBackendUserStore.getState().createUser(data.user as User);
-
       console.log("Auth store: Login successful", data);
       set({
         user: data.user,

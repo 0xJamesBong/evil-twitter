@@ -57,8 +57,15 @@ export const useBackendUserStore = create<
       if (response.ok) {
         const newUser = await response.json();
         set({ user: newUser, isLoading: false });
+      } else if (response.status === 409) {
+        // User already exists, fetch them instead
+        console.log("User already exists, fetching...");
+        await get().fetchUser(user.id);
       } else {
-        throw new Error("Failed to create user in backend");
+        const errorText = await response.text();
+        throw new Error(
+          `Failed to create user: ${response.status} ${errorText}`
+        );
       }
     } catch (error) {
       set({
@@ -76,7 +83,15 @@ export const useBackendUserStore = create<
         )}`
       );
       if (!response.ok) {
-        throw new Error("Failed to fetch backend user");
+        if (response.status === 404) {
+          set({
+            user: null,
+            isLoading: false,
+            error: "User not found in backend",
+          });
+          return;
+        }
+        throw new Error(`Failed to fetch backend user: ${response.status}`);
       }
 
       const data = await response.json();
@@ -107,34 +122,20 @@ export const useBackendUserStore = create<
 
       // If user doesn't exist, create them
       if (!get().user) {
-        const username =
-          supabaseUser.user_metadata?.username ||
-          supabaseUser.email.split("@")[0];
-        const displayName =
-          supabaseUser.user_metadata?.display_name ||
-          supabaseUser.email.split("@")[0];
-
-        const response = await fetch("http://localhost:3000/users", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            supabase_id: supabaseUser.id,
-            username,
-            display_name: displayName,
-            email: supabaseUser.email,
-            password: "",
-            avatar_url: supabaseUser.user_metadata?.avatar_url || null,
-            bio: null,
-          }),
-        });
-
-        if (response.ok) {
-          // Fetch the newly created user
-          await get().fetchUser(supabaseUser.id);
-        } else {
-          throw new Error("Failed to create user in backend");
+        console.log("Creating user in backend", supabaseUser);
+        try {
+          await get().createUser(supabaseUser as User);
+        } catch (createError: any) {
+          // If user already exists (409), just fetch them
+          if (
+            createError.message.includes("409") ||
+            createError.message.includes("Conflict")
+          ) {
+            console.log("User already exists, fetching...");
+            await get().fetchUser(supabaseUser.id);
+          } else {
+            throw createError;
+          }
         }
       }
     } catch (error) {
