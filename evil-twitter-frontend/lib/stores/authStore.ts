@@ -1,6 +1,7 @@
 import { create } from "zustand";
 import { supabase } from "../supabase";
 import { User as SupabaseUser, Session } from "@supabase/supabase-js";
+import { useBackendUserStore } from "./backendUserStore";
 
 export type User = SupabaseUser;
 
@@ -38,6 +39,7 @@ export const useAuthStore = create<AuthState & AuthActions>((set, get) => ({
   isLoading: false,
   error: null,
   initialized: false,
+  supabase_id: null,
 
   initialize: async () => {
     if (get().initialized) return;
@@ -55,7 +57,7 @@ export const useAuthStore = create<AuthState & AuthActions>((set, get) => ({
         set({ error: error.message, isLoading: false, initialized: true });
         return;
       }
-
+      console.log("session.user", session?.user);
       if (session) {
         set({
           user: session.user,
@@ -73,6 +75,9 @@ export const useAuthStore = create<AuthState & AuthActions>((set, get) => ({
           initialized: true,
         });
       }
+
+      // create the user in the backend
+      useBackendUserStore.getState().createUser(session?.user as User);
 
       // Set up auth state listener
       supabase.auth.onAuthStateChange((event, session) => {
@@ -119,6 +124,9 @@ export const useAuthStore = create<AuthState & AuthActions>((set, get) => ({
         throw error;
       }
 
+      // Check if user exists in backend database, create if not
+      useBackendUserStore.getState().createUser(data.user as User);
+
       console.log("Auth store: Login successful", data);
       set({
         user: data.user,
@@ -126,6 +134,11 @@ export const useAuthStore = create<AuthState & AuthActions>((set, get) => ({
         isAuthenticated: true,
         isLoading: false,
       });
+
+      // Sync with backend user data
+      if (data.user) {
+        useBackendUserStore.getState().syncWithSupabase(data.user);
+      }
     } catch (error: any) {
       console.error("Auth store: Login failed:", error);
       set({ error: error.message, isLoading: false });
@@ -150,6 +163,45 @@ export const useAuthStore = create<AuthState & AuthActions>((set, get) => ({
       });
 
       if (error) throw error;
+
+      // If user was created successfully, create user in backend database
+      if (data.user) {
+        try {
+          const username =
+            fullName?.toLowerCase().replace(/\s+/g, "_") || email.split("@")[0];
+          const displayName = fullName || email.split("@")[0];
+
+          const response = await fetch("http://localhost:3000/users", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+              supabase_id: data.user.id,
+              username,
+              display_name: displayName,
+              email,
+              password: "", // We don't store password in backend since Supabase handles auth
+              avatar_url: null,
+              bio: null,
+            }),
+          });
+
+          if (!response.ok) {
+            console.warn(
+              "Failed to create user in backend database:",
+              await response.text()
+            );
+            // Don't throw error here - Supabase user was created successfully
+          } else {
+            // Sync with backend user data after successful creation
+            useBackendUserStore.getState().syncWithSupabase(data.user);
+          }
+        } catch (backendError) {
+          console.warn("Error creating user in backend:", backendError);
+          // Don't throw error here - Supabase user was created successfully
+        }
+      }
 
       set({ isLoading: false });
       return { success: true };

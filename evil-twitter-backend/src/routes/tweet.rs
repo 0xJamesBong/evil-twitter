@@ -117,7 +117,7 @@ pub async fn get_tweet(
         .map_err(|_| {
             (
                 StatusCode::INTERNAL_SERVER_ERROR,
-                Json(serde_json::json!({"error": "Database error"})),
+                Json(serde_json::json!({"error": "Database error, can't find tweet"})),
             )
         })?;
 
@@ -418,4 +418,41 @@ pub async fn generate_fake_tweets(
             })),
         )),
     }
+}
+
+/// Clear all tweets and users (for development/testing)
+#[utoipa::path(
+    post,
+    path = "/admin/clear-all",
+    responses(
+        (status = 200, description = "All data cleared successfully")
+    ),
+    tag = "admin"
+)]
+pub async fn clear_all_data(
+    State(db): State<Database>,
+) -> Result<(StatusCode, Json<serde_json::Value>), (StatusCode, Json<serde_json::Value>)> {
+    let tweet_collection: Collection<Tweet> = db.collection("tweets");
+    let user_collection: Collection<crate::models::user::User> = db.collection("users");
+
+    // Clear all tweets
+    tweet_collection.delete_many(doc! {}).await.map_err(|_| {
+        (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(serde_json::json!({"error": "Failed to clear tweets"})),
+        )
+    })?;
+
+    // Clear all users
+    user_collection.delete_many(doc! {}).await.map_err(|_| {
+        (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(serde_json::json!({"error": "Failed to clear users"})),
+        )
+    })?;
+
+    Ok((
+        StatusCode::OK,
+        Json(serde_json::json!({"message": "All data cleared successfully"})),
+    ))
 }

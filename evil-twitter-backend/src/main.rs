@@ -12,8 +12,10 @@ mod routes;
 
 use routes::follow::{follow_user, unfollow_user};
 use routes::ping::ping_handler;
-use routes::tweet::{create_tweet, generate_fake_tweets, get_tweet, get_tweets, like_tweet};
-use routes::user::{create_user, get_user, get_users, login_user};
+use routes::tweet::{
+    clear_all_data, create_tweet, generate_fake_tweets, get_tweet, get_tweets, like_tweet,
+};
+use routes::user::{create_user, get_user, get_users};
 
 /// API documentation
 #[derive(OpenApi)]
@@ -23,12 +25,12 @@ use routes::user::{create_user, get_user, get_users, login_user};
         routes::user::create_user,
         routes::user::get_user,
         routes::user::get_users,
-        routes::user::login_user,
         routes::tweet::create_tweet,
         routes::tweet::get_tweet,
         routes::tweet::get_tweets,
         routes::tweet::like_tweet,
         routes::tweet::generate_fake_tweets,
+        routes::tweet::clear_all_data,
         routes::follow::follow_user,
         routes::follow::unfollow_user
     ),
@@ -36,8 +38,6 @@ use routes::user::{create_user, get_user, get_users, login_user};
         schemas(
             models::user::User,
             models::user::CreateUser,
-            models::user::LoginRequest,
-            models::user::LoginResponse,
             models::tweet::Tweet,
             models::tweet::CreateTweet,
             models::follow::Follow,
@@ -75,13 +75,13 @@ async fn main() -> anyhow::Result<()> {
 
     let (app, api) = OpenApiRouter::with_openapi(ApiDoc::openapi())
         .route("/ping", get(ping_handler))
-        .route("/users", post(create_user).get(get_users))
+        .route("/users/create", post(create_user).get(get_users))
         .route("/users/{id}", get(get_user))
-        .route("/auth/login", post(login_user))
         .route("/tweets", post(create_tweet).get(get_tweets))
         .route("/tweets/{id}", get(get_tweet))
         .route("/tweets/{id}/like", post(like_tweet))
         .route("/tweets/fake", post(generate_fake_tweets))
+        .route("/admin/clear-all", post(clear_all_data))
         .route("/follows", post(follow_user))
         .route("/follows/{following_id}", delete(unfollow_user))
         .split_for_parts();

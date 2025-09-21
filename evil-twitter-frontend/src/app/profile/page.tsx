@@ -1,12 +1,21 @@
 'use client';
 
-import React from 'react';
+import React, { useEffect } from 'react';
 import { useAuthStore } from '../../../lib/stores/authStore';
+import { useBackendUserStore } from '../../../lib/stores/backendUserStore';
 import { ProtectedRoute } from '../../../components/ProtectedRoute';
 import Navbar from '../../../components/Navbar';
 
 export default function ProfilePage() {
     const { user, logout } = useAuthStore();
+    const { user: backendUser, fetchUser, isLoading: backendLoading } = useBackendUserStore();
+
+    // Fetch backend user data when component mounts
+    useEffect(() => {
+        if (user?.id) {
+            fetchUser(user.id);
+        }
+    }, [user?.id, fetchUser]);
 
     const handleLogout = async () => {
         try {
@@ -67,14 +76,47 @@ export default function ProfilePage() {
                                 </div>
                             </div>
 
-                            <div className="pt-6">
-                                <button
-                                    onClick={handleLogout}
-                                    className="bg-red-600 hover:bg-red-700 text-white px-6 py-2 rounded-lg font-semibold transition-colors"
-                                >
-                                    Sign Out
-                                </button>
-                            </div>
+                            {/* Backend User Stats */}
+                            {backendUser && (
+                                <div>
+                                    <h2 className="text-xl font-semibold text-white mb-4">Profile Stats</h2>
+                                    <div className="grid grid-cols-3 gap-4 mb-6">
+                                        <div className="bg-gray-800 rounded-lg p-4 text-center">
+                                            <div className="text-2xl font-bold text-white">{backendUser.tweets_count}</div>
+                                            <div className="text-gray-400 text-sm">Tweets</div>
+                                        </div>
+                                        <div className="bg-gray-800 rounded-lg p-4 text-center">
+                                            <div className="text-2xl font-bold text-white">{backendUser.followers_count}</div>
+                                            <div className="text-gray-400 text-sm">Followers</div>
+                                        </div>
+                                        <div className="bg-gray-800 rounded-lg p-4 text-center">
+                                            <div className="text-2xl font-bold text-white">{backendUser.following_count}</div>
+                                            <div className="text-gray-400 text-sm">Following</div>
+                                        </div>
+                                    </div>
+                                </div>
+                            )}
+
+                            {backendLoading && (
+                                <div className="text-center py-4">
+                                    <div className="text-gray-400">Loading profile stats...</div>
+                                </div>
+                            )}
+
+                            {!backendUser && !backendLoading && (
+                                <div className="text-center py-4">
+                                    <div className="text-gray-400">Profile stats not available</div>
+                                </div>
+                            )}
+                        </div>
+
+                        <div className="pt-6">
+                            <button
+                                onClick={handleLogout}
+                                className="bg-red-600 hover:bg-red-700 text-white px-6 py-2 rounded-lg font-semibold transition-colors"
+                            >
+                                Sign Out
+                            </button>
                         </div>
                     </div>
                 </div>

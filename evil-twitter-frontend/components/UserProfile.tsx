@@ -137,6 +137,7 @@ export function UserProfile({ onLogout, onSettings }: UserProfileProps) {
                 <p className="text-gray-400 text-xs">User ID:</p>
                 <p className="text-gray-300 text-xs font-mono">{user?.id}</p>
             </div>
+
         </div>
     );
 } 
