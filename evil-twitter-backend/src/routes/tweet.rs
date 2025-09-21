@@ -32,33 +32,57 @@ pub struct TweetListResponse {
 )]
 pub async fn create_tweet(
     State(db): State<Database>,
-    _headers: axum::http::HeaderMap,
+    headers: axum::http::HeaderMap,
     Json(payload): Json<CreateTweet>,
 ) -> Result<(StatusCode, Json<Tweet>), (StatusCode, Json<serde_json::Value>)> {
     let collection: Collection<Tweet> = db.collection("tweets");
     let user_collection: Collection<crate::models::user::User> = db.collection("users");
 
-    // For now, just use the test user ID - we'll fix the auth later
-    let author_id = ObjectId::parse_str("68d048ef74c7b991a0cba54c").unwrap();
+    // Extract Supabase user ID from Authorization header
+    let auth_header = headers
+        .get("authorization")
+        .and_then(|h| h.to_str().ok())
+        .ok_or_else(|| {
+            (
+                StatusCode::UNAUTHORIZED,
+                Json(serde_json::json!({"error": "Missing authorization header"})),
+            )
+        })?;
+
+    // Extract user ID from JWT token (simplified - in production you'd verify the JWT)
+    let supabase_id = if auth_header.starts_with("Bearer ") {
+        // For now, we'll use a placeholder - in production you'd decode the JWT
+        // and extract the user ID from the token payload
+        "87cda46d-edb6-42ec-8bb1-b580d1ca2c6e" // Placeholder for testing
+    } else {
+        return Err((
+            StatusCode::UNAUTHORIZED,
+            Json(serde_json::json!({"error": "Invalid authorization format"})),
+        ));
+    };
 
     let now = mongodb::bson::DateTime::now();
-    // geneerate new id for the tweet
     let id = Some(ObjectId::new());
-    // find the author_username and author_display_name and author_avatar_url
-    let author = user_collection
-        .find_one(doc! {"_id": author_id})
+
+    // Find user by supabase_id
+    let user = user_collection
+        .find_one(doc! {"supabase_id": supabase_id})
         .await
         .map_err(|_| {
             (
                 StatusCode::INTERNAL_SERVER_ERROR,
                 Json(serde_json::json!({"error": "Database error"})),
             )
-        })
-        .unwrap()
-        .unwrap();
+        })?
+        .ok_or_else(|| {
+            (
+                StatusCode::NOT_FOUND,
+                Json(serde_json::json!({"error": "User not found"})),
+            )
+        })?;
     let tweet = Tweet {
         id,
-        author_id,
+        author_id: user.id.unwrap(),
         content: payload.content,
         created_at: now,
         likes_count: 0,
@@ -66,9 +90,9 @@ pub async fn create_tweet(
         replies_count: 0,
         is_liked: false,
         is_retweeted: false,
-        author_username: Some(author.username),
-        author_display_name: Some(author.display_name),
-        author_avatar_url: author.avatar_url,
+        author_username: Some(user.username),
+        author_display_name: Some(user.display_name),
+        author_avatar_url: user.avatar_url,
     };
 
     let result = collection.insert_one(&tweet).await.map_err(|_| {
