@@ -16,6 +16,7 @@ import {
     TextField,
     Button,
     Stack,
+    Tooltip,
 } from '@mui/material';
 import {
     Favorite,
@@ -26,6 +27,7 @@ import {
     MoreHoriz,
     Healing,
     LocalHospital,
+    FlashOn,
 } from '@mui/icons-material';
 import { useTweetsStore } from '../lib/stores/tweetsStore';
 
@@ -320,87 +322,106 @@ export function TweetCard({ tweet, onLike, onRetweet, onQuote, onReply }: TweetC
                             {/* Actions */}
                             <Stack direction="row" spacing={4} sx={{ mt: 1 }}>
                                 {/* Reply */}
-                                <IconButton
-                                    size="small"
-                                    color="default"
-                                    onClick={handleReply}
-                                >
-                                    <ChatBubbleOutline fontSize="small" />
-                                    <Typography variant="caption" sx={{ ml: 0.5 }}>
-                                        {tweet.replies_count}
-                                    </Typography>
-                                </IconButton>
+                                <Tooltip title="Reply" arrow>
+                                    <IconButton
+                                        size="small"
+                                        color="default"
+                                        onClick={handleReply}
+                                    >
+                                        <ChatBubbleOutline fontSize="small" />
+                                        <Typography variant="caption" sx={{ ml: 0.5 }}>
+                                            {tweet.replies_count}
+                                        </Typography>
+                                    </IconButton>
+                                </Tooltip>
 
                                 {/* Retweet */}
-                                <IconButton
-                                    size="small"
-                                    color="success"
-                                    onClick={handleRetweet}
-                                >
-                                    <Repeat fontSize="small" />
-                                    <Typography variant="caption" sx={{ ml: 0.5 }}>
-                                        {tweet.retweets_count}
-                                    </Typography>
-                                </IconButton>
+                                <Tooltip title="Retweet" arrow>
+                                    <IconButton
+                                        size="small"
+                                        color="success"
+                                        onClick={handleRetweet}
+                                    >
+                                        <Repeat fontSize="small" />
+                                        <Typography variant="caption" sx={{ ml: 0.5 }}>
+                                            {tweet.retweets_count}
+                                        </Typography>
+                                    </IconButton>
+                                </Tooltip>
 
                                 {/* Quote */}
-                                <IconButton
-                                    size="small"
-                                    color="primary"
-                                    onClick={handleQuote}
-                                >
-                                    <ChatBubbleOutline fontSize="small" />
-                                </IconButton>
+                                <Tooltip title="Quote" arrow>
+                                    <IconButton
+                                        size="small"
+                                        color="primary"
+                                        onClick={handleQuote}
+                                    >
+                                        <ChatBubbleOutline fontSize="small" />
+                                    </IconButton>
+                                </Tooltip>
 
                                 {/* Like */}
-                                <IconButton
-                                    size="small"
-                                    color={tweet.is_liked ? 'error' : 'default'}
-                                    onClick={handleLike}
-                                >
-                                    {tweet.is_liked ? (
-                                        <Favorite fontSize="small" />
-                                    ) : (
-                                        <FavoriteBorder fontSize="small" />
-                                    )}
-                                    <Typography variant="caption" sx={{ ml: 0.5 }}>
-                                        {tweet.likes_count}
-                                    </Typography>
-                                </IconButton>
+                                <Tooltip title={tweet.is_liked ? "Unlike" : "Like"} arrow>
+                                    <IconButton
+                                        size="small"
+                                        color={tweet.is_liked ? 'error' : 'default'}
+                                        onClick={handleLike}
+                                    >
+                                        {tweet.is_liked ? (
+                                            <Favorite fontSize="small" />
+                                        ) : (
+                                            <FavoriteBorder fontSize="small" />
+                                        )}
+                                        <Typography variant="caption" sx={{ ml: 0.5 }}>
+                                            {tweet.likes_count}
+                                        </Typography>
+                                    </IconButton>
+                                </Tooltip>
 
                                 {/* Heal */}
-                                <IconButton
-                                    size="small"
-                                    color="success"
-                                    onClick={handleHeal}
-                                    disabled={tweet.health >= 100}
-                                >
-                                    <Healing fontSize="small" />
-                                </IconButton>
+                                <Tooltip title={tweet.health >= 100 ? "Full health" : "Heal"} arrow>
+                                    < span >
+                                        <IconButton
+                                            size="small"
+                                            color="success"
+                                            onClick={handleHeal}
+                                            disabled={tweet.health >= 100}
+                                        >
+                                            <Healing fontSize="small" />
+                                        </IconButton>
+                                    </span>
+                                </Tooltip>
 
                                 {/* Attack */}
-                                <IconButton
-                                    size="small"
-                                    color="error"
-                                    onClick={handleAttack}
-                                    disabled={tweet.health <= 0}
-                                >
-                                    <LocalHospital fontSize="small" />
-                                </IconButton>
+                                <Tooltip title={tweet.health <= 0 ? "💀" : "Attack"} arrow>
+                                    <span>
+                                        <IconButton
+                                            size="small"
+                                            color="error"
+                                            onClick={handleAttack}
+                                            disabled={tweet.health <= 0}
+                                        >
+                                            <FlashOn fontSize="small" />
+                                        </IconButton>
+                                    </span>
+                                </Tooltip>
 
                                 {/* Share */}
-                                <IconButton size="small" color="default">
-                                    <Share fontSize="small" />
-                                </IconButton>
+                                <Tooltip title="Share" arrow>
+                                    <IconButton size="small" color="default">
+                                        <Share fontSize="small" />
+                                    </IconButton>
+                                </Tooltip>
                             </Stack>
                         </Box>
                     </Box>
-                </CardContent>
-            </Card>
+                </CardContent >
+            </Card >
 
             {/* Quote Tweet Modal */}
-            <Dialog
-                open={showQuoteModal && quoteTweetId === getTweetId()}
+            < Dialog
+                open={showQuoteModal && quoteTweetId === getTweetId()
+                }
                 onClose={closeQuoteModal}
                 maxWidth="sm"
                 fullWidth
@@ -435,10 +456,10 @@ export function TweetCard({ tweet, onLike, onRetweet, onQuote, onReply }: TweetC
                         Quote Tweet
                     </Button>
                 </DialogActions>
-            </Dialog>
+            </Dialog >
 
             {/* Reply Tweet Modal */}
-            <Dialog
+            < Dialog
                 open={showReplyModal && replyTweetId === getTweetId()}
                 onClose={closeReplyModal}
                 maxWidth="sm"
@@ -474,10 +495,10 @@ export function TweetCard({ tweet, onLike, onRetweet, onQuote, onReply }: TweetC
                         Reply
                     </Button>
                 </DialogActions>
-            </Dialog>
+            </Dialog >
 
             {/* Heal Tweet Modal */}
-            <Dialog
+            < Dialog
                 open={showHealModal}
                 onClose={() => setShowHealModal(false)}
                 maxWidth="sm"
@@ -516,10 +537,10 @@ export function TweetCard({ tweet, onLike, onRetweet, onQuote, onReply }: TweetC
                         Heal Tweet
                     </Button>
                 </DialogActions>
-            </Dialog>
+            </Dialog >
 
             {/* Attack Tweet Modal */}
-            <Dialog
+            < Dialog
                 open={showAttackModal}
                 onClose={() => setShowAttackModal(false)}
                 maxWidth="sm"
@@ -558,7 +579,7 @@ export function TweetCard({ tweet, onLike, onRetweet, onQuote, onReply }: TweetC
                         Attack Tweet
                     </Button>
                 </DialogActions>
-            </Dialog>
+            </Dialog >
         </>
     );
 }
