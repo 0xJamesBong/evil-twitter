@@ -60,6 +60,14 @@ export interface TweetsActions {
   generateFakeTweets: () => Promise<{ success: boolean; error?: string }>;
   likeTweet: (tweetId: string) => Promise<void>;
   unlikeTweet: (tweetId: string) => Promise<void>;
+  healTweet: (
+    tweetId: string,
+    amount: number
+  ) => Promise<{ success: boolean; error?: string }>;
+  attackTweet: (
+    tweetId: string,
+    amount: number
+  ) => Promise<{ success: boolean; error?: string }>;
   addTweet: (tweet: Tweet) => void;
   updateTweet: (tweetId: string, updates: Partial<Tweet>) => void;
   removeTweet: (tweetId: string) => void;
@@ -287,6 +295,76 @@ export const useTweetsStore = create<TweetsState & TweetsActions>(
     unlikeTweet: async (tweetId: string) => {
       // For now, we'll use the same likeTweet function since the backend handles toggling
       await get().likeTweet(tweetId);
+    },
+
+    healTweet: async (tweetId: string, amount: number) => {
+      try {
+        const response = await fetch(
+          `http://localhost:3000/tweets/${tweetId}/heal`,
+          {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({ amount }),
+          }
+        );
+
+        if (!response.ok) {
+          const errorData = await response.json().catch(() => ({}));
+          return {
+            success: false,
+            error: errorData.error || "Failed to heal tweet",
+          };
+        }
+
+        const result = await response.json();
+
+        // Update the tweet's health in the store
+        get().updateTweet(tweetId, {
+          health: result.health_after,
+        });
+
+        return { success: true };
+      } catch (error) {
+        console.error("Failed to heal tweet:", error);
+        return { success: false, error: "Failed to heal tweet" };
+      }
+    },
+
+    attackTweet: async (tweetId: string, amount: number) => {
+      try {
+        const response = await fetch(
+          `http://localhost:3000/tweets/${tweetId}/attack`,
+          {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({ amount }),
+          }
+        );
+
+        if (!response.ok) {
+          const errorData = await response.json().catch(() => ({}));
+          return {
+            success: false,
+            error: errorData.error || "Failed to attack tweet",
+          };
+        }
+
+        const result = await response.json();
+
+        // Update the tweet's health in the store
+        get().updateTweet(tweetId, {
+          health: result.health_after,
+        });
+
+        return { success: true };
+      } catch (error) {
+        console.error("Failed to attack tweet:", error);
+        return { success: false, error: "Failed to attack tweet" };
+      }
     },
 
     retweetTweet: async (tweetId: string) => {

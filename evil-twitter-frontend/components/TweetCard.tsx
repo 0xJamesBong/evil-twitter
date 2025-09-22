@@ -24,6 +24,8 @@ import {
     ChatBubbleOutline,
     Share,
     MoreHoriz,
+    Healing,
+    LocalHospital,
 } from '@mui/icons-material';
 import { useTweetsStore } from '../lib/stores/tweetsStore';
 
@@ -71,8 +73,16 @@ export function TweetCard({ tweet, onLike, onRetweet, onQuote, onReply }: TweetC
         openReplyModal,
         closeReplyModal,
         setReplyContent,
-        clearReplyData
+        clearReplyData,
+        healTweet,
+        attackTweet
     } = useTweetsStore();
+
+    // Heal and Attack state
+    const [showHealModal, setShowHealModal] = React.useState(false);
+    const [showAttackModal, setShowAttackModal] = React.useState(false);
+    const [healAmount, setHealAmount] = React.useState(10);
+    const [attackAmount, setAttackAmount] = React.useState(10);
 
     // Helper function to extract ID from either string or ObjectId format
     const getTweetId = () => {
@@ -128,6 +138,34 @@ export function TweetCard({ tweet, onLike, onRetweet, onQuote, onReply }: TweetC
         if (replyContent.trim()) {
             onReply(getTweetId(), replyContent.trim());
             clearReplyData();
+        }
+    };
+
+    const handleHeal = () => {
+        setShowHealModal(true);
+    };
+
+    const handleAttack = () => {
+        setShowAttackModal(true);
+    };
+
+    const handleHealSubmit = async () => {
+        const result = await healTweet(getTweetId(), healAmount);
+        if (result.success) {
+            setShowHealModal(false);
+            setHealAmount(10);
+        } else {
+            console.error('Failed to heal tweet:', result.error);
+        }
+    };
+
+    const handleAttackSubmit = async () => {
+        const result = await attackTweet(getTweetId(), attackAmount);
+        if (result.success) {
+            setShowAttackModal(false);
+            setAttackAmount(10);
+        } else {
+            console.error('Failed to attack tweet:', result.error);
         }
     };
 
@@ -330,6 +368,26 @@ export function TweetCard({ tweet, onLike, onRetweet, onQuote, onReply }: TweetC
                                     </Typography>
                                 </IconButton>
 
+                                {/* Heal */}
+                                <IconButton
+                                    size="small"
+                                    color="success"
+                                    onClick={handleHeal}
+                                    disabled={tweet.health >= 100}
+                                >
+                                    <Healing fontSize="small" />
+                                </IconButton>
+
+                                {/* Attack */}
+                                <IconButton
+                                    size="small"
+                                    color="error"
+                                    onClick={handleAttack}
+                                    disabled={tweet.health <= 0}
+                                >
+                                    <LocalHospital fontSize="small" />
+                                </IconButton>
+
                                 {/* Share */}
                                 <IconButton size="small" color="default">
                                     <Share fontSize="small" />
@@ -414,6 +472,90 @@ export function TweetCard({ tweet, onLike, onRetweet, onQuote, onReply }: TweetC
                         disabled={!replyContent.trim()}
                     >
                         Reply
+                    </Button>
+                </DialogActions>
+            </Dialog>
+
+            {/* Heal Tweet Modal */}
+            <Dialog
+                open={showHealModal}
+                onClose={() => setShowHealModal(false)}
+                maxWidth="sm"
+                fullWidth
+            >
+                <DialogTitle>Heal Tweet</DialogTitle>
+                <DialogContent>
+                    <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+                        Current health: {tweet.health}/100
+                    </Typography>
+                    <TextField
+                        autoFocus
+                        fullWidth
+                        variant="outlined"
+                        label="Heal Amount"
+                        type="number"
+                        value={healAmount}
+                        onChange={(e) => setHealAmount(parseInt(e.target.value) || 0)}
+                        inputProps={{ min: 1, max: 100 }}
+                        sx={{ mt: 1 }}
+                    />
+                    <Typography variant="caption" color="text.secondary" sx={{ mt: 1, display: 'block' }}>
+                        Amount must be between 1 and 100
+                    </Typography>
+                </DialogContent>
+                <DialogActions>
+                    <Button onClick={() => setShowHealModal(false)}>
+                        Cancel
+                    </Button>
+                    <Button
+                        onClick={handleHealSubmit}
+                        variant="contained"
+                        color="success"
+                        disabled={healAmount < 1 || healAmount > 100 || tweet.health >= 100}
+                    >
+                        Heal Tweet
+                    </Button>
+                </DialogActions>
+            </Dialog>
+
+            {/* Attack Tweet Modal */}
+            <Dialog
+                open={showAttackModal}
+                onClose={() => setShowAttackModal(false)}
+                maxWidth="sm"
+                fullWidth
+            >
+                <DialogTitle>Attack Tweet</DialogTitle>
+                <DialogContent>
+                    <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+                        Current health: {tweet.health}/100
+                    </Typography>
+                    <TextField
+                        autoFocus
+                        fullWidth
+                        variant="outlined"
+                        label="Attack Amount"
+                        type="number"
+                        value={attackAmount}
+                        onChange={(e) => setAttackAmount(parseInt(e.target.value) || 0)}
+                        inputProps={{ min: 1, max: 100 }}
+                        sx={{ mt: 1 }}
+                    />
+                    <Typography variant="caption" color="text.secondary" sx={{ mt: 1, display: 'block' }}>
+                        Amount must be between 1 and 100
+                    </Typography>
+                </DialogContent>
+                <DialogActions>
+                    <Button onClick={() => setShowAttackModal(false)}>
+                        Cancel
+                    </Button>
+                    <Button
+                        onClick={handleAttackSubmit}
+                        variant="contained"
+                        color="error"
+                        disabled={attackAmount < 1 || attackAmount > 100 || tweet.health <= 0}
+                    >
+                        Attack Tweet
                     </Button>
                 </DialogActions>
             </Dialog>

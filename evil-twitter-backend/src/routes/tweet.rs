@@ -12,12 +12,26 @@ use serde::Serialize;
 use utoipa::ToSchema;
 
 use crate::middleware::wall::compose_wall;
-use crate::models::tweet::{CreateReply, CreateTweet, Tweet, TweetType};
+use crate::models::tweet::{
+    CreateReply, CreateTweet, Tweet, TweetAttackAction, TweetHealAction, TweetType,
+};
 
 #[derive(Debug, Serialize, ToSchema)]
 pub struct TweetListResponse {
     pub tweets: Vec<Tweet>,
     pub total: i64,
+}
+
+#[derive(Debug, serde::Deserialize, ToSchema)]
+pub struct HealTweetRequest {
+    #[schema(example = "10", minimum = 1, maximum = 100)]
+    pub amount: i32,
+}
+
+#[derive(Debug, serde::Deserialize, ToSchema)]
+pub struct AttackTweetRequest {
+    #[schema(example = "15", minimum = 1, maximum = 100)]
+    pub amount: i32,
 }
 
 /// Create a new tweet
@@ -98,6 +112,11 @@ pub async fn create_tweet(
         author_display_name: Some(user.display_name),
         author_avatar_url: user.avatar_url,
         health: 100,
+        health_history: crate::models::tweet::TweetHealthHistory {
+            health: 100,
+            heal_history: Vec::new(),
+            attack_history: Vec::new(),
+        },
     };
 
     let result = collection.insert_one(&tweet).await.map_err(|_| {
@@ -286,11 +305,10 @@ pub async fn get_user_wall(
     State(db): State<Database>,
     Path(user_id): Path<String>,
 ) -> Result<Json<TweetListResponse>, (StatusCode, Json<serde_json::Value>)> {
-    let tweet_collection: Collection<Tweet> = db.collection("tweets");
     let user_collection: Collection<crate::models::user::User> = db.collection("users");
 
     // Parse user ID
-    let user_object_id = ObjectId::parse_str(&user_id).map_err(|_| {
+    let _user_object_id = ObjectId::parse_str(&user_id).map_err(|_| {
         (
             StatusCode::BAD_REQUEST,
             Json(serde_json::json!({"error": "Invalid user ID"})),
@@ -439,6 +457,11 @@ pub async fn generate_fake_tweets(
             author_display_name: None,
             author_avatar_url: None,
             health: 100,
+            health_history: crate::models::tweet::TweetHealthHistory {
+                health: 100,
+                heal_history: Vec::new(),
+                attack_history: Vec::new(),
+            },
         },
         Tweet {
             id: None,
@@ -457,6 +480,11 @@ pub async fn generate_fake_tweets(
             author_display_name: None,
             author_avatar_url: None,
             health: 100,
+            health_history: crate::models::tweet::TweetHealthHistory {
+                health: 100,
+                heal_history: Vec::new(),
+                attack_history: Vec::new(),
+            },
         },
         Tweet {
             id: None,
@@ -475,6 +503,11 @@ pub async fn generate_fake_tweets(
             author_display_name: None,
             author_avatar_url: None,
             health: 100,
+            health_history: crate::models::tweet::TweetHealthHistory {
+                health: 100,
+                heal_history: Vec::new(),
+                attack_history: Vec::new(),
+            },
         },
         Tweet {
             id: None,
@@ -493,6 +526,11 @@ pub async fn generate_fake_tweets(
             author_display_name: None,
             author_avatar_url: None,
             health: 100,
+            health_history: crate::models::tweet::TweetHealthHistory {
+                health: 100,
+                heal_history: Vec::new(),
+                attack_history: Vec::new(),
+            },
         },
         Tweet {
             id: None,
@@ -511,6 +549,11 @@ pub async fn generate_fake_tweets(
             author_display_name: None,
             author_avatar_url: None,
             health: 100,
+            health_history: crate::models::tweet::TweetHealthHistory {
+                health: 100,
+                heal_history: Vec::new(),
+                attack_history: Vec::new(),
+            },
         },
     ];
 
@@ -659,6 +702,11 @@ pub async fn retweet_tweet(
         author_display_name: Some(user.display_name),
         author_avatar_url: user.avatar_url,
         health: 100,
+        health_history: crate::models::tweet::TweetHealthHistory {
+            health: 100,
+            heal_history: Vec::new(),
+            attack_history: Vec::new(),
+        },
     };
 
     let result = collection.insert_one(&retweet).await.map_err(|_| {
@@ -791,6 +839,11 @@ pub async fn quote_tweet(
         author_display_name: Some(user.display_name),
         author_avatar_url: user.avatar_url,
         health: 100,
+        health_history: crate::models::tweet::TweetHealthHistory {
+            health: 100,
+            heal_history: Vec::new(),
+            attack_history: Vec::new(),
+        },
     };
 
     let result = collection.insert_one(&quote_tweet).await.map_err(|_| {
@@ -923,6 +976,11 @@ pub async fn reply_tweet(
         author_display_name: Some(user.display_name),
         author_avatar_url: user.avatar_url,
         health: 100,
+        health_history: crate::models::tweet::TweetHealthHistory {
+            health: 100,
+            heal_history: Vec::new(),
+            attack_history: Vec::new(),
+        },
     };
 
     let result = collection.insert_one(&reply).await.map_err(|_| {
@@ -1061,6 +1119,214 @@ pub async fn migrate_users_dollar_rate(
             "message": "User migration completed successfully",
             "modified_count": result.modified_count,
             "matched_count": result.matched_count
+        })),
+    ))
+}
+
+/// Heal a tweet
+#[utoipa::path(
+    post,
+    path = "/tweets/{id}/heal",
+    params(
+        ("id" = String, Path, description = "Tweet ID")
+    ),
+    request_body = HealTweetRequest,
+    responses(
+        (status = 200, description = "Tweet healed successfully"),
+        (status = 400, description = "Invalid heal amount"),
+        (status = 404, description = "Tweet not found"),
+        (status = 500, description = "Database error")
+    ),
+    tag = "tweets"
+)]
+pub async fn heal_tweet(
+    State(db): State<Database>,
+    Path(tweet_id): Path<String>,
+    Json(payload): Json<HealTweetRequest>,
+) -> Result<(StatusCode, Json<serde_json::Value>), (StatusCode, Json<serde_json::Value>)> {
+    let collection: Collection<Tweet> = db.collection("tweets");
+
+    // Parse tweet ID
+    let tweet_object_id = ObjectId::parse_str(&tweet_id).map_err(|_| {
+        (
+            StatusCode::BAD_REQUEST,
+            Json(serde_json::json!({"error": "Invalid tweet ID"})),
+        )
+    })?;
+
+    // Validate heal amount
+    if payload.amount <= 0 || payload.amount > 100 {
+        return Err((
+            StatusCode::BAD_REQUEST,
+            Json(serde_json::json!({"error": "Heal amount must be between 1 and 100"})),
+        ));
+    }
+
+    // Get current tweet
+    let tweet = collection
+        .find_one(doc! {"_id": tweet_object_id})
+        .await
+        .map_err(|_| {
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(serde_json::json!({"error": "Database error"})),
+            )
+        })?
+        .ok_or_else(|| {
+            (
+                StatusCode::NOT_FOUND,
+                Json(serde_json::json!({"error": "Tweet not found"})),
+            )
+        })?;
+
+    // Calculate new health (capped at 100 maximum)
+    let health_before = tweet.health;
+    let new_health = (tweet.health + payload.amount).min(100);
+    let actual_heal_amount = new_health - health_before;
+
+    // Create heal action
+    let heal_action = TweetHealAction {
+        timestamp: mongodb::bson::DateTime::now(),
+        amount: actual_heal_amount,
+        health_before,
+        health_after: new_health,
+    };
+
+    // Update tweet with new health and add to heal history
+    let result = collection
+        .update_one(
+            doc! {"_id": tweet_object_id},
+            doc! {
+                "$set": {"health": new_health},
+                "$push": {"health_history.heal_history": mongodb::bson::to_bson(&heal_action).unwrap()}
+            },
+        )
+        .await
+        .map_err(|_| {
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(serde_json::json!({"error": "Database error"})),
+            )
+        })?;
+
+    if result.modified_count == 0 {
+        return Err((
+            StatusCode::NOT_FOUND,
+            Json(serde_json::json!({"error": "Tweet not found"})),
+        ));
+    }
+
+    Ok((
+        StatusCode::OK,
+        Json(serde_json::json!({
+            "message": "Tweet healed successfully",
+            "health_before": health_before,
+            "health_after": new_health,
+            "heal_amount": actual_heal_amount
+        })),
+    ))
+}
+
+/// Attack a tweet
+#[utoipa::path(
+    post,
+    path = "/tweets/{id}/attack",
+    params(
+        ("id" = String, Path, description = "Tweet ID")
+    ),
+    request_body = AttackTweetRequest,
+    responses(
+        (status = 200, description = "Tweet attacked successfully"),
+        (status = 400, description = "Invalid attack amount"),
+        (status = 404, description = "Tweet not found"),
+        (status = 500, description = "Database error")
+    ),
+    tag = "tweets"
+)]
+pub async fn attack_tweet(
+    State(db): State<Database>,
+    Path(tweet_id): Path<String>,
+    Json(payload): Json<AttackTweetRequest>,
+) -> Result<(StatusCode, Json<serde_json::Value>), (StatusCode, Json<serde_json::Value>)> {
+    let collection: Collection<Tweet> = db.collection("tweets");
+
+    // Parse tweet ID
+    let tweet_object_id = ObjectId::parse_str(&tweet_id).map_err(|_| {
+        (
+            StatusCode::BAD_REQUEST,
+            Json(serde_json::json!({"error": "Invalid tweet ID"})),
+        )
+    })?;
+
+    // Validate attack amount
+    if payload.amount <= 0 || payload.amount > 100 {
+        return Err((
+            StatusCode::BAD_REQUEST,
+            Json(serde_json::json!({"error": "Attack amount must be between 1 and 100"})),
+        ));
+    }
+
+    // Get current tweet
+    let tweet = collection
+        .find_one(doc! {"_id": tweet_object_id})
+        .await
+        .map_err(|_| {
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(serde_json::json!({"error": "Database error"})),
+            )
+        })?
+        .ok_or_else(|| {
+            (
+                StatusCode::NOT_FOUND,
+                Json(serde_json::json!({"error": "Tweet not found"})),
+            )
+        })?;
+
+    // Calculate new health (capped at 0 minimum)
+    let health_before = tweet.health;
+    let new_health = (tweet.health - payload.amount).max(0);
+    let actual_damage = health_before - new_health;
+
+    // Create attack action
+    let attack_action = TweetAttackAction {
+        timestamp: mongodb::bson::DateTime::now(),
+        amount: actual_damage,
+        health_before,
+        health_after: new_health,
+    };
+
+    // Update tweet with new health and add to attack history
+    let result = collection
+        .update_one(
+            doc! {"_id": tweet_object_id},
+            doc! {
+                "$set": {"health": new_health},
+                "$push": {"health_history.attack_history": mongodb::bson::to_bson(&attack_action).unwrap()}
+            },
+        )
+        .await
+        .map_err(|_| {
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(serde_json::json!({"error": "Database error"})),
+            )
+        })?;
+
+    if result.modified_count == 0 {
+        return Err((
+            StatusCode::NOT_FOUND,
+            Json(serde_json::json!({"error": "Tweet not found"})),
+        ));
+    }
+
+    Ok((
+        StatusCode::OK,
+        Json(serde_json::json!({
+            "message": "Tweet attacked successfully",
+            "health_before": health_before,
+            "health_after": new_health,
+            "damage": actual_damage
         })),
     ))
 }

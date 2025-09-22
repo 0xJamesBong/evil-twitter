@@ -11,12 +11,12 @@ mod middleware;
 mod models;
 mod routes;
 
-use crate::middleware::wall::compose_wall;
 use routes::follow::{follow_user, unfollow_user};
 use routes::ping::ping_handler;
 use routes::tweet::{
-    clear_all_data, create_tweet, generate_fake_tweets, get_tweet, get_tweets, get_user_wall,
-    like_tweet, migrate_health, migrate_users_dollar_rate, quote_tweet, reply_tweet, retweet_tweet,
+    attack_tweet, clear_all_data, create_tweet, generate_fake_tweets, get_tweet, get_tweets,
+    get_user_wall, heal_tweet, like_tweet, migrate_health, migrate_users_dollar_rate, quote_tweet,
+    reply_tweet, retweet_tweet,
 };
 use routes::user::{
     attack_dollar_rate, create_user, get_dollar_rate, get_user, get_users, improve_dollar_rate,
@@ -38,6 +38,8 @@ use routes::user::{
         routes::tweet::get_tweets,
         routes::tweet::get_user_wall,
         routes::tweet::like_tweet,
+        routes::tweet::heal_tweet,
+        routes::tweet::attack_tweet,
         routes::tweet::retweet_tweet,
         routes::tweet::quote_tweet,
         routes::tweet::reply_tweet,
@@ -59,8 +61,13 @@ use routes::user::{
             models::tweet::CreateTweet,
             models::tweet::CreateReply,
             models::tweet::CreateQuote,
+            models::tweet::TweetHealthHistory,
+            models::tweet::TweetHealAction,
+            models::tweet::TweetAttackAction,
             models::follow::Follow,
-            models::follow::CreateFollow
+            models::follow::CreateFollow,
+            routes::tweet::HealTweetRequest,
+            routes::tweet::AttackTweetRequest
         )
     ),
     tags(
@@ -104,6 +111,8 @@ async fn main() -> anyhow::Result<()> {
         .route("/tweets", post(create_tweet).get(get_tweets))
         .route("/tweets/{id}", get(get_tweet))
         .route("/tweets/{id}/like", post(like_tweet))
+        .route("/tweets/{id}/heal", post(heal_tweet))
+        .route("/tweets/{id}/attack", post(attack_tweet))
         .route("/tweets/{id}/retweet", post(retweet_tweet))
         .route("/tweets/{id}/quote", post(quote_tweet))
         .route("/tweets/{id}/reply", post(reply_tweet))
