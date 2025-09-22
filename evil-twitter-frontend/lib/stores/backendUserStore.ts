@@ -14,6 +14,7 @@ export interface BackendUser {
   followers_count: number;
   following_count: number;
   tweets_count: number;
+  dollar_conversion_rate: number;
 }
 
 interface BackendUserState {

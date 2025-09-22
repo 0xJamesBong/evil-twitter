@@ -1058,3 +1058,41 @@ pub async fn migrate_health(
         })),
     ))
 }
+
+/// Migrate existing users to add dollar_conversion_rate field
+#[utoipa::path(
+    post,
+    path = "/admin/migrate-users-dollar-rate",
+    responses(
+        (status = 200, description = "User migration completed successfully")
+    ),
+    tag = "admin"
+)]
+pub async fn migrate_users_dollar_rate(
+    State(db): State<Database>,
+) -> Result<(StatusCode, Json<serde_json::Value>), (StatusCode, Json<serde_json::Value>)> {
+    let collection: Collection<crate::models::user::User> = db.collection("users");
+
+    // Update all users that don't have a dollar_conversion_rate field to have 10000
+    let result = collection
+        .update_many(
+            doc! { "dollar_conversion_rate": { "$exists": false } },
+            doc! { "$set": { "dollar_conversion_rate": 10000 } },
+        )
+        .await
+        .map_err(|_| {
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(serde_json::json!({"error": "Database error during user migration"})),
+            )
+        })?;
+
+    Ok((
+        StatusCode::OK,
+        Json(serde_json::json!({
+            "message": "User migration completed successfully",
+            "modified_count": result.modified_count,
+            "matched_count": result.matched_count
+        })),
+    ))
+}

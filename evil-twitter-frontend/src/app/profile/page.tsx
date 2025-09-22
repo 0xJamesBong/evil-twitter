@@ -86,7 +86,7 @@ export default function ProfilePage() {
                             {backendUser && (
                                 <div>
                                     <h2 className="text-xl font-semibold text-white mb-4">Profile Stats</h2>
-                                    <div className="grid grid-cols-3 gap-4 mb-6">
+                                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
                                         <div className="bg-gray-800 rounded-lg p-4 text-center">
                                             <div className="text-2xl font-bold text-white">{backendUser.tweets_count}</div>
                                             <div className="text-gray-400 text-sm">Tweets</div>
@@ -98,6 +98,10 @@ export default function ProfilePage() {
                                         <div className="bg-gray-800 rounded-lg p-4 text-center">
                                             <div className="text-2xl font-bold text-white">{backendUser.following_count}</div>
                                             <div className="text-gray-400 text-sm">Following</div>
+                                        </div>
+                                        <div className="bg-pink-600 rounded-lg p-4 text-center">
+                                            <div className="text-2xl font-bold text-white">${backendUser.dollar_conversion_rate.toLocaleString()}</div>
+                                            <div className="text-pink-200 text-sm">Dollar Rate</div>
                                         </div>
                                     </div>
                                 </div>

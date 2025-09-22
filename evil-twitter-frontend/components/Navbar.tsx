@@ -12,12 +12,14 @@ import {
     IconButton,
 } from '@mui/material';
 import { useAuthStore } from '../lib/stores/authStore';
+import { useBackendUserStore } from '../lib/stores/backendUserStore';
 import { AuthModal } from './AuthModal';
 import { TestPing } from './TestPing';
 
 export default function Navbar() {
     const [showAuthModal, setShowAuthModal] = useState(false);
     const { isAuthenticated, user, logout } = useAuthStore();
+    const { user: backendUser } = useBackendUserStore();
 
     const handleLogin = () => {
         setShowAuthModal(false);
@@ -92,6 +94,25 @@ export default function Navbar() {
                         {/* Auth Section */}
                         {isAuthenticated && user ? (
                             <Stack direction="row" spacing={2} alignItems="center">
+                                {/* Dollar Conversion Rate */}
+                                {backendUser && (
+                                    <Box
+                                        sx={{
+                                            backgroundColor: '#ff69b4',
+                                            color: 'white',
+                                            px: 1.5,
+                                            py: 0.5,
+                                            borderRadius: 2,
+                                            fontSize: '0.75rem',
+                                            fontWeight: 600,
+                                            minWidth: '60px',
+                                            textAlign: 'center',
+                                            boxShadow: '0 2px 4px rgba(255, 105, 180, 0.3)'
+                                        }}
+                                    >
+                                        ${backendUser.dollar_conversion_rate.toLocaleString()}
+                                    </Box>
+                                )}
                                 <Typography variant="body2" color="text.secondary">
                                     Welcome, {user.user_metadata?.display_name || user.email}
                                 </Typography>
