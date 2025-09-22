@@ -4,8 +4,9 @@ import { supabase } from "../supabase";
 export interface Tweet {
   id: string | { $oid: string };
   content: string;
-  tweet_type: "Original" | "Retweet" | "Quote";
+  tweet_type: "Original" | "Retweet" | "Quote" | "Reply";
   original_tweet_id?: string | { $oid: string };
+  replied_to_tweet_id?: string | { $oid: string };
   created_at: string | { $date: { $numberLong: string } };
   likes_count: number;
   retweets_count: number;
@@ -18,6 +19,7 @@ export interface Tweet {
   author_display_name: string;
   author_avatar_url?: string | null;
   author_is_verified?: boolean;
+  health: number;
 }
 
 export interface TweetsState {
@@ -31,11 +33,16 @@ export interface TweetsState {
   showQuoteModal: boolean;
   quoteTweetId: string | null;
   quoteContent: string;
+  // Reply tweet modal state
+  showReplyModal: boolean;
+  replyTweetId: string | null;
+  replyContent: string;
 }
 
 export interface TweetsActions {
   ping: () => Promise<void>;
   fetchTweets: () => Promise<void>;
+  fetchUserWall: (userId: string) => Promise<void>;
   createTweet: (
     content: string
   ) => Promise<{ success: boolean; error?: string; tweet?: Tweet }>;
@@ -43,6 +50,10 @@ export interface TweetsActions {
     tweetId: string
   ) => Promise<{ success: boolean; error?: string }>;
   quoteTweet: (
+    tweetId: string,
+    content: string
+  ) => Promise<{ success: boolean; error?: string }>;
+  replyTweet: (
     tweetId: string,
     content: string
   ) => Promise<{ success: boolean; error?: string }>;
@@ -60,6 +71,11 @@ export interface TweetsActions {
   closeQuoteModal: () => void;
   setQuoteContent: (content: string) => void;
   clearQuoteData: () => void;
+  // Reply tweet modal actions
+  openReplyModal: (tweetId: string) => void;
+  closeReplyModal: () => void;
+  setReplyContent: (content: string) => void;
+  clearReplyData: () => void;
 }
 
 export const useTweetsStore = create<TweetsState & TweetsActions>(
@@ -74,6 +90,10 @@ export const useTweetsStore = create<TweetsState & TweetsActions>(
     showQuoteModal: false,
     quoteTweetId: null,
     quoteContent: "",
+    // Reply tweet modal state
+    showReplyModal: false,
+    replyTweetId: null,
+    replyContent: "",
     ping: async () => {
       const response = await fetch("http://localhost:3000/ping");
       if (!response.ok) {
@@ -95,6 +115,39 @@ export const useTweetsStore = create<TweetsState & TweetsActions>(
 
         if (!response.ok) {
           throw new Error("Failed to fetch tweets");
+        }
+
+        const data = await response.json();
+        const tweets = data.tweets || [];
+
+        set({
+          tweets,
+          isLoading: false,
+          lastFetchedAt: new Date(),
+          hasMore: tweets.length > 0,
+        });
+      } catch (error) {
+        set({
+          error: error instanceof Error ? error.message : "An error occurred",
+          isLoading: false,
+        });
+      }
+    },
+
+    fetchUserWall: async (userId: string) => {
+      const { isLoading } = get();
+      if (isLoading) return;
+
+      set({ isLoading: true, error: null });
+
+      try {
+        console.log("fetching user wall for user:", userId);
+        const response = await fetch(
+          `http://localhost:3000/users/${userId}/wall`
+        );
+
+        if (!response.ok) {
+          throw new Error("Failed to fetch user wall");
         }
 
         const data = await response.json();
@@ -328,6 +381,54 @@ export const useTweetsStore = create<TweetsState & TweetsActions>(
       }
     },
 
+    replyTweet: async (tweetId: string, content: string) => {
+      try {
+        const {
+          data: { session },
+        } = await supabase.auth.getSession();
+        if (!session) {
+          return { success: false, error: "Not authenticated" };
+        }
+
+        const response = await fetch(
+          `http://localhost:3000/tweets/${tweetId}/reply`,
+          {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${session.access_token}`,
+            },
+            body: JSON.stringify({ content, replied_to_tweet_id: tweetId }),
+          }
+        );
+
+        if (!response.ok) {
+          const errorData = await response.json().catch(() => ({}));
+          return {
+            success: false,
+            error: errorData.error || "Failed to reply to tweet",
+          };
+        }
+
+        const replyTweet = await response.json();
+        get().addTweet(replyTweet);
+
+        // Update the original tweet's reply count
+        get().updateTweet(tweetId, {
+          replies_count:
+            (get().tweets.find((t) => {
+              const currentId = typeof t.id === "string" ? t.id : t.id?.$oid;
+              return currentId === tweetId;
+            })?.replies_count || 0) + 1,
+        });
+
+        return { success: true };
+      } catch (error) {
+        console.error("Failed to reply to tweet:", error);
+        return { success: false, error: "Failed to reply to tweet" };
+      }
+    },
+
     addTweet: (tweet: Tweet) => {
       set((state) => ({
         tweets: [tweet, ...state.tweets],
@@ -392,6 +493,35 @@ export const useTweetsStore = create<TweetsState & TweetsActions>(
         showQuoteModal: false,
         quoteTweetId: null,
         quoteContent: "",
+      });
+    },
+
+    // Reply tweet modal actions
+    openReplyModal: (tweetId: string) => {
+      set({
+        showReplyModal: true,
+        replyTweetId: tweetId,
+        replyContent: "",
+      });
+    },
+
+    closeReplyModal: () => {
+      set({
+        showReplyModal: false,
+        replyTweetId: null,
+        replyContent: "",
+      });
+    },
+
+    setReplyContent: (content: string) => {
+      set({ replyContent: content });
+    },
+
+    clearReplyData: () => {
+      set({
+        showReplyModal: false,
+        replyTweetId: null,
+        replyContent: "",
       });
     },
   })
