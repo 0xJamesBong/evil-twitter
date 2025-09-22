@@ -45,7 +45,20 @@ export default function Navbar() {
             )}
 
             {/* Navbar Content */}
-            <AppBar position="static" sx={{ backgroundColor: 'background.paper' }}>
+            <AppBar
+                position="fixed"
+                sx={{
+                    backgroundColor: 'background.paper',
+                    zIndex: 1300,
+                    top: 0,
+                    left: 0,
+                    right: 0,
+                    width: '100%',
+                    boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
+                    backdropFilter: 'blur(10px)',
+                    borderBottom: '1px solid rgba(255, 255, 255, 0.1)'
+                }}
+            >
                 <Toolbar sx={{ justifyContent: 'space-between' }}>
                     {/* Left side - TestPing */}
                     <Box>
