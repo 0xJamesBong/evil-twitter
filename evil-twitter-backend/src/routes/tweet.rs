@@ -11,7 +11,7 @@ use mongodb::{
 use serde::Serialize;
 use utoipa::ToSchema;
 
-use crate::models::tweet::{CreateTweet, Tweet, TweetType};
+use crate::models::tweet::{CreateReply, CreateTweet, Tweet, TweetType};
 
 #[derive(Debug, Serialize, ToSchema)]
 pub struct TweetListResponse {
@@ -86,6 +86,7 @@ pub async fn create_tweet(
         content: payload.content,
         tweet_type: TweetType::Original,
         original_tweet_id: None,
+        replied_to_tweet_id: None,
         created_at: now,
         likes_count: 0,
         retweets_count: 0,
@@ -334,14 +335,15 @@ pub async fn generate_fake_tweets(
             id: None,
             author_id: ObjectId::parse_str("507f1f77bcf86cd799439011").unwrap(),
             content: "Just discovered this amazing new coffee shop downtown! ☕ The barista made the perfect latte art. #coffee #morningvibes".to_string(),
+            tweet_type: TweetType::Original,
+            original_tweet_id: None,
+            replied_to_tweet_id: None,
             created_at: mongodb::bson::DateTime::now(),
             likes_count: 42,
             retweets_count: 8,
             replies_count: 3,
             is_liked: false,
             is_retweeted: false,
-            tweet_type: TweetType::Original,
-            original_tweet_id: None,
             author_username: None,
             author_display_name: None,
             author_avatar_url: None,
@@ -350,14 +352,15 @@ pub async fn generate_fake_tweets(
             id: None,
             author_id: ObjectId::parse_str("507f1f77bcf86cd799439011").unwrap(),
             content: "Working on a new project and the code is finally coming together! 🚀 Nothing beats that feeling when everything clicks. #coding #programming".to_string(),
+            tweet_type: TweetType::Original,
+            original_tweet_id: None,
+            replied_to_tweet_id: None,
             created_at: mongodb::bson::DateTime::now(),
             likes_count: 67,
             retweets_count: 12,
             replies_count: 5,
             is_liked: false,
             is_retweeted: false,
-            tweet_type: TweetType::Original,
-            original_tweet_id: None,
             author_username: None,
             author_display_name: None,
             author_avatar_url: None,
@@ -366,14 +369,15 @@ pub async fn generate_fake_tweets(
             id: None,
             author_id: ObjectId::parse_str("507f1f77bcf86cd799439011").unwrap(),
             content: "Beautiful sunset today! 🌅 Sometimes you just need to stop and appreciate the simple things in life. #nature #grateful".to_string(),
+            tweet_type: TweetType::Original,
+            original_tweet_id: None,
+            replied_to_tweet_id: None,
             created_at: mongodb::bson::DateTime::now(),
             likes_count: 89,
             retweets_count: 15,
             replies_count: 7,
             is_liked: false,
             is_retweeted: false,
-            tweet_type: TweetType::Original,
-            original_tweet_id: None,
             author_username: None,
             author_display_name: None,
             author_avatar_url: None,
@@ -382,14 +386,15 @@ pub async fn generate_fake_tweets(
             id: None,
             author_id: ObjectId::parse_str("507f1f77bcf86cd799439011").unwrap(),
             content: "Just finished reading an incredible book! 📚 The plot twists were mind-blowing. Can't wait to discuss it with friends. #reading #books".to_string(),
+            tweet_type: TweetType::Original,
+            original_tweet_id: None,
+            replied_to_tweet_id: None,
             created_at: mongodb::bson::DateTime::now(),
             likes_count: 34,
             retweets_count: 6,
             replies_count: 2,
             is_liked: false,
             is_retweeted: false,
-            tweet_type: TweetType::Original,
-            original_tweet_id: None,
             author_username: None,
             author_display_name: None,
             author_avatar_url: None,
@@ -398,14 +403,15 @@ pub async fn generate_fake_tweets(
             id: None,
             author_id: ObjectId::parse_str("507f1f77bcf86cd799439011").unwrap(),
             content: "Weekend vibes are the best! 🎉 Time to relax, catch up with friends, and maybe try that new restaurant everyone's been talking about. #weekend #friends".to_string(),
+            tweet_type: TweetType::Original,
+            original_tweet_id: None,
+            replied_to_tweet_id: None,
             created_at: mongodb::bson::DateTime::now(),
             likes_count: 56,
             retweets_count: 9,
             replies_count: 4,
             is_liked: false,
             is_retweeted: false,
-            tweet_type: TweetType::Original,
-            original_tweet_id: None,
             author_username: None,
             author_display_name: None,
             author_avatar_url: None,
@@ -546,6 +552,7 @@ pub async fn retweet_tweet(
         content: "".to_string(), // Retweets don't have content
         tweet_type: TweetType::Retweet,
         original_tweet_id: Some(original_tweet_id),
+        replied_to_tweet_id: None,
         created_at: now,
         likes_count: 0,
         retweets_count: 0,
@@ -676,6 +683,7 @@ pub async fn quote_tweet(
         content: payload.content,
         tweet_type: TweetType::Quote,
         original_tweet_id: Some(original_tweet_id),
+        replied_to_tweet_id: None,
         created_at: now,
         likes_count: 0,
         retweets_count: 0,
@@ -712,6 +720,137 @@ pub async fn quote_tweet(
         })?;
 
     Ok((StatusCode::CREATED, Json(created_quote)))
+}
+
+/// Reply to a tweet
+#[utoipa::path(
+    post,
+    path = "/tweets/{id}/reply",
+    request_body = CreateReply,
+    responses(
+        (status = 201, description = "Reply created successfully", body = Tweet),
+        (status = 400, description = "Invalid tweet ID"),
+        (status = 404, description = "Original tweet not found")
+    ),
+    tag = "tweets"
+)]
+pub async fn reply_tweet(
+    State(db): State<Database>,
+    Path(tweet_id): Path<String>,
+    headers: axum::http::HeaderMap,
+    Json(payload): Json<CreateReply>,
+) -> Result<(StatusCode, Json<Tweet>), (StatusCode, Json<serde_json::Value>)> {
+    let collection: Collection<Tweet> = db.collection("tweets");
+    let user_collection: Collection<crate::models::user::User> = db.collection("users");
+
+    // Extract Supabase user ID from Authorization header
+    let auth_header = headers
+        .get("authorization")
+        .and_then(|h| h.to_str().ok())
+        .ok_or_else(|| {
+            (
+                StatusCode::UNAUTHORIZED,
+                Json(serde_json::json!({"error": "Missing authorization header"})),
+            )
+        })?;
+
+    let supabase_id = if auth_header.starts_with("Bearer ") {
+        "87cda46d-edb6-42ec-8bb1-b580d1ca2c6e" // Placeholder for testing
+    } else {
+        return Err((
+            StatusCode::UNAUTHORIZED,
+            Json(serde_json::json!({"error": "Invalid authorization format"})),
+        ));
+    };
+
+    // Find the replying user
+    let user = user_collection
+        .find_one(doc! {"supabase_id": supabase_id})
+        .await
+        .map_err(|_| {
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(serde_json::json!({"error": "Database error"})),
+            )
+        })?
+        .ok_or_else(|| {
+            (
+                StatusCode::NOT_FOUND,
+                Json(serde_json::json!({"error": "User not found"})),
+            )
+        })?;
+
+    // Find the original tweet
+    let original_tweet_id = ObjectId::parse_str(&tweet_id).map_err(|_| {
+        (
+            StatusCode::BAD_REQUEST,
+            Json(serde_json::json!({"error": "Invalid tweet ID"})),
+        )
+    })?;
+
+    let _original_tweet = collection
+        .find_one(doc! {"_id": original_tweet_id})
+        .await
+        .map_err(|_| {
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(serde_json::json!({"error": "Database error"})),
+            )
+        })?
+        .ok_or_else(|| {
+            (
+                StatusCode::NOT_FOUND,
+                Json(serde_json::json!({"error": "Original tweet not found"})),
+            )
+        })?;
+
+    let now = mongodb::bson::DateTime::now();
+    let id = Some(ObjectId::new());
+
+    // Create the reply
+    let reply = Tweet {
+        id,
+        author_id: user.id.unwrap(),
+        content: payload.content,
+        tweet_type: TweetType::Reply,
+        original_tweet_id: None,
+        replied_to_tweet_id: Some(original_tweet_id),
+        created_at: now,
+        likes_count: 0,
+        retweets_count: 0,
+        replies_count: 0,
+        is_liked: false,
+        is_retweeted: false,
+        author_username: Some(user.username),
+        author_display_name: Some(user.display_name),
+        author_avatar_url: user.avatar_url,
+    };
+
+    let result = collection.insert_one(&reply).await.map_err(|_| {
+        (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(serde_json::json!({"error": "Failed to create reply"})),
+        )
+    })?;
+
+    let mut created_reply = reply;
+    created_reply.id = Some(result.inserted_id.as_object_id().unwrap());
+
+    // Update the original tweet's reply count
+    collection
+        .update_one(
+            doc! {"_id": original_tweet_id},
+            doc! {"$inc": {"replies_count": 1}},
+        )
+        .await
+        .map_err(|_| {
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(serde_json::json!({"error": "Failed to update reply count"})),
+            )
+        })?;
+
+    Ok((StatusCode::CREATED, Json(created_reply)))
 }
 
 /// Clear all tweets and users (for development/testing)

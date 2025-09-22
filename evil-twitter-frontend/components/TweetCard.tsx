@@ -30,8 +30,9 @@ import { useTweetsStore } from '../lib/stores/tweetsStore';
 interface Tweet {
     id: string | { $oid: string };
     content: string;
-    tweet_type: "Original" | "Retweet" | "Quote";
+    tweet_type: "Original" | "Retweet" | "Quote" | "Reply";
     original_tweet_id?: string | { $oid: string };
+    replied_to_tweet_id?: string | { $oid: string };
     created_at: string | { $date: { $numberLong: string } };
     likes_count: number;
     retweets_count: number;
@@ -51,9 +52,10 @@ interface TweetCardProps {
     onLike: (tweetId: string) => void;
     onRetweet: (tweetId: string) => void;
     onQuote: (tweetId: string, content: string) => void;
+    onReply: (tweetId: string, content: string) => void;
 }
 
-export function TweetCard({ tweet, onLike, onRetweet, onQuote }: TweetCardProps) {
+export function TweetCard({ tweet, onLike, onRetweet, onQuote, onReply }: TweetCardProps) {
     const {
         showQuoteModal,
         quoteTweetId,
@@ -61,7 +63,14 @@ export function TweetCard({ tweet, onLike, onRetweet, onQuote }: TweetCardProps)
         openQuoteModal,
         closeQuoteModal,
         setQuoteContent,
-        clearQuoteData
+        clearQuoteData,
+        showReplyModal,
+        replyTweetId,
+        replyContent,
+        openReplyModal,
+        closeReplyModal,
+        setReplyContent,
+        clearReplyData
     } = useTweetsStore();
 
     // Helper function to extract ID from either string or ObjectId format
@@ -110,12 +119,25 @@ export function TweetCard({ tweet, onLike, onRetweet, onQuote }: TweetCardProps)
         }
     };
 
+    const handleReply = () => {
+        openReplyModal(getTweetId());
+    };
+
+    const handleReplySubmit = () => {
+        if (replyContent.trim()) {
+            onReply(getTweetId(), replyContent.trim());
+            clearReplyData();
+        }
+    };
+
     const getTweetTypeColor = (type: string) => {
         switch (type) {
             case 'Retweet':
                 return 'success';
             case 'Quote':
                 return 'primary';
+            case 'Reply':
+                return 'info';
             default:
                 return 'default';
         }
@@ -126,6 +148,8 @@ export function TweetCard({ tweet, onLike, onRetweet, onQuote }: TweetCardProps)
             case 'Retweet':
                 return <Repeat fontSize="small" />;
             case 'Quote':
+                return <ChatBubbleOutline fontSize="small" />;
+            case 'Reply':
                 return <ChatBubbleOutline fontSize="small" />;
             default:
                 return undefined;
@@ -187,7 +211,11 @@ export function TweetCard({ tweet, onLike, onRetweet, onQuote }: TweetCardProps)
                                 <Box sx={{ mb: 1 }}>
                                     <Chip
                                         icon={getTweetTypeIcon(tweet.tweet_type)}
-                                        label={tweet.tweet_type === 'Retweet' ? 'Retweeted' : 'Quoted'}
+                                        label={
+                                            tweet.tweet_type === 'Retweet' ? 'Retweeted' :
+                                                tweet.tweet_type === 'Quote' ? 'Quoted' :
+                                                    tweet.tweet_type === 'Reply' ? 'Replied' : 'Tweet'
+                                        }
                                         size="small"
                                         color={getTweetTypeColor(tweet.tweet_type)}
                                         variant="outlined"
@@ -225,7 +253,11 @@ export function TweetCard({ tweet, onLike, onRetweet, onQuote }: TweetCardProps)
                             {/* Actions */}
                             <Stack direction="row" spacing={4} sx={{ mt: 1 }}>
                                 {/* Reply */}
-                                <IconButton size="small" color="default">
+                                <IconButton
+                                    size="small"
+                                    color="default"
+                                    onClick={handleReply}
+                                >
                                     <ChatBubbleOutline fontSize="small" />
                                     <Typography variant="caption" sx={{ ml: 0.5 }}>
                                         {tweet.replies_count}
@@ -314,6 +346,45 @@ export function TweetCard({ tweet, onLike, onRetweet, onQuote }: TweetCardProps)
                         disabled={!quoteContent.trim()}
                     >
                         Quote Tweet
+                    </Button>
+                </DialogActions>
+            </Dialog>
+
+            {/* Reply Tweet Modal */}
+            <Dialog
+                open={showReplyModal && replyTweetId === getTweetId()}
+                onClose={closeReplyModal}
+                maxWidth="sm"
+                fullWidth
+            >
+                <DialogTitle>Reply to Tweet</DialogTitle>
+                <DialogContent>
+                    <TextField
+                        autoFocus
+                        multiline
+                        rows={4}
+                        fullWidth
+                        variant="outlined"
+                        placeholder="Tweet your reply..."
+                        value={replyContent}
+                        onChange={(e) => setReplyContent(e.target.value)}
+                        inputProps={{ maxLength: 280 }}
+                        sx={{ mt: 1 }}
+                    />
+                    <Typography variant="caption" color="text.secondary" sx={{ mt: 1, display: 'block' }}>
+                        {replyContent.length}/280
+                    </Typography>
+                </DialogContent>
+                <DialogActions>
+                    <Button onClick={closeReplyModal}>
+                        Cancel
+                    </Button>
+                    <Button
+                        onClick={handleReplySubmit}
+                        variant="contained"
+                        disabled={!replyContent.trim()}
+                    >
+                        Reply
                     </Button>
                 </DialogActions>
             </Dialog>

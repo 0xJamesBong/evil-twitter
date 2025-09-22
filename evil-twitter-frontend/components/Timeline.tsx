@@ -27,6 +27,7 @@ export function Timeline() {
         likeTweet,
         retweetTweet,
         quoteTweet,
+        replyTweet,
         generateFakeTweets
     } = useTweetsStore();
 
@@ -168,6 +169,7 @@ export function Timeline() {
                                         onLike={() => likeTweet(tweetId)}
                                         onRetweet={() => retweetTweet(tweetId)}
                                         onQuote={(tweetId, content) => quoteTweet(tweetId, content)}
+                                        onReply={(tweetId, content) => replyTweet(tweetId, content)}
                                     />
                                 </Box>
                             );
