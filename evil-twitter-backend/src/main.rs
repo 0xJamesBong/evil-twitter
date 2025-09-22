@@ -9,14 +9,16 @@ use utoipa_swagger_ui::SwaggerUi;
 
 mod models;
 mod routes;
+mod wall;
 
 use routes::follow::{follow_user, unfollow_user};
 use routes::ping::ping_handler;
 use routes::tweet::{
-    clear_all_data, create_tweet, generate_fake_tweets, get_tweet, get_tweets, like_tweet,
-    quote_tweet, reply_tweet, retweet_tweet,
+    clear_all_data, create_tweet, generate_fake_tweets, get_tweet, get_tweets, get_user_wall,
+    like_tweet, quote_tweet, reply_tweet, retweet_tweet,
 };
 use routes::user::{create_user, get_user, get_users};
+use wall::wall::compose_wall;
 
 /// API documentation
 #[derive(OpenApi)]
@@ -29,6 +31,7 @@ use routes::user::{create_user, get_user, get_users};
         routes::tweet::create_tweet,
         routes::tweet::get_tweet,
         routes::tweet::get_tweets,
+        routes::tweet::get_user_wall,
         routes::tweet::like_tweet,
         routes::tweet::retweet_tweet,
         routes::tweet::quote_tweet,
@@ -84,6 +87,8 @@ async fn main() -> anyhow::Result<()> {
         .route("/ping", get(ping_handler))
         .route("/users", post(create_user).get(get_users))
         .route("/users/{id}", get(get_user))
+        .route("/users/{user_id}/wall", get(get_user_wall))
+        .route("/users/{user_id}/wall/compose", get(compose_wall))
         .route("/tweets", post(create_tweet).get(get_tweets))
         .route("/tweets/{id}", get(get_tweet))
         .route("/tweets/{id}/like", post(like_tweet))

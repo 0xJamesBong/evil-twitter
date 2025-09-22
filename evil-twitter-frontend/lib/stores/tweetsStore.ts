@@ -41,6 +41,7 @@ export interface TweetsState {
 export interface TweetsActions {
   ping: () => Promise<void>;
   fetchTweets: () => Promise<void>;
+  fetchUserWall: (userId: string) => Promise<void>;
   createTweet: (
     content: string
   ) => Promise<{ success: boolean; error?: string; tweet?: Tweet }>;
@@ -113,6 +114,39 @@ export const useTweetsStore = create<TweetsState & TweetsActions>(
 
         if (!response.ok) {
           throw new Error("Failed to fetch tweets");
+        }
+
+        const data = await response.json();
+        const tweets = data.tweets || [];
+
+        set({
+          tweets,
+          isLoading: false,
+          lastFetchedAt: new Date(),
+          hasMore: tweets.length > 0,
+        });
+      } catch (error) {
+        set({
+          error: error instanceof Error ? error.message : "An error occurred",
+          isLoading: false,
+        });
+      }
+    },
+
+    fetchUserWall: async (userId: string) => {
+      const { isLoading } = get();
+      if (isLoading) return;
+
+      set({ isLoading: true, error: null });
+
+      try {
+        console.log("fetching user wall for user:", userId);
+        const response = await fetch(
+          `http://localhost:3000/users/${userId}/wall`
+        );
+
+        if (!response.ok) {
+          throw new Error("Failed to fetch user wall");
         }
 
         const data = await response.json();
