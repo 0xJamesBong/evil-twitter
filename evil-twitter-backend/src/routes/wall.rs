@@ -52,11 +52,11 @@ pub async fn compose_wall(
             )
         })?;
 
-    // Wall composition algorithm - return ALL tweets for now
-    // Get all tweets sorted by creation date (newest first)
+    // Wall composition algorithm - return ALL tweets sorted by health (highest first)
+    // Get all tweets sorted by health (highest first), then by creation date as tiebreaker
     let all_tweets_cursor = tweet_collection
         .find(doc! {})
-        .sort(doc! {"created_at": -1})
+        .sort(doc! {"health": -1, "created_at": -1})
         .await
         .map_err(|_| {
             (

@@ -19,6 +19,7 @@ export interface Tweet {
   author_display_name: string;
   author_avatar_url?: string | null;
   author_is_verified?: boolean;
+  health: number;
 }
 
 export interface TweetsState {

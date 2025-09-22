@@ -96,6 +96,7 @@ pub async fn create_tweet(
         author_username: Some(user.username),
         author_display_name: Some(user.display_name),
         author_avatar_url: user.avatar_url,
+        health: 100,
     };
 
     let result = collection.insert_one(&tweet).await.map_err(|_| {
@@ -469,6 +470,7 @@ pub async fn generate_fake_tweets(
             author_username: None,
             author_display_name: None,
             author_avatar_url: None,
+            health: 100,
         },
         Tweet {
             id: None,
@@ -486,6 +488,7 @@ pub async fn generate_fake_tweets(
             author_username: None,
             author_display_name: None,
             author_avatar_url: None,
+            health: 100,
         },
         Tweet {
             id: None,
@@ -503,6 +506,7 @@ pub async fn generate_fake_tweets(
             author_username: None,
             author_display_name: None,
             author_avatar_url: None,
+            health: 100,
         },
         Tweet {
             id: None,
@@ -520,6 +524,7 @@ pub async fn generate_fake_tweets(
             author_username: None,
             author_display_name: None,
             author_avatar_url: None,
+            health: 100,
         },
         Tweet {
             id: None,
@@ -537,6 +542,7 @@ pub async fn generate_fake_tweets(
             author_username: None,
             author_display_name: None,
             author_avatar_url: None,
+            health: 100,
         },
     ];
 
@@ -684,6 +690,7 @@ pub async fn retweet_tweet(
         author_username: Some(user.username),
         author_display_name: Some(user.display_name),
         author_avatar_url: user.avatar_url,
+        health: 100,
     };
 
     let result = collection.insert_one(&retweet).await.map_err(|_| {
@@ -815,6 +822,7 @@ pub async fn quote_tweet(
         author_username: Some(user.username),
         author_display_name: Some(user.display_name),
         author_avatar_url: user.avatar_url,
+        health: 100,
     };
 
     let result = collection.insert_one(&quote_tweet).await.map_err(|_| {
@@ -946,6 +954,7 @@ pub async fn reply_tweet(
         author_username: Some(user.username),
         author_display_name: Some(user.display_name),
         author_avatar_url: user.avatar_url,
+        health: 100,
     };
 
     let result = collection.insert_one(&reply).await.map_err(|_| {
