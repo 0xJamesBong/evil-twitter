@@ -19,6 +19,7 @@ import { useTweetsStore } from '../lib/stores/tweetsStore';
 import { useBackendUserStore } from '../lib/stores/backendUserStore';
 
 export function Timeline() {
+
     const { isAuthenticated } = useAuthStore();
     const { user: backendUser } = useBackendUserStore();
     const {
@@ -36,6 +37,7 @@ export function Timeline() {
 
     useEffect(() => {
         if (backendUser?._id?.$oid) {
+            console.log("fetching user wall for user: ", backendUser._id.$oid);
             fetchUserWall(backendUser._id.$oid);
         } else if (isAuthenticated) {
             // Fallback to fetchTweets if backend user is not available yet
@@ -43,6 +45,8 @@ export function Timeline() {
         }
     }, [fetchUserWall, fetchTweets, backendUser, isAuthenticated]);
 
+    console.log("isAuthenticated: ", isAuthenticated);
+    console.log("tweets: ", tweets);
     if (isLoading) {
         return (
             <Box

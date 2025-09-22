@@ -23,7 +23,7 @@ pub struct WallResponse {
 pub async fn compose_wall(
     State(db): State<Database>,
     Path(user_id): Path<String>,
-) -> Result<Json<WallResponse>, (StatusCode, Json<serde_json::Value>)> {
+) -> Result<Vec<Tweet>, (StatusCode, Json<serde_json::Value>)> {
     let tweet_collection: Collection<Tweet> = db.collection("tweets");
     let user_collection: Collection<crate::models::user::User> = db.collection("users");
 
@@ -52,30 +52,26 @@ pub async fn compose_wall(
             )
         })?;
 
-    // Wall composition algorithm - return ALL tweets sorted by health (highest first)
-    // Get all tweets sorted by health (highest first), then by creation date as tiebreaker
-    let all_tweets_cursor = tweet_collection
-        .find(doc! {})
-        .sort(doc! {"health": -1, "created_at": -1})
-        .await
-        .map_err(|_| {
-            (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Json(serde_json::json!({"error": "Database error"})),
-            )
-        })?;
+    // Wall composition algorithm - return ALL tweets
+    // Get all tweets without sorting first to test
+    println!("Wall: Starting to fetch tweets for user: {}", user_id);
 
-    let all_tweets: Vec<Tweet> = all_tweets_cursor.try_collect().await.map_err(|_| {
+    let all_tweets_cursor = tweet_collection.find(doc! {}).await.map_err(|e| {
+        println!("Wall: Database error during find: {:?}", e);
         (
             StatusCode::INTERNAL_SERVER_ERROR,
             Json(serde_json::json!({"error": "Database error"})),
         )
     })?;
 
-    let total = all_tweets.len() as i64;
+    let all_tweets: Vec<Tweet> = all_tweets_cursor.try_collect().await.map_err(|e| {
+        println!("Wall: Database error during collect: {:?}", e);
+        (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(serde_json::json!({"error": "Database error"})),
+        )
+    })?;
 
-    Ok(Json(WallResponse {
-        tweets: all_tweets,
-        total,
-    }))
+    println!("Wall: Found {} tweets", all_tweets.len());
+    Ok(all_tweets)
 }

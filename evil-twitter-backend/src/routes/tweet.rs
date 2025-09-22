@@ -11,6 +11,7 @@ use mongodb::{
 use serde::Serialize;
 use utoipa::ToSchema;
 
+use crate::middleware::wall::compose_wall;
 use crate::models::tweet::{CreateReply, CreateTweet, Tweet, TweetType};
 
 #[derive(Debug, Serialize, ToSchema)]
@@ -296,41 +297,8 @@ pub async fn get_user_wall(
         )
     })?;
 
-    // Verify user exists
-    let _user = user_collection
-        .find_one(doc! {"_id": user_object_id})
-        .await
-        .map_err(|_| {
-            (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Json(serde_json::json!({"error": "Database error"})),
-            )
-        })?
-        .ok_or_else(|| {
-            (
-                StatusCode::NOT_FOUND,
-                Json(serde_json::json!({"error": "User not found"})),
-            )
-        })?;
-
-    // Get tweets where user is the author (original tweets, retweets, quotes, replies)
-    let cursor = tweet_collection
-        .find(doc! {"author_id": user_object_id})
-        .sort(doc! {"created_at": -1})
-        .await
-        .map_err(|_| {
-            (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Json(serde_json::json!({"error": "Database error"})),
-            )
-        })?;
-
-    let tweets: Vec<Tweet> = cursor.try_collect().await.map_err(|_| {
-        (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            Json(serde_json::json!({"error": "Database error"})),
-        )
-    })?;
+    // Use the wall composition algorithm to get tweets
+    let tweets = compose_wall(State(db), Path(user_id)).await?;
 
     // Get all unique author IDs for enrichment
     let author_ids: Vec<ObjectId> = tweets

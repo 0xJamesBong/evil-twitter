@@ -153,6 +153,8 @@ export const useTweetsStore = create<TweetsState & TweetsActions>(
         const data = await response.json();
         const tweets = data.tweets || [];
 
+        console.log("fetched tweets for user wall: ", tweets);
+
         set({
           tweets,
           isLoading: false,
@@ -160,6 +162,7 @@ export const useTweetsStore = create<TweetsState & TweetsActions>(
           hasMore: tweets.length > 0,
         });
       } catch (error) {
+        console.error("Error fetching user wall:", error);
         set({
           error: error instanceof Error ? error.message : "An error occurred",
           isLoading: false,

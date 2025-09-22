@@ -7,9 +7,11 @@ use utoipa::OpenApi;
 use utoipa_axum::router::OpenApiRouter;
 use utoipa_swagger_ui::SwaggerUi;
 
+mod middleware;
 mod models;
 mod routes;
 
+use crate::middleware::wall::compose_wall;
 use routes::follow::{follow_user, unfollow_user};
 use routes::ping::ping_handler;
 use routes::tweet::{
@@ -19,7 +21,6 @@ use routes::tweet::{
 use routes::user::{
     attack_dollar_rate, create_user, get_dollar_rate, get_user, get_users, improve_dollar_rate,
 };
-use routes::wall::compose_wall;
 
 /// API documentation
 #[derive(OpenApi)]
@@ -99,7 +100,6 @@ async fn main() -> anyhow::Result<()> {
         .route("/users/{user_id}/attack", post(attack_dollar_rate))
         .route("/users/{user_id}/dollar-rate", get(get_dollar_rate))
         .route("/users/{user_id}/wall", get(get_user_wall))
-        .route("/users/{user_id}/wall/compose", get(compose_wall))
         .route("/users/{id}", get(get_user))
         .route("/tweets", post(create_tweet).get(get_tweets))
         .route("/tweets/{id}", get(get_tweet))

@@ -37,7 +37,7 @@ export default function HomePage() {
 
         {/* Right Sidebar */}
         <div className="w-80 fixed right-0 top-16 h-full border-l border-gray-800">
-          <RightSidebar />
+          {/* <RightSidebar /> */}
         </div>
       </div>
     </div>
