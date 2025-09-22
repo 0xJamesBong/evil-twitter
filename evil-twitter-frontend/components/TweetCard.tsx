@@ -45,6 +45,7 @@ interface Tweet {
     author_display_name: string;
     author_avatar_url?: string | null;
     author_is_verified?: boolean;
+    health: number;
 }
 
 interface TweetCardProps {
@@ -201,9 +202,37 @@ export function TweetCard({ tweet, onLike, onRetweet, onQuote, onReply }: TweetC
                                 <Typography variant="body2" color="text.secondary">
                                     {formatTimeAgo(tweet.created_at)}
                                 </Typography>
-                                <IconButton size="small" sx={{ ml: 'auto' }}>
-                                    <MoreHoriz fontSize="small" />
-                                </IconButton>
+
+                                {/* Health Display */}
+                                <Box
+                                    sx={{
+                                        ml: 'auto',
+                                        mr: 1,
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        gap: 1
+                                    }}
+                                >
+                                    <Box
+                                        sx={{
+                                            backgroundColor: '#ff69b4', // Pink color
+                                            color: 'white',
+                                            px: 1.5,
+                                            py: 0.5,
+                                            borderRadius: 2,
+                                            fontSize: '0.75rem',
+                                            fontWeight: 600,
+                                            minWidth: '40px',
+                                            textAlign: 'center',
+                                            boxShadow: '0 2px 4px rgba(255, 105, 180, 0.3)'
+                                        }}
+                                    >
+                                        {tweet.health}
+                                    </Box>
+                                    <IconButton size="small">
+                                        <MoreHoriz fontSize="small" />
+                                    </IconButton>
+                                </Box>
                             </Box>
 
                             {/* Tweet Type Indicator */}

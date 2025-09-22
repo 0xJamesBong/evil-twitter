@@ -14,7 +14,7 @@ use routes::follow::{follow_user, unfollow_user};
 use routes::ping::ping_handler;
 use routes::tweet::{
     clear_all_data, create_tweet, generate_fake_tweets, get_tweet, get_tweets, get_user_wall,
-    like_tweet, quote_tweet, reply_tweet, retweet_tweet,
+    like_tweet, migrate_health, quote_tweet, reply_tweet, retweet_tweet,
 };
 use routes::user::{create_user, get_user, get_users};
 use routes::wall::compose_wall;
@@ -37,6 +37,7 @@ use routes::wall::compose_wall;
         routes::tweet::reply_tweet,
         routes::tweet::generate_fake_tweets,
         routes::tweet::clear_all_data,
+        routes::tweet::migrate_health,
         routes::follow::follow_user,
         routes::follow::unfollow_user
     ),
@@ -58,7 +59,8 @@ use routes::wall::compose_wall;
         (name = "users", description = "User management endpoints"),
         (name = "tweets", description = "Tweet management endpoints"),
         (name = "follows", description = "Follow management endpoints"),
-        (name = "auth", description = "Authentication endpoints")
+        (name = "auth", description = "Authentication endpoints"),
+        (name = "admin", description = "Administrative endpoints")
     ),
     info(
         title = "Evil Twitter API",
@@ -96,6 +98,7 @@ async fn main() -> anyhow::Result<()> {
         .route("/tweets/{id}/reply", post(reply_tweet))
         .route("/tweets/fake", post(generate_fake_tweets))
         .route("/admin/clear-all", post(clear_all_data))
+        .route("/admin/migrate-health", post(migrate_health))
         .route("/follows", post(follow_user))
         .route("/follows/{following_id}", delete(unfollow_user))
         .split_for_parts();
