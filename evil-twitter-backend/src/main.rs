@@ -9,7 +9,6 @@ use utoipa_swagger_ui::SwaggerUi;
 
 mod models;
 mod routes;
-mod wall;
 
 use routes::follow::{follow_user, unfollow_user};
 use routes::ping::ping_handler;
@@ -18,7 +17,7 @@ use routes::tweet::{
     like_tweet, quote_tweet, reply_tweet, retweet_tweet,
 };
 use routes::user::{create_user, get_user, get_users};
-use wall::wall::compose_wall;
+use routes::wall::compose_wall;
 
 /// API documentation
 #[derive(OpenApi)]

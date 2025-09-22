@@ -52,17 +52,10 @@ pub async fn compose_wall(
             )
         })?;
 
-    // Wall composition algorithm:
-    // 1. User's own tweets (original, retweets, quotes, replies)
-    // 2. Tweets from users they follow
-    // 3. Tweets that were retweeted by users they follow
-    // 4. Tweets that were quoted by users they follow
-    // 5. Tweets that were replied to by users they follow
-
-    // For now, let's start with a simple implementation:
-    // Get all tweets where the user is the author (their own activity)
-    let user_tweets_cursor = tweet_collection
-        .find(doc! {"author_id": user_object_id})
+    // Wall composition algorithm - return ALL tweets for now
+    // Get all tweets sorted by creation date (newest first)
+    let all_tweets_cursor = tweet_collection
+        .find(doc! {})
         .sort(doc! {"created_at": -1})
         .await
         .map_err(|_| {
@@ -72,25 +65,17 @@ pub async fn compose_wall(
             )
         })?;
 
-    let user_tweets: Vec<Tweet> = user_tweets_cursor.try_collect().await.map_err(|_| {
+    let all_tweets: Vec<Tweet> = all_tweets_cursor.try_collect().await.map_err(|_| {
         (
             StatusCode::INTERNAL_SERVER_ERROR,
             Json(serde_json::json!({"error": "Database error"})),
         )
     })?;
 
-    // TODO: Add following logic here
-    // For now, we'll just return the user's own tweets
-    // Later we can add:
-    // - Get users they follow
-    // - Get tweets from followed users
-    // - Get retweets/quotes/replies from followed users
-    // - Apply ranking algorithm (recency, engagement, etc.)
-
-    let total = user_tweets.len() as i64;
+    let total = all_tweets.len() as i64;
 
     Ok(Json(WallResponse {
-        tweets: user_tweets,
+        tweets: all_tweets,
         total,
     }))
 }

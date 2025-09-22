@@ -16,14 +16,17 @@ import { ComposeTweet } from './ComposeTweet';
 import { TweetCard } from './TweetCard';
 import { useAuthStore } from '../lib/stores/authStore';
 import { useTweetsStore } from '../lib/stores/tweetsStore';
+import { useBackendUserStore } from '../lib/stores/backendUserStore';
 
 export function Timeline() {
     const { isAuthenticated } = useAuthStore();
+    const { user: backendUser } = useBackendUserStore();
     const {
         tweets,
         isLoading,
         error,
         fetchTweets,
+        fetchUserWall,
         likeTweet,
         retweetTweet,
         quoteTweet,
@@ -32,8 +35,13 @@ export function Timeline() {
     } = useTweetsStore();
 
     useEffect(() => {
-        fetchTweets();
-    }, [fetchTweets]);
+        if (backendUser?._id?.$oid) {
+            fetchUserWall(backendUser._id.$oid);
+        } else if (isAuthenticated) {
+            // Fallback to fetchTweets if backend user is not available yet
+            fetchTweets();
+        }
+    }, [fetchUserWall, fetchTweets, backendUser, isAuthenticated]);
 
     if (isLoading) {
         return (
@@ -54,7 +62,17 @@ export function Timeline() {
                 <Alert
                     severity="error"
                     action={
-                        <Button color="inherit" size="small" onClick={fetchTweets}>
+                        <Button
+                            color="inherit"
+                            size="small"
+                            onClick={() => {
+                                if (backendUser?._id?.$oid) {
+                                    fetchUserWall(backendUser._id.$oid);
+                                } else {
+                                    fetchTweets();
+                                }
+                            }}
+                        >
                             Try Again
                         </Button>
                     }
