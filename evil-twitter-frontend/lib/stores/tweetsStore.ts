@@ -191,6 +191,8 @@ export const useTweetsStore = create<TweetsState & TweetsActions>(
         if (session?.access_token) {
           headers["Authorization"] = `Bearer ${session.access_token}`;
         }
+        console.log("createTweet headers", headers);
+        console.log("createTweet session", session);
 
         const response = await fetch("http://localhost:3000/tweets", {
           method: "POST",
