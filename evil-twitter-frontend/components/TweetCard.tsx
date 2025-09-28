@@ -32,24 +32,29 @@ import {
 import { useTweetsStore } from '../lib/stores/tweetsStore';
 
 interface Tweet {
-    id: string | { $oid: string };
+    _id: { $oid: string };
     content: string;
     tweet_type: "Original" | "Retweet" | "Quote" | "Reply";
-    original_tweet_id?: string | { $oid: string };
-    replied_to_tweet_id?: string | { $oid: string };
-    created_at: string | { $date: { $numberLong: string } };
+    original_tweet_id?: { $oid: string } | null;
+    replied_to_tweet_id?: { $oid: string } | null;
+    created_at: { $date: { $numberLong: string } };
     likes_count: number;
     retweets_count: number;
     replies_count: number;
     is_liked: boolean;
     is_retweeted: boolean;
     media_urls?: string[];
-    author_id: string | { $oid: string };
+    author_id: { $oid: string };
     author_username: string | null;
     author_display_name: string;
     author_avatar_url?: string | null;
     author_is_verified?: boolean;
     health: number;
+    health_history: {
+        health: number;
+        heal_history: any[];
+        attack_history: any[];
+    };
 }
 
 interface TweetCardProps {
@@ -86,9 +91,9 @@ export function TweetCard({ tweet, onLike, onRetweet, onQuote, onReply }: TweetC
     const [healAmount, setHealAmount] = React.useState(10);
     const [attackAmount, setAttackAmount] = React.useState(10);
 
-    // Helper function to extract ID from either string or ObjectId format
+    // Helper function to extract ID from MongoDB ObjectId format
     const getTweetId = () => {
-        return typeof tweet.id === 'string' ? tweet.id : tweet.id?.$oid || '';
+        return tweet._id.$oid;
     };
 
     // Helper function to format date from either string or MongoDB date format

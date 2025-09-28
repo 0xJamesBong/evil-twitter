@@ -2,24 +2,29 @@ import { create } from "zustand";
 import { supabase } from "../supabase";
 
 export interface Tweet {
-  id: string | { $oid: string };
+  _id: { $oid: string };
   content: string;
   tweet_type: "Original" | "Retweet" | "Quote" | "Reply";
-  original_tweet_id?: string | { $oid: string };
-  replied_to_tweet_id?: string | { $oid: string };
-  created_at: string | { $date: { $numberLong: string } };
+  original_tweet_id?: { $oid: string } | null;
+  replied_to_tweet_id?: { $oid: string } | null;
+  created_at: { $date: { $numberLong: string } };
   likes_count: number;
   retweets_count: number;
   replies_count: number;
   is_liked: boolean;
   is_retweeted: boolean;
   media_urls?: string[];
-  author_id: string | { $oid: string };
+  author_id: { $oid: string };
   author_username: string;
   author_display_name: string;
   author_avatar_url?: string | null;
   author_is_verified?: boolean;
   health: number;
+  health_history: {
+    health: number;
+    heal_history: any[];
+    attack_history: any[];
+  };
 }
 
 export interface TweetsState {
@@ -86,17 +91,6 @@ export interface TweetsActions {
   clearReplyData: () => void;
 }
 
-// Helper function to transform API tweet format to frontend format
-const transformTweet = (apiTweet: any): Tweet => {
-  return {
-    ...apiTweet,
-    id: apiTweet._id || apiTweet.id, // Transform _id to id
-    author_id: apiTweet.author_id || apiTweet.author_id,
-    original_tweet_id: apiTweet.original_tweet_id,
-    replied_to_tweet_id: apiTweet.replied_to_tweet_id,
-  };
-};
-
 export const useTweetsStore = create<TweetsState & TweetsActions>(
   (set, get) => ({
     ping_result: null,
@@ -137,8 +131,7 @@ export const useTweetsStore = create<TweetsState & TweetsActions>(
         }
 
         const data = await response.json();
-        const apiTweets = data.tweets || [];
-        const tweets = apiTweets.map(transformTweet);
+        const tweets = data.tweets || [];
 
         set({
           tweets,
@@ -171,8 +164,7 @@ export const useTweetsStore = create<TweetsState & TweetsActions>(
         }
 
         const data = await response.json();
-        const apiTweets = data.tweets || [];
-        const tweets = apiTweets.map(transformTweet);
+        const tweets = data.tweets || [];
 
         console.log("fetched tweets for user wall: ", tweets);
 
@@ -218,8 +210,7 @@ export const useTweetsStore = create<TweetsState & TweetsActions>(
           throw new Error(errorData.message || "Failed to create tweet");
         }
 
-        const apiTweet = await response.json();
-        const newTweet = transformTweet(apiTweet);
+        const newTweet = await response.json();
         console.log("newTweet:", newTweet);
 
         // Add the new tweet to the beginning of the list
@@ -250,8 +241,7 @@ export const useTweetsStore = create<TweetsState & TweetsActions>(
         }
 
         const data = await response.json();
-        const apiTweets = data.tweets || [];
-        const tweets = apiTweets.map(transformTweet);
+        const tweets = data.tweets || [];
 
         set({
           tweets,
@@ -290,9 +280,7 @@ export const useTweetsStore = create<TweetsState & TweetsActions>(
         if (response.ok) {
           set((state) => ({
             tweets: state.tweets.map((tweet) => {
-              // Handle both string and ObjectId formats for comparison
-              const currentTweetId =
-                typeof tweet.id === "string" ? tweet.id : tweet.id?.$oid;
+              const currentTweetId = tweet._id.$oid;
 
               return currentTweetId === tweetId
                 ? {
@@ -412,16 +400,14 @@ export const useTweetsStore = create<TweetsState & TweetsActions>(
           };
         }
 
-        const apiRetweet = await response.json();
-        const retweet = transformTweet(apiRetweet);
+        const retweet = await response.json();
         get().addTweet(retweet);
 
         // Update the original tweet's retweet count
         get().updateTweet(tweetId, {
           retweets_count:
             (get().tweets.find((t) => {
-              const currentId = typeof t.id === "string" ? t.id : t.id?.$oid;
-              return currentId === tweetId;
+              return t._id.$oid === tweetId;
             })?.retweets_count || 0) + 1,
         });
 
@@ -461,16 +447,14 @@ export const useTweetsStore = create<TweetsState & TweetsActions>(
           };
         }
 
-        const apiQuoteTweet = await response.json();
-        const quoteTweet = transformTweet(apiQuoteTweet);
+        const quoteTweet = await response.json();
         get().addTweet(quoteTweet);
 
         // Update the original tweet's retweet count
         get().updateTweet(tweetId, {
           retweets_count:
             (get().tweets.find((t) => {
-              const currentId = typeof t.id === "string" ? t.id : t.id?.$oid;
-              return currentId === tweetId;
+              return t._id.$oid === tweetId;
             })?.retweets_count || 0) + 1,
         });
 
@@ -510,16 +494,14 @@ export const useTweetsStore = create<TweetsState & TweetsActions>(
           };
         }
 
-        const apiReplyTweet = await response.json();
-        const replyTweet = transformTweet(apiReplyTweet);
+        const replyTweet = await response.json();
         get().addTweet(replyTweet);
 
         // Update the original tweet's reply count
         get().updateTweet(tweetId, {
           replies_count:
             (get().tweets.find((t) => {
-              const currentId = typeof t.id === "string" ? t.id : t.id?.$oid;
-              return currentId === tweetId;
+              return t._id.$oid === tweetId;
             })?.replies_count || 0) + 1,
         });
 
@@ -539,20 +521,14 @@ export const useTweetsStore = create<TweetsState & TweetsActions>(
     updateTweet: (tweetId: string, updates: Partial<Tweet>) => {
       set((state) => ({
         tweets: state.tweets.map((tweet) => {
-          const currentTweetId =
-            typeof tweet.id === "string" ? tweet.id : tweet.id?.$oid;
-          return currentTweetId === tweetId ? { ...tweet, ...updates } : tweet;
+          return tweet._id.$oid === tweetId ? { ...tweet, ...updates } : tweet;
         }),
       }));
     },
 
     removeTweet: (tweetId: string) => {
       set((state) => ({
-        tweets: state.tweets.filter((tweet) => {
-          const currentTweetId =
-            typeof tweet.id === "string" ? tweet.id : tweet.id?.$oid;
-          return currentTweetId !== tweetId;
-        }),
+        tweets: state.tweets.filter((tweet) => tweet._id.$oid !== tweetId),
       }));
     },
 

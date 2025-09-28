@@ -178,11 +178,8 @@ export function Timeline() {
                     </Paper>
                 ) : (
                     <Stack spacing={0}>
-                        {tweets.map((tweet, index) => {
-                            // Handle MongoDB ObjectId format - extract the actual ID string
-                            const tweetId = typeof tweet.id === 'string'
-                                ? tweet.id
-                                : tweet.id?.$oid || `tweet-${index}`;
+                        {tweets.map((tweet) => {
+                            const tweetId = tweet._id.$oid;
 
                             return (
                                 <Box key={tweetId} sx={{ borderBottom: '1px solid', borderColor: 'divider' }}>
