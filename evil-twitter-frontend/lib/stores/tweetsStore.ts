@@ -86,6 +86,17 @@ export interface TweetsActions {
   clearReplyData: () => void;
 }
 
+// Helper function to transform API tweet format to frontend format
+const transformTweet = (apiTweet: any): Tweet => {
+  return {
+    ...apiTweet,
+    id: apiTweet._id || apiTweet.id, // Transform _id to id
+    author_id: apiTweet.author_id || apiTweet.author_id,
+    original_tweet_id: apiTweet.original_tweet_id,
+    replied_to_tweet_id: apiTweet.replied_to_tweet_id,
+  };
+};
+
 export const useTweetsStore = create<TweetsState & TweetsActions>(
   (set, get) => ({
     ping_result: null,
@@ -126,7 +137,8 @@ export const useTweetsStore = create<TweetsState & TweetsActions>(
         }
 
         const data = await response.json();
-        const tweets = data.tweets || [];
+        const apiTweets = data.tweets || [];
+        const tweets = apiTweets.map(transformTweet);
 
         set({
           tweets,
@@ -159,7 +171,8 @@ export const useTweetsStore = create<TweetsState & TweetsActions>(
         }
 
         const data = await response.json();
-        const tweets = data.tweets || [];
+        const apiTweets = data.tweets || [];
+        const tweets = apiTweets.map(transformTweet);
 
         console.log("fetched tweets for user wall: ", tweets);
 
@@ -205,7 +218,8 @@ export const useTweetsStore = create<TweetsState & TweetsActions>(
           throw new Error(errorData.message || "Failed to create tweet");
         }
 
-        const newTweet = await response.json();
+        const apiTweet = await response.json();
+        const newTweet = transformTweet(apiTweet);
         console.log("newTweet:", newTweet);
 
         // Add the new tweet to the beginning of the list
@@ -236,7 +250,8 @@ export const useTweetsStore = create<TweetsState & TweetsActions>(
         }
 
         const data = await response.json();
-        const tweets = data.tweets || [];
+        const apiTweets = data.tweets || [];
+        const tweets = apiTweets.map(transformTweet);
 
         set({
           tweets,
@@ -397,7 +412,8 @@ export const useTweetsStore = create<TweetsState & TweetsActions>(
           };
         }
 
-        const retweet = await response.json();
+        const apiRetweet = await response.json();
+        const retweet = transformTweet(apiRetweet);
         get().addTweet(retweet);
 
         // Update the original tweet's retweet count
@@ -445,7 +461,8 @@ export const useTweetsStore = create<TweetsState & TweetsActions>(
           };
         }
 
-        const quoteTweet = await response.json();
+        const apiQuoteTweet = await response.json();
+        const quoteTweet = transformTweet(apiQuoteTweet);
         get().addTweet(quoteTweet);
 
         // Update the original tweet's retweet count
@@ -493,7 +510,8 @@ export const useTweetsStore = create<TweetsState & TweetsActions>(
           };
         }
 
-        const replyTweet = await response.json();
+        const apiReplyTweet = await response.json();
+        const replyTweet = transformTweet(apiReplyTweet);
         get().addTweet(replyTweet);
 
         // Update the original tweet's reply count

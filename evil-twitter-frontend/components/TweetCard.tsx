@@ -243,6 +243,19 @@ export function TweetCard({ tweet, onLike, onRetweet, onQuote, onReply }: TweetC
                                     {formatTimeAgo(tweet.created_at)}
                                 </Typography>
 
+                                {/* Tweet ID */}
+                                <Typography
+                                    variant="caption"
+                                    color="text.disabled"
+                                    sx={{
+                                        fontSize: '0.7rem',
+                                        fontFamily: 'monospace',
+                                        opacity: 0.6
+                                    }}
+                                >
+                                    #{getTweetId().slice(-8)}
+                                </Typography>
+
                                 {/* Health Display */}
                                 <Box
                                     sx={{
