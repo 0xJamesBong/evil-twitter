@@ -105,9 +105,9 @@ export default function ProfilePage() {
                                             <div className="text-2xl font-bold text-white">{backendUser.following_count}</div>
                                             <div className="text-gray-400 text-sm">Following</div>
                                         </div>
-                                        <div className="bg-pink-600 rounded-lg p-4 text-center">
+                                        <div className="bg-purple-500 rounded-lg p-4 text-center">
                                             <div className="text-2xl font-bold text-white">${backendUser.dollar_conversion_rate.toLocaleString()}</div>
-                                            <div className="text-pink-200 text-sm">Dollar Rate</div>
+                                            <div className="text-purple-200 text-sm">Dollar Rate</div>
                                         </div>
                                     </div>
                                 </div>

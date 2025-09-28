@@ -111,7 +111,7 @@ export default function Navbar() {
                                 {backendUser && (
                                     <Box
                                         sx={{
-                                            backgroundColor: '#ff69b4',
+                                            backgroundColor: '#a855f7',
                                             color: 'white',
                                             px: 1.5,
                                             py: 0.5,
@@ -120,7 +120,7 @@ export default function Navbar() {
                                             fontWeight: 600,
                                             minWidth: '60px',
                                             textAlign: 'center',
-                                            boxShadow: '0 2px 4px rgba(255, 105, 180, 0.3)'
+                                            boxShadow: '0 2px 4px rgba(168, 85, 247, 0.3)'
                                         }}
                                     >
                                         ${backendUser.dollar_conversion_rate.toLocaleString()}
