@@ -45,6 +45,7 @@ pub struct AttackTweetRequest {
     ),
     tag = "tweets"
 )]
+
 pub async fn create_tweet(
     State(db): State<Database>,
     headers: axum::http::HeaderMap,
@@ -68,7 +69,7 @@ pub async fn create_tweet(
     let supabase_id = if auth_header.starts_with("Bearer ") {
         // For now, we'll use a placeholder - in production you'd decode the JWT
         // and extract the user ID from the token payload
-        "87cda46d-edb6-42ec-8bb1-b580d1ca2c6e" // Placeholder for testing
+        "47c92e83-948c-460b-b9b5-b5aa40bbc5b7" // Placeholder for testing
     } else {
         return Err((
             StatusCode::UNAUTHORIZED,
@@ -131,7 +132,6 @@ pub async fn create_tweet(
 
     Ok((StatusCode::CREATED, Json(created_tweet)))
 }
-
 /// Get tweet by ID
 #[utoipa::path(
     get,
@@ -442,7 +442,7 @@ pub async fn generate_fake_tweets(
     let fake_tweets = vec![
         Tweet {
             id: None,
-            author_id: ObjectId::parse_str("507f1f77bcf86cd799439011").unwrap(),
+            author_id: ObjectId::parse_str("68d9b685550f1355d0f01ba4").unwrap(),
             content: "Just discovered this amazing new coffee shop downtown! ☕ The barista made the perfect latte art. #coffee #morningvibes".to_string(),
             tweet_type: TweetType::Original,
             original_tweet_id: None,
@@ -465,7 +465,7 @@ pub async fn generate_fake_tweets(
         },
         Tweet {
             id: None,
-            author_id: ObjectId::parse_str("507f1f77bcf86cd799439011").unwrap(),
+            author_id: ObjectId::parse_str("68d9b685550f1355d0f01ba4").unwrap(),
             content: "Working on a new project and the code is finally coming together! 🚀 Nothing beats that feeling when everything clicks. #coding #programming".to_string(),
             tweet_type: TweetType::Original,
             original_tweet_id: None,
@@ -488,7 +488,7 @@ pub async fn generate_fake_tweets(
         },
         Tweet {
             id: None,
-            author_id: ObjectId::parse_str("507f1f77bcf86cd799439011").unwrap(),
+            author_id: ObjectId::parse_str("68d9b685550f1355d0f01ba4").unwrap(),
             content: "Beautiful sunset today! 🌅 Sometimes you just need to stop and appreciate the simple things in life. #nature #grateful".to_string(),
             tweet_type: TweetType::Original,
             original_tweet_id: None,
@@ -511,7 +511,7 @@ pub async fn generate_fake_tweets(
         },
         Tweet {
             id: None,
-            author_id: ObjectId::parse_str("507f1f77bcf86cd799439011").unwrap(),
+            author_id: ObjectId::parse_str("68d9b685550f1355d0f01ba4").unwrap(),
             content: "Just finished reading an incredible book! 📚 The plot twists were mind-blowing. Can't wait to discuss it with friends. #reading #books".to_string(),
             tweet_type: TweetType::Original,
             original_tweet_id: None,
@@ -534,7 +534,7 @@ pub async fn generate_fake_tweets(
         },
         Tweet {
             id: None,
-            author_id: ObjectId::parse_str("507f1f77bcf86cd799439011").unwrap(),
+            author_id: ObjectId::parse_str("68d9b685550f1355d0f01ba4").unwrap(),
             content: "Weekend vibes are the best! 🎉 Time to relax, catch up with friends, and maybe try that new restaurant everyone's been talking about. #weekend #friends".to_string(),
             tweet_type: TweetType::Original,
             original_tweet_id: None,
@@ -632,7 +632,7 @@ pub async fn retweet_tweet(
         })?;
 
     let supabase_id = if auth_header.starts_with("Bearer ") {
-        "87cda46d-edb6-42ec-8bb1-b580d1ca2c6e" // Placeholder for testing
+        "47c92e83-948c-460b-b9b5-b5aa40bbc5b7" // Placeholder for testing
     } else {
         return Err((
             StatusCode::UNAUTHORIZED,
@@ -769,7 +769,7 @@ pub async fn quote_tweet(
         })?;
 
     let supabase_id = if auth_header.starts_with("Bearer ") {
-        "87cda46d-edb6-42ec-8bb1-b580d1ca2c6e" // Placeholder for testing
+        "47c92e83-948c-460b-b9b5-b5aa40bbc5b7" // Placeholder for testing
     } else {
         return Err((
             StatusCode::UNAUTHORIZED,
@@ -906,7 +906,7 @@ pub async fn reply_tweet(
         })?;
 
     let supabase_id = if auth_header.starts_with("Bearer ") {
-        "87cda46d-edb6-42ec-8bb1-b580d1ca2c6e" // Placeholder for testing
+        "47c92e83-948c-460b-b9b5-b5aa40bbc5b7" // Placeholder for testing
     } else {
         return Err((
             StatusCode::UNAUTHORIZED,

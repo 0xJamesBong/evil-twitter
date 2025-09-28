@@ -64,7 +64,7 @@ export default function ProfilePage() {
                                         <span className="text-white">{user?.email}</span>
                                     </div>
                                     <div className="flex justify-between py-2 border-b border-gray-700">
-                                        <span className="text-gray-400">User ID:</span>
+                                        <span className="text-gray-400">Supabase User ID:</span>
                                         <span className="text-white font-mono text-sm">{user?.id}</span>
                                     </div>
                                     <div className="flex justify-between py-2 border-b border-gray-700">
