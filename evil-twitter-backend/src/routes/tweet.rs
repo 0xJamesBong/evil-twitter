@@ -1,3 +1,5 @@
+use base64::{Engine as _, engine::general_purpose::URL_SAFE_NO_PAD};
+
 use axum::{
     Json,
     extract::{Path, State},
@@ -34,6 +36,69 @@ pub struct AttackTweetRequest {
     pub amount: i32,
 }
 
+#[derive(Debug, serde::Deserialize)]
+struct Claims {
+    sub: Option<String>,
+    // keep optional fields you might want
+    // email: Option<String>,
+    // user_metadata: Option<Value>,
+}
+
+fn extract_supabase_id_from_auth_header(auth_header: &str) -> Result<String, String> {
+    // Expect "Bearer <token>", but be resilient to extra whitespace or trailing path
+    let token = match auth_header.strip_prefix("Bearer ") {
+        Some(t) => t.trim(),
+        None => return Err("Authorization header is not Bearer".into()),
+    };
+
+    // Recover token if someone appended a path or extra chars: take the first token-like part
+    // e.g. "eyJ...Xor/evil-twitter-backend" -> "eyJ...Xor"
+    let token = token
+        .split_whitespace()
+        .next()
+        .ok_or("Empty bearer token")?;
+    // also split on '/' in case frontend appended a path
+    let token = token.split('/').next().ok_or("Malformed token")?;
+
+    let parts: Vec<&str> = token.split('.').collect();
+    if parts.len() != 3 {
+        return Err("JWT must have three parts".into());
+    }
+
+    let payload_b64 = parts[1];
+    let decoded = URL_SAFE_NO_PAD
+        .decode(payload_b64)
+        .map_err(|e| format!("base64url decode error: {}", e))?;
+
+    // parse payload as JSON
+    let v: serde_json::Value =
+        serde_json::from_slice(&decoded).map_err(|e| format!("payload JSON parse error: {}", e))?;
+
+    // 1) prefer top-level "sub"
+    if let Some(sub) = v.get("sub").and_then(|s| s.as_str()) {
+        return Ok(sub.to_string());
+    }
+
+    // 2) fallback: Supabase may embed user id in "user" or "user_metadata"
+    if let Some(sub) = v
+        .get("user")
+        .and_then(|u| u.get("id").or_else(|| u.get("sub")))
+        .and_then(|s| s.as_str())
+    {
+        return Ok(sub.to_string());
+    }
+
+    if let Some(sub) = v
+        .get("user_metadata")
+        .and_then(|um| um.get("sub"))
+        .and_then(|s| s.as_str())
+    {
+        return Ok(sub.to_string());
+    }
+
+    Err("could not find `sub` in token payload".into())
+}
+
 /// Create a new tweet
 #[utoipa::path(
     post,
@@ -45,7 +110,6 @@ pub struct AttackTweetRequest {
     ),
     tag = "tweets"
 )]
-
 pub async fn create_tweet(
     State(db): State<Database>,
     headers: axum::http::HeaderMap,
@@ -65,17 +129,25 @@ pub async fn create_tweet(
             )
         })?;
 
-    // Extract user ID from JWT token (simplified - in production you'd verify the JWT)
-    let supabase_id = if auth_header.starts_with("Bearer ") {
-        // For now, we'll use a placeholder - in production you'd decode the JWT
-        // and extract the user ID from the token payload
-        "47c92e83-948c-460b-b9b5-b5aa40bbc5b7" // Placeholder for testing
-    } else {
-        return Err((
+    println!("createTweet auth_header: {}", auth_header);
+
+    let supabase_id = extract_supabase_id_from_auth_header(auth_header).map_err(|err| {
+        (
             StatusCode::UNAUTHORIZED,
-            Json(serde_json::json!({"error": "Invalid authorization format"})),
-        ));
-    };
+            Json(serde_json::json!({"error": format!("Invalid token: {}", err)})),
+        )
+    })?;
+    // Extract user ID from JWT token (simplified - in production you'd verify the JWT)
+    // let supabase_id = if auth_header.starts_with("Bearer ") {
+    //     // For now, we'll use a placeholder - in production you'd decode the JWT
+    //     // and extract the user ID from the token payload
+    //     "47c92e83-948c-460b-b9b5-b5aa40bbc5b7" // Placeholder for testing
+    // } else {
+    //     return Err((
+    //         StatusCode::UNAUTHORIZED,
+    //         Json(serde_json::json!({"error": "Invalid authorization format"})),
+    //     ));
+    // };
 
     let now = mongodb::bson::DateTime::now();
     let id = Some(ObjectId::new());
