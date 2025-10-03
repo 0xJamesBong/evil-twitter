@@ -219,6 +219,29 @@ class ApiService {
     }
   }
 
+  async getUserById(
+    userId: string
+  ): Promise<{ dollar_conversion_rate: number }> {
+    try {
+      const response = await fetch(`${API_BASE_URL}/users/${userId}`, {
+        method: "GET",
+        headers: await this.getAuthHeaders(),
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      const userData = await response.json();
+      return {
+        dollar_conversion_rate: userData.dollar_conversion_rate || 10000,
+      };
+    } catch (error) {
+      console.error("Error fetching user data:", error);
+      throw error;
+    }
+  }
+
   async getModels(): Promise<ModelsResponse> {
     try {
       const response = await fetch(`${AI_SERVICE_URL}/models`);

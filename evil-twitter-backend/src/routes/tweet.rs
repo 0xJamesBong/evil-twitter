@@ -1,3 +1,5 @@
+use base64::{Engine as _, engine::general_purpose::URL_SAFE_NO_PAD};
+
 use axum::{
     Json,
     extract::{Path, State},
@@ -11,12 +13,90 @@ use mongodb::{
 use serde::Serialize;
 use utoipa::ToSchema;
 
-use crate::models::tweet::{CreateReply, CreateTweet, Tweet, TweetType};
+use crate::middleware::wall::compose_wall;
+use crate::models::tweet::{
+    CreateReply, CreateTweet, Tweet, TweetAttackAction, TweetHealAction, TweetType,
+};
 
 #[derive(Debug, Serialize, ToSchema)]
 pub struct TweetListResponse {
     pub tweets: Vec<Tweet>,
     pub total: i64,
+}
+
+#[derive(Debug, serde::Deserialize, ToSchema)]
+pub struct HealTweetRequest {
+    #[schema(example = "10", minimum = 1, maximum = 100)]
+    pub amount: i32,
+}
+
+#[derive(Debug, serde::Deserialize, ToSchema)]
+pub struct AttackTweetRequest {
+    #[schema(example = "15", minimum = 1, maximum = 100)]
+    pub amount: i32,
+}
+
+#[derive(Debug, serde::Deserialize)]
+struct Claims {
+    sub: Option<String>,
+    // keep optional fields you might want
+    // email: Option<String>,
+    // user_metadata: Option<Value>,
+}
+
+fn extract_supabase_id_from_auth_header(auth_header: &str) -> Result<String, String> {
+    // Expect "Bearer <token>", but be resilient to extra whitespace or trailing path
+    let token = match auth_header.strip_prefix("Bearer ") {
+        Some(t) => t.trim(),
+        None => return Err("Authorization header is not Bearer".into()),
+    };
+
+    // Recover token if someone appended a path or extra chars: take the first token-like part
+    // e.g. "eyJ...Xor/evil-twitter-backend" -> "eyJ...Xor"
+    let token = token
+        .split_whitespace()
+        .next()
+        .ok_or("Empty bearer token")?;
+    // also split on '/' in case frontend appended a path
+    let token = token.split('/').next().ok_or("Malformed token")?;
+
+    let parts: Vec<&str> = token.split('.').collect();
+    if parts.len() != 3 {
+        return Err("JWT must have three parts".into());
+    }
+
+    let payload_b64 = parts[1];
+    let decoded = URL_SAFE_NO_PAD
+        .decode(payload_b64)
+        .map_err(|e| format!("base64url decode error: {}", e))?;
+
+    // parse payload as JSON
+    let v: serde_json::Value =
+        serde_json::from_slice(&decoded).map_err(|e| format!("payload JSON parse error: {}", e))?;
+
+    // 1) prefer top-level "sub"
+    if let Some(sub) = v.get("sub").and_then(|s| s.as_str()) {
+        return Ok(sub.to_string());
+    }
+
+    // 2) fallback: Supabase may embed user id in "user" or "user_metadata"
+    if let Some(sub) = v
+        .get("user")
+        .and_then(|u| u.get("id").or_else(|| u.get("sub")))
+        .and_then(|s| s.as_str())
+    {
+        return Ok(sub.to_string());
+    }
+
+    if let Some(sub) = v
+        .get("user_metadata")
+        .and_then(|um| um.get("sub"))
+        .and_then(|s| s.as_str())
+    {
+        return Ok(sub.to_string());
+    }
+
+    Err("could not find `sub` in token payload".into())
 }
 
 /// Create a new tweet
@@ -49,17 +129,25 @@ pub async fn create_tweet(
             )
         })?;
 
-    // Extract user ID from JWT token (simplified - in production you'd verify the JWT)
-    let supabase_id = if auth_header.starts_with("Bearer ") {
-        // For now, we'll use a placeholder - in production you'd decode the JWT
-        // and extract the user ID from the token payload
-        "87cda46d-edb6-42ec-8bb1-b580d1ca2c6e" // Placeholder for testing
-    } else {
-        return Err((
+    println!("createTweet auth_header: {}", auth_header);
+
+    let supabase_id = extract_supabase_id_from_auth_header(auth_header).map_err(|err| {
+        (
             StatusCode::UNAUTHORIZED,
-            Json(serde_json::json!({"error": "Invalid authorization format"})),
-        ));
-    };
+            Json(serde_json::json!({"error": format!("Invalid token: {}", err)})),
+        )
+    })?;
+    // Extract user ID from JWT token (simplified - in production you'd verify the JWT)
+    // let supabase_id = if auth_header.starts_with("Bearer ") {
+    //     // For now, we'll use a placeholder - in production you'd decode the JWT
+    //     // and extract the user ID from the token payload
+    //     "47c92e83-948c-460b-b9b5-b5aa40bbc5b7" // Placeholder for testing
+    // } else {
+    //     return Err((
+    //         StatusCode::UNAUTHORIZED,
+    //         Json(serde_json::json!({"error": "Invalid authorization format"})),
+    //     ));
+    // };
 
     let now = mongodb::bson::DateTime::now();
     let id = Some(ObjectId::new());
@@ -97,6 +185,11 @@ pub async fn create_tweet(
         author_display_name: Some(user.display_name),
         author_avatar_url: user.avatar_url,
         health: 100,
+        health_history: crate::models::tweet::TweetHealthHistory {
+            health: 100,
+            heal_history: Vec::new(),
+            attack_history: Vec::new(),
+        },
     };
 
     let result = collection.insert_one(&tweet).await.map_err(|_| {
@@ -111,7 +204,6 @@ pub async fn create_tweet(
 
     Ok((StatusCode::CREATED, Json(created_tweet)))
 }
-
 /// Get tweet by ID
 #[utoipa::path(
     get,
@@ -285,52 +377,18 @@ pub async fn get_user_wall(
     State(db): State<Database>,
     Path(user_id): Path<String>,
 ) -> Result<Json<TweetListResponse>, (StatusCode, Json<serde_json::Value>)> {
-    let tweet_collection: Collection<Tweet> = db.collection("tweets");
     let user_collection: Collection<crate::models::user::User> = db.collection("users");
 
     // Parse user ID
-    let user_object_id = ObjectId::parse_str(&user_id).map_err(|_| {
+    let _user_object_id = ObjectId::parse_str(&user_id).map_err(|_| {
         (
             StatusCode::BAD_REQUEST,
             Json(serde_json::json!({"error": "Invalid user ID"})),
         )
     })?;
 
-    // Verify user exists
-    let _user = user_collection
-        .find_one(doc! {"_id": user_object_id})
-        .await
-        .map_err(|_| {
-            (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Json(serde_json::json!({"error": "Database error"})),
-            )
-        })?
-        .ok_or_else(|| {
-            (
-                StatusCode::NOT_FOUND,
-                Json(serde_json::json!({"error": "User not found"})),
-            )
-        })?;
-
-    // Get tweets where user is the author (original tweets, retweets, quotes, replies)
-    let cursor = tweet_collection
-        .find(doc! {"author_id": user_object_id})
-        .sort(doc! {"created_at": -1})
-        .await
-        .map_err(|_| {
-            (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Json(serde_json::json!({"error": "Database error"})),
-            )
-        })?;
-
-    let tweets: Vec<Tweet> = cursor.try_collect().await.map_err(|_| {
-        (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            Json(serde_json::json!({"error": "Database error"})),
-        )
-    })?;
+    // Use the wall composition algorithm to get tweets
+    let tweets = compose_wall(State(db), Path(user_id)).await?;
 
     // Get all unique author IDs for enrichment
     let author_ids: Vec<ObjectId> = tweets
@@ -456,7 +514,7 @@ pub async fn generate_fake_tweets(
     let fake_tweets = vec![
         Tweet {
             id: None,
-            author_id: ObjectId::parse_str("507f1f77bcf86cd799439011").unwrap(),
+            author_id: ObjectId::parse_str("68d9b685550f1355d0f01ba4").unwrap(),
             content: "Just discovered this amazing new coffee shop downtown! ☕ The barista made the perfect latte art. #coffee #morningvibes".to_string(),
             tweet_type: TweetType::Original,
             original_tweet_id: None,
@@ -471,10 +529,15 @@ pub async fn generate_fake_tweets(
             author_display_name: None,
             author_avatar_url: None,
             health: 100,
+            health_history: crate::models::tweet::TweetHealthHistory {
+                health: 100,
+                heal_history: Vec::new(),
+                attack_history: Vec::new(),
+            },
         },
         Tweet {
             id: None,
-            author_id: ObjectId::parse_str("507f1f77bcf86cd799439011").unwrap(),
+            author_id: ObjectId::parse_str("68d9b685550f1355d0f01ba4").unwrap(),
             content: "Working on a new project and the code is finally coming together! 🚀 Nothing beats that feeling when everything clicks. #coding #programming".to_string(),
             tweet_type: TweetType::Original,
             original_tweet_id: None,
@@ -489,10 +552,15 @@ pub async fn generate_fake_tweets(
             author_display_name: None,
             author_avatar_url: None,
             health: 100,
+            health_history: crate::models::tweet::TweetHealthHistory {
+                health: 100,
+                heal_history: Vec::new(),
+                attack_history: Vec::new(),
+            },
         },
         Tweet {
             id: None,
-            author_id: ObjectId::parse_str("507f1f77bcf86cd799439011").unwrap(),
+            author_id: ObjectId::parse_str("68d9b685550f1355d0f01ba4").unwrap(),
             content: "Beautiful sunset today! 🌅 Sometimes you just need to stop and appreciate the simple things in life. #nature #grateful".to_string(),
             tweet_type: TweetType::Original,
             original_tweet_id: None,
@@ -507,10 +575,15 @@ pub async fn generate_fake_tweets(
             author_display_name: None,
             author_avatar_url: None,
             health: 100,
+            health_history: crate::models::tweet::TweetHealthHistory {
+                health: 100,
+                heal_history: Vec::new(),
+                attack_history: Vec::new(),
+            },
         },
         Tweet {
             id: None,
-            author_id: ObjectId::parse_str("507f1f77bcf86cd799439011").unwrap(),
+            author_id: ObjectId::parse_str("68d9b685550f1355d0f01ba4").unwrap(),
             content: "Just finished reading an incredible book! 📚 The plot twists were mind-blowing. Can't wait to discuss it with friends. #reading #books".to_string(),
             tweet_type: TweetType::Original,
             original_tweet_id: None,
@@ -525,10 +598,15 @@ pub async fn generate_fake_tweets(
             author_display_name: None,
             author_avatar_url: None,
             health: 100,
+            health_history: crate::models::tweet::TweetHealthHistory {
+                health: 100,
+                heal_history: Vec::new(),
+                attack_history: Vec::new(),
+            },
         },
         Tweet {
             id: None,
-            author_id: ObjectId::parse_str("507f1f77bcf86cd799439011").unwrap(),
+            author_id: ObjectId::parse_str("68d9b685550f1355d0f01ba4").unwrap(),
             content: "Weekend vibes are the best! 🎉 Time to relax, catch up with friends, and maybe try that new restaurant everyone's been talking about. #weekend #friends".to_string(),
             tweet_type: TweetType::Original,
             original_tweet_id: None,
@@ -543,6 +621,11 @@ pub async fn generate_fake_tweets(
             author_display_name: None,
             author_avatar_url: None,
             health: 100,
+            health_history: crate::models::tweet::TweetHealthHistory {
+                health: 100,
+                heal_history: Vec::new(),
+                attack_history: Vec::new(),
+            },
         },
     ];
 
@@ -621,7 +704,7 @@ pub async fn retweet_tweet(
         })?;
 
     let supabase_id = if auth_header.starts_with("Bearer ") {
-        "87cda46d-edb6-42ec-8bb1-b580d1ca2c6e" // Placeholder for testing
+        "47c92e83-948c-460b-b9b5-b5aa40bbc5b7" // Placeholder for testing
     } else {
         return Err((
             StatusCode::UNAUTHORIZED,
@@ -691,6 +774,11 @@ pub async fn retweet_tweet(
         author_display_name: Some(user.display_name),
         author_avatar_url: user.avatar_url,
         health: 100,
+        health_history: crate::models::tweet::TweetHealthHistory {
+            health: 100,
+            heal_history: Vec::new(),
+            attack_history: Vec::new(),
+        },
     };
 
     let result = collection.insert_one(&retweet).await.map_err(|_| {
@@ -753,7 +841,7 @@ pub async fn quote_tweet(
         })?;
 
     let supabase_id = if auth_header.starts_with("Bearer ") {
-        "87cda46d-edb6-42ec-8bb1-b580d1ca2c6e" // Placeholder for testing
+        "47c92e83-948c-460b-b9b5-b5aa40bbc5b7" // Placeholder for testing
     } else {
         return Err((
             StatusCode::UNAUTHORIZED,
@@ -823,6 +911,11 @@ pub async fn quote_tweet(
         author_display_name: Some(user.display_name),
         author_avatar_url: user.avatar_url,
         health: 100,
+        health_history: crate::models::tweet::TweetHealthHistory {
+            health: 100,
+            heal_history: Vec::new(),
+            attack_history: Vec::new(),
+        },
     };
 
     let result = collection.insert_one(&quote_tweet).await.map_err(|_| {
@@ -885,7 +978,7 @@ pub async fn reply_tweet(
         })?;
 
     let supabase_id = if auth_header.starts_with("Bearer ") {
-        "87cda46d-edb6-42ec-8bb1-b580d1ca2c6e" // Placeholder for testing
+        "47c92e83-948c-460b-b9b5-b5aa40bbc5b7" // Placeholder for testing
     } else {
         return Err((
             StatusCode::UNAUTHORIZED,
@@ -955,6 +1048,11 @@ pub async fn reply_tweet(
         author_display_name: Some(user.display_name),
         author_avatar_url: user.avatar_url,
         health: 100,
+        health_history: crate::models::tweet::TweetHealthHistory {
+            health: 100,
+            heal_history: Vec::new(),
+            attack_history: Vec::new(),
+        },
     };
 
     let result = collection.insert_one(&reply).await.map_err(|_| {
@@ -1018,5 +1116,289 @@ pub async fn clear_all_data(
     Ok((
         StatusCode::OK,
         Json(serde_json::json!({"message": "All data cleared successfully"})),
+    ))
+}
+
+/// Migrate existing tweets to add health field
+#[utoipa::path(
+    post,
+    path = "/admin/migrate-health",
+    responses(
+        (status = 200, description = "Migration completed successfully")
+    ),
+    tag = "admin"
+)]
+pub async fn migrate_health(
+    State(db): State<Database>,
+) -> Result<(StatusCode, Json<serde_json::Value>), (StatusCode, Json<serde_json::Value>)> {
+    let collection: Collection<Tweet> = db.collection("tweets");
+
+    // Update all tweets that don't have a health field to have health: 100
+    let result = collection
+        .update_many(
+            doc! { "health": { "$exists": false } },
+            doc! { "$set": { "health": 100 } },
+        )
+        .await
+        .map_err(|_| {
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(serde_json::json!({"error": "Database error during migration"})),
+            )
+        })?;
+
+    Ok((
+        StatusCode::OK,
+        Json(serde_json::json!({
+            "message": "Migration completed successfully",
+            "modified_count": result.modified_count,
+            "matched_count": result.matched_count
+        })),
+    ))
+}
+
+/// Migrate existing users to add dollar_conversion_rate field
+#[utoipa::path(
+    post,
+    path = "/admin/migrate-users-dollar-rate",
+    responses(
+        (status = 200, description = "User migration completed successfully")
+    ),
+    tag = "admin"
+)]
+pub async fn migrate_users_dollar_rate(
+    State(db): State<Database>,
+) -> Result<(StatusCode, Json<serde_json::Value>), (StatusCode, Json<serde_json::Value>)> {
+    let collection: Collection<crate::models::user::User> = db.collection("users");
+
+    // Update all users that don't have a dollar_conversion_rate field to have 10000
+    let result = collection
+        .update_many(
+            doc! { "dollar_conversion_rate": { "$exists": false } },
+            doc! { "$set": { "dollar_conversion_rate": 10000 } },
+        )
+        .await
+        .map_err(|_| {
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(serde_json::json!({"error": "Database error during user migration"})),
+            )
+        })?;
+
+    Ok((
+        StatusCode::OK,
+        Json(serde_json::json!({
+            "message": "User migration completed successfully",
+            "modified_count": result.modified_count,
+            "matched_count": result.matched_count
+        })),
+    ))
+}
+
+/// Heal a tweet
+#[utoipa::path(
+    post,
+    path = "/tweets/{id}/heal",
+    params(
+        ("id" = String, Path, description = "Tweet ID")
+    ),
+    request_body = HealTweetRequest,
+    responses(
+        (status = 200, description = "Tweet healed successfully"),
+        (status = 400, description = "Invalid heal amount"),
+        (status = 404, description = "Tweet not found"),
+        (status = 500, description = "Database error")
+    ),
+    tag = "tweets"
+)]
+pub async fn heal_tweet(
+    State(db): State<Database>,
+    Path(tweet_id): Path<String>,
+    Json(payload): Json<HealTweetRequest>,
+) -> Result<(StatusCode, Json<serde_json::Value>), (StatusCode, Json<serde_json::Value>)> {
+    let collection: Collection<Tweet> = db.collection("tweets");
+
+    // Parse tweet ID
+    let tweet_object_id = ObjectId::parse_str(&tweet_id).map_err(|_| {
+        (
+            StatusCode::BAD_REQUEST,
+            Json(serde_json::json!({"error": "Invalid tweet ID"})),
+        )
+    })?;
+
+    // Validate heal amount
+    if payload.amount <= 0 || payload.amount > 100 {
+        return Err((
+            StatusCode::BAD_REQUEST,
+            Json(serde_json::json!({"error": "Heal amount must be between 1 and 100"})),
+        ));
+    }
+
+    // Get current tweet
+    let tweet = collection
+        .find_one(doc! {"_id": tweet_object_id})
+        .await
+        .map_err(|_| {
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(serde_json::json!({"error": "Database error"})),
+            )
+        })?
+        .ok_or_else(|| {
+            (
+                StatusCode::NOT_FOUND,
+                Json(serde_json::json!({"error": "Tweet not found"})),
+            )
+        })?;
+
+    // Calculate new health (capped at 100 maximum)
+    let health_before = tweet.health;
+    let new_health = (tweet.health + payload.amount).min(100);
+    let actual_heal_amount = new_health - health_before;
+
+    // Create heal action
+    let heal_action = TweetHealAction {
+        timestamp: mongodb::bson::DateTime::now(),
+        amount: actual_heal_amount,
+        health_before,
+        health_after: new_health,
+    };
+
+    // Update tweet with new health and add to heal history
+    let result = collection
+        .update_one(
+            doc! {"_id": tweet_object_id},
+            doc! {
+                "$set": {"health": new_health},
+                "$push": {"health_history.heal_history": mongodb::bson::to_bson(&heal_action).unwrap()}
+            },
+        )
+        .await
+        .map_err(|_| {
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(serde_json::json!({"error": "Database error"})),
+            )
+        })?;
+
+    if result.modified_count == 0 {
+        return Err((
+            StatusCode::NOT_FOUND,
+            Json(serde_json::json!({"error": "Tweet not found"})),
+        ));
+    }
+
+    Ok((
+        StatusCode::OK,
+        Json(serde_json::json!({
+            "message": "Tweet healed successfully",
+            "health_before": health_before,
+            "health_after": new_health,
+            "heal_amount": actual_heal_amount
+        })),
+    ))
+}
+
+/// Attack a tweet
+#[utoipa::path(
+    post,
+    path = "/tweets/{id}/attack",
+    params(
+        ("id" = String, Path, description = "Tweet ID")
+    ),
+    request_body = AttackTweetRequest,
+    responses(
+        (status = 200, description = "Tweet attacked successfully"),
+        (status = 400, description = "Invalid attack amount"),
+        (status = 404, description = "Tweet not found"),
+        (status = 500, description = "Database error")
+    ),
+    tag = "tweets"
+)]
+pub async fn attack_tweet(
+    State(db): State<Database>,
+    Path(tweet_id): Path<String>,
+    Json(payload): Json<AttackTweetRequest>,
+) -> Result<(StatusCode, Json<serde_json::Value>), (StatusCode, Json<serde_json::Value>)> {
+    let collection: Collection<Tweet> = db.collection("tweets");
+
+    // Parse tweet ID
+    let tweet_object_id = ObjectId::parse_str(&tweet_id).map_err(|_| {
+        (
+            StatusCode::BAD_REQUEST,
+            Json(serde_json::json!({"error": "Invalid tweet ID"})),
+        )
+    })?;
+
+    // Validate attack amount
+    if payload.amount <= 0 || payload.amount > 100 {
+        return Err((
+            StatusCode::BAD_REQUEST,
+            Json(serde_json::json!({"error": "Attack amount must be between 1 and 100"})),
+        ));
+    }
+
+    // Get current tweet
+    let tweet = collection
+        .find_one(doc! {"_id": tweet_object_id})
+        .await
+        .map_err(|_| {
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(serde_json::json!({"error": "Database error"})),
+            )
+        })?
+        .ok_or_else(|| {
+            (
+                StatusCode::NOT_FOUND,
+                Json(serde_json::json!({"error": "Tweet not found"})),
+            )
+        })?;
+
+    // Calculate new health (capped at 0 minimum)
+    let health_before = tweet.health;
+    let new_health = (tweet.health - payload.amount).max(0);
+    let actual_damage = health_before - new_health;
+
+    // Create attack action
+    let attack_action = TweetAttackAction {
+        timestamp: mongodb::bson::DateTime::now(),
+        amount: actual_damage,
+        health_before,
+        health_after: new_health,
+    };
+
+    // Update tweet with new health and add to attack history
+    let result = collection
+        .update_one(
+            doc! {"_id": tweet_object_id},
+            doc! {
+                "$set": {"health": new_health},
+                "$push": {"health_history.attack_history": mongodb::bson::to_bson(&attack_action).unwrap()}
+            },
+        )
+        .await
+        .map_err(|_| {
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(serde_json::json!({"error": "Database error"})),
+            )
+        })?;
+
+    if result.modified_count == 0 {
+        return Err((
+            StatusCode::NOT_FOUND,
+            Json(serde_json::json!({"error": "Tweet not found"})),
+        ));
+    }
+
+    Ok((
+        StatusCode::OK,
+        Json(serde_json::json!({
+            "message": "Tweet attacked successfully",
+            "health_before": health_before,
+            "health_after": new_health,
+            "damage": actual_damage
+        })),
     ))
 }

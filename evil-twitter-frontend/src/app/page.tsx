@@ -23,7 +23,7 @@ export default function HomePage() {
     <div className="min-h-screen bg-black text-white">
       <Navbar />
 
-      <div className="max-w-6xl mx-auto flex pt-16">
+      <div className="max-w-6xl mx-auto flex pt-16" style={{ minHeight: 'calc(100vh - 64px)' }}>
 
         {/* Left Sidebar */}
         <div className="w-64 fixed left-0 top-16 h-full border-r border-gray-800">
@@ -37,7 +37,7 @@ export default function HomePage() {
 
         {/* Right Sidebar */}
         <div className="w-80 fixed right-0 top-16 h-full border-l border-gray-800">
-          <RightSidebar />
+          {/* <RightSidebar /> */}
         </div>
       </div>
     </div>

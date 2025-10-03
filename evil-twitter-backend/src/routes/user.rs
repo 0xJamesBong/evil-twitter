@@ -11,7 +11,7 @@ use mongodb::{
 use serde::Serialize;
 use utoipa::ToSchema;
 
-use crate::models::user::{CreateUser, User};
+use crate::models::user::{AttackRateRequest, CreateUser, ImproveRateRequest, User};
 use serde::Deserialize;
 
 #[derive(Debug, Deserialize)]
@@ -81,6 +81,7 @@ pub async fn create_user(
         followers_count: 0,
         following_count: 0,
         tweets_count: 0,
+        dollar_conversion_rate: 10000,
     };
 
     let result = collection.insert_one(&user).await.map_err(|_| {
@@ -185,4 +186,226 @@ pub async fn get_users(
     let total = users.len() as i64;
 
     Ok(Json(UserListResponse { users, total }))
+}
+
+/// Improve a user's dollar conversion rate
+#[utoipa::path(
+    post,
+    path = "/users/{user_id}/improve",
+    responses(
+        (status = 200, description = "Dollar conversion rate improved successfully"),
+        (status = 400, description = "Invalid improvement amount"),
+        (status = 404, description = "User not found"),
+        (status = 500, description = "Database error")
+    ),
+    tag = "users"
+)]
+pub async fn improve_dollar_rate(
+    State(db): State<Database>,
+    Path(user_id): Path<String>,
+    Json(payload): Json<ImproveRateRequest>,
+) -> Result<(StatusCode, Json<serde_json::Value>), (StatusCode, Json<serde_json::Value>)> {
+    let collection: Collection<User> = db.collection("users");
+
+    // Parse user ID
+    let user_object_id = ObjectId::parse_str(&user_id).map_err(|_| {
+        (
+            StatusCode::BAD_REQUEST,
+            Json(serde_json::json!({"error": "Invalid user ID"})),
+        )
+    })?;
+
+    // Validate improvement amount
+    if payload.amount <= 0 || payload.amount > 1000 {
+        return Err((
+            StatusCode::BAD_REQUEST,
+            Json(serde_json::json!({"error": "Improvement amount must be between 1 and 1000"})),
+        ));
+    }
+
+    // Get current user
+    let user = collection
+        .find_one(doc! {"_id": user_object_id})
+        .await
+        .map_err(|_| {
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(serde_json::json!({"error": "Database error"})),
+            )
+        })?
+        .ok_or_else(|| {
+            (
+                StatusCode::NOT_FOUND,
+                Json(serde_json::json!({"error": "User not found"})),
+            )
+        })?;
+
+    // Calculate new rate (capped at 10000)
+    let new_rate = (user.dollar_conversion_rate + payload.amount).min(10000);
+
+    // Update user
+    let result = collection
+        .update_one(
+            doc! {"_id": user_object_id},
+            doc! {"$set": {"dollar_conversion_rate": new_rate}},
+        )
+        .await
+        .map_err(|_| {
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(serde_json::json!({"error": "Database error"})),
+            )
+        })?;
+
+    if result.modified_count == 0 {
+        return Err((
+            StatusCode::NOT_FOUND,
+            Json(serde_json::json!({"error": "User not found"})),
+        ));
+    }
+
+    Ok((
+        StatusCode::OK,
+        Json(serde_json::json!({
+            "message": "Dollar conversion rate improved successfully",
+            "new_rate": new_rate,
+            "improvement": payload.amount
+        })),
+    ))
+}
+
+/// Attack a user's dollar conversion rate
+#[utoipa::path(
+    post,
+    path = "/users/{user_id}/attack",
+    responses(
+        (status = 200, description = "Dollar conversion rate attacked successfully"),
+        (status = 400, description = "Invalid attack amount"),
+        (status = 404, description = "User not found"),
+        (status = 500, description = "Database error")
+    ),
+    tag = "users"
+)]
+pub async fn attack_dollar_rate(
+    State(db): State<Database>,
+    Path(user_id): Path<String>,
+    Json(payload): Json<AttackRateRequest>,
+) -> Result<(StatusCode, Json<serde_json::Value>), (StatusCode, Json<serde_json::Value>)> {
+    let collection: Collection<User> = db.collection("users");
+
+    // Parse user ID
+    let user_object_id = ObjectId::parse_str(&user_id).map_err(|_| {
+        (
+            StatusCode::BAD_REQUEST,
+            Json(serde_json::json!({"error": "Invalid user ID"})),
+        )
+    })?;
+
+    // Validate attack amount
+    if payload.amount <= 0 || payload.amount > 1000 {
+        return Err((
+            StatusCode::BAD_REQUEST,
+            Json(serde_json::json!({"error": "Attack amount must be between 1 and 1000"})),
+        ));
+    }
+
+    // Get current user
+    let user = collection
+        .find_one(doc! {"_id": user_object_id})
+        .await
+        .map_err(|_| {
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(serde_json::json!({"error": "Database error"})),
+            )
+        })?
+        .ok_or_else(|| {
+            (
+                StatusCode::NOT_FOUND,
+                Json(serde_json::json!({"error": "User not found"})),
+            )
+        })?;
+
+    // Calculate new rate (capped at 0 minimum)
+    let new_rate = (user.dollar_conversion_rate - payload.amount).max(0);
+
+    // Update user
+    let result = collection
+        .update_one(
+            doc! {"_id": user_object_id},
+            doc! {"$set": {"dollar_conversion_rate": new_rate}},
+        )
+        .await
+        .map_err(|_| {
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(serde_json::json!({"error": "Database error"})),
+            )
+        })?;
+
+    if result.modified_count == 0 {
+        return Err((
+            StatusCode::NOT_FOUND,
+            Json(serde_json::json!({"error": "User not found"})),
+        ));
+    }
+
+    Ok((
+        StatusCode::OK,
+        Json(serde_json::json!({
+            "message": "Dollar conversion rate attacked successfully",
+            "new_rate": new_rate,
+            "damage": payload.amount
+        })),
+    ))
+}
+
+/// Get a user's dollar conversion rate
+#[utoipa::path(
+    get,
+    path = "/users/{user_id}/dollar-rate",
+    responses(
+        (status = 200, description = "Dollar conversion rate retrieved successfully"),
+        (status = 404, description = "User not found"),
+        (status = 500, description = "Database error")
+    ),
+    tag = "users"
+)]
+pub async fn get_dollar_rate(
+    State(db): State<Database>,
+    Path(user_id): Path<String>,
+) -> Result<Json<serde_json::Value>, (StatusCode, Json<serde_json::Value>)> {
+    let collection: Collection<User> = db.collection("users");
+
+    // Parse user ID
+    let user_object_id = ObjectId::parse_str(&user_id).map_err(|_| {
+        (
+            StatusCode::BAD_REQUEST,
+            Json(serde_json::json!({"error": "Invalid user ID"})),
+        )
+    })?;
+
+    // Get user
+    let user = collection
+        .find_one(doc! {"_id": user_object_id})
+        .await
+        .map_err(|_| {
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(serde_json::json!({"error": "Database error"})),
+            )
+        })?
+        .ok_or_else(|| {
+            (
+                StatusCode::NOT_FOUND,
+                Json(serde_json::json!({"error": "User not found"})),
+            )
+        })?;
+
+    Ok(Json(serde_json::json!({
+        "user_id": user_id,
+        "username": user.username,
+        "display_name": user.display_name,
+        "dollar_conversion_rate": user.dollar_conversion_rate
+    })))
 }

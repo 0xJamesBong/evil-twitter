@@ -2,24 +2,29 @@ import { create } from "zustand";
 import { supabase } from "../supabase";
 
 export interface Tweet {
-  id: string | { $oid: string };
+  _id: { $oid: string };
   content: string;
   tweet_type: "Original" | "Retweet" | "Quote" | "Reply";
-  original_tweet_id?: string | { $oid: string };
-  replied_to_tweet_id?: string | { $oid: string };
-  created_at: string | { $date: { $numberLong: string } };
+  original_tweet_id?: { $oid: string } | null;
+  replied_to_tweet_id?: { $oid: string } | null;
+  created_at: { $date: { $numberLong: string } };
   likes_count: number;
   retweets_count: number;
   replies_count: number;
   is_liked: boolean;
   is_retweeted: boolean;
   media_urls?: string[];
-  author_id: string | { $oid: string };
+  author_id: { $oid: string };
   author_username: string;
   author_display_name: string;
   author_avatar_url?: string | null;
   author_is_verified?: boolean;
   health: number;
+  health_history: {
+    health: number;
+    heal_history: any[];
+    attack_history: any[];
+  };
 }
 
 export interface TweetsState {
@@ -60,6 +65,14 @@ export interface TweetsActions {
   generateFakeTweets: () => Promise<{ success: boolean; error?: string }>;
   likeTweet: (tweetId: string) => Promise<void>;
   unlikeTweet: (tweetId: string) => Promise<void>;
+  healTweet: (
+    tweetId: string,
+    amount: number
+  ) => Promise<{ success: boolean; error?: string }>;
+  attackTweet: (
+    tweetId: string,
+    amount: number
+  ) => Promise<{ success: boolean; error?: string }>;
   addTweet: (tweet: Tweet) => void;
   updateTweet: (tweetId: string, updates: Partial<Tweet>) => void;
   removeTweet: (tweetId: string) => void;
@@ -153,6 +166,8 @@ export const useTweetsStore = create<TweetsState & TweetsActions>(
         const data = await response.json();
         const tweets = data.tweets || [];
 
+        console.log("fetched tweets for user wall: ", tweets);
+
         set({
           tweets,
           isLoading: false,
@@ -160,6 +175,7 @@ export const useTweetsStore = create<TweetsState & TweetsActions>(
           hasMore: tweets.length > 0,
         });
       } catch (error) {
+        console.error("Error fetching user wall:", error);
         set({
           error: error instanceof Error ? error.message : "An error occurred",
           isLoading: false,
@@ -180,6 +196,8 @@ export const useTweetsStore = create<TweetsState & TweetsActions>(
         if (session?.access_token) {
           headers["Authorization"] = `Bearer ${session.access_token}`;
         }
+        console.log("createTweet headers", headers);
+        console.log("createTweet session", session);
 
         const response = await fetch("http://localhost:3000/tweets", {
           method: "POST",
@@ -262,9 +280,7 @@ export const useTweetsStore = create<TweetsState & TweetsActions>(
         if (response.ok) {
           set((state) => ({
             tweets: state.tweets.map((tweet) => {
-              // Handle both string and ObjectId formats for comparison
-              const currentTweetId =
-                typeof tweet.id === "string" ? tweet.id : tweet.id?.$oid;
+              const currentTweetId = tweet._id.$oid;
 
               return currentTweetId === tweetId
                 ? {
@@ -284,6 +300,76 @@ export const useTweetsStore = create<TweetsState & TweetsActions>(
     unlikeTweet: async (tweetId: string) => {
       // For now, we'll use the same likeTweet function since the backend handles toggling
       await get().likeTweet(tweetId);
+    },
+
+    healTweet: async (tweetId: string, amount: number) => {
+      try {
+        const response = await fetch(
+          `http://localhost:3000/tweets/${tweetId}/heal`,
+          {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({ amount }),
+          }
+        );
+
+        if (!response.ok) {
+          const errorData = await response.json().catch(() => ({}));
+          return {
+            success: false,
+            error: errorData.error || "Failed to heal tweet",
+          };
+        }
+
+        const result = await response.json();
+
+        // Update the tweet's health in the store
+        get().updateTweet(tweetId, {
+          health: result.health_after,
+        });
+
+        return { success: true };
+      } catch (error) {
+        console.error("Failed to heal tweet:", error);
+        return { success: false, error: "Failed to heal tweet" };
+      }
+    },
+
+    attackTweet: async (tweetId: string, amount: number) => {
+      try {
+        const response = await fetch(
+          `http://localhost:3000/tweets/${tweetId}/attack`,
+          {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({ amount }),
+          }
+        );
+
+        if (!response.ok) {
+          const errorData = await response.json().catch(() => ({}));
+          return {
+            success: false,
+            error: errorData.error || "Failed to attack tweet",
+          };
+        }
+
+        const result = await response.json();
+
+        // Update the tweet's health in the store
+        get().updateTweet(tweetId, {
+          health: result.health_after,
+        });
+
+        return { success: true };
+      } catch (error) {
+        console.error("Failed to attack tweet:", error);
+        return { success: false, error: "Failed to attack tweet" };
+      }
     },
 
     retweetTweet: async (tweetId: string) => {
@@ -321,8 +407,7 @@ export const useTweetsStore = create<TweetsState & TweetsActions>(
         get().updateTweet(tweetId, {
           retweets_count:
             (get().tweets.find((t) => {
-              const currentId = typeof t.id === "string" ? t.id : t.id?.$oid;
-              return currentId === tweetId;
+              return t._id.$oid === tweetId;
             })?.retweets_count || 0) + 1,
         });
 
@@ -369,8 +454,7 @@ export const useTweetsStore = create<TweetsState & TweetsActions>(
         get().updateTweet(tweetId, {
           retweets_count:
             (get().tweets.find((t) => {
-              const currentId = typeof t.id === "string" ? t.id : t.id?.$oid;
-              return currentId === tweetId;
+              return t._id.$oid === tweetId;
             })?.retweets_count || 0) + 1,
         });
 
@@ -417,8 +501,7 @@ export const useTweetsStore = create<TweetsState & TweetsActions>(
         get().updateTweet(tweetId, {
           replies_count:
             (get().tweets.find((t) => {
-              const currentId = typeof t.id === "string" ? t.id : t.id?.$oid;
-              return currentId === tweetId;
+              return t._id.$oid === tweetId;
             })?.replies_count || 0) + 1,
         });
 
@@ -438,20 +521,14 @@ export const useTweetsStore = create<TweetsState & TweetsActions>(
     updateTweet: (tweetId: string, updates: Partial<Tweet>) => {
       set((state) => ({
         tweets: state.tweets.map((tweet) => {
-          const currentTweetId =
-            typeof tweet.id === "string" ? tweet.id : tweet.id?.$oid;
-          return currentTweetId === tweetId ? { ...tweet, ...updates } : tweet;
+          return tweet._id.$oid === tweetId ? { ...tweet, ...updates } : tweet;
         }),
       }));
     },
 
     removeTweet: (tweetId: string) => {
       set((state) => ({
-        tweets: state.tweets.filter((tweet) => {
-          const currentTweetId =
-            typeof tweet.id === "string" ? tweet.id : tweet.id?.$oid;
-          return currentTweetId !== tweetId;
-        }),
+        tweets: state.tweets.filter((tweet) => tweet._id.$oid !== tweetId),
       }));
     },
 
