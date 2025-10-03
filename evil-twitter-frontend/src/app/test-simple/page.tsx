@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useEffect, useState } from 'react';
+import { API_BASE_URL } from '../../../lib/services/api';
 
 export default function TestSimplePage() {
     const [tweets, setTweets] = useState<any[]>([]);
@@ -11,7 +12,7 @@ export default function TestSimplePage() {
         const fetchTweets = async () => {
             try {
                 console.log('Fetching tweets...');
-                const response = await fetch('http://localhost:3000/tweets');
+                const response = await fetch(`${API_BASE_URL}/tweets`);
                 console.log('Response status:', response.status);
 
                 if (!response.ok) {

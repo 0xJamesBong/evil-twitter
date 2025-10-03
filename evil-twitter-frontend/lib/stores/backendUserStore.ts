@@ -1,5 +1,6 @@
 import { create } from "zustand";
 import { apiService } from "../services/api";
+import { API_BASE_URL } from "../services/api";
 import { User } from "./authStore";
 
 export interface BackendUser {
@@ -39,7 +40,7 @@ export const useBackendUserStore = create<
   createUser: async (user: User) => {
     set({ isLoading: true, error: null });
     try {
-      const response = await fetch("http://localhost:3000/users", {
+      const response = await fetch(`${API_BASE_URL}/users`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -79,9 +80,7 @@ export const useBackendUserStore = create<
     set({ isLoading: true, error: null });
     try {
       const response = await fetch(
-        `http://localhost:3000/users?supabase_id=${encodeURIComponent(
-          supabaseId
-        )}`
+        `${API_BASE_URL}/users?supabase_id=${encodeURIComponent(supabaseId)}`
       );
       if (!response.ok) {
         if (response.status === 404) {

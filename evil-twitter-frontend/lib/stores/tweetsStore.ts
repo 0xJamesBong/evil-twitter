@@ -1,5 +1,6 @@
 import { create } from "zustand";
 import { supabase } from "../supabase";
+import { API_BASE_URL } from "../services/api";
 
 export interface Tweet {
   _id: { $oid: string };
@@ -108,7 +109,7 @@ export const useTweetsStore = create<TweetsState & TweetsActions>(
     replyTweetId: null,
     replyContent: "",
     ping: async () => {
-      const response = await fetch("http://localhost:3000/ping");
+      const response = await fetch(`${API_BASE_URL}/ping`);
       if (!response.ok) {
         throw new Error("Failed to ping backend");
       }
@@ -124,7 +125,7 @@ export const useTweetsStore = create<TweetsState & TweetsActions>(
       set({ isLoading: true, error: null });
 
       try {
-        const response = await fetch("http://localhost:3000/tweets");
+        const response = await fetch(`${API_BASE_URL}/tweets`);
 
         if (!response.ok) {
           throw new Error("Failed to fetch tweets");
@@ -155,9 +156,7 @@ export const useTweetsStore = create<TweetsState & TweetsActions>(
 
       try {
         console.log("fetching user wall for user:", userId);
-        const response = await fetch(
-          `http://localhost:3000/users/${userId}/wall`
-        );
+        const response = await fetch(`${API_BASE_URL}/users/${userId}/wall`);
 
         if (!response.ok) {
           throw new Error("Failed to fetch user wall");
@@ -199,7 +198,7 @@ export const useTweetsStore = create<TweetsState & TweetsActions>(
         console.log("createTweet headers", headers);
         console.log("createTweet session", session);
 
-        const response = await fetch("http://localhost:3000/tweets", {
+        const response = await fetch(`${API_BASE_URL}/tweets`, {
           method: "POST",
           headers,
           body: JSON.stringify({ content: content.trim() }),
@@ -232,7 +231,7 @@ export const useTweetsStore = create<TweetsState & TweetsActions>(
       set({ isLoading: true, error: null });
 
       try {
-        const response = await fetch("http://localhost:3000/tweets/fake", {
+        const response = await fetch(`${API_BASE_URL}/tweets/fake`, {
           method: "POST",
         });
 
@@ -269,13 +268,10 @@ export const useTweetsStore = create<TweetsState & TweetsActions>(
           headers["Authorization"] = `Bearer ${session.access_token}`;
         }
 
-        const response = await fetch(
-          `http://localhost:3000/tweets/${tweetId}/like`,
-          {
-            method: "POST",
-            headers,
-          }
-        );
+        const response = await fetch(`${API_BASE_URL}/tweets/${tweetId}/like`, {
+          method: "POST",
+          headers,
+        });
 
         if (response.ok) {
           set((state) => ({
@@ -304,16 +300,13 @@ export const useTweetsStore = create<TweetsState & TweetsActions>(
 
     healTweet: async (tweetId: string, amount: number) => {
       try {
-        const response = await fetch(
-          `http://localhost:3000/tweets/${tweetId}/heal`,
-          {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-            },
-            body: JSON.stringify({ amount }),
-          }
-        );
+        const response = await fetch(`${API_BASE_URL}/tweets/${tweetId}/heal`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ amount }),
+        });
 
         if (!response.ok) {
           const errorData = await response.json().catch(() => ({}));
@@ -340,7 +333,7 @@ export const useTweetsStore = create<TweetsState & TweetsActions>(
     attackTweet: async (tweetId: string, amount: number) => {
       try {
         const response = await fetch(
-          `http://localhost:3000/tweets/${tweetId}/attack`,
+          `${API_BASE_URL}/tweets/${tweetId}/attack`,
           {
             method: "POST",
             headers: {
@@ -382,7 +375,7 @@ export const useTweetsStore = create<TweetsState & TweetsActions>(
         }
 
         const response = await fetch(
-          `http://localhost:3000/tweets/${tweetId}/retweet`,
+          `${API_BASE_URL}/tweets/${tweetId}/retweet`,
           {
             method: "POST",
             headers: {
@@ -428,7 +421,7 @@ export const useTweetsStore = create<TweetsState & TweetsActions>(
         }
 
         const response = await fetch(
-          `http://localhost:3000/tweets/${tweetId}/quote`,
+          `${API_BASE_URL}/tweets/${tweetId}/quote`,
           {
             method: "POST",
             headers: {
@@ -475,7 +468,7 @@ export const useTweetsStore = create<TweetsState & TweetsActions>(
         }
 
         const response = await fetch(
-          `http://localhost:3000/tweets/${tweetId}/reply`,
+          `${API_BASE_URL}/tweets/${tweetId}/reply`,
           {
             method: "POST",
             headers: {

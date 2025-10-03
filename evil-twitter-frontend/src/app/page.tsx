@@ -7,9 +7,15 @@ import { Timeline } from '../../components/Timeline';
 import { RightSidebar } from '../../components/RightSidebar';
 import { useAuthStore } from '../../lib/stores/authStore';
 import { TestPing } from '../../components/TestPing';
+import { API_BASE_URL } from '../../lib/services/api';
 
 export default function HomePage() {
+
   const { isAuthenticated, initialized } = useAuthStore();
+
+  console.log("API_BASE_URL: ", API_BASE_URL);
+
+
 
   if (!initialized) {
     return (

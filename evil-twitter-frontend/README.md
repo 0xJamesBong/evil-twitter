@@ -60,7 +60,7 @@ image-remix-nextjs/
 
 ## Backend Integration
 
-This frontend connects to the Rust backend running on `http://localhost:3000`. Make sure your backend is running before testing the API functionality.
+This frontend connects to the Rust backend. The API URL is configured via the `NEXT_PUBLIC_API_URL` environment variable. For development, set it to `http://localhost:3000`. For production, set it to your deployed backend URL.
 
 ## Key Differences from Expo Version
 
@@ -98,7 +98,7 @@ pnpm dev
 bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Open [http://localhost:3001](http://localhost:3001) with your browser to see the result.
 
 You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
 

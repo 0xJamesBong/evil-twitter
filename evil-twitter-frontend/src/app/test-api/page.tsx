@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useEffect, useState } from 'react';
+import { API_BASE_URL } from '../../../lib/services/api';
 
 export default function TestApiPage() {
     const [tweets, setTweets] = useState<any[]>([]);
@@ -13,7 +14,7 @@ export default function TestApiPage() {
                 console.log('Testing API calls...');
 
                 // Test ping endpoint first
-                const pingResponse = await fetch('http://localhost:3000/ping');
+                const pingResponse = await fetch(`${API_BASE_URL}/ping`);
                 console.log('Ping response status:', pingResponse.status);
 
                 if (!pingResponse.ok) {
@@ -24,7 +25,7 @@ export default function TestApiPage() {
                 console.log('Ping data:', pingData);
 
                 // Test general tweets endpoint
-                const tweetsResponse = await fetch('http://localhost:3000/tweets');
+                const tweetsResponse = await fetch(`${API_BASE_URL}/tweets`);
                 console.log('Tweets response status:', tweetsResponse.status);
 
                 if (!tweetsResponse.ok) {

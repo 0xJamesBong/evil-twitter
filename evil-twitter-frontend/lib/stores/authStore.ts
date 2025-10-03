@@ -2,6 +2,7 @@ import { create } from "zustand";
 import { supabase } from "../supabase";
 import { User as SupabaseUser, Session } from "@supabase/supabase-js";
 import { useBackendUserStore } from "./backendUserStore";
+import { API_BASE_URL } from "../services/api";
 
 export type User = SupabaseUser;
 
@@ -168,7 +169,7 @@ export const useAuthStore = create<AuthState & AuthActions>((set, get) => ({
             fullName?.toLowerCase().replace(/\s+/g, "_") || email.split("@")[0];
           const displayName = fullName || email.split("@")[0];
 
-          const response = await fetch("http://localhost:3000/users", {
+          const response = await fetch(`${API_BASE_URL}/users`, {
             method: "POST",
             headers: {
               "Content-Type": "application/json",
