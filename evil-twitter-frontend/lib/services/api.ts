@@ -244,7 +244,7 @@ class ApiService {
 
   async getModels(): Promise<ModelsResponse> {
     try {
-      const response = await fetch(`${AI_SERVICE_URL}/models`);
+      const response = await fetch(`${API_BASE_URL}/models`);
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
       }
@@ -257,7 +257,7 @@ class ApiService {
 
   async getModelInfo(modelId: string): Promise<ModelInfo> {
     try {
-      const response = await fetch(`${AI_SERVICE_URL}/models/${modelId}`);
+      const response = await fetch(`${API_BASE_URL}/models/${modelId}`);
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
       }
@@ -321,7 +321,7 @@ class ApiService {
       formData.append("guidance_scale", guidance_scale.toString());
       formData.append("model_id", modelId);
 
-      const response = await fetch(`${AI_SERVICE_URL}/remix`, {
+      const response = await fetch(`${API_BASE_URL}/remix`, {
         method: "POST",
         body: formData,
       });
@@ -337,7 +337,7 @@ class ApiService {
 
       // Convert the result URL to include the AI service base URL
       if (result.success && result.result_url) {
-        result.result_url = `${AI_SERVICE_URL}${result.result_url}`;
+        result.result_url = `${API_BASE_URL}${result.result_url}`;
       }
 
       return result;
