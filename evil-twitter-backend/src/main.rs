@@ -132,9 +132,18 @@ async fn main() -> anyhow::Result<()> {
         .with_state(db)
         .layer(cors);
 
-    let listener = tokio::net::TcpListener::bind("0.0.0.0:3000").await?;
-    println!("🚀 Evil Twitter API listening on http://0.0.0.0:3000");
-    println!("📚 Swagger UI available at http://0.0.0.0:3000/doc");
+    // let listener = tokio::net::TcpListener::bind("0.0.0.0:3000").await?;
+    // println!("🚀 Evil Twitter API listening on http://0.0.0.0:3000");
+    // println!("📚 Swagger UI available at http://0.0.0.0:3000/doc");
+
+    let port = std::env::var("PORT")
+        .unwrap_or_else(|_| "3000".to_string()) // default for local dev
+        .parse::<u16>()
+        .expect("PORT must be a number");
+    let addr = format!("0.0.0.0:{}", port);
+    let listener = tokio::net::TcpListener::bind(&addr).await?;
+    println!("🚀 Evil Twitter API listening on http://{}", addr);
+    println!("📚 Swagger UI available at http://{}/doc", addr);
 
     axum::serve(listener, app.into_make_service()).await?;
 
