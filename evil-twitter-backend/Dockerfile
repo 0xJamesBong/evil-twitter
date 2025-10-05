@@ -2,6 +2,10 @@ FROM rustlang/rust:nightly AS builder
 WORKDIR /app
 COPY . .
 RUN echo "==== BUILD CONTEXT CONTENTS ====" && ls -R /app
+RUN echo "==== FULL BUILD CONTEXT (DEBUG) ====" && ls -la /app || true
+RUN echo "==== SRC CONTENTS ====" && ls -la /app/src || true
+RUN echo "==== MODELS CONTENTS ====" && ls -la /app/src/models || true
+
 RUN cat Cargo.toml || true
 
 RUN cargo build --release
