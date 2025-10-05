@@ -95,10 +95,11 @@ async fn main() -> anyhow::Result<()> {
     let db = client.database(&mongo_db);
 
     // Configure CORS
-    let cors = CorsLayer::new()
-        .allow_origin(Any)
-        .allow_methods(Any)
-        .allow_headers(Any);
+    // let cors = CorsLayer::new()
+    //     .allow_origin(Any)
+    //     .allow_methods(Any)
+    //     .allow_headers(Any);
+    let cors = CorsLayer::very_permissive();
 
     let (app, api) = OpenApiRouter::with_openapi(ApiDoc::openapi())
         .route("/ping", get(ping_handler))
