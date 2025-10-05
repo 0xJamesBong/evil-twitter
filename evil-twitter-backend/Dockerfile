@@ -1,6 +1,9 @@
 FROM rustlang/rust:nightly AS builder
 WORKDIR /app
 COPY . .
+RUN echo "==== BUILD CONTEXT CONTENTS ====" && ls -R /app
+RUN cat Cargo.toml || true
+
 RUN cargo build --release
 
 FROM debian:bookworm-slim
