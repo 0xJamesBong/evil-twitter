@@ -88,7 +88,7 @@ struct ApiDoc;
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
-    println!("🔥 Starting Evil Twitter API...");
+    // println!("🔥 Starting Evil Twitter API...");
 
     dotenv().ok(); // load .env
     let mongo_uri = std::env::var("MONGODB_URI").expect("MONGODB_URI must be set");
