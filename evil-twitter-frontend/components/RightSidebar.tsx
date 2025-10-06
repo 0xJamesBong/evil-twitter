@@ -1,6 +1,8 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
+import { WeaponsPanel } from './WeaponsPanel';
+import { useBackendUserStore } from '../lib/stores/backendUserStore';
 
 interface TrendingTopic {
     id: string;
@@ -20,6 +22,7 @@ interface SuggestedUser {
 }
 
 export function RightSidebar() {
+    const { user } = useBackendUserStore();
     const [searchQuery, setSearchQuery] = useState('');
     const [trendingTopics, setTrendingTopics] = useState<TrendingTopic[]>([]);
     const [suggestedUsers, setSuggestedUsers] = useState<SuggestedUser[]>([]);
@@ -75,6 +78,13 @@ export function RightSidebar() {
                     className="w-full bg-gray-800 text-white placeholder-gray-500 rounded-full py-3 pl-10 pr-4 focus:outline-none focus:ring-2 focus:ring-blue-500"
                 />
             </div>
+
+            {/* Weapons Arsenal */}
+            {user && (
+                <div className="mt-4">
+                    <WeaponsPanel userId={user._id?.$oid} maxDisplay={2} />
+                </div>
+            )}
 
             {/* What's happening */}
             <div className="bg-gray-800 rounded-2xl">

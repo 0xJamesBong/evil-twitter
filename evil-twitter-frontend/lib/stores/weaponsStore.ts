@@ -38,6 +38,7 @@ export const useWeaponsStore = create<WeaponsState>((set) => ({
   createWeapon: async (userId: string, weapon: CreateWeaponRequest) => {
     set({ isLoading: true, error: null });
     try {
+      console.log("createWeapon", weapon.name, userId, weapon.image_url);
       const response = await fetch(`${API_BASE_URL}/weapons/${userId}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
