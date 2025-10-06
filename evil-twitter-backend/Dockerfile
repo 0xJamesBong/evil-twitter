@@ -1,4 +1,4 @@
-FROM rustlang/rust:nightly AS builder
+FROM rust:1-bullseye AS builder
 WORKDIR /app
 COPY . .
 RUN echo "==== BUILD CONTEXT CONTENTS ====" && ls -R /app
