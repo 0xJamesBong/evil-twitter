@@ -10,16 +10,26 @@ import {
     Alert,
     CircularProgress,
     Slider,
+    ToggleButtonGroup,
+    ToggleButton,
 } from "@mui/material";
 import { useWeaponsStore } from "../lib/stores/weaponsStore";
 import { useBackendUserStore } from "../lib/stores/backendUserStore";
+
+// Preset weapon emojis
+const WEAPON_EMOJIS = [
+    "⚔️", "🗡️", "🔪", "🔫", "🏹", "🪓", "⛏️", "🔨",
+    "🔧", "🪛", "⚡", "🔥", "💥", "💣", "🧨", "💊",
+    "🧪", "🪄", "🎯", "🛡️", "⚒️", "🗿", "💎", "🌟",
+    "☄️", "🌪️", "🌊", "❄️", "🔮", "📿", "⚱️", "🏺"
+];
 
 export function WeaponMinter() {
     const { createWeapon, isLoading, error, clearError } = useWeaponsStore();
     const { user } = useBackendUserStore();
     const [name, setName] = useState("");
     const [description, setDescription] = useState("");
-    const [imageUrl, setImageUrl] = useState("");
+    const [selectedEmoji, setSelectedEmoji] = useState(WEAPON_EMOJIS[0]);
     const [damage, setDamage] = useState(100);
     const [success, setSuccess] = useState(false);
 
@@ -34,14 +44,14 @@ export function WeaponMinter() {
             await createWeapon(user._id.$oid, {
                 name,
                 description,
-                image_url: imageUrl,
+                image_url: selectedEmoji,
                 damage,
             });
 
             // Reset form
             setName("");
             setDescription("");
-            setImageUrl("");
+            setSelectedEmoji(WEAPON_EMOJIS[0]);
             setDamage(100);
             setSuccess(true);
 
@@ -99,16 +109,64 @@ export function WeaponMinter() {
                         disabled={isLoading}
                     />
 
-                    <TextField
-                        label="Image URL"
-                        placeholder="https://example.com/weapon.jpg"
-                        value={imageUrl}
-                        onChange={(e) => setImageUrl(e.target.value)}
-                        required
-                        fullWidth
-                        type="url"
-                        disabled={isLoading}
-                    />
+                    <Box>
+                        <Typography gutterBottom fontWeight={600}>
+                            Select Weapon Icon
+                        </Typography>
+                        <Box
+                            sx={{
+                                display: "flex",
+                                alignItems: "center",
+                                gap: 2,
+                                mb: 2,
+                            }}
+                        >
+                            <Box
+                                sx={{
+                                    fontSize: "4rem",
+                                    lineHeight: 1,
+                                    textAlign: "center",
+                                    minWidth: "80px",
+                                }}
+                            >
+                                {selectedEmoji}
+                            </Box>
+                            <Typography variant="body2" color="text.secondary">
+                                Choose your weapon's icon
+                            </Typography>
+                        </Box>
+
+                        <Box
+                            sx={{
+                                display: "grid",
+                                gridTemplateColumns: "repeat(8, 1fr)",
+                                gap: 1,
+                                maxHeight: "200px",
+                                overflowY: "auto",
+                                p: 1,
+                                border: "1px solid",
+                                borderColor: "divider",
+                                borderRadius: 1,
+                            }}
+                        >
+                            {WEAPON_EMOJIS.map((emoji) => (
+                                <Button
+                                    key={emoji}
+                                    onClick={() => setSelectedEmoji(emoji)}
+                                    variant={selectedEmoji === emoji ? "contained" : "outlined"}
+                                    sx={{
+                                        minWidth: "40px",
+                                        height: "40px",
+                                        fontSize: "1.5rem",
+                                        p: 0,
+                                    }}
+                                    disabled={isLoading}
+                                >
+                                    {emoji}
+                                </Button>
+                            ))}
+                        </Box>
+                    </Box>
 
                     <Box>
                         <Typography gutterBottom>
@@ -161,4 +219,3 @@ export function WeaponMinter() {
         </Paper>
     );
 }
-

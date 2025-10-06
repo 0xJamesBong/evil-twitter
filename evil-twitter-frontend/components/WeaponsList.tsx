@@ -49,16 +49,30 @@ function WeaponCard({ weapon }: { weapon: Weapon }) {
                 />
             )}
 
-            <CardMedia
-                component="img"
-                height="200"
-                image={weapon.image_url}
-                alt={weapon.name}
-                sx={{ objectFit: "cover" }}
-                onError={(e: any) => {
-                    e.target.src = "/pics/candy-1.jpg"; // Fallback image
+            <Box
+                sx={{
+                    height: 200,
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    fontSize: "8rem",
+                    background: "linear-gradient(135deg, #667eea 0%, #764ba2 100%)",
+                    position: "relative",
+                    overflow: "hidden",
                 }}
-            />
+            >
+                <Box
+                    sx={{
+                        position: "absolute",
+                        inset: 0,
+                        background:
+                            "radial-gradient(circle at 30% 50%, rgba(255,255,255,0.1) 0%, transparent 50%)",
+                    }}
+                />
+                <Box sx={{ position: "relative", zIndex: 1 }}>
+                    {weapon.image_url}
+                </Box>
+            </Box>
 
             <CardContent sx={{ flexGrow: 1 }}>
                 <Typography variant="h6" component="h3" gutterBottom fontWeight={700}>

@@ -20,8 +20,8 @@ pub struct CreateWeaponRequest {
     pub name: String,
     #[schema(example = "Cuts through nonsense argument")]
     pub description: String,
-    #[schema(example = "https://example.com/weapon.jpg")]
-    pub image_url: String,
+    #[schema(example = "⚔️")]
+    pub image_url: String, // Emoji icon for the weapon
     #[schema(example = "100")]
     pub damage: i32,
 }

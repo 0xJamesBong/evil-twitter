@@ -4,7 +4,7 @@ import { API_BASE_URL } from "../services/api";
 export interface CreateWeaponRequest {
   name: string;
   description: string;
-  image_url: string;
+  image_url: string; // This will be an emoji
   damage: number;
 }
 
