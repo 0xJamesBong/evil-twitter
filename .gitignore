@@ -72,5 +72,4 @@ temp/
 *.safetensors
 *.bin
 *.ckpt
-models/
 checkpoints/
