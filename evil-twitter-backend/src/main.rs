@@ -97,7 +97,7 @@ struct ApiDoc;
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
-    println!("Starting Evil Twitter API...");
+    // println!("Starting Evil Twitter API...");
 
     dotenv().ok(); // load .env
     let mongo_uri = std::env::var("MONGODB_URI").expect("MONGODB_URI must be set");
@@ -157,8 +157,8 @@ async fn main() -> anyhow::Result<()> {
         .expect("PORT must be a number");
     let addr = format!("0.0.0.0:{}", port);
     let listener = tokio::net::TcpListener::bind(&addr).await?;
-    println!("Evil Twitter API listening on http://{}", addr);
-    println!("Swagger UI available at http://{}/doc", addr);
+    // println!("Evil Twitter API listening on http://{}", addr);
+    // println!("Swagger UI available at http://{}/doc", addr);
 
     axum::serve(listener, app.into_make_service()).await?;
 
