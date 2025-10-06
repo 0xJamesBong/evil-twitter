@@ -9,7 +9,7 @@ export interface CreateWeaponRequest {
 }
 
 export interface Weapon {
-  id: { $oid: string };
+  _id: { $oid: string };
   owner_id: string;
   name: string;
   description: string;
@@ -64,9 +64,15 @@ export const useWeaponsStore = create<WeaponsState>((set) => ({
   fetchUserWeapons: async (userId: string) => {
     set({ isLoading: true, error: null });
     try {
-      // Note: This endpoint doesn't exist yet in backend
-      // For now, just clear the loading state
-      set({ weapons: [], isLoading: false });
+      const response = await fetch(`${API_BASE_URL}/users/${userId}/weapons`);
+      console.log("fetchUserWeapons:", userId);
+      console.log("fetchUserWeapons | response", response);
+      if (!response.ok) {
+        throw new Error("Failed to fetch weapons");
+      }
+
+      const weapons = await response.json();
+      set({ weapons, isLoading: false });
     } catch (error) {
       set({ error: (error as Error).message, isLoading: false });
     }

@@ -9,6 +9,7 @@ use axum::{
     extract::{Path, State},
     http::StatusCode,
 };
+use futures::TryStreamExt;
 use mongodb::Database;
 use utoipa::ToSchema;
 
@@ -102,4 +103,52 @@ pub async fn give_user_weapon(
     }
 
     Ok((StatusCode::CREATED, Json(weapon)))
+}
+
+/// Get all weapons for a user
+#[utoipa::path(
+    get,
+    path = "/users/{user_id}/weapons",
+    params(
+        ("user_id" = String, Path, description = "User ID")
+    ),
+    responses(
+        (status = 200, description = "User weapons retrieved successfully", body = Vec<Weapon>),
+        (status = 400, description = "Invalid user ID"),
+        (status = 404, description = "User not found")
+    ),
+    tag = "weapons"
+)]
+pub async fn get_user_weapons(
+    State(db): State<Database>,
+    Path(user_id): Path<String>,
+) -> Result<Json<Vec<Weapon>>, (StatusCode, Json<serde_json::Value>)> {
+    let collection: Collection<Weapon> = db.collection("weapons");
+
+    let user_oid = ObjectId::parse_str(&user_id).map_err(|_| {
+        (
+            StatusCode::BAD_REQUEST,
+            Json(serde_json::json!({"error": "Invalid user ID"})),
+        )
+    })?;
+
+    // Find all weapons owned by this user
+    let cursor = collection
+        .find(doc! { "owner_id": user_oid.to_hex() })
+        .await
+        .map_err(|_| {
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(serde_json::json!({"error": "Failed to fetch weapons"})),
+            )
+        })?;
+
+    let weapons: Vec<Weapon> = cursor.try_collect().await.map_err(|_| {
+        (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(serde_json::json!({"error": "Failed to collect weapons"})),
+        )
+    })?;
+
+    Ok(Json(weapons))
 }

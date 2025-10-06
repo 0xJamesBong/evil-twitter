@@ -12,16 +12,17 @@ mod models;
 mod routes;
 
 use routes::follow::{follow_user, unfollow_user};
+use routes::migration::{migrate_tweets_health, migrate_users_weapons};
 use routes::ping::ping_handler;
 use routes::tweet::{
     attack_tweet, clear_all_data, create_tweet, generate_fake_tweets, get_tweet, get_tweets,
-    get_user_wall, heal_tweet, like_tweet, migrate_health, migrate_users_dollar_rate, quote_tweet,
-    reply_tweet, retweet_tweet,
+    get_user_wall, heal_tweet, like_tweet, migrate_users_dollar_rate, quote_tweet, reply_tweet,
+    retweet_tweet,
 };
 use routes::user::{
     attack_dollar_rate, create_user, get_dollar_rate, get_user, get_users, improve_dollar_rate,
 };
-use routes::weapons::create_weapon;
+use routes::weapons::{create_weapon, get_user_weapons};
 
 /// API documentation
 #[derive(OpenApi)]
@@ -46,11 +47,13 @@ use routes::weapons::create_weapon;
         routes::tweet::reply_tweet,
         routes::tweet::generate_fake_tweets,
         routes::tweet::clear_all_data,
-        routes::tweet::migrate_health,
         routes::tweet::migrate_users_dollar_rate,
+        routes::migration::migrate_tweets_health,
+        routes::migration::migrate_users_weapons,
         routes::follow::follow_user,
         routes::follow::unfollow_user,
-        routes::weapons::create_weapon
+        routes::weapons::create_weapon,
+        routes::weapons::get_user_weapons
     ),
     components(
         schemas(
@@ -71,7 +74,8 @@ use routes::weapons::create_weapon;
             models::tool::Weapon,
             routes::tweet::HealTweetRequest,
             routes::tweet::AttackTweetRequest,
-            routes::weapons::CreateWeaponRequest
+            routes::weapons::CreateWeaponRequest,
+            routes::migration::MigrationResponse
         )
     ),
     tags(
@@ -126,7 +130,8 @@ async fn main() -> anyhow::Result<()> {
         .route("/tweets/{id}/reply", post(reply_tweet))
         .route("/tweets/fake", post(generate_fake_tweets))
         .route("/admin/clear-all", post(clear_all_data))
-        .route("/admin/migrate-health", post(migrate_health))
+        .route("/admin/migrate-health", post(migrate_tweets_health))
+        .route("/admin/migrate-users-weapons", post(migrate_users_weapons))
         .route(
             "/admin/migrate-users-dollar-rate",
             post(migrate_users_dollar_rate),
@@ -134,6 +139,7 @@ async fn main() -> anyhow::Result<()> {
         .route("/follows", post(follow_user))
         .route("/follows/{following_id}", delete(unfollow_user))
         .route("/weapons/{user_id}", post(create_weapon))
+        .route("/users/{user_id}/weapons", get(get_user_weapons))
         .split_for_parts();
 
     let app = app

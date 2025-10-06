@@ -5,13 +5,16 @@ import Navbar from '../../components/Navbar';
 import { Sidebar } from '../../components/Sidebar';
 import { Timeline } from '../../components/Timeline';
 import { RightSidebar } from '../../components/RightSidebar';
+import { WeaponsPanel } from '../../components/WeaponsPanel';
 import { useAuthStore } from '../../lib/stores/authStore';
+import { useBackendUserStore } from '../../lib/stores/backendUserStore';
 import { TestPing } from '../../components/TestPing';
 import { API_BASE_URL } from '../../lib/services/api';
 
 export default function HomePage() {
 
   const { isAuthenticated, initialized } = useAuthStore();
+  const { user } = useBackendUserStore();
 
   console.log("API_BASE_URL: ", API_BASE_URL);
 
@@ -41,9 +44,9 @@ export default function HomePage() {
           <Timeline />
         </div>
 
-        {/* Right Sidebar */}
-        <div className="w-80 fixed right-0 top-16 h-full border-l border-gray-800">
-          {/* <RightSidebar /> */}
+        {/* Right Sidebar - Weapons */}
+        <div className="w-80 fixed right-0 top-16 h-full border-l border-gray-800 overflow-y-auto p-4">
+          <WeaponsPanel userId={user?._id?.$oid} />
         </div>
       </div>
     </div>

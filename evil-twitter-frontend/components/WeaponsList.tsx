@@ -217,7 +217,7 @@ export function WeaponsList({ userId, weapons: providedWeapons }: WeaponsListPro
             </Typography>
             <Grid container spacing={2} sx={{ px: 2 }}>
                 {weapons.map((weapon) => (
-                    <Grid item xs={12} sm={6} md={4} key={weapon.id.$oid}>
+                    <Grid item xs={12} sm={6} md={4} key={weapon._id.$oid}>
                         <WeaponCard weapon={weapon} />
                     </Grid>
                 ))}

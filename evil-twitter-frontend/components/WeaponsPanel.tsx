@@ -176,7 +176,7 @@ export function WeaponsPanel({ userId, maxDisplay = 3 }: WeaponsPanelProps) {
 
             <Stack spacing={1}>
                 {displayWeapons.map((weapon) => (
-                    <CompactWeaponCard key={weapon.id.$oid} weapon={weapon} />
+                    <CompactWeaponCard key={weapon._id.$oid} weapon={weapon} />
                 ))}
             </Stack>
 
