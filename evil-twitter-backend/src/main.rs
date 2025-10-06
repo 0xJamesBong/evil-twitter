@@ -21,6 +21,7 @@ use routes::tweet::{
 use routes::user::{
     attack_dollar_rate, create_user, get_dollar_rate, get_user, get_users, improve_dollar_rate,
 };
+use routes::weapons::create_weapon;
 
 /// API documentation
 #[derive(OpenApi)]
@@ -48,7 +49,8 @@ use routes::user::{
         routes::tweet::migrate_health,
         routes::tweet::migrate_users_dollar_rate,
         routes::follow::follow_user,
-        routes::follow::unfollow_user
+        routes::follow::unfollow_user,
+        routes::weapons::create_weapon
     ),
     components(
         schemas(
@@ -66,8 +68,10 @@ use routes::user::{
             models::tweet::TweetAttackAction,
             models::follow::Follow,
             models::follow::CreateFollow,
+            models::tool::Weapon,
             routes::tweet::HealTweetRequest,
-            routes::tweet::AttackTweetRequest
+            routes::tweet::AttackTweetRequest,
+            routes::weapons::CreateWeaponRequest
         )
     ),
     tags(
@@ -75,6 +79,7 @@ use routes::user::{
         (name = "users", description = "User management endpoints"),
         (name = "tweets", description = "Tweet management endpoints"),
         (name = "follows", description = "Follow management endpoints"),
+        (name = "weapons", description = "Weapon management endpoints"),
         (name = "auth", description = "Authentication endpoints"),
         (name = "admin", description = "Administrative endpoints")
     ),
@@ -128,6 +133,7 @@ async fn main() -> anyhow::Result<()> {
         )
         .route("/follows", post(follow_user))
         .route("/follows/{following_id}", delete(unfollow_user))
+        .route("/weapons/{user_id}", post(create_weapon))
         .split_for_parts();
 
     let app = app

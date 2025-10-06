@@ -170,7 +170,7 @@ pub async fn create_tweet(
         })?;
     let tweet = Tweet {
         id,
-        author_id: user.id.unwrap(),
+        owner_id: user.id.unwrap(),
         content: payload.content,
         tweet_type: TweetType::Original,
         original_tweet_id: None,
@@ -244,7 +244,7 @@ pub async fn get_tweet(
     match tweet {
         Some(tweet) => {
             let author = user_collection
-                .find_one(doc! {"_id": tweet.author_id})
+                .find_one(doc! {"_id": tweet.owner_id})
                 .await
                 .map_err(|_| {
                     (
@@ -308,16 +308,16 @@ pub async fn get_tweets(
     })?;
 
     // Get all unique author IDs
-    let author_ids: Vec<ObjectId> = tweets
+    let owner_ids: Vec<ObjectId> = tweets
         .iter()
-        .map(|tweet| tweet.author_id)
+        .map(|tweet| tweet.owner_id)
         .collect::<std::collections::HashSet<_>>()
         .into_iter()
         .collect();
 
     // Fetch all authors in one query
     let authors: Vec<crate::models::user::User> = user_collection
-        .find(doc! {"_id": {"$in": author_ids}})
+        .find(doc! {"_id": {"$in": owner_ids}})
         .await
         .map_err(|_| {
             (
@@ -343,7 +343,7 @@ pub async fn get_tweets(
     let tweets_with_authors: Vec<Tweet> = tweets
         .into_iter()
         .filter_map(|mut tweet| {
-            author_map.get(&tweet.author_id).map(|author| {
+            author_map.get(&tweet.owner_id).map(|author| {
                 tweet.author_username = Some(author.username.clone());
                 tweet.author_display_name = Some(author.display_name.clone());
                 tweet.author_avatar_url = author.avatar_url.clone();
@@ -391,17 +391,17 @@ pub async fn get_user_wall(
     let tweets = compose_wall(State(db), Path(user_id)).await?;
 
     // Get all unique author IDs for enrichment
-    let author_ids: Vec<ObjectId> = tweets
+    let owner_ids: Vec<ObjectId> = tweets
         .iter()
-        .map(|tweet| tweet.author_id)
+        .map(|tweet| tweet.owner_id)
         .collect::<std::collections::HashSet<_>>()
         .into_iter()
         .collect();
 
     // Fetch author information
-    let authors: Vec<crate::models::user::User> = if !author_ids.is_empty() {
+    let authors: Vec<crate::models::user::User> = if !owner_ids.is_empty() {
         user_collection
-            .find(doc! {"_id": {"$in": author_ids}})
+            .find(doc! {"_id": {"$in": owner_ids}})
             .await
             .map_err(|_| {
                 (
@@ -421,7 +421,7 @@ pub async fn get_user_wall(
         Vec::new()
     };
 
-    // Create a map of author_id to User for quick lookup
+    // Create a map of owner_id to User for quick lookup
     let author_map: std::collections::HashMap<ObjectId, &crate::models::user::User> = authors
         .iter()
         .map(|author| (author.id.unwrap(), author))
@@ -431,7 +431,7 @@ pub async fn get_user_wall(
     let tweets_with_authors: Vec<Tweet> = tweets
         .into_iter()
         .map(|mut tweet| {
-            if let Some(author) = author_map.get(&tweet.author_id) {
+            if let Some(author) = author_map.get(&tweet.owner_id) {
                 tweet.author_username = Some(author.username.clone());
                 tweet.author_display_name = Some(author.display_name.clone());
                 tweet.author_avatar_url = author.avatar_url.clone();
@@ -514,7 +514,7 @@ pub async fn generate_fake_tweets(
     let fake_tweets = vec![
         Tweet {
             id: None,
-            author_id: ObjectId::parse_str("68d9b685550f1355d0f01ba4").unwrap(),
+            owner_id: ObjectId::parse_str("68d9b685550f1355d0f01ba4").unwrap(),
             content: "Just discovered this amazing new coffee shop downtown! ☕ The barista made the perfect latte art. #coffee #morningvibes".to_string(),
             tweet_type: TweetType::Original,
             original_tweet_id: None,
@@ -537,7 +537,7 @@ pub async fn generate_fake_tweets(
         },
         Tweet {
             id: None,
-            author_id: ObjectId::parse_str("68d9b685550f1355d0f01ba4").unwrap(),
+            owner_id: ObjectId::parse_str("68d9b685550f1355d0f01ba4").unwrap(),
             content: "Working on a new project and the code is finally coming together! 🚀 Nothing beats that feeling when everything clicks. #coding #programming".to_string(),
             tweet_type: TweetType::Original,
             original_tweet_id: None,
@@ -560,7 +560,7 @@ pub async fn generate_fake_tweets(
         },
         Tweet {
             id: None,
-            author_id: ObjectId::parse_str("68d9b685550f1355d0f01ba4").unwrap(),
+            owner_id: ObjectId::parse_str("68d9b685550f1355d0f01ba4").unwrap(),
             content: "Beautiful sunset today! 🌅 Sometimes you just need to stop and appreciate the simple things in life. #nature #grateful".to_string(),
             tweet_type: TweetType::Original,
             original_tweet_id: None,
@@ -583,7 +583,7 @@ pub async fn generate_fake_tweets(
         },
         Tweet {
             id: None,
-            author_id: ObjectId::parse_str("68d9b685550f1355d0f01ba4").unwrap(),
+            owner_id: ObjectId::parse_str("68d9b685550f1355d0f01ba4").unwrap(),
             content: "Just finished reading an incredible book! 📚 The plot twists were mind-blowing. Can't wait to discuss it with friends. #reading #books".to_string(),
             tweet_type: TweetType::Original,
             original_tweet_id: None,
@@ -606,7 +606,7 @@ pub async fn generate_fake_tweets(
         },
         Tweet {
             id: None,
-            author_id: ObjectId::parse_str("68d9b685550f1355d0f01ba4").unwrap(),
+            owner_id: ObjectId::parse_str("68d9b685550f1355d0f01ba4").unwrap(),
             content: "Weekend vibes are the best! 🎉 Time to relax, catch up with friends, and maybe try that new restaurant everyone's been talking about. #weekend #friends".to_string(),
             tweet_type: TweetType::Original,
             original_tweet_id: None,
@@ -759,7 +759,7 @@ pub async fn retweet_tweet(
     // Create the retweet - include original content for display
     let retweet = Tweet {
         id,
-        author_id: user.id.unwrap(),
+        owner_id: user.id.unwrap(),
         content: original_tweet.content.clone(), // Show original content in retweet
         tweet_type: TweetType::Retweet,
         original_tweet_id: Some(original_tweet_id),
@@ -896,7 +896,7 @@ pub async fn quote_tweet(
     // Create the quote tweet
     let quote_tweet = Tweet {
         id,
-        author_id: user.id.unwrap(),
+        owner_id: user.id.unwrap(),
         content: payload.content,
         tweet_type: TweetType::Quote,
         original_tweet_id: Some(original_tweet_id),
@@ -1033,7 +1033,7 @@ pub async fn reply_tweet(
     // Create the reply
     let reply = Tweet {
         id,
-        author_id: user.id.unwrap(),
+        owner_id: user.id.unwrap(),
         content: payload.content,
         tweet_type: TweetType::Reply,
         original_tweet_id: None,

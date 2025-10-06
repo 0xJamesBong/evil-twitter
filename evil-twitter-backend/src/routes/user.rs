@@ -82,6 +82,7 @@ pub async fn create_user(
         following_count: 0,
         tweets_count: 0,
         dollar_conversion_rate: 10000,
+        weapon_ids: Vec::new(),
     };
 
     let result = collection.insert_one(&user).await.map_err(|_| {

@@ -15,7 +15,7 @@ export interface Tweet {
   is_liked: boolean;
   is_retweeted: boolean;
   media_urls?: string[];
-  author_id: { $oid: string };
+  owner_id: { $oid: string };
   author_username: string;
   author_display_name: string;
   author_avatar_url?: string | null;
