@@ -24,7 +24,7 @@ const darkTheme = createTheme({
         divider: '#2F3336',
     },
     typography: {
-        fontFamily: '"Inter", "Roboto", "Helvetica", "Arial", sans-serif',
+        fontFamily: 'var(--font-geist-sans), var(--font-jyutcitzi), -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
         h1: {
             fontSize: '1.5rem',
             fontWeight: 700,

@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
+import localFont from "next/font/local";
 import "./globals.css";
 import { AuthProvider } from "../../components/AuthProvider";
 import { ThemeProvider } from "../../components/ThemeProvider";
@@ -12,6 +13,18 @@ const geistSans = Geist({
 const geistMono = Geist_Mono({
   variable: "--font-geist-mono",
   subsets: ["latin"],
+});
+
+const jyutcitzi = localFont({
+  src: [
+    {
+      path: "../../public/fonts/JyutcitziWithSourceHanSansHCNormal.ttf",
+      weight: "400",
+      style: "normal",
+    },
+  ],
+  variable: "--font-jyutcitzi",
+  display: "swap",
 });
 
 export const metadata: Metadata = {
@@ -27,7 +40,7 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body
-        className={`${geistSans.variable} ${geistMono.variable} antialiased bg-black`}
+        className={`${geistSans.variable} ${geistMono.variable} ${jyutcitzi.variable} antialiased bg-black`}
       >
         <ThemeProvider>
           <AuthProvider>
