@@ -30,6 +30,7 @@ import {
     FlashOn,
 } from '@mui/icons-material';
 import { useTweetsStore } from '../lib/stores/tweetsStore';
+import { useBackendUserStore } from '../lib/stores/backendUserStore';
 import { QuotedTweetCard } from './QuotedTweetCard';
 
 interface Tweet {
@@ -87,6 +88,8 @@ export function TweetCard({ tweet, onLike, onRetweet, onQuote, onReply }: TweetC
         healTweet,
         attackTweet
     } = useTweetsStore();
+
+    const { user: currentUser } = useBackendUserStore();
 
     // Heal and Attack state
     const [showHealModal, setShowHealModal] = React.useState(false);
@@ -454,26 +457,60 @@ export function TweetCard({ tweet, onLike, onRetweet, onQuote, onReply }: TweetC
             >
                 <DialogTitle>Quote Tweet</DialogTitle>
                 <DialogContent>
-                    <TextField
-                        autoFocus
-                        multiline
-                        rows={4}
-                        fullWidth
-                        variant="outlined"
-                        placeholder="Add a comment..."
-                        value={quoteContent}
-                        onChange={(e) => setQuoteContent(e.target.value)}
-                        inputProps={{ maxLength: 280 }}
-                        sx={{ mt: 1 }}
-                    />
-                    <Typography variant="caption" color="text.secondary" sx={{ mt: 1, display: 'block' }}>
+                    {/* Preview of how the quote tweet will look */}
+                    <Box sx={{ display: 'flex', gap: 2, mb: 2 }}>
+                        {/* Current user's avatar */}
+                        <Avatar
+                            src={currentUser?.avatar_url || undefined}
+                            sx={{ width: 48, height: 48 }}
+                        >
+                            {currentUser?.display_name?.charAt(0).toUpperCase() || '😈'}
+                        </Avatar>
+
+                        {/* Content area */}
+                        <Box sx={{ flex: 1, minWidth: 0 }}>
+                            {/* Current user's info */}
+                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
+                                <Typography variant="subtitle2" sx={{ fontWeight: 600 }}>
+                                    {currentUser?.display_name || 'User'}
+                                </Typography>
+                                <Typography variant="body2" color="text.secondary">
+                                    @{currentUser?.username || 'user'}
+                                </Typography>
+                                <Typography variant="body2" color="text.secondary">
+                                    ·
+                                </Typography>
+                                <Typography variant="body2" color="text.secondary">
+                                    now
+                                </Typography>
+                            </Box>
+
+                            {/* Text input */}
+                            <TextField
+                                autoFocus
+                                multiline
+                                rows={4}
+                                fullWidth
+                                variant="standard"
+                                placeholder="Add a comment..."
+                                value={quoteContent}
+                                onChange={(e) => setQuoteContent(e.target.value)}
+                                inputProps={{ maxLength: 280 }}
+                                sx={{
+                                    mb: 1,
+                                    '& .MuiInput-root:before': { display: 'none' },
+                                    '& .MuiInput-root:after': { display: 'none' },
+                                }}
+                            />
+
+                            {/* Show the tweet being quoted */}
+                            <QuotedTweetCard tweet={tweet} />
+                        </Box>
+                    </Box>
+
+                    <Typography variant="caption" color="text.secondary" sx={{ display: 'block', textAlign: 'right' }}>
                         {quoteContent.length}/280
                     </Typography>
-
-                    {/* Show the tweet being quoted */}
-                    <Box sx={{ mt: 2 }}>
-                        <QuotedTweetCard tweet={tweet} />
-                    </Box>
                 </DialogContent>
                 <DialogActions>
                     <Button onClick={closeQuoteModal}>
