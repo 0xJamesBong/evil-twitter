@@ -27,6 +27,18 @@ const jyutcitzi = localFont({
   display: "swap",
 });
 
+const goetsusioji = localFont({
+  src: [
+    {
+      path: "../../public/fonts/goetsusioji.ttf",
+      weight: "400",
+      style: "normal",
+    },
+  ],
+  variable: "--font-goetsusioji",
+  display: "swap",
+});
+
 export const metadata: Metadata = {
   title: "Evil Twitter",
   description: "A complete Twitter clone with all the features you love",
@@ -40,7 +52,7 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body
-        className={`${geistSans.variable} ${geistMono.variable} ${jyutcitzi.variable} antialiased bg-black`}
+        className={`${geistSans.variable} ${geistMono.variable} ${jyutcitzi.variable} ${goetsusioji.variable} antialiased bg-black`}
       >
         <ThemeProvider>
           <AuthProvider>

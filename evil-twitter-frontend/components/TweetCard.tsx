@@ -30,6 +30,7 @@ import {
     FlashOn,
 } from '@mui/icons-material';
 import { useTweetsStore } from '../lib/stores/tweetsStore';
+import { QuotedTweetCard } from './QuotedTweetCard';
 
 interface Tweet {
     _id: { $oid: string };
@@ -55,6 +56,8 @@ interface Tweet {
         heal_history: any[];
         attack_history: any[];
     };
+    quoted_tweet?: Tweet;
+    replied_to_tweet?: Tweet;
 }
 
 interface TweetCardProps {
@@ -314,13 +317,18 @@ export function TweetCard({ tweet, onLike, onRetweet, onQuote, onReply }: TweetC
                             <Typography
                                 variant="body1"
                                 sx={{
-                                    mb: tweet.media_urls?.length ? 2 : 1,
+                                    mb: tweet.quoted_tweet || tweet.media_urls?.length ? 2 : 1,
                                     whiteSpace: 'pre-wrap',
                                     wordBreak: 'break-word'
                                 }}
                             >
                                 {tweet.content}
                             </Typography>
+
+                            {/* Quoted Tweet */}
+                            {tweet.quoted_tweet && (
+                                <QuotedTweetCard tweet={tweet.quoted_tweet} />
+                            )}
 
                             {/* Media */}
                             {tweet.media_urls && tweet.media_urls.length > 0 && (
@@ -461,6 +469,11 @@ export function TweetCard({ tweet, onLike, onRetweet, onQuote, onReply }: TweetC
                     <Typography variant="caption" color="text.secondary" sx={{ mt: 1, display: 'block' }}>
                         {quoteContent.length}/280
                     </Typography>
+
+                    {/* Show the tweet being quoted */}
+                    <Box sx={{ mt: 2 }}>
+                        <QuotedTweetCard tweet={tweet} />
+                    </Box>
                 </DialogContent>
                 <DialogActions>
                     <Button onClick={closeQuoteModal}>
