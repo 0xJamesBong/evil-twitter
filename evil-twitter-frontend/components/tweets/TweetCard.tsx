@@ -28,10 +28,12 @@ import {
     Healing,
     LocalHospital,
     FlashOn,
+    Close as CloseIcon,
 } from '@mui/icons-material';
-import { useTweetsStore } from '../lib/stores/tweetsStore';
-import { useBackendUserStore } from '../lib/stores/backendUserStore';
-import { QuotedTweetCard, TweetContent } from './tweets';
+import { useTweetsStore } from '../../lib/stores/tweetsStore';
+import { useBackendUserStore } from '../../lib/stores/backendUserStore';
+import { QuotedTweetCard } from './QuotedTweetCard';
+import { TweetMediaToolbar } from './TweetMediaToolbar';
 
 interface Tweet {
     _id: { $oid: string };
@@ -453,9 +455,21 @@ export function TweetCard({ tweet, onLike, onRetweet, onQuote, onReply }: TweetC
                 onClose={closeQuoteModal}
                 maxWidth="sm"
                 fullWidth
+                PaperProps={{
+                    sx: {
+                        bgcolor: 'background.paper',
+                        backgroundImage: 'none',
+                    }
+                }}
             >
-                <DialogTitle>Quote Tweet</DialogTitle>
-                <DialogContent>
+                {/* Close button in top-left */}
+                <Box sx={{ position: 'absolute', top: 8, left: 8 }}>
+                    <IconButton onClick={closeQuoteModal} size="small">
+                        <CloseIcon />
+                    </IconButton>
+                </Box>
+
+                <DialogContent sx={{ pt: 6 }}>
                     {/* Preview of how the quote tweet will look */}
                     <Box sx={{ display: 'flex', gap: 2, mb: 2 }}>
                         {/* Current user's avatar */}
@@ -488,7 +502,7 @@ export function TweetCard({ tweet, onLike, onRetweet, onQuote, onReply }: TweetC
                             <TextField
                                 autoFocus
                                 multiline
-                                rows={4}
+                                rows={3}
                                 fullWidth
                                 variant="standard"
                                 placeholder="Add a comment..."
@@ -507,22 +521,20 @@ export function TweetCard({ tweet, onLike, onRetweet, onQuote, onReply }: TweetC
                         </Box>
                     </Box>
 
-                    <Typography variant="caption" color="text.secondary" sx={{ display: 'block', textAlign: 'right' }}>
-                        {quoteContent.length}/280
-                    </Typography>
+                    {/* Media toolbar */}
+                    <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mt: 2, pt: 2, borderTop: '1px solid', borderColor: 'divider' }}>
+                        <TweetMediaToolbar />
+
+                        <Button
+                            onClick={handleQuoteSubmit}
+                            variant="contained"
+                            disabled={!quoteContent.trim()}
+                            sx={{ minWidth: 80 }}
+                        >
+                            Post {quoteContent.length > 0 && `(${quoteContent.length}/280)`}
+                        </Button>
+                    </Box>
                 </DialogContent>
-                <DialogActions>
-                    <Button onClick={closeQuoteModal}>
-                        Cancel
-                    </Button>
-                    <Button
-                        onClick={handleQuoteSubmit}
-                        variant="contained"
-                        disabled={!quoteContent.trim()}
-                    >
-                        Quote Tweet
-                    </Button>
-                </DialogActions>
             </Dialog >
 
             {/* Reply Tweet Modal */}

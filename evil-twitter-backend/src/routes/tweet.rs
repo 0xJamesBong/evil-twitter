@@ -190,6 +190,8 @@ pub async fn create_tweet(
             heal_history: Vec::new(),
             attack_history: Vec::new(),
         },
+        quoted_tweet: None,
+        replied_to_tweet: None,
     };
 
     let result = collection.insert_one(&tweet).await.map_err(|_| {
@@ -274,6 +276,129 @@ pub async fn get_tweet(
     }
 }
 
+/// Helper function to enrich tweets with quoted/replied tweet data
+async fn enrich_tweets_with_references(
+    tweets: Vec<Tweet>,
+    tweet_collection: &Collection<Tweet>,
+    user_collection: &Collection<crate::models::user::User>,
+) -> Result<Vec<Tweet>, (StatusCode, Json<serde_json::Value>)> {
+    // Collect all IDs of tweets that need to be fetched (original_tweet_id and replied_to_tweet_id)
+    let mut referenced_tweet_ids: Vec<ObjectId> = Vec::new();
+
+    for tweet in &tweets {
+        if let Some(original_id) = tweet.original_tweet_id {
+            referenced_tweet_ids.push(original_id);
+        }
+        if let Some(replied_id) = tweet.replied_to_tweet_id {
+            referenced_tweet_ids.push(replied_id);
+        }
+    }
+
+    // Remove duplicates
+    referenced_tweet_ids.sort();
+    referenced_tweet_ids.dedup();
+
+    // Fetch all referenced tweets
+    let referenced_tweets: Vec<Tweet> = if !referenced_tweet_ids.is_empty() {
+        tweet_collection
+            .find(doc! {"_id": {"$in": &referenced_tweet_ids}})
+            .await
+            .map_err(|_| {
+                (
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    Json(serde_json::json!({"error": "Database error fetching referenced tweets"})),
+                )
+            })?
+            .try_collect()
+            .await
+            .map_err(|_| {
+                (
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    Json(
+                        serde_json::json!({"error": "Database error collecting referenced tweets"}),
+                    ),
+                )
+            })?
+    } else {
+        Vec::new()
+    };
+
+    // Get author IDs for referenced tweets
+    let referenced_author_ids: Vec<ObjectId> = referenced_tweets
+        .iter()
+        .map(|tweet| tweet.owner_id)
+        .collect::<std::collections::HashSet<_>>()
+        .into_iter()
+        .collect();
+
+    // Fetch authors for referenced tweets
+    let referenced_authors: Vec<crate::models::user::User> = if !referenced_author_ids.is_empty() {
+        user_collection
+            .find(doc! {"_id": {"$in": referenced_author_ids}})
+            .await
+            .map_err(|_| {
+                (
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    Json(serde_json::json!({"error": "Database error fetching referenced authors"})),
+                )
+            })?
+            .try_collect()
+            .await
+            .map_err(|_| {
+                (
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    Json(serde_json::json!({"error": "Database error collecting referenced authors"})),
+                )
+            })?
+    } else {
+        Vec::new()
+    };
+
+    // Create author lookup map for referenced tweets
+    let referenced_author_map: std::collections::HashMap<ObjectId, &crate::models::user::User> =
+        referenced_authors
+            .iter()
+            .map(|author| (author.id.unwrap(), author))
+            .collect();
+
+    // Enrich referenced tweets with author info
+    let mut enriched_referenced_tweets: std::collections::HashMap<ObjectId, Tweet> =
+        referenced_tweets
+            .into_iter()
+            .filter_map(|mut tweet| {
+                let tweet_id = tweet.id?;
+                if let Some(author) = referenced_author_map.get(&tweet.owner_id) {
+                    tweet.author_username = Some(author.username.clone());
+                    tweet.author_display_name = Some(author.display_name.clone());
+                    tweet.author_avatar_url = author.avatar_url.clone();
+                    Some((tweet_id, tweet))
+                } else {
+                    None
+                }
+            })
+            .collect();
+
+    // Now enrich main tweets with their referenced tweets
+    let enriched_tweets: Vec<Tweet> = tweets
+        .into_iter()
+        .map(|mut tweet| {
+            if let Some(original_id) = tweet.original_tweet_id {
+                if let Some(original_tweet) = enriched_referenced_tweets.remove(&original_id) {
+                    tweet.quoted_tweet = Some(Box::new(original_tweet));
+                }
+            }
+            if let Some(replied_id) = tweet.replied_to_tweet_id {
+                if let Some(replied_tweet) = enriched_referenced_tweets.remove(&replied_id) {
+                    tweet.replied_to_tweet = Some(Box::new(replied_tweet));
+                }
+            }
+            tweet
+        })
+        .collect();
+
+    Ok(enriched_tweets)
+}
+
 /// Get all tweets (timeline)
 #[utoipa::path(
     get,
@@ -352,10 +477,15 @@ pub async fn get_tweets(
         })
         .collect();
 
-    let total = tweets_with_authors.len() as i64;
+    // Enrich with quoted/replied tweets
+    let enriched_tweets =
+        enrich_tweets_with_references(tweets_with_authors, &tweet_collection, &user_collection)
+            .await?;
+
+    let total = enriched_tweets.len() as i64;
 
     Ok(Json(TweetListResponse {
-        tweets: tweets_with_authors,
+        tweets: enriched_tweets,
         total,
     }))
 }
@@ -534,6 +664,8 @@ pub async fn generate_fake_tweets(
                 heal_history: Vec::new(),
                 attack_history: Vec::new(),
             },
+            quoted_tweet: None,
+            replied_to_tweet: None,
         },
         Tweet {
             id: None,
@@ -557,6 +689,8 @@ pub async fn generate_fake_tweets(
                 heal_history: Vec::new(),
                 attack_history: Vec::new(),
             },
+            quoted_tweet: None,
+            replied_to_tweet: None,
         },
         Tweet {
             id: None,
@@ -580,6 +714,8 @@ pub async fn generate_fake_tweets(
                 heal_history: Vec::new(),
                 attack_history: Vec::new(),
             },
+            quoted_tweet: None,
+            replied_to_tweet: None,
         },
         Tweet {
             id: None,
@@ -603,6 +739,8 @@ pub async fn generate_fake_tweets(
                 heal_history: Vec::new(),
                 attack_history: Vec::new(),
             },
+            quoted_tweet: None,
+            replied_to_tweet: None,
         },
         Tweet {
             id: None,
@@ -626,6 +764,8 @@ pub async fn generate_fake_tweets(
                 heal_history: Vec::new(),
                 attack_history: Vec::new(),
             },
+            quoted_tweet: None,
+            replied_to_tweet: None,
         },
     ];
 
@@ -779,6 +919,8 @@ pub async fn retweet_tweet(
             heal_history: Vec::new(),
             attack_history: Vec::new(),
         },
+        quoted_tweet: None,
+        replied_to_tweet: None,
     };
 
     let result = collection.insert_one(&retweet).await.map_err(|_| {
@@ -916,6 +1058,8 @@ pub async fn quote_tweet(
             heal_history: Vec::new(),
             attack_history: Vec::new(),
         },
+        quoted_tweet: None,
+        replied_to_tweet: None,
     };
 
     let result = collection.insert_one(&quote_tweet).await.map_err(|_| {
@@ -1053,6 +1197,8 @@ pub async fn reply_tweet(
             heal_history: Vec::new(),
             attack_history: Vec::new(),
         },
+        quoted_tweet: None,
+        replied_to_tweet: None,
     };
 
     let result = collection.insert_one(&reply).await.map_err(|_| {

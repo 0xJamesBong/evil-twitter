@@ -1,7 +1,17 @@
 'use client';
 
 import React from 'react';
+import {
+    Box,
+    TextField,
+    Button,
+    Avatar,
+    Alert,
+    CircularProgress,
+} from '@mui/material';
 import { useComposeStore } from '../lib/stores/composeStore';
+import { useBackendUserStore } from '../lib/stores/backendUserStore';
+import { TweetMediaToolbar } from './tweets';
 
 export function ComposeTweet() {
     const {
@@ -14,85 +24,69 @@ export function ComposeTweet() {
         submitTweet,
     } = useComposeStore();
 
+    const { user: currentUser } = useBackendUserStore();
+
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         await submitTweet();
     };
 
     return (
-        <div className="p-4">
-            <form onSubmit={handleSubmit} className="space-y-4">
-                <div className="flex space-x-3">
+        <Box sx={{ p: 2, borderBottom: '1px solid', borderColor: 'divider' }}>
+            <form onSubmit={handleSubmit}>
+                <Box sx={{ display: 'flex', gap: 2 }}>
                     {/* Avatar */}
-                    <div className="w-10 h-10 bg-gray-600 rounded-full flex-shrink-0"></div>
+                    <Avatar
+                        src={currentUser?.avatar_url || undefined}
+                        sx={{ width: 48, height: 48 }}
+                    >
+                        {currentUser?.display_name?.charAt(0).toUpperCase() || '😈'}
+                    </Avatar>
 
                     {/* Tweet Input */}
-                    <div className="flex-1">
-                        <textarea
+                    <Box sx={{ flex: 1 }}>
+                        <TextField
                             value={content}
                             onChange={(e) => setContent(e.target.value)}
                             placeholder="What's happening?"
-                            className="w-full bg-transparent text-white placeholder-gray-500 text-xl resize-none outline-none min-h-[100px]"
+                            multiline
                             rows={3}
+                            fullWidth
+                            variant="standard"
+                            inputProps={{ maxLength: 280 }}
+                            sx={{
+                                '& .MuiInput-root:before': { display: 'none' },
+                                '& .MuiInput-root:after': { display: 'none' },
+                                '& .MuiInputBase-input': {
+                                    fontSize: '1.25rem',
+                                    lineHeight: 1.5,
+                                }
+                            }}
                         />
 
                         {error && (
-                            <p className="text-red-500 text-sm mt-2">{error}</p>
+                            <Alert severity="error" sx={{ mt: 2 }}>
+                                {error}
+                            </Alert>
                         )}
-                    </div>
-                </div>
 
-                {/* Actions */}
-                <div className="flex items-center justify-between">
-                    <div className="flex items-center space-x-4 text-blue-500">
-                        <button
-                            type="button"
-                            className="p-2 hover:bg-blue-500 hover:bg-opacity-10 rounded-full transition-colors"
-                        >
-                            <span className="text-lg">📷</span>
-                        </button>
-                        <button
-                            type="button"
-                            className="p-2 hover:bg-blue-500 hover:bg-opacity-10 rounded-full transition-colors"
-                        >
-                            <span className="text-lg">😊</span>
-                        </button>
-                        <button
-                            type="button"
-                            className="p-2 hover:bg-blue-500 hover:bg-opacity-10 rounded-full transition-colors"
-                        >
-                            <span className="text-lg">📅</span>
-                        </button>
-                        <button
-                            type="button"
-                            className="p-2 hover:bg-blue-500 hover:bg-opacity-10 rounded-full transition-colors"
-                        >
-                            <span className="text-lg">📍</span>
-                        </button>
-                    </div>
+                        {/* Actions */}
+                        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mt: 2, pt: 2, borderTop: '1px solid', borderColor: 'divider' }}>
+                            <TweetMediaToolbar />
 
-                    <div className="flex items-center space-x-4">
-                        {/* Character Count */}
-                        <div className={`text-sm ${isOverLimit ? 'text-red-500' : 'text-gray-500'}`}>
-                            {remainingChars}
-                        </div>
-
-                        {/* Tweet Button */}
-                        <button
-                            type="submit"
-                            disabled={!content.trim() || isOverLimit || isSubmitting}
-                            className="bg-blue-500 hover:bg-blue-600 disabled:bg-gray-600 disabled:cursor-not-allowed text-white font-bold py-2 px-4 rounded-full transition-colors flex items-center space-x-2"
-                        >
-                            {isSubmitting ? (
-                                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
-                            ) : (
-                                <span className="text-lg">📤</span>
-                            )}
-                            <span>Tweet</span>
-                        </button>
-                    </div>
-                </div>
+                            <Button
+                                type="submit"
+                                variant="contained"
+                                disabled={!content.trim() || isOverLimit || isSubmitting}
+                                sx={{ minWidth: 80 }}
+                                startIcon={isSubmitting && <CircularProgress size={16} />}
+                            >
+                                {isSubmitting ? 'Posting...' : `Post ${content.length > 0 ? `(${content.length}/280)` : ''}`}
+                            </Button>
+                        </Box>
+                    </Box>
+                </Box>
             </form>
-        </div>
+        </Box>
     );
 }

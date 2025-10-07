@@ -63,6 +63,16 @@ pub struct Tweet {
     pub health: i32,
     #[serde(default)]
     pub health_history: TweetHealthHistory,
+
+    // Populated at runtime for quote tweets - not stored in database
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(skip_deserializing)]
+    pub quoted_tweet: Option<Box<Tweet>>,
+
+    // Populated at runtime for reply tweets - not stored in database
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(skip_deserializing)]
+    pub replied_to_tweet: Option<Box<Tweet>>,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone, ToSchema)]
