@@ -72,6 +72,16 @@ interface TweetCardProps {
 }
 
 export function TweetCard({ tweet, onLike, onRetweet, onQuote, onReply }: TweetCardProps) {
+    // Debug logging
+    if (tweet.tweet_type === 'Quote') {
+        console.log('Quote tweet received:', {
+            id: tweet._id.$oid,
+            content: tweet.content,
+            has_quoted_tweet: !!tweet.quoted_tweet,
+            quoted_tweet: tweet.quoted_tweet
+        });
+    }
+
     const {
         showQuoteModal,
         quoteTweetId,
@@ -331,7 +341,10 @@ export function TweetCard({ tweet, onLike, onRetweet, onQuote, onReply }: TweetC
 
                             {/* Quoted Tweet */}
                             {tweet.quoted_tweet && (
-                                <QuotedTweetCard tweet={tweet.quoted_tweet} />
+                                <>
+                                    {console.log('Rendering quoted tweet:', tweet.quoted_tweet)}
+                                    <QuotedTweetCard tweet={tweet.quoted_tweet} />
+                                </>
                             )}
 
                             {/* Media */}
