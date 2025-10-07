@@ -16,7 +16,7 @@ use utoipa::ToSchema;
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Deserialize, ToSchema)]
-pub struct CreateWeaponRequest {
+pub struct BuyWeaponRequest {
     #[schema(example = "sword_of_truth")]
     pub catalog_id: String,
 }
@@ -34,25 +34,25 @@ pub async fn get_weapon_catalog_endpoint() -> Json<Vec<weapon_catalog::WeaponCat
     Json(weapon_catalog::get_weapon_catalog())
 }
 
-/// Create a weapon from the catalog
+/// Buy a weapon from the catalog
 #[utoipa::path(
     post,
-    path = "/weapons/{user_id}/create",
+    path = "/weapons/{user_id}/buy",
     params(
         ("user_id" = String, Path, description = "User ID")
     ),
-    request_body = CreateWeaponRequest,
+    request_body = BuyWeaponRequest,
     responses(
-        (status = 201, description = "Weapon created successfully", body = Weapon),
+        (status = 201, description = "Weapon purchased successfully", body = Weapon),
         (status = 400, description = "Invalid catalog ID or user ID"),
         (status = 404, description = "Weapon not found in catalog")
     ),
     tag = "weapons"
 )]
-pub async fn create_weapon(
+pub async fn buy_weapon(
     State(db): State<Database>,
     Path(user_id): Path<String>,
-    Json(payload): Json<CreateWeaponRequest>,
+    Json(payload): Json<BuyWeaponRequest>,
 ) -> Result<(StatusCode, Json<Weapon>), (StatusCode, Json<serde_json::Value>)> {
     let collection: Collection<Weapon> = db.collection("weapons");
     let user_collection: Collection<crate::models::user::User> = db.collection("users");

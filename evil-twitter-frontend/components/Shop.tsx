@@ -22,10 +22,10 @@ export function Shop() {
         catalog,
         loading,
         error,
-        creating,
+        buying,
         selectedCategory,
         fetchCatalog,
-        createWeapon,
+        buyWeapon,
         setSelectedCategory,
         clearError,
         getFilteredCatalog,
@@ -38,16 +38,16 @@ export function Shop() {
         }
     }, []);
 
-    const handleCreateWeapon = async (catalogId: string) => {
+    const handleBuyWeapon = async (catalogId: string) => {
         if (!user?._id?.$oid) {
             // This will be handled by the store's error state
             return;
         }
 
-        const result = await createWeapon(user._id.$oid, catalogId);
+        const result = await buyWeapon(user._id.$oid, catalogId);
 
         if (result.success) {
-            alert('Weapon created successfully! Check your arsenal.');
+            alert('Weapon purchased successfully! Check your arsenal.');
         }
     };
 
@@ -187,7 +187,7 @@ export function Shop() {
                                 )}
                             </Box>
 
-                            {/* Price & Create Button */}
+                            {/* Price & Buy Button */}
                             <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                                 <Typography variant="h6" sx={{ fontWeight: 700, color: 'primary.main' }}>
                                     ${item.price}
@@ -195,14 +195,14 @@ export function Shop() {
                                 <Button
                                     variant="contained"
                                     size="small"
-                                    onClick={() => handleCreateWeapon(item.id)}
-                                    disabled={creating === item.id || !user}
+                                    onClick={() => handleBuyWeapon(item.id)}
+                                    disabled={buying === item.id || !user}
                                     sx={{ minWidth: 80 }}
                                 >
-                                    {creating === item.id ? (
+                                    {buying === item.id ? (
                                         <CircularProgress size={20} />
                                     ) : (
-                                        'Create'
+                                        'Buy'
                                     )}
                                 </Button>
                             </Box>

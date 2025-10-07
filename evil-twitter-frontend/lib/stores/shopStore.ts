@@ -18,12 +18,12 @@ interface ShopState {
   catalog: WeaponCatalogItem[];
   loading: boolean;
   error: string | null;
-  creating: string | null;
+  buying: string | null;
   selectedCategory: string;
 
   // Actions
   fetchCatalog: () => Promise<void>;
-  createWeapon: (
+  buyWeapon: (
     userId: string,
     catalogId: string
   ) => Promise<{ success: boolean; error?: string }>;
@@ -37,7 +37,7 @@ export const useShopStore = create<ShopState>((set, get) => ({
   catalog: [],
   loading: false,
   error: null,
-  creating: null,
+  buying: null,
   selectedCategory: "all",
 
   fetchCatalog: async () => {
@@ -59,11 +59,11 @@ export const useShopStore = create<ShopState>((set, get) => ({
     }
   },
 
-  createWeapon: async (userId: string, catalogId: string) => {
-    set({ creating: catalogId, error: null });
+  buyWeapon: async (userId: string, catalogId: string) => {
+    set({ buying: catalogId, error: null });
 
     try {
-      const response = await fetch(`${API_BASE_URL}/weapons/${userId}/create`, {
+      const response = await fetch(`${API_BASE_URL}/weapons/${userId}/buy`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -73,15 +73,15 @@ export const useShopStore = create<ShopState>((set, get) => ({
 
       if (!response.ok) {
         const errorData = await response.json();
-        throw new Error(errorData.error || "Failed to create weapon");
+        throw new Error(errorData.error || "Failed to purchase weapon");
       }
 
-      set({ creating: null });
+      set({ buying: null });
       return { success: true };
     } catch (err) {
       const errorMessage =
-        err instanceof Error ? err.message : "Failed to create weapon";
-      set({ error: errorMessage, creating: null });
+        err instanceof Error ? err.message : "Failed to purchase weapon";
+      set({ error: errorMessage, buying: null });
       return { success: false, error: errorMessage };
     }
   },
