@@ -30,6 +30,8 @@ import {
     FlashOn,
 } from '@mui/icons-material';
 import { useTweetsStore } from '../lib/stores/tweetsStore';
+import { useBackendUserStore } from '../lib/stores/backendUserStore';
+import { QuotedTweetCard, TweetContent } from './tweets';
 
 interface Tweet {
     _id: { $oid: string };
@@ -55,6 +57,8 @@ interface Tweet {
         heal_history: any[];
         attack_history: any[];
     };
+    quoted_tweet?: Tweet;
+    replied_to_tweet?: Tweet;
 }
 
 interface TweetCardProps {
@@ -84,6 +88,8 @@ export function TweetCard({ tweet, onLike, onRetweet, onQuote, onReply }: TweetC
         healTweet,
         attackTweet
     } = useTweetsStore();
+
+    const { user: currentUser } = useBackendUserStore();
 
     // Heal and Attack state
     const [showHealModal, setShowHealModal] = React.useState(false);
@@ -218,7 +224,7 @@ export function TweetCard({ tweet, onLike, onRetweet, onQuote, onReply }: TweetC
             >
                 <CardContent sx={{ p: 2, '&:last-child': { pb: 2 } }}>
                     <Box sx={{ display: 'flex', gap: 2 }}>
-                        {/* Avatar */}
+                        {/* Use shared TweetContent component with custom header additions */}
                         <Avatar
                             src={tweet.author_avatar_url || undefined}
                             sx={{ width: 48, height: 48 }}
@@ -226,9 +232,8 @@ export function TweetCard({ tweet, onLike, onRetweet, onQuote, onReply }: TweetC
                             {tweet.author_display_name?.charAt(0).toUpperCase() || '😈'}
                         </Avatar>
 
-                        {/* Tweet Content */}
                         <Box sx={{ flex: 1, minWidth: 0 }}>
-                            {/* Header */}
+                            {/* Enhanced Header with Tweet ID and Health */}
                             <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
                                 <Typography variant="subtitle2" sx={{ fontWeight: 600 }}>
                                     {tweet.author_display_name}
@@ -273,7 +278,7 @@ export function TweetCard({ tweet, onLike, onRetweet, onQuote, onReply }: TweetC
                                 >
                                     <Box
                                         sx={{
-                                            backgroundColor: '#ff69b4', // Pink color
+                                            backgroundColor: '#ff69b4',
                                             color: 'white',
                                             px: 1.5,
                                             py: 0.5,
@@ -314,13 +319,18 @@ export function TweetCard({ tweet, onLike, onRetweet, onQuote, onReply }: TweetC
                             <Typography
                                 variant="body1"
                                 sx={{
-                                    mb: tweet.media_urls?.length ? 2 : 1,
+                                    mb: tweet.quoted_tweet || tweet.media_urls?.length ? 2 : 1,
                                     whiteSpace: 'pre-wrap',
                                     wordBreak: 'break-word'
                                 }}
                             >
                                 {tweet.content}
                             </Typography>
+
+                            {/* Quoted Tweet */}
+                            {tweet.quoted_tweet && (
+                                <QuotedTweetCard tweet={tweet.quoted_tweet} />
+                            )}
 
                             {/* Media */}
                             {tweet.media_urls && tweet.media_urls.length > 0 && (
@@ -446,19 +456,58 @@ export function TweetCard({ tweet, onLike, onRetweet, onQuote, onReply }: TweetC
             >
                 <DialogTitle>Quote Tweet</DialogTitle>
                 <DialogContent>
-                    <TextField
-                        autoFocus
-                        multiline
-                        rows={4}
-                        fullWidth
-                        variant="outlined"
-                        placeholder="Add a comment..."
-                        value={quoteContent}
-                        onChange={(e) => setQuoteContent(e.target.value)}
-                        inputProps={{ maxLength: 280 }}
-                        sx={{ mt: 1 }}
-                    />
-                    <Typography variant="caption" color="text.secondary" sx={{ mt: 1, display: 'block' }}>
+                    {/* Preview of how the quote tweet will look */}
+                    <Box sx={{ display: 'flex', gap: 2, mb: 2 }}>
+                        {/* Current user's avatar */}
+                        <Avatar
+                            src={currentUser?.avatar_url || undefined}
+                            sx={{ width: 48, height: 48 }}
+                        >
+                            {currentUser?.display_name?.charAt(0).toUpperCase() || '😈'}
+                        </Avatar>
+
+                        {/* Content area */}
+                        <Box sx={{ flex: 1, minWidth: 0 }}>
+                            {/* Current user's info */}
+                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
+                                <Typography variant="subtitle2" sx={{ fontWeight: 600 }}>
+                                    {currentUser?.display_name || 'User'}
+                                </Typography>
+                                <Typography variant="body2" color="text.secondary">
+                                    @{currentUser?.username || 'user'}
+                                </Typography>
+                                <Typography variant="body2" color="text.secondary">
+                                    ·
+                                </Typography>
+                                <Typography variant="body2" color="text.secondary">
+                                    now
+                                </Typography>
+                            </Box>
+
+                            {/* Text input */}
+                            <TextField
+                                autoFocus
+                                multiline
+                                rows={4}
+                                fullWidth
+                                variant="standard"
+                                placeholder="Add a comment..."
+                                value={quoteContent}
+                                onChange={(e) => setQuoteContent(e.target.value)}
+                                inputProps={{ maxLength: 280 }}
+                                sx={{
+                                    mb: 1,
+                                    '& .MuiInput-root:before': { display: 'none' },
+                                    '& .MuiInput-root:after': { display: 'none' },
+                                }}
+                            />
+
+                            {/* Show the tweet being quoted */}
+                            <QuotedTweetCard tweet={tweet} />
+                        </Box>
+                    </Box>
+
+                    <Typography variant="caption" color="text.secondary" sx={{ display: 'block', textAlign: 'right' }}>
                         {quoteContent.length}/280
                     </Typography>
                 </DialogContent>

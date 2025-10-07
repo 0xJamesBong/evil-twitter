@@ -1,4 +1,4 @@
-use crate::models::{tool::Weapon, user::User};
+use crate::models::{tool::Weapon, user::User, weapon_catalog};
 use mongodb::{
     Collection,
     bson::{doc, oid::ObjectId},
@@ -13,37 +13,46 @@ use futures::TryStreamExt;
 use mongodb::Database;
 use utoipa::ToSchema;
 
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Deserialize, ToSchema)]
-pub struct CreateWeaponRequest {
-    #[schema(example = "Sword of Truth")]
-    pub name: String,
-    #[schema(example = "Cuts through nonsense argument")]
-    pub description: String,
-    #[schema(example = "⚔️")]
-    pub image_url: String, // Emoji icon for the weapon
-    #[schema(example = "100")]
-    pub damage: i32,
+pub struct BuyWeaponRequest {
+    #[schema(example = "sword_of_truth")]
+    pub catalog_id: String,
 }
 
+/// Get the weapon catalog
 #[utoipa::path(
-    post,
-    path = "/weapons/{user_id}",
-    params(
-        ("user_id" = String, Path, description = "User ID")
-    ),
-    request_body = CreateWeaponRequest,
+    get,
+    path = "/weapons/catalog",
     responses(
-        (status = 201, description = "Weapon created successfully", body = Weapon),
-        (status = 400, description = "Invalid input data")
+        (status = 200, description = "Weapon catalog retrieved successfully", body = Vec<weapon_catalog::WeaponCatalogItem>)
     ),
     tag = "weapons"
 )]
-pub async fn create_weapon(
+pub async fn get_weapon_catalog_endpoint() -> Json<Vec<weapon_catalog::WeaponCatalogItem>> {
+    Json(weapon_catalog::get_weapon_catalog())
+}
+
+/// Buy a weapon from the catalog
+#[utoipa::path(
+    post,
+    path = "/weapons/{user_id}/buy",
+    params(
+        ("user_id" = String, Path, description = "User ID")
+    ),
+    request_body = BuyWeaponRequest,
+    responses(
+        (status = 201, description = "Weapon purchased successfully", body = Weapon),
+        (status = 400, description = "Invalid catalog ID or user ID"),
+        (status = 404, description = "Weapon not found in catalog")
+    ),
+    tag = "weapons"
+)]
+pub async fn buy_weapon(
     State(db): State<Database>,
     Path(user_id): Path<String>,
-    Json(payload): Json<CreateWeaponRequest>,
+    Json(payload): Json<BuyWeaponRequest>,
 ) -> Result<(StatusCode, Json<Weapon>), (StatusCode, Json<serde_json::Value>)> {
     let collection: Collection<Weapon> = db.collection("weapons");
     let user_collection: Collection<crate::models::user::User> = db.collection("users");
@@ -55,17 +64,27 @@ pub async fn create_weapon(
         )
     })?;
 
+    // Get the weapon from catalog
+    let catalog_item = weapon_catalog::get_weapon_by_id(&payload.catalog_id).ok_or_else(|| {
+        (
+            StatusCode::NOT_FOUND,
+            Json(serde_json::json!({"error": "Weapon not found in catalog"})),
+        )
+    })?;
+
+    // Create weapon instance from catalog
     let weapon = Weapon {
         id: Some(ObjectId::new()),
-        owner_id: user_id,
-        name: payload.name,
-        description: payload.description,
-        image_url: payload.image_url,
-        damage: payload.damage,
-        health: 10000,
-        max_health: 10000,
+        owner_id: user_id.clone(),
+        name: catalog_item.name,
+        description: catalog_item.description,
+        image_url: catalog_item.emoji,
+        damage: catalog_item.attack_power,
+        health: catalog_item.max_health,
+        max_health: catalog_item.max_health,
         degrade_per_use: 1,
     };
+
     give_user_weapon(&user_collection, &collection, &user_oid, weapon.clone()).await
 }
 

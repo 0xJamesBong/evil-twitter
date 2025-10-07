@@ -13,7 +13,7 @@ import {
     Stack,
 } from '@mui/material';
 import { ComposeTweet } from './ComposeTweet';
-import { TweetCard } from './TweetCard';
+import { TweetCard } from './tweets';
 import { useAuthStore } from '../lib/stores/authStore';
 import { useTweetsStore } from '../lib/stores/tweetsStore';
 import { useBackendUserStore } from '../lib/stores/backendUserStore';
