@@ -22,7 +22,7 @@ use routes::tweet::{
 use routes::user::{
     attack_dollar_rate, create_user, get_dollar_rate, get_user, get_users, improve_dollar_rate,
 };
-use routes::weapons::{create_weapon, get_user_weapons};
+use routes::weapons::{create_weapon, get_user_weapons, get_weapon_catalog_endpoint};
 
 /// API documentation
 #[derive(OpenApi)]
@@ -53,7 +53,8 @@ use routes::weapons::{create_weapon, get_user_weapons};
         routes::follow::follow_user,
         routes::follow::unfollow_user,
         routes::weapons::create_weapon,
-        routes::weapons::get_user_weapons
+        routes::weapons::get_user_weapons,
+        routes::weapons::get_weapon_catalog_endpoint
     ),
     components(
         schemas(
@@ -75,6 +76,7 @@ use routes::weapons::{create_weapon, get_user_weapons};
             routes::tweet::HealTweetRequest,
             routes::tweet::AttackTweetRequest,
             routes::weapons::CreateWeaponRequest,
+            models::weapon_catalog::WeaponCatalogItem,
             routes::migration::MigrationResponse
         )
     ),
@@ -138,7 +140,8 @@ async fn main() -> anyhow::Result<()> {
         )
         .route("/follows", post(follow_user))
         .route("/follows/{following_id}", delete(unfollow_user))
-        .route("/weapons/{user_id}", post(create_weapon))
+        .route("/weapons/catalog", get(get_weapon_catalog_endpoint))
+        .route("/weapons/{user_id}/create", post(create_weapon))
         .route("/users/{user_id}/weapons", get(get_user_weapons))
         .split_for_parts();
 

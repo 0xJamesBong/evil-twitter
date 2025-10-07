@@ -2,12 +2,12 @@
 
 import { Box, Container, Tabs, Tab } from "@mui/material";
 import { useState } from "react";
-import { WeaponMinter } from "../../../components/WeaponMinter";
+import { Shop } from "../../../components/Shop";
 import { WeaponsList } from "../../../components/WeaponsList";
 import Navbar from "../../../components/Navbar";
 import { useBackendUserStore } from "../../../lib/stores/backendUserStore";
 
-export default function WeaponsPage() {
+export default function ShopPage() {
     const [activeTab, setActiveTab] = useState(0);
     const { user } = useBackendUserStore();
 
@@ -19,14 +19,14 @@ export default function WeaponsPage() {
                     <Tabs
                         value={activeTab}
                         onChange={(_, newValue) => setActiveTab(newValue)}
-                        aria-label="weapons tabs"
+                        aria-label="shop tabs"
                     >
-                        <Tab label="Mint Weapon" />
+                        <Tab label="Shop" />
                         <Tab label="My Arsenal" />
                     </Tabs>
                 </Box>
 
-                {activeTab === 0 && <WeaponMinter />}
+                {activeTab === 0 && <Shop />}
 
                 {activeTab === 1 && (
                     <Box>

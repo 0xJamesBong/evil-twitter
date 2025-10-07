@@ -88,11 +88,11 @@ export default function Navbar() {
                             </Button>
                             <Button
                                 component={Link}
-                                href="/weapons"
+                                href="/shop"
                                 color="inherit"
                                 sx={{ textTransform: 'none' }}
                             >
-                                🗡️ Weapons
+                                Shop
                             </Button>
                             <Button
                                 component={Link}
