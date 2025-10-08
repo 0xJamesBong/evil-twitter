@@ -1,17 +1,19 @@
 import React from 'react';
 import { View, StyleSheet, Text, TouchableOpacity } from 'react-native';
+import { useRouter } from 'expo-router';
 import { useAuthStore } from '@/lib/stores/authStore';
 
 export function Sidebar() {
+    const router = useRouter();
     const { user, isAuthenticated } = useAuthStore();
 
     const navigation = [
-        { name: 'Home', icon: '🏠' },
-        { name: 'Explore', icon: '🔍' },
-        { name: 'Notifications', icon: '🔔' },
-        { name: 'Messages', icon: '✉️' },
-        { name: 'Bookmarks', icon: '🔖' },
-        { name: 'Profile', icon: '👤' },
+        { name: 'Home', icon: '🏠', route: '/(tabs)' },
+        { name: 'Explore', icon: '🔍', route: null },
+        { name: 'Notifications', icon: '🔔', route: null },
+        { name: 'Messages', icon: '✉️', route: null },
+        { name: 'Bookmarks', icon: '🔖', route: null },
+        { name: 'Profile', icon: '👤', route: '/(tabs)/profile' },
     ];
 
     return (
@@ -27,6 +29,7 @@ export function Sidebar() {
                     <TouchableOpacity
                         key={item.name}
                         style={styles.navItem}
+                        onPress={() => item.route ? router.push(item.route as any) : null}
                     >
                         <Text style={styles.navIcon}>{item.icon}</Text>
                         <Text style={styles.navText}>{item.name}</Text>

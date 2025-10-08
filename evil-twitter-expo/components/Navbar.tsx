@@ -1,10 +1,12 @@
 import React from 'react';
 import { View, StyleSheet, Text, TouchableOpacity, Platform } from 'react-native';
+import { useRouter } from 'expo-router';
 import { useAuthStore } from '@/lib/stores/authStore';
 import { useBackendUserStore } from '@/lib/stores/backendUserStore';
 import { SignInButton } from './SignInButton';
 
 export function Navbar() {
+    const router = useRouter();
     const { isAuthenticated, user, logout } = useAuthStore();
     const { user: backendUser } = useBackendUserStore();
 
@@ -28,7 +30,10 @@ export function Navbar() {
 
                     {/* Navigation Items */}
                     <View style={styles.navItems}>
-                        <TouchableOpacity style={styles.navItem}>
+                        <TouchableOpacity
+                            style={styles.navItem}
+                            onPress={() => router.push('/(tabs)' as any)}
+                        >
                             <Text style={styles.navIcon}>🏠</Text>
                             <Text style={styles.navText}>Home</Text>
                         </TouchableOpacity>
@@ -48,7 +53,10 @@ export function Navbar() {
                             <Text style={styles.navIcon}>🔖</Text>
                             <Text style={styles.navText}>Bookmarks</Text>
                         </TouchableOpacity>
-                        <TouchableOpacity style={styles.navItem}>
+                        <TouchableOpacity
+                            style={styles.navItem}
+                            onPress={() => router.push('/(tabs)/shop' as any)}
+                        >
                             <Text style={styles.navIcon}>🛒</Text>
                             <Text style={styles.navText}>Shop</Text>
                         </TouchableOpacity>
@@ -58,19 +66,24 @@ export function Navbar() {
                     <View style={styles.userSection}>
                         {isAuthenticated && backendUser ? (
                             <View style={styles.userInfo}>
-                                <View style={styles.userAvatar}>
-                                    <Text style={styles.avatarText}>
-                                        {backendUser.display_name?.charAt(0).toUpperCase() || '😈'}
-                                    </Text>
-                                </View>
-                                <View style={styles.userDetails}>
-                                    <Text style={styles.userName}>
-                                        {backendUser.display_name || 'User'}
-                                    </Text>
-                                    <Text style={styles.userHandle}>
-                                        @{backendUser.username || 'user'}
-                                    </Text>
-                                </View>
+                                <TouchableOpacity
+                                    style={styles.userProfileLink}
+                                    onPress={() => router.push('/(tabs)/profile' as any)}
+                                >
+                                    <View style={styles.userAvatar}>
+                                        <Text style={styles.avatarText}>
+                                            {backendUser.display_name?.charAt(0).toUpperCase() || '😈'}
+                                        </Text>
+                                    </View>
+                                    <View style={styles.userDetails}>
+                                        <Text style={styles.userName}>
+                                            {backendUser.display_name || 'User'}
+                                        </Text>
+                                        <Text style={styles.userHandle}>
+                                            @{backendUser.username || 'user'}
+                                        </Text>
+                                    </View>
+                                </TouchableOpacity>
                                 <TouchableOpacity onPress={handleLogout} style={styles.logoutButton}>
                                     <Text style={styles.logoutText}>Logout</Text>
                                 </TouchableOpacity>
@@ -148,6 +161,12 @@ const styles = StyleSheet.create({
         flexDirection: 'row',
         alignItems: 'center',
         gap: 12,
+    },
+    userProfileLink: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 8,
+        flex: 1,
     },
     userAvatar: {
         width: 32,
