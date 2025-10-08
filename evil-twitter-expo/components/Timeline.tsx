@@ -144,24 +144,28 @@ const styles = StyleSheet.create({
     },
     header: {
         paddingHorizontal: 16,
-        paddingVertical: 8,
+        paddingVertical: 16,
         borderBottomWidth: 1,
-        borderBottomColor: '#333',
+        borderBottomColor: '#2f3336',
+        position: 'sticky',
+        top: 0,
+        backgroundColor: '#000',
+        zIndex: 10,
     },
     headerTitle: {
-        fontSize: 24,
+        fontSize: 20,
         fontWeight: 'bold',
         color: '#fff',
     },
     composeSection: {
         borderBottomWidth: 1,
-        borderBottomColor: '#333',
+        borderBottomColor: '#2f3336',
     },
     welcomeSection: {
         padding: 32,
         alignItems: 'center',
         borderBottomWidth: 1,
-        borderBottomColor: '#333',
+        borderBottomColor: '#2f3336',
     },
     welcomeTitle: {
         fontSize: 24,
@@ -187,7 +191,7 @@ const styles = StyleSheet.create({
     },
     tweetContainer: {
         borderBottomWidth: 1,
-        borderBottomColor: '#333',
+        borderBottomColor: '#2f3336',
     },
     text: {
         color: '#fff',

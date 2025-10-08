@@ -9,10 +9,10 @@ export function Sidebar() {
 
     const navigation = [
         { name: 'Home', icon: '🏠', route: '/(tabs)' },
-        { name: 'Explore', icon: '🔍', route: null },
-        { name: 'Notifications', icon: '🔔', route: null },
-        { name: 'Messages', icon: '✉️', route: null },
-        { name: 'Bookmarks', icon: '🔖', route: null },
+        { name: 'Explore', icon: '🔍', route: '/(tabs)/explore' },
+        { name: 'Notifications', icon: '🔔', route: '/(tabs)/notifications' },
+        { name: 'Messages', icon: '✉️', route: '/(tabs)/messages' },
+        { name: 'Bookmarks', icon: '🔖', route: '/(tabs)/bookmarks' },
         { name: 'Profile', icon: '👤', route: '/(tabs)/profile' },
     ];
 
@@ -20,7 +20,9 @@ export function Sidebar() {
         <View style={styles.container}>
             {/* Logo */}
             <View style={styles.logoSection}>
-                <Text style={styles.logo}>😈 Evil Twitter</Text>
+                <TouchableOpacity style={styles.logoButton}>
+                    <Text style={styles.logo}>😈</Text>
+                </TouchableOpacity>
             </View>
 
             {/* Navigation */}
@@ -44,10 +46,10 @@ export function Sidebar() {
                 </TouchableOpacity>
             </View>
 
-            {/* User Profile */}
-            {isAuthenticated && user ? (
-                <View style={styles.userSection}>
-                    <View style={styles.userProfile}>
+            {/* User Profile - Bottom */}
+            <View style={styles.userSection}>
+                {isAuthenticated && user ? (
+                    <TouchableOpacity style={styles.userProfile}>
                         <View style={styles.userAvatar}>
                             <Text style={styles.avatarText}>
                                 {user.user_metadata?.display_name?.charAt(0).toUpperCase() || '😈'}
@@ -62,17 +64,15 @@ export function Sidebar() {
                             </Text>
                         </View>
                         <Text style={styles.moreIcon}>⋯</Text>
-                    </View>
-                </View>
-            ) : (
-                <View style={styles.userSection}>
+                    </TouchableOpacity>
+                ) : (
                     <View style={styles.loginPrompt}>
                         <Text style={styles.loginText}>
                             Please log in to access all features
                         </Text>
                     </View>
-                </View>
-            )}
+                )}
+            </View>
         </View>
     );
 }
@@ -82,95 +82,119 @@ const styles = StyleSheet.create({
         flex: 1,
         flexDirection: 'column',
         height: '100%',
+        paddingHorizontal: 12,
+        paddingVertical: 8,
     },
     logoSection: {
-        padding: 16,
+        paddingVertical: 12,
+        paddingHorizontal: 4,
+        marginBottom: 8,
+    },
+    logoButton: {
+        width: 50,
+        height: 50,
+        borderRadius: 25,
+        justifyContent: 'center',
+        alignItems: 'center',
     },
     logo: {
-        fontSize: 24,
-        fontWeight: 'bold',
-        color: '#fff',
+        fontSize: 28,
     },
     navigation: {
-        paddingHorizontal: 16,
-        gap: 4,
+        flex: 1,
+        paddingVertical: 8,
     },
     navItem: {
         flexDirection: 'row',
         alignItems: 'center',
-        gap: 16,
         paddingVertical: 12,
         paddingHorizontal: 16,
-        borderRadius: 24,
+        borderRadius: 25,
+        marginVertical: 2,
+        minHeight: 50,
     },
     navIcon: {
-        fontSize: 24,
+        fontSize: 26,
+        marginRight: 20,
+        width: 26,
+        textAlign: 'center',
     },
     navText: {
         fontSize: 20,
         color: '#fff',
+        fontWeight: '400',
     },
     tweetSection: {
-        padding: 16,
+        paddingVertical: 8,
+        paddingHorizontal: 4,
     },
     tweetButton: {
-        width: '100%',
-        backgroundColor: '#1DA1F2',
-        paddingVertical: 12,
-        paddingHorizontal: 16,
-        borderRadius: 24,
+        backgroundColor: '#1d9bf0',
+        paddingVertical: 16,
+        paddingHorizontal: 32,
+        borderRadius: 25,
         alignItems: 'center',
+        minHeight: 50,
+        justifyContent: 'center',
     },
     tweetButtonText: {
         color: '#fff',
-        fontSize: 16,
+        fontSize: 17,
         fontWeight: 'bold',
     },
     userSection: {
-        padding: 16,
-        borderTopWidth: 1,
-        borderTopColor: '#333',
+        paddingVertical: 8,
+        paddingHorizontal: 4,
+        marginTop: 'auto',
     },
     userProfile: {
         flexDirection: 'row',
         alignItems: 'center',
-        gap: 12,
+        paddingVertical: 12,
+        paddingHorizontal: 12,
+        borderRadius: 25,
+        minHeight: 60,
     },
     userAvatar: {
         width: 40,
         height: 40,
         borderRadius: 20,
-        backgroundColor: '#666',
+        backgroundColor: '#536471',
         justifyContent: 'center',
         alignItems: 'center',
+        marginRight: 12,
     },
     avatarText: {
         color: '#fff',
-        fontSize: 20,
+        fontSize: 18,
+        fontWeight: 'bold',
     },
     userInfo: {
         flex: 1,
         minWidth: 0,
     },
     userName: {
-        fontSize: 14,
+        fontSize: 15,
         fontWeight: 'bold',
         color: '#fff',
+        marginBottom: 2,
     },
     userHandle: {
-        fontSize: 14,
-        color: '#888',
+        fontSize: 15,
+        color: '#71767b',
     },
     moreIcon: {
-        color: '#888',
+        color: '#71767b',
         fontSize: 20,
+        marginLeft: 8,
     },
     loginPrompt: {
         alignItems: 'center',
+        paddingVertical: 16,
     },
     loginText: {
-        color: '#888',
-        fontSize: 14,
+        color: '#71767b',
+        fontSize: 15,
         textAlign: 'center',
     },
 });

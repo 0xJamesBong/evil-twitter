@@ -1,10 +1,8 @@
-import React, { useState } from 'react';
-import { View, StyleSheet, Alert, TouchableOpacity } from 'react-native';
-import { Card, Avatar, Text, Menu, Divider } from 'react-native-paper';
-import { Tweet } from '@/lib/stores/tweetsStore';
 import { useBackendUserStore } from '@/lib/stores/backendUserStore';
-import { useTweetsStore } from '@/lib/stores/tweetsStore';
+import { Tweet, useTweetsStore } from '@/lib/stores/tweetsStore';
 import { useWeaponsStore } from '@/lib/stores/weaponsStore';
+import React, { useState } from 'react';
+import { Alert, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 
 interface TweetCardProps {
     tweet: Tweet;
@@ -75,157 +73,139 @@ export function TweetCard({ tweet }: TweetCardProps) {
     };
 
     return (
-        <Card style={styles.card}>
-            <Card.Content>
-                <View style={styles.container}>
-                    {/* Avatar */}
-                    <Avatar.Text
-                        size={48}
-                        label={tweet.author?.display_name?.charAt(0).toUpperCase() || '😈'}
-                        style={styles.avatar}
-                    />
+        <View style={styles.container}>
+            {/* Avatar */}
+            <View style={styles.avatar}>
+                <Text style={styles.avatarText}>
+                    {tweet.author?.display_name?.charAt(0).toUpperCase() || '😈'}
+                </Text>
+            </View>
 
-                    {/* Content */}
-                    <View style={styles.content}>
-                        {/* Header */}
-                        <View style={styles.header}>
-                            <Text style={styles.displayName}>{tweet.author?.display_name || 'User'}</Text>
-                            <Text style={styles.username}>@{tweet.author?.username || 'user'}</Text>
-                            <Text style={styles.time}>· {formatTime(tweet.created_at)}</Text>
-                        </View>
-
-                        {/* Tweet Content */}
-                        <Text style={styles.tweetText}>{tweet.content}</Text>
-
-                        {/* Health Bar */}
-                        <View style={styles.healthContainer}>
-                            <View style={styles.healthBar}>
-                                <View
-                                    style={[
-                                        styles.healthFill,
-                                        {
-                                            width: `${(tweet.health / tweet.max_health) * 100}%`,
-                                            backgroundColor: getHealthColor(tweet.health, tweet.max_health)
-                                        }
-                                    ]}
-                                />
-                            </View>
-                            <Text style={styles.healthText}>
-                                {tweet.health}/{tweet.max_health} HP
-                            </Text>
-                        </View>
-
-                        {/* Quoted Tweet */}
-                        {tweet.quoted_tweet && (
-                            <Card style={styles.quotedCard}>
-                                <Card.Content>
-                                    <View style={styles.quotedHeader}>
-                                        <Avatar.Text
-                                            size={32}
-                                            label={tweet.quoted_tweet.author?.display_name?.charAt(0).toUpperCase() || '😈'}
-                                            style={styles.quotedAvatar}
-                                        />
-                                        <View style={styles.quotedInfo}>
-                                            <Text style={styles.quotedName}>{tweet.quoted_tweet.author?.display_name || 'User'}</Text>
-                                            <Text style={styles.quotedUsername}>@{tweet.quoted_tweet.author?.username || 'user'}</Text>
-                                        </View>
-                                    </View>
-                                    <Text style={styles.quotedText}>{tweet.quoted_tweet.content}</Text>
-                                </Card.Content>
-                            </Card>
-                        )}
-
-                        {/* Actions */}
-                        <View style={styles.actions}>
-                            <TouchableOpacity
-                                style={styles.actionButton}
-                                onPress={handleReply}
-                            >
-                                <Text style={styles.actionIcon}>💬</Text>
-                                <Text style={styles.actionText}>{tweet.reply_count}</Text>
-                            </TouchableOpacity>
-
-                            <TouchableOpacity
-                                style={styles.actionButton}
-                                onPress={handleRetweet}
-                            >
-                                <Text style={styles.actionIcon}>🔄</Text>
-                                <Text style={styles.actionText}>{tweet.retweet_count}</Text>
-                            </TouchableOpacity>
-
-                            <TouchableOpacity
-                                style={styles.actionButton}
-                                onPress={handleQuote}
-                            >
-                                <Text style={styles.actionIcon}>💬</Text>
-                                <Text style={styles.actionText}>{tweet.quote_count}</Text>
-                            </TouchableOpacity>
-
-                            <TouchableOpacity
-                                style={styles.actionButton}
-                            >
-                                <Text style={styles.actionIcon}>❤️</Text>
-                                <Text style={styles.actionText}>{tweet.like_count}</Text>
-                            </TouchableOpacity>
-
-                            <Menu
-                                visible={showWeaponMenu}
-                                onDismiss={() => setShowWeaponMenu(false)}
-                                anchor={
-                                    <TouchableOpacity
-                                        style={styles.actionButton}
-                                        onPress={() => setShowWeaponMenu(true)}
-                                    >
-                                        <Text style={styles.actionIcon}>⚔️</Text>
-                                        <Text style={styles.actionText}>Attack</Text>
-                                    </TouchableOpacity>
-                                }
-                            >
-                                {weapons.map((weapon) => (
-                                    <Menu.Item
-                                        key={weapon._id.$oid}
-                                        onPress={() => handleAttack(weapon._id.$oid)}
-                                        title={`${weapon.image_url} ${weapon.name}`}
-                                    />
-                                ))}
-                            </Menu>
-
-                            <Menu
-                                visible={false} // We'll implement heal menu similarly
-                                onDismiss={() => { }}
-                                anchor={
-                                    <TouchableOpacity
-                                        style={styles.actionButton}
-                                    >
-                                        <Text style={styles.actionIcon}>💚</Text>
-                                        <Text style={styles.actionText}>Heal</Text>
-                                    </TouchableOpacity>
-                                }
-                            >
-                                <Menu.Item
-                                    onPress={() => { }}
-                                    title="No heal weapons available"
-                                />
-                            </Menu>
-                        </View>
-                    </View>
+            {/* Content */}
+            <View style={styles.content}>
+                {/* Header */}
+                <View style={styles.header}>
+                    <Text style={styles.displayName}>{tweet.author?.display_name || 'User'}</Text>
+                    <Text style={styles.username}>@{tweet.author?.username || 'user'}</Text>
+                    <Text style={styles.time}>· {formatTime(tweet.created_at)}</Text>
+                    <TouchableOpacity style={styles.moreButton}>
+                        <Text style={styles.moreIcon}>⋯</Text>
+                    </TouchableOpacity>
                 </View>
-            </Card.Content>
-        </Card>
+
+                {/* Tweet Content */}
+                <Text style={styles.tweetText}>{tweet.content}</Text>
+
+                {/* Health Bar */}
+                <View style={styles.healthContainer}>
+                    <View style={styles.healthBar}>
+                        <View
+                            style={[
+                                styles.healthFill,
+                                {
+                                    width: `${(tweet.health / tweet.max_health) * 100}%`,
+                                    backgroundColor: getHealthColor(tweet.health, tweet.max_health)
+                                }
+                            ]}
+                        />
+                    </View>
+                    <Text style={styles.healthText}>
+                        {tweet.health}/{tweet.max_health} HP
+                    </Text>
+                </View>
+
+                {/* Quoted Tweet */}
+                {tweet.quoted_tweet && (
+                    <View style={styles.quotedCard}>
+                        <View style={styles.quotedHeader}>
+                            <View style={styles.quotedAvatar}>
+                                <Text style={styles.quotedAvatarText}>
+                                    {tweet.quoted_tweet.author?.display_name?.charAt(0).toUpperCase() || '😈'}
+                                </Text>
+                            </View>
+                            <View style={styles.quotedInfo}>
+                                <Text style={styles.quotedName}>{tweet.quoted_tweet.author?.display_name || 'User'}</Text>
+                                <Text style={styles.quotedUsername}>@{tweet.quoted_tweet.author?.username || 'user'}</Text>
+                            </View>
+                        </View>
+                        <Text style={styles.quotedText}>{tweet.quoted_tweet.content}</Text>
+                    </View>
+                )}
+
+                {/* Actions */}
+                <View style={styles.actions}>
+                    <TouchableOpacity
+                        style={styles.actionButton}
+                        onPress={handleReply}
+                    >
+                        <Text style={styles.actionIcon}>💬</Text>
+                        <Text style={styles.actionText}>{tweet.reply_count || 0}</Text>
+                    </TouchableOpacity>
+
+                    <TouchableOpacity
+                        style={styles.actionButton}
+                        onPress={handleRetweet}
+                    >
+                        <Text style={styles.actionIcon}>🔄</Text>
+                        <Text style={styles.actionText}>{tweet.retweet_count || 0}</Text>
+                    </TouchableOpacity>
+
+                    <TouchableOpacity
+                        style={styles.actionButton}
+                        onPress={handleQuote}
+                    >
+                        <Text style={styles.actionIcon}>💬</Text>
+                        <Text style={styles.actionText}>{tweet.quote_count || 0}</Text>
+                    </TouchableOpacity>
+
+                    <TouchableOpacity
+                        style={styles.actionButton}
+                    >
+                        <Text style={styles.actionIcon}>❤️</Text>
+                        <Text style={styles.actionText}>{tweet.like_count || 0}</Text>
+                    </TouchableOpacity>
+
+                    <TouchableOpacity
+                        style={styles.actionButton}
+                        onPress={() => setShowWeaponMenu(true)}
+                    >
+                        <Text style={styles.actionIcon}>⚔️</Text>
+                        <Text style={styles.actionText}>Attack</Text>
+                    </TouchableOpacity>
+
+                    <TouchableOpacity
+                        style={styles.actionButton}
+                    >
+                        <Text style={styles.actionIcon}>💚</Text>
+                        <Text style={styles.actionText}>Heal</Text>
+                    </TouchableOpacity>
+                </View>
+            </View>
+        </View>
     );
 }
 
 const styles = StyleSheet.create({
-    card: {
-        margin: 8,
-        backgroundColor: '#1a1a1a',
-    },
     container: {
         flexDirection: 'row',
-        gap: 12,
+        paddingHorizontal: 16,
+        paddingVertical: 12,
+        borderBottomWidth: 1,
+        borderBottomColor: '#2f3336',
     },
     avatar: {
-        backgroundColor: '#1DA1F2',
+        width: 48,
+        height: 48,
+        borderRadius: 24,
+        backgroundColor: '#536471',
+        justifyContent: 'center',
+        alignItems: 'center',
+        marginRight: 12,
+    },
+    avatarText: {
+        color: '#fff',
+        fontSize: 20,
+        fontWeight: 'bold',
     },
     content: {
         flex: 1,
@@ -233,103 +213,131 @@ const styles = StyleSheet.create({
     header: {
         flexDirection: 'row',
         alignItems: 'center',
-        gap: 8,
-        marginBottom: 8,
+        marginBottom: 4,
     },
     displayName: {
         fontWeight: 'bold',
         color: '#fff',
-        fontSize: 16,
+        fontSize: 15,
+        marginRight: 4,
     },
     username: {
-        color: '#888',
-        fontSize: 14,
+        color: '#71767b',
+        fontSize: 15,
+        marginRight: 4,
     },
     time: {
-        color: '#888',
-        fontSize: 14,
+        color: '#71767b',
+        fontSize: 15,
+    },
+    moreButton: {
+        marginLeft: 'auto',
+        padding: 8,
+        borderRadius: 20,
+    },
+    moreIcon: {
+        color: '#71767b',
+        fontSize: 18,
     },
     tweetText: {
         color: '#fff',
-        fontSize: 16,
-        lineHeight: 22,
+        fontSize: 15,
+        lineHeight: 20,
         marginBottom: 12,
     },
     healthContainer: {
         flexDirection: 'row',
         alignItems: 'center',
-        gap: 8,
         marginBottom: 12,
+        paddingVertical: 8,
+        paddingHorizontal: 12,
+        backgroundColor: '#16181c',
+        borderRadius: 8,
     },
     healthBar: {
         flex: 1,
-        height: 8,
-        backgroundColor: '#333',
-        borderRadius: 4,
+        height: 6,
+        backgroundColor: '#2f3336',
+        borderRadius: 3,
         overflow: 'hidden',
+        marginRight: 8,
     },
     healthFill: {
         height: '100%',
-        borderRadius: 4,
+        borderRadius: 3,
     },
     healthText: {
-        color: '#888',
+        color: '#71767b',
         fontSize: 12,
-        minWidth: 60,
+        fontWeight: 'bold',
     },
     quotedCard: {
-        backgroundColor: '#2a2a2a',
+        backgroundColor: '#16181c',
+        borderRadius: 12,
+        borderWidth: 1,
+        borderColor: '#2f3336',
         marginTop: 8,
+        padding: 12,
     },
     quotedHeader: {
         flexDirection: 'row',
         alignItems: 'center',
-        gap: 8,
         marginBottom: 8,
     },
     quotedAvatar: {
-        backgroundColor: '#1DA1F2',
+        width: 32,
+        height: 32,
+        borderRadius: 16,
+        backgroundColor: '#536471',
+        justifyContent: 'center',
+        alignItems: 'center',
+        marginRight: 8,
+    },
+    quotedAvatarText: {
+        color: '#fff',
+        fontSize: 14,
+        fontWeight: 'bold',
     },
     quotedInfo: {
         flexDirection: 'row',
         alignItems: 'center',
-        gap: 8,
     },
     quotedName: {
         fontWeight: 'bold',
         color: '#fff',
-        fontSize: 14,
+        fontSize: 13,
+        marginRight: 4,
     },
     quotedUsername: {
-        color: '#888',
-        fontSize: 12,
+        color: '#71767b',
+        fontSize: 13,
     },
     quotedText: {
         color: '#fff',
-        fontSize: 14,
+        fontSize: 15,
         lineHeight: 20,
     },
     actions: {
         flexDirection: 'row',
-        justifyContent: 'space-around',
+        justifyContent: 'space-between',
         marginTop: 12,
-        paddingTop: 12,
-        borderTopWidth: 1,
-        borderTopColor: '#333',
+        paddingTop: 4,
+        maxWidth: 425,
     },
     actionButton: {
         flexDirection: 'row',
         alignItems: 'center',
         paddingVertical: 8,
-        paddingHorizontal: 12,
-        borderRadius: 16,
+        paddingHorizontal: 8,
+        borderRadius: 20,
+        minWidth: 40,
     },
     actionIcon: {
         fontSize: 18,
         marginRight: 4,
     },
     actionText: {
-        color: '#888',
-        fontSize: 14,
+        color: '#71767b',
+        fontSize: 13,
     },
 });

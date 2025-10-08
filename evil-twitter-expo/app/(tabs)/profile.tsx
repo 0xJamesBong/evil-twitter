@@ -1,9 +1,8 @@
-import React, { useEffect } from 'react';
-import { StyleSheet, View, FlatList, TouchableOpacity, Alert } from 'react-native';
-import { Card, Text, Avatar, Button, Divider, ActivityIndicator } from 'react-native-paper';
 import { useAuthStore } from '@/lib/stores/authStore';
 import { useBackendUserStore } from '@/lib/stores/backendUserStore';
 import { useWeaponsStore } from '@/lib/stores/weaponsStore';
+import React, { useEffect } from 'react';
+import { Alert, FlatList, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 
 export default function ProfileScreen() {
     const { user: authUser, logout, isAuthenticated } = useAuthStore();
@@ -87,7 +86,7 @@ export default function ProfileScreen() {
 
     if (!isAuthenticated) {
         return (
-            <View style={styles.content}>
+            <View style={styles.container}>
                 <View style={styles.loadingContainer}>
                     <Text style={styles.welcomeText}>Welcome to Evil Twitter</Text>
                     <Text style={styles.signInPrompt}>Please sign in to view your profile</Text>
@@ -98,9 +97,8 @@ export default function ProfileScreen() {
 
     if (backendLoading) {
         return (
-            <View style={styles.content}>
+            <View style={styles.container}>
                 <View style={styles.loadingContainer}>
-                    <ActivityIndicator size="large" color="#1DA1F2" />
                     <Text style={styles.loadingText}>Loading profile...</Text>
                 </View>
             </View>
@@ -108,125 +106,81 @@ export default function ProfileScreen() {
     }
 
     return (
-        <View style={styles.content}>
-            {/* Profile Header */}
-            <Card style={styles.profileCard}>
-                <Card.Content style={styles.profileContent}>
-                    <Avatar.Text
-                        size={80}
-                        label={backendUser?.display_name?.charAt(0).toUpperCase() || authUser?.email?.charAt(0).toUpperCase() || '😈'}
-                        style={styles.profileAvatar}
-                    />
+        <View style={styles.container}>
+            {/* Header */}
+            <View style={styles.header}>
+                <Text style={styles.headerTitle}>Profile</Text>
+            </View>
+
+            <ScrollView style={styles.scrollView}>
+                {/* Profile Header */}
+                <View style={styles.profileHeader}>
+                    <View style={styles.coverPhoto} />
                     <View style={styles.profileInfo}>
-                        <Text style={styles.displayName}>
-                            {backendUser?.display_name || authUser?.user_metadata?.display_name || authUser?.email?.split('@')[0] || 'User'}
-                        </Text>
-                        <Text style={styles.username}>
-                            @{backendUser?.username || authUser?.user_metadata?.username || authUser?.email?.split('@')[0] || 'user'}
-                        </Text>
-                        {backendUser?.bio && (
-                            <Text style={styles.bio}>{backendUser.bio}</Text>
-                        )}
-                        {authUser?.email && (
-                            <Text style={styles.email}>{authUser.email}</Text>
-                        )}
-                    </View>
-                </Card.Content>
-            </Card>
-
-            {/* Account Information */}
-            <Card style={styles.infoCard}>
-                <Card.Content>
-                    <Text style={styles.sectionTitle}>📋 Account Information</Text>
-                    <Divider style={styles.divider} />
-
-                    <View style={styles.infoRow}>
-                        <Text style={styles.infoLabel}>Email:</Text>
-                        <Text style={styles.infoValue}>{authUser?.email || 'N/A'}</Text>
-                    </View>
-
-                    <View style={styles.infoRow}>
-                        <Text style={styles.infoLabel}>Supabase User ID:</Text>
-                        <Text style={styles.infoValue}>{authUser?.id || 'N/A'}</Text>
-                    </View>
-
-                    <View style={styles.infoRow}>
-                        <Text style={styles.infoLabel}>Backend User ID:</Text>
-                        <Text style={styles.infoValue}>{backendUser?._id?.$oid || 'Not loaded'}</Text>
-                    </View>
-
-                    <View style={styles.infoRow}>
-                        <Text style={styles.infoLabel}>Created:</Text>
-                        <Text style={styles.infoValue}>
-                            {authUser?.created_at ? formatDate(authUser.created_at) : 'N/A'}
-                        </Text>
-                    </View>
-
-                    <View style={styles.infoRow}>
-                        <Text style={styles.infoLabel}>Last Sign In:</Text>
-                        <Text style={styles.infoValue}>
-                            {authUser?.last_sign_in_at ? formatDate(authUser.last_sign_in_at) : 'N/A'}
-                        </Text>
-                    </View>
-                </Card.Content>
-            </Card>
-
-            {/* Profile Stats */}
-            {backendUser && (
-                <Card style={styles.statsCard}>
-                    <Card.Content>
-                        <Text style={styles.sectionTitle}>📊 Profile Stats</Text>
-                        <Divider style={styles.divider} />
-
-                        <View style={styles.statsGrid}>
-                            <View style={styles.statCard}>
-                                <Text style={styles.statNumber}>{backendUser.tweets_count || 0}</Text>
-                                <Text style={styles.statLabel}>Tweets</Text>
-                            </View>
-                            <View style={styles.statCard}>
-                                <Text style={styles.statNumber}>{backendUser.followers_count || 0}</Text>
-                                <Text style={styles.statLabel}>Followers</Text>
-                            </View>
-                            <View style={styles.statCard}>
-                                <Text style={styles.statNumber}>{backendUser.following_count || 0}</Text>
-                                <Text style={styles.statLabel}>Following</Text>
-                            </View>
-                            <View style={[styles.statCard, styles.dollarCard]}>
-                                <Text style={styles.statNumber}>
-                                    ${backendUser.dollar_conversion_rate?.toLocaleString() || '0'}
+                        <View style={styles.avatarContainer}>
+                            <View style={styles.profileAvatar}>
+                                <Text style={styles.avatarText}>
+                                    {backendUser?.display_name?.charAt(0).toUpperCase() || authUser?.email?.charAt(0).toUpperCase() || '😈'}
                                 </Text>
-                                <Text style={styles.statLabel}>Dollar Rate</Text>
                             </View>
                         </View>
-                    </Card.Content>
-                </Card>
-            )}
 
-            {/* User Metadata */}
-            {authUser?.user_metadata && Object.keys(authUser.user_metadata).length > 0 && (
-                <Card style={styles.metadataCard}>
-                    <Card.Content>
-                        <Text style={styles.sectionTitle}>👤 Profile Info</Text>
-                        <Divider style={styles.divider} />
+                        <View style={styles.profileDetails}>
+                            <Text style={styles.displayName}>
+                                {backendUser?.display_name || authUser?.user_metadata?.display_name || authUser?.email?.split('@')[0] || 'User'}
+                            </Text>
+                            <Text style={styles.username}>
+                                @{backendUser?.username || authUser?.user_metadata?.username || authUser?.email?.split('@')[0] || 'user'}
+                            </Text>
 
-                        {Object.entries(authUser.user_metadata).map(([key, value]) => (
-                            <View key={key} style={styles.infoRow}>
-                                <Text style={styles.infoLabel}>
-                                    {key.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())}:
+                            {backendUser?.bio && (
+                                <Text style={styles.bio}>{backendUser.bio}</Text>
+                            )}
+
+                            <View style={styles.profileMeta}>
+                                <Text style={styles.metaText}>
+                                    📅 Joined {authUser?.created_at ? formatDate(authUser.created_at) : 'Unknown'}
                                 </Text>
-                                <Text style={styles.infoValue}>{String(value)}</Text>
                             </View>
-                        ))}
-                    </Card.Content>
-                </Card>
-            )}
+                        </View>
+                    </View>
+                </View>
 
-            {/* Weapons Section */}
-            <Card style={styles.weaponsCard}>
-                <Card.Content>
+                {/* Profile Stats */}
+                <View style={styles.statsContainer}>
+                    <View style={styles.statItem}>
+                        <Text style={styles.statNumber}>{backendUser?.tweets_count || 0}</Text>
+                        <Text style={styles.statLabel}>Tweets</Text>
+                    </View>
+                    <View style={styles.statItem}>
+                        <Text style={styles.statNumber}>{backendUser?.followers_count || 0}</Text>
+                        <Text style={styles.statLabel}>Followers</Text>
+                    </View>
+                    <View style={styles.statItem}>
+                        <Text style={styles.statNumber}>{backendUser?.following_count || 0}</Text>
+                        <Text style={styles.statLabel}>Following</Text>
+                    </View>
+                </View>
+
+                {/* Tabs */}
+                <View style={styles.tabsContainer}>
+                    <TouchableOpacity style={[styles.tab, styles.activeTab]}>
+                        <Text style={[styles.tabText, styles.activeTabText]}>Tweets</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity style={styles.tab}>
+                        <Text style={styles.tabText}>Tweets & replies</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity style={styles.tab}>
+                        <Text style={styles.tabText}>Media</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity style={styles.tab}>
+                        <Text style={styles.tabText}>Likes</Text>
+                    </TouchableOpacity>
+                </View>
+
+                {/* Weapons Section */}
+                <View style={styles.weaponsSection}>
                     <Text style={styles.sectionTitle}>⚔️ My Arsenal ({weapons.length})</Text>
-                    <Divider style={styles.divider} />
-
                     {weapons.length > 0 ? (
                         <FlatList
                             data={weapons}
@@ -241,184 +195,165 @@ export default function ProfileScreen() {
                             <Text style={styles.emptySubtext}>Visit the shop to buy some weapons!</Text>
                         </View>
                     )}
-                </Card.Content>
-            </Card>
+                </View>
 
-            {/* Action Buttons */}
-            <View style={styles.actionButtons}>
-                <Button
-                    mode="outlined"
-                    onPress={handleSyncWithSupabase}
-                    style={styles.syncButton}
-                    textColor="#1DA1F2"
-                    icon="🔄"
-                >
-                    Sync with Supabase
-                </Button>
+                {/* Action Buttons */}
+                <View style={styles.actionButtons}>
+                    <TouchableOpacity style={styles.syncButton} onPress={handleSyncWithSupabase}>
+                        <Text style={styles.syncButtonText}>🔄 Sync with Supabase</Text>
+                    </TouchableOpacity>
 
-                <Button
-                    mode="outlined"
-                    onPress={handleSignOut}
-                    style={styles.signOutButton}
-                    textColor="#ff4444"
-                    icon="🚪"
-                >
-                    Sign Out
-                </Button>
-            </View>
+                    <TouchableOpacity style={styles.signOutButton} onPress={handleSignOut}>
+                        <Text style={styles.signOutButtonText}>🚪 Sign Out</Text>
+                    </TouchableOpacity>
+                </View>
+            </ScrollView>
         </View>
     );
 }
 
 const styles = StyleSheet.create({
-    content: {
-        padding: 16,
-        maxWidth: 600,
-        width: '100%',
-        alignSelf: 'center',
-    },
-    // Mobile layout styles (kept for compatibility)
     container: {
         flex: 1,
         backgroundColor: '#000',
     },
-    loadingContainer: {
-        flex: 1,
-        justifyContent: 'center',
-        alignItems: 'center',
-        padding: 32,
+    header: {
+        paddingHorizontal: 16,
+        paddingVertical: 16,
+        borderBottomWidth: 1,
+        borderBottomColor: '#2f3336',
+        position: 'sticky',
+        top: 0,
+        backgroundColor: '#000',
+        zIndex: 10,
     },
-    loadingText: {
-        color: '#fff',
-        fontSize: 16,
-        marginTop: 16,
-    },
-    welcomeText: {
-        color: '#fff',
-        fontSize: 24,
+    headerTitle: {
+        fontSize: 20,
         fontWeight: 'bold',
-        marginBottom: 16,
-        textAlign: 'center',
+        color: '#fff',
     },
-    signInPrompt: {
-        color: '#888',
-        fontSize: 16,
-        textAlign: 'center',
+    scrollView: {
+        flex: 1,
     },
-    profileCard: {
-        backgroundColor: '#1a1a1a',
-        marginBottom: 16,
+    profileHeader: {
+        position: 'relative',
     },
-    profileContent: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: 16,
-    },
-    profileAvatar: {
-        backgroundColor: '#1DA1F2',
+    coverPhoto: {
+        height: 200,
+        backgroundColor: '#1d9bf0',
     },
     profileInfo: {
-        flex: 1,
+        paddingHorizontal: 16,
+        paddingBottom: 16,
+    },
+    avatarContainer: {
+        marginTop: -40,
+        marginBottom: 16,
+    },
+    profileAvatar: {
+        width: 80,
+        height: 80,
+        borderRadius: 40,
+        backgroundColor: '#536471',
+        justifyContent: 'center',
+        alignItems: 'center',
+        borderWidth: 4,
+        borderColor: '#000',
+    },
+    avatarText: {
+        color: '#fff',
+        fontSize: 32,
+        fontWeight: 'bold',
+    },
+    profileDetails: {
+        marginTop: 8,
     },
     displayName: {
-        fontSize: 24,
+        fontSize: 20,
         fontWeight: 'bold',
         color: '#fff',
         marginBottom: 4,
     },
     username: {
-        fontSize: 16,
-        color: '#888',
-        marginBottom: 4,
+        fontSize: 15,
+        color: '#71767b',
+        marginBottom: 12,
     },
     bio: {
-        fontSize: 16,
-        color: '#ccc',
-        lineHeight: 22,
-        marginBottom: 4,
+        fontSize: 15,
+        color: '#e7e9ea',
+        lineHeight: 20,
+        marginBottom: 12,
     },
-    email: {
-        fontSize: 14,
-        color: '#666',
-    },
-    infoCard: {
-        backgroundColor: '#1a1a1a',
+    profileMeta: {
         marginBottom: 16,
     },
-    sectionTitle: {
-        fontSize: 20,
-        fontWeight: 'bold',
-        color: '#fff',
-        marginBottom: 8,
+    metaText: {
+        fontSize: 15,
+        color: '#71767b',
     },
-    divider: {
-        backgroundColor: '#333',
-        marginBottom: 16,
-    },
-    infoRow: {
+    statsContainer: {
         flexDirection: 'row',
-        justifyContent: 'space-between',
-        alignItems: 'center',
-        paddingVertical: 8,
+        paddingHorizontal: 16,
+        paddingVertical: 16,
         borderBottomWidth: 1,
-        borderBottomColor: '#333',
+        borderBottomColor: '#2f3336',
     },
-    infoLabel: {
-        fontSize: 14,
-        color: '#888',
+    statItem: {
         flex: 1,
-    },
-    infoValue: {
-        fontSize: 14,
-        color: '#fff',
-        flex: 2,
-        textAlign: 'right',
-        fontFamily: 'monospace',
-    },
-    statsCard: {
-        backgroundColor: '#1a1a1a',
-        marginBottom: 16,
-    },
-    statsGrid: {
-        flexDirection: 'row',
-        flexWrap: 'wrap',
-        gap: 12,
-    },
-    statCard: {
-        backgroundColor: '#2a2a2a',
-        borderRadius: 12,
-        padding: 16,
         alignItems: 'center',
-        flex: 1,
-        minWidth: '45%',
-    },
-    dollarCard: {
-        backgroundColor: '#8B5CF6',
     },
     statNumber: {
-        fontSize: 24,
+        fontSize: 20,
         fontWeight: 'bold',
         color: '#fff',
         marginBottom: 4,
     },
     statLabel: {
-        fontSize: 12,
-        color: '#888',
-        textAlign: 'center',
+        fontSize: 13,
+        color: '#71767b',
     },
-    metadataCard: {
-        backgroundColor: '#1a1a1a',
-        marginBottom: 16,
+    tabsContainer: {
+        flexDirection: 'row',
+        borderBottomWidth: 1,
+        borderBottomColor: '#2f3336',
     },
-    weaponsCard: {
-        backgroundColor: '#1a1a1a',
+    tab: {
+        flex: 1,
+        paddingVertical: 16,
+        alignItems: 'center',
+    },
+    activeTab: {
+        borderBottomWidth: 2,
+        borderBottomColor: '#1d9bf0',
+    },
+    tabText: {
+        fontSize: 15,
+        color: '#71767b',
+        fontWeight: 'bold',
+    },
+    activeTabText: {
+        color: '#1d9bf0',
+    },
+    weaponsSection: {
+        paddingHorizontal: 16,
+        paddingVertical: 16,
+    },
+    sectionTitle: {
+        fontSize: 20,
+        fontWeight: 'bold',
+        color: '#fff',
         marginBottom: 16,
     },
     weaponsList: {
         gap: 12,
     },
     weaponCard: {
-        backgroundColor: '#2a2a2a',
+        backgroundColor: '#16181c',
+        borderRadius: 12,
+        padding: 16,
+        borderWidth: 1,
+        borderColor: '#2f3336',
     },
     weaponContent: {
         flexDirection: 'row',
@@ -439,7 +374,7 @@ const styles = StyleSheet.create({
     },
     weaponDescription: {
         fontSize: 14,
-        color: '#888',
+        color: '#71767b',
         marginBottom: 8,
     },
     weaponStats: {
@@ -448,7 +383,7 @@ const styles = StyleSheet.create({
     },
     statText: {
         fontSize: 12,
-        color: '#ccc',
+        color: '#e7e9ea',
     },
     emptyWeapons: {
         alignItems: 'center',
@@ -456,21 +391,63 @@ const styles = StyleSheet.create({
     },
     emptyText: {
         fontSize: 18,
-        color: '#888',
+        color: '#71767b',
         marginBottom: 8,
     },
     emptySubtext: {
         fontSize: 14,
-        color: '#666',
+        color: '#71767b',
     },
     actionButtons: {
+        paddingHorizontal: 16,
+        paddingVertical: 16,
         gap: 12,
-        marginTop: 16,
     },
     syncButton: {
-        borderColor: '#1DA1F2',
+        backgroundColor: '#1d9bf0',
+        paddingVertical: 12,
+        paddingHorizontal: 16,
+        borderRadius: 20,
+        alignItems: 'center',
+    },
+    syncButtonText: {
+        color: '#fff',
+        fontSize: 15,
+        fontWeight: 'bold',
     },
     signOutButton: {
-        borderColor: '#ff4444',
+        backgroundColor: '#f4212e',
+        paddingVertical: 12,
+        paddingHorizontal: 16,
+        borderRadius: 20,
+        alignItems: 'center',
+    },
+    signOutButtonText: {
+        color: '#fff',
+        fontSize: 15,
+        fontWeight: 'bold',
+    },
+    loadingContainer: {
+        flex: 1,
+        justifyContent: 'center',
+        alignItems: 'center',
+        padding: 32,
+    },
+    loadingText: {
+        color: '#fff',
+        fontSize: 16,
+        marginTop: 16,
+    },
+    welcomeText: {
+        color: '#fff',
+        fontSize: 24,
+        fontWeight: 'bold',
+        marginBottom: 16,
+        textAlign: 'center',
+    },
+    signInPrompt: {
+        color: '#71767b',
+        fontSize: 16,
+        textAlign: 'center',
     },
 });

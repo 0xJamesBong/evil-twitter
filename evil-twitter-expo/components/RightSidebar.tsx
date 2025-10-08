@@ -1,7 +1,7 @@
-import React, { useState, useEffect } from 'react';
-import { View, StyleSheet, Text, TextInput, TouchableOpacity, ScrollView } from 'react-native';
-import { WeaponsPanel } from './WeaponsPanel';
 import { useBackendUserStore } from '@/lib/stores/backendUserStore';
+import React, { useEffect, useState } from 'react';
+import { ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { WeaponsPanel } from './WeaponsPanel';
 
 interface TrendingTopic {
     id: string;
@@ -181,30 +181,32 @@ const styles = StyleSheet.create({
         left: 12,
         top: 12,
         fontSize: 16,
-        color: '#666',
+        color: '#71767b',
         zIndex: 1,
     },
     searchInput: {
-        backgroundColor: '#333',
+        backgroundColor: '#16181c',
         color: '#fff',
         borderRadius: 24,
         paddingVertical: 12,
         paddingLeft: 40,
         paddingRight: 16,
-        fontSize: 16,
+        fontSize: 15,
+        borderWidth: 1,
+        borderColor: 'transparent',
     },
     weaponsSection: {
         marginTop: 16,
     },
     section: {
-        backgroundColor: '#1a1a1a',
+        backgroundColor: '#16181c',
         borderRadius: 16,
         overflow: 'hidden',
     },
     sectionHeader: {
         padding: 16,
         borderBottomWidth: 1,
-        borderBottomColor: '#333',
+        borderBottomColor: '#2f3336',
     },
     sectionTitle: {
         fontSize: 20,
@@ -224,22 +226,22 @@ const styles = StyleSheet.create({
         flex: 1,
     },
     trendingCategory: {
-        fontSize: 14,
-        color: '#666',
+        fontSize: 13,
+        color: '#71767b',
         marginBottom: 4,
     },
     trendingTopic: {
-        fontSize: 16,
+        fontSize: 15,
         fontWeight: 'bold',
         color: '#fff',
         marginBottom: 4,
     },
     trendingCount: {
-        fontSize: 14,
-        color: '#666',
+        fontSize: 13,
+        color: '#71767b',
     },
     moreIcon: {
-        color: '#666',
+        color: '#71767b',
         fontSize: 18,
     },
     suggestedUser: {
@@ -252,7 +254,7 @@ const styles = StyleSheet.create({
         width: 40,
         height: 40,
         borderRadius: 20,
-        backgroundColor: '#666',
+        backgroundColor: '#536471',
         justifyContent: 'center',
         alignItems: 'center',
     },
@@ -280,14 +282,14 @@ const styles = StyleSheet.create({
         fontSize: 16,
     },
     userHandle: {
-        fontSize: 14,
-        color: '#666',
+        fontSize: 15,
+        color: '#71767b',
         marginBottom: 4,
     },
     userBio: {
-        fontSize: 14,
-        color: '#ccc',
-        lineHeight: 18,
+        fontSize: 15,
+        color: '#e7e9ea',
+        lineHeight: 20,
     },
     followButton: {
         backgroundColor: '#fff',
@@ -304,8 +306,8 @@ const styles = StyleSheet.create({
         padding: 16,
     },
     showMoreText: {
-        color: '#1DA1F2',
-        fontSize: 14,
+        color: '#1d9bf0',
+        fontSize: 15,
     },
     footer: {
         paddingTop: 16,
@@ -317,11 +319,11 @@ const styles = StyleSheet.create({
         gap: 8,
     },
     footerLink: {
-        color: '#666',
-        fontSize: 12,
+        color: '#71767b',
+        fontSize: 13,
     },
     copyright: {
-        color: '#666',
-        fontSize: 12,
+        color: '#71767b',
+        fontSize: 13,
     },
 });

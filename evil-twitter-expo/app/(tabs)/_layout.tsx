@@ -17,6 +17,34 @@ export default function TabsLayout() {
         }}
       />
       <Tabs.Screen
+        name="explore"
+        options={{
+          title: "Explore",
+          tabBarIcon: ({ color }) => <Text style={{ fontSize: 22, color }}>🔍</Text>,
+        }}
+      />
+      <Tabs.Screen
+        name="notifications"
+        options={{
+          title: "Notifications",
+          tabBarIcon: ({ color }) => <Text style={{ fontSize: 22, color }}>🔔</Text>,
+        }}
+      />
+      <Tabs.Screen
+        name="messages"
+        options={{
+          title: "Messages",
+          tabBarIcon: ({ color }) => <Text style={{ fontSize: 22, color }}>✉️</Text>,
+        }}
+      />
+      <Tabs.Screen
+        name="bookmarks"
+        options={{
+          title: "Bookmarks",
+          tabBarIcon: ({ color }) => <Text style={{ fontSize: 22, color }}>🔖</Text>,
+        }}
+      />
+      <Tabs.Screen
         name="shop"
         options={{
           title: "Shop",
