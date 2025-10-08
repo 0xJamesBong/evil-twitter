@@ -73,13 +73,13 @@ export function Timeline() {
                         </Text>
                     </View>
                 ) : (
-                    <ScrollView showsVerticalScrollIndicator={false}>
+                    <>
                         {tweets.map((tweet) => (
                             <View key={tweet._id.$oid} style={styles.tweetContainer}>
                                 <TweetCard tweet={tweet} />
                             </View>
                         ))}
-                    </ScrollView>
+                    </>
                 )}
             </View>
         </View>

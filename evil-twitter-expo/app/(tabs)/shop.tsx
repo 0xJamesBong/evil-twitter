@@ -1,11 +1,8 @@
 import React, { useEffect } from 'react';
-import { ScrollView, StyleSheet, View, FlatList } from 'react-native';
+import { StyleSheet, View, FlatList, ScrollView } from 'react-native';
 import { Card, Text, Button, Chip, ActivityIndicator } from 'react-native-paper';
 import { useBackendUserStore } from '@/lib/stores/backendUserStore';
 import { useShopStore } from '@/lib/stores/shopStore';
-import { Navbar } from '@/components/Navbar';
-import { Sidebar } from '@/components/Sidebar';
-import { RightSidebar } from '@/components/RightSidebar';
 
 export default function ShopScreen() {
     const { user } = useBackendUserStore();
@@ -102,126 +99,70 @@ export default function ShopScreen() {
 
     if (loading) {
         return (
-            <View style={styles.webContainer}>
-                <Navbar />
-                <View style={styles.webMainContent}>
-                    <View style={styles.webLeftSidebar}>
-                        <Sidebar />
-                    </View>
-                    <View style={styles.webCenterContent}>
-                        <View style={styles.webLoadingContainer}>
-                            <ActivityIndicator size="large" />
-                            <Text style={styles.loadingText}>Loading weapons...</Text>
-                        </View>
-                    </View>
-                    <View style={styles.webRightSidebar}>
-                        <RightSidebar />
-                    </View>
+            <View style={styles.content}>
+                <View style={styles.loadingContainer}>
+                    <ActivityIndicator size="large" />
+                    <Text style={styles.loadingText}>Loading weapons...</Text>
                 </View>
             </View>
         );
     }
 
     return (
-        <View style={styles.webContainer}>
-            <Navbar />
-            <View style={styles.webMainContent}>
-                <View style={styles.webLeftSidebar}>
-                    <Sidebar />
-                </View>
-                <View style={styles.webCenterContent}>
-                    <ScrollView style={styles.webContent}>
-                        <Text style={styles.description}>
-                            Select from our arsenal of powerful weapons, defensive gear, healing items, and utility gadgets.
-                            Each item has unique stats and abilities to enhance your Twitter battles.
-                        </Text>
+        <View style={styles.content}>
+            <Text style={styles.description}>
+                Select from our arsenal of powerful weapons, defensive gear, healing items, and utility gadgets.
+                Each item has unique stats and abilities to enhance your Twitter battles.
+            </Text>
 
-                        {error && (
-                            <Card style={styles.errorCard}>
-                                <Card.Content>
-                                    <Text style={styles.errorText}>{error}</Text>
-                                    <Button onPress={clearError}>Dismiss</Button>
-                                </Card.Content>
-                            </Card>
-                        )}
+            {error && (
+                <Card style={styles.errorCard}>
+                    <Card.Content>
+                        <Text style={styles.errorText}>{error}</Text>
+                        <Button onPress={clearError}>Dismiss</Button>
+                    </Card.Content>
+                </Card>
+            )}
 
-                        {/* Category Tabs */}
-                        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.categoryScroll}>
-                            {categories.map((cat) => (
-                                <Chip
-                                    key={cat}
-                                    selected={selectedCategory === cat}
-                                    onPress={() => setSelectedCategory(cat)}
-                                    style={styles.categoryChip}
-                                >
-                                    {cat.charAt(0).toUpperCase() + cat.slice(1)}
-                                </Chip>
-                            ))}
-                        </ScrollView>
+            {/* Category Tabs */}
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.categoryScroll}>
+                {categories.map((cat) => (
+                    <Chip
+                        key={cat}
+                        selected={selectedCategory === cat}
+                        onPress={() => setSelectedCategory(cat)}
+                        style={styles.categoryChip}
+                    >
+                        {cat.charAt(0).toUpperCase() + cat.slice(1)}
+                    </Chip>
+                ))}
+            </ScrollView>
 
-                        {/* Weapons Grid */}
-                        <FlatList
-                            data={filteredCatalog}
-                            renderItem={renderWeapon}
-                            keyExtractor={(item) => item.id}
-                            numColumns={2}
-                            scrollEnabled={false}
-                            contentContainerStyle={styles.weaponsGrid}
-                        />
-                    </ScrollView>
-                </View>
-                <View style={styles.webRightSidebar}>
-                    <RightSidebar />
-                </View>
-            </View>
+            {/* Weapons Grid */}
+            <FlatList
+                data={filteredCatalog}
+                renderItem={renderWeapon}
+                keyExtractor={(item) => item.id}
+                numColumns={2}
+                scrollEnabled={false}
+                contentContainerStyle={styles.weaponsGrid}
+            />
         </View>
     );
 }
 
 const styles = StyleSheet.create({
-    // Web layout styles
-    webContainer: {
-        flex: 1,
-        backgroundColor: '#000',
-    },
-    webMainContent: {
-        flex: 1,
-        flexDirection: 'row',
-        paddingTop: 64,
-    },
-    webLeftSidebar: {
-        width: 256,
-        borderRightWidth: 1,
-        borderRightColor: '#333',
-    },
-    webCenterContent: {
-        flex: 1,
-        marginRight: 320,
-    },
-    webRightSidebar: {
-        width: 320,
-        borderLeftWidth: 1,
-        borderLeftColor: '#333',
-        padding: 16,
-    },
-    webContent: {
+    content: {
         flex: 1,
         padding: 16,
-    },
-    webLoadingContainer: {
-        flex: 1,
-        justifyContent: 'center',
-        alignItems: 'center',
-        padding: 32,
+        maxWidth: 600,
+        width: '100%',
+        alignSelf: 'center',
     },
     // Mobile layout styles (kept for compatibility)
     container: {
         flex: 1,
         backgroundColor: '#000',
-    },
-    content: {
-        flex: 1,
-        padding: 16,
     },
     loadingContainer: {
         flex: 1,

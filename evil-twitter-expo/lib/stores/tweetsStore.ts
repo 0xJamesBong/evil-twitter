@@ -77,6 +77,7 @@ export const useTweetsStore = create<TweetsState>((set, get) => ({
 
     try {
       const response = await api.getTweets();
+      console.log("fetched tweets: ", response.tweets);
       set({ tweets: response.tweets || [], loading: false });
     } catch (error) {
       const errorMessage =
