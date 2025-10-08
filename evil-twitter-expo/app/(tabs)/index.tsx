@@ -9,7 +9,7 @@ import { useComposeStore } from '@/lib/stores/composeStore';
 import { ComposeTweet } from '@/components/ComposeTweet';
 import { Timeline } from '@/components/Timeline';
 
-export default function HomeScreen() {
+export default function Home() {
   const { user, initialized } = useAuthStore();
   const { user: backendUser, fetchUser, createUser } = useBackendUserStore();
   const { tweets, fetchTweets } = useTweetsStore();
@@ -32,7 +32,7 @@ export default function HomeScreen() {
   return (
     <>
       <View style={styles.content}>
-        {backendUser && <ComposeTweet />}
+
         <Timeline />
       </View>
 
