@@ -2,6 +2,7 @@ import React, { useEffect } from 'react';
 import { View, StyleSheet, ScrollView, Text, TouchableOpacity } from 'react-native';
 import { TweetCard } from './TweetCard';
 import { ComposeTweet } from './ComposeTweet';
+import { SignInButton } from './SignInButton';
 import { useAuthStore } from '@/lib/stores/authStore';
 import { useTweetsStore } from '@/lib/stores/tweetsStore';
 import { useBackendUserStore } from '@/lib/stores/backendUserStore';
@@ -59,9 +60,7 @@ export function Timeline() {
                     <Text style={styles.welcomeText}>
                         Sign in to see tweets and join the conversation!
                     </Text>
-                    <TouchableOpacity style={styles.signInButton}>
-                        <Text style={styles.signInText}>Sign In</Text>
-                    </TouchableOpacity>
+                    <SignInButton />
                 </View>
             )}
 
@@ -155,17 +154,6 @@ const styles = StyleSheet.create({
         textAlign: 'center',
         marginBottom: 24,
         lineHeight: 24,
-    },
-    signInButton: {
-        backgroundColor: '#1DA1F2',
-        paddingVertical: 12,
-        paddingHorizontal: 32,
-        borderRadius: 24,
-    },
-    signInText: {
-        color: '#fff',
-        fontSize: 16,
-        fontWeight: 'bold',
     },
     tweetsSection: {
         flex: 1,

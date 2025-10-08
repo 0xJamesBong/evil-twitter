@@ -6,7 +6,7 @@ import { useBackendUserStore } from '@/lib/stores/backendUserStore';
 import { useWeaponsStore } from '@/lib/stores/weaponsStore';
 
 export default function ProfileScreen() {
-    const { user: authUser, signOut } = useAuthStore();
+    const { user: authUser, logout } = useAuthStore();
     const { user: backendUser } = useBackendUserStore();
     const { weapons, fetchUserWeapons } = useWeaponsStore();
 
@@ -17,7 +17,7 @@ export default function ProfileScreen() {
     }, [backendUser, fetchUserWeapons]);
 
     const handleSignOut = async () => {
-        await signOut();
+        await logout();
     };
 
     const renderWeapon = ({ item }: { item: any }) => (

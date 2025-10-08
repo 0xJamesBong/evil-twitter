@@ -1,21 +1,16 @@
-import React, { useState } from 'react';
+import React from 'react';
 import { View, StyleSheet, Text, TouchableOpacity, Platform } from 'react-native';
 import { useAuthStore } from '@/lib/stores/authStore';
 import { useBackendUserStore } from '@/lib/stores/backendUserStore';
-import { AuthModal } from './AuthModal';
+import { SignInButton } from './SignInButton';
 
 export function Navbar() {
-    const [showAuthModal, setShowAuthModal] = useState(false);
-    const { isAuthenticated, user, signOut } = useAuthStore();
+    const { isAuthenticated, user, logout } = useAuthStore();
     const { user: backendUser } = useBackendUserStore();
-
-    const handleLogin = () => {
-        setShowAuthModal(false);
-    };
 
     const handleLogout = async () => {
         try {
-            await signOut();
+            await logout();
         } catch (error) {
             console.error('Logout error:', error);
         }
@@ -23,15 +18,6 @@ export function Navbar() {
 
     return (
         <>
-            {/* Auth Modal */}
-            {showAuthModal && (
-                <AuthModal
-                    isOpen={showAuthModal}
-                    onClose={() => setShowAuthModal(false)}
-                    onAuthSuccess={handleLogin}
-                />
-            )}
-
             {/* Navbar Content */}
             <View style={styles.navbar}>
                 <View style={styles.navbarContent}>
@@ -90,12 +76,10 @@ export function Navbar() {
                                 </TouchableOpacity>
                             </View>
                         ) : (
-                            <TouchableOpacity
-                                onPress={() => setShowAuthModal(true)}
+                            <SignInButton
                                 style={styles.loginButton}
-                            >
-                                <Text style={styles.loginText}>Sign In</Text>
-                            </TouchableOpacity>
+                                textStyle={styles.loginText}
+                            />
                         )}
                     </View>
                 </View>
@@ -204,7 +188,6 @@ const styles = StyleSheet.create({
         paddingVertical: 8,
         paddingHorizontal: 16,
         borderRadius: 20,
-        backgroundColor: '#1DA1F2',
     },
     loginText: {
         color: '#fff',
