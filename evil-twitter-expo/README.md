@@ -1,50 +1,159 @@
-# Welcome to your Expo app 👋
+# 😈 Evil Twitter - Expo App
 
-This is an [Expo](https://expo.dev) project created with [`create-expo-app`](https://www.npmjs.com/package/create-expo-app).
+A React Native Expo app that replicates the full functionality of the evil-twitter-frontend Next.js app.
 
-## Get started
+## Features
 
-1. Install dependencies
+- **Tweets**: Create, view, retweet, quote, and reply to tweets
+- **Weapons System**: Buy weapons from the shop and use them to attack/heal tweets
+- **User Profiles**: View user stats, weapons, and profile information
+- **Real-time Updates**: Zustand state management for reactive UI
+- **Dark Theme**: Beautiful dark theme optimized for mobile
 
-   ```bash
-   npm install
-   ```
+## Tech Stack
 
-2. Start the app
+- **React Native** with Expo
+- **React Native Paper** for UI components
+- **Zustand** for state management
+- **Supabase** for authentication
+- **TypeScript** for type safety
 
-   ```bash
-   npx expo start
-   ```
+## Setup
 
-In the output, you'll find options to open the app in a
-
-- [development build](https://docs.expo.dev/develop/development-builds/introduction/)
-- [Android emulator](https://docs.expo.dev/workflow/android-studio-emulator/)
-- [iOS simulator](https://docs.expo.dev/workflow/ios-simulator/)
-- [Expo Go](https://expo.dev/go), a limited sandbox for trying out app development with Expo
-
-You can start developing by editing the files inside the **app** directory. This project uses [file-based routing](https://docs.expo.dev/router/introduction).
-
-## Get a fresh project
-
-When you're ready, run:
+1. Install dependencies:
 
 ```bash
-npm run reset-project
+npm install
 ```
 
-This command will move the starter code to the **app-example** directory and create a blank **app** directory where you can start developing.
+2. Create environment file:
 
-## Learn more
+```bash
+cp .env.example .env.local
+```
 
-To learn more about developing your project with Expo, look at the following resources:
+3. Configure your environment variables:
 
-- [Expo documentation](https://docs.expo.dev/): Learn fundamentals, or go into advanced topics with our [guides](https://docs.expo.dev/guides).
-- [Learn Expo tutorial](https://docs.expo.dev/tutorial/introduction/): Follow a step-by-step tutorial where you'll create a project that runs on Android, iOS, and the web.
+```env
+EXPO_PUBLIC_SUPABASE_URL=your-supabase-url
+EXPO_PUBLIC_SUPABASE_ANON_KEY=your-supabase-anon-key
+EXPO_PUBLIC_API_URL=http://localhost:3000
+```
 
-## Join the community
+4. Start the development server:
 
-Join our community of developers creating universal apps.
+```bash
+npm run web
+# or
+npm run ios
+# or
+npm run android
+```
 
-- [Expo on GitHub](https://github.com/expo/expo): View our open source platform and contribute.
-- [Discord community](https://chat.expo.dev): Chat with Expo users and ask questions.
+## Project Structure
+
+```
+app/
+├── (tabs)/
+│   ├── index.tsx      # Home/Timeline screen
+│   ├── shop.tsx       # Weapon shop screen
+│   └── profile.tsx    # User profile screen
+└── _layout.tsx        # Root layout with providers
+
+components/
+├── ComposeTweet.tsx   # Tweet composition component
+├── Timeline.tsx       # Timeline display component
+└── TweetCard.tsx      # Individual tweet card component
+
+lib/
+├── services/
+│   └── api.ts         # API service layer
+├── stores/
+│   ├── authStore.ts           # Authentication state
+│   ├── backendUserStore.ts    # Backend user data
+│   ├── tweetsStore.ts         # Tweets state management
+│   ├── weaponsStore.ts        # User weapons
+│   ├── shopStore.ts           # Shop catalog and purchases
+│   └── composeStore.ts        # Tweet composition state
+└── supabase.ts        # Supabase client configuration
+```
+
+## Key Features Implemented
+
+### 🏠 Home Screen
+
+- Timeline of all tweets
+- Compose new tweets
+- Tweet interactions (like, retweet, quote, reply)
+- Health bars for tweets
+- Weapon attack/heal functionality
+
+### 🛒 Shop Screen
+
+- Weapon catalog with categories
+- Rarity-based color coding
+- Purchase weapons with user's money
+- Filter by category (All, Weapon, Defensive, Healing, Utility)
+
+### 👤 Profile Screen
+
+- User information and stats
+- Arsenal display (owned weapons)
+- Follower/following counts
+- Dollar rate display
+
+### ⚔️ Weapons System
+
+- 30+ predefined weapons in catalog
+- Different categories and rarities
+- Attack and heal capabilities
+- Health degradation on use
+
+## Emoji Icons
+
+All icons are implemented using emojis instead of icon libraries:
+
+- 🏠 Home
+- 🛒 Shop
+- 👤 Profile
+- ✍️ Compose
+- 🔍 Search
+- ⚙️ Settings
+- ⚔️ Attack
+- 💚 Heal
+- 💬 Reply
+- 🔄 Retweet
+- ❤️ Like
+
+## State Management
+
+Uses Zustand for clean, simple state management:
+
+- **authStore**: Supabase authentication
+- **backendUserStore**: User profile data
+- **tweetsStore**: Tweet data and actions
+- **weaponsStore**: User's weapon inventory
+- **shopStore**: Shop catalog and purchases
+- **composeStore**: Tweet composition state
+
+## API Integration
+
+Connects to the same backend as the Next.js frontend:
+
+- Tweet CRUD operations
+- User management
+- Weapon catalog and purchases
+- Attack/heal functionality
+
+## Development
+
+The app is designed to work seamlessly with the existing evil-twitter backend. Make sure your backend is running on `http://localhost:3000` (or update the API URL in your environment variables).
+
+## Mobile-First Design
+
+Optimized for mobile devices with:
+
+- Touch-friendly interactions
+- Responsive layouts
+- Native feel with React Native Paper
+- Smooth animations and transitions
