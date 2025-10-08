@@ -1,56 +1,75 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 import { FAB, Portal } from 'react-native-paper';
 
-import { useAuthStore } from '@/lib/stores/authStore';
-import { useBackendUserStore } from '@/lib/stores/backendUserStore';
-import { useTweetsStore } from '@/lib/stores/tweetsStore';
-import { useComposeStore } from '@/lib/stores/composeStore';
 import { ComposeTweet } from '@/components/ComposeTweet';
 import { Timeline } from '@/components/Timeline';
+import { useAuthStore } from '@/lib/stores/authStore';
+import { useBackendUserStore } from '@/lib/stores/backendUserStore';
+import { useComposeStore } from '@/lib/stores/composeStore';
 
 export default function Home() {
   const { user, initialized } = useAuthStore();
   const { user: backendUser, fetchUser, createUser } = useBackendUserStore();
-  const { tweets, fetchTweets } = useTweetsStore();
-  const { isSubmitting } = useComposeStore();
+  const { isSubmitting, clearCompose } = useComposeStore();
+  const [composeVisible, setComposeVisible] = useState(false);
 
   useEffect(() => {
-    if (initialized && user) {
-      if (!backendUser) {
-        // Try to fetch existing user, create if doesn't exist
-        fetchUser(user.id)
-          .then(() => fetchTweets())
-          .catch(() => createUser(user).then(() => fetchTweets()));
-      } else {
-        // Backend user exists, fetch tweets
-        fetchTweets();
-      }
+    if (initialized && user && !backendUser) {
+      // Try to fetch existing user first
+      fetchUser(user.id).catch(async () => {
+        // User doesn't exist, create them
+        try {
+          await createUser(user);
+        } catch (error) {
+          console.error('Failed to create user:', error);
+        }
+      });
     }
-  }, [initialized, user, backendUser, fetchUser, createUser, fetchTweets]);
+  }, [initialized, user, backendUser, fetchUser, createUser]);
+
+  const handleComposePress = () => {
+    setComposeVisible(true);
+  };
+
+  const handleComposeClose = () => {
+    setComposeVisible(false);
+    clearCompose();
+  };
 
   return (
     <>
-      <View style={styles.content}>
-
-        <Timeline />
-      </View>
+      {/* <View style={styles.content}> */}
+      <Timeline />
+      {/* </View> */}
 
       <Portal>
         <FAB
           icon="✍️"
           style={styles.fab}
-          onPress={() => { }}
+          onPress={handleComposePress}
           loading={isSubmitting}
         />
       </Portal>
+
+      {composeVisible && (
+        <Portal>
+          <View style={styles.modalOverlay}>
+            <View style={styles.modalContent}>
+              <ComposeTweet onClose={handleComposeClose} />
+            </View>
+          </View>
+        </Portal>
+      )}
     </>
   );
 }
 
 const styles = StyleSheet.create({
   content: {
-    padding: 16,
+    flex: 1,
+    paddingHorizontal: 16,
+    paddingTop: 8,
     maxWidth: 600,
     width: '100%',
     alignSelf: 'center',
@@ -61,5 +80,23 @@ const styles = StyleSheet.create({
     right: 0,
     bottom: 0,
     backgroundColor: '#1DA1F2',
+  },
+  modalOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(0, 0, 0, 0.8)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  modalContent: {
+    backgroundColor: '#1a1a1a',
+    borderRadius: 16,
+    padding: 20,
+    width: '90%',
+    maxWidth: 500,
+    maxHeight: '80%',
   },
 });

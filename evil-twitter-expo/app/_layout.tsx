@@ -1,14 +1,13 @@
-import { Stack } from "expo-router";
-import { ThemeProvider, DarkTheme, DefaultTheme } from "@react-navigation/native";
-import { PaperProvider, MD3DarkTheme, MD3LightTheme } from "react-native-paper";
-import { StatusBar } from "expo-status-bar";
-import { Platform, useColorScheme, useWindowDimensions } from "react-native";
-import { useEffect } from "react";
-import { useAuthStore } from "@/lib/stores/authStore";
-import { Sidebar } from "@/components/Sidebar";
 import { Navbar } from "@/components/Navbar";
-import { ScrollView, View } from "react-native";
 import { RightSidebar } from "@/components/RightSidebar";
+import { Sidebar } from "@/components/Sidebar";
+import { useAuthStore } from "@/lib/stores/authStore";
+import { DarkTheme, DefaultTheme, ThemeProvider } from "@react-navigation/native";
+import { Stack } from "expo-router";
+import { StatusBar } from "expo-status-bar";
+import { useEffect } from "react";
+import { Platform, useColorScheme, useWindowDimensions, View } from "react-native";
+import { MD3DarkTheme, MD3LightTheme, PaperProvider } from "react-native-paper";
 
 
 export const unstable_settings = {
@@ -33,7 +32,7 @@ export default function RootLayout() {
   return (
     <PaperProvider theme={paperTheme}>
       <ThemeProvider value={navTheme}>
-        <View style={{ flex: 1, backgroundColor: "#000" }}>
+        <View style={{ flex: 1, backgroundColor: "#000", height: '100vh' }}>
           <Navbar />
 
           {/* WEB / DESKTOP LAYOUT */}
@@ -46,7 +45,7 @@ export default function RootLayout() {
                 maxWidth: 1200,
                 width: "100%",
                 marginHorizontal: "auto",
-                paddingTop: 64,
+                height: 'calc(100vh - 64px)',
               }}
             >
               <View
@@ -60,24 +59,17 @@ export default function RootLayout() {
                 <Sidebar />
               </View>
 
-              <ScrollView
-                style={{ flex: 1, backgroundColor: "#000" }}
-                contentContainerStyle={{
-                  flexGrow: 1,
-                  alignItems: "stretch",
-                  paddingBottom: 120,
-                }}
-                showsVerticalScrollIndicator={false}
-              >
+              <View style={{ flex: 1, backgroundColor: "#000" }}>
                 <Stack screenOptions={{ headerShown: false }}>
                   <Stack.Screen name="(tabs)" />
                   <Stack.Screen name="modal" options={{ presentation: "modal" }} />
                 </Stack>
-              </ScrollView>
+              </View>
 
               <View
                 style={{
                   width: 320,
+                  height: '100%',
                   borderLeftWidth: 1,
                   borderLeftColor: "#333",
                   padding: 16,
@@ -89,15 +81,12 @@ export default function RootLayout() {
             </View>
           ) : (
             // MOBILE/TABLET LAYOUT
-            <ScrollView
-              style={{ flex: 1, backgroundColor: "#000" }}
-              contentContainerStyle={{ paddingBottom: 80 }}
-            >
+            <View style={{ flex: 1, backgroundColor: "#000" }}>
               <Stack screenOptions={{ headerShown: false }}>
                 <Stack.Screen name="(tabs)" />
                 <Stack.Screen name="modal" options={{ presentation: "modal" }} />
               </Stack>
-            </ScrollView>
+            </View>
           )}
 
           <StatusBar style="auto" />

@@ -1,7 +1,7 @@
-import React from 'react';
-import { View, StyleSheet, Text, TouchableOpacity } from 'react-native';
-import { useRouter } from 'expo-router';
 import { useAuthStore } from '@/lib/stores/authStore';
+import { useRouter } from 'expo-router';
+import React from 'react';
+import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 
 export function Sidebar() {
     const router = useRouter();
@@ -92,7 +92,6 @@ const styles = StyleSheet.create({
         color: '#fff',
     },
     navigation: {
-        flex: 1,
         paddingHorizontal: 16,
         gap: 4,
     },

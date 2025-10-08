@@ -1,10 +1,14 @@
-import React from 'react';
-import { View, StyleSheet, Text, TextInput, TouchableOpacity } from 'react-native';
 import { useBackendUserStore } from '@/lib/stores/backendUserStore';
-import { useTweetsStore } from '@/lib/stores/tweetsStore';
 import { useComposeStore } from '@/lib/stores/composeStore';
+import { useTweetsStore } from '@/lib/stores/tweetsStore';
+import React from 'react';
+import { StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 
-export function ComposeTweet() {
+interface ComposeTweetProps {
+    onClose?: () => void;
+}
+
+export function ComposeTweet({ onClose }: ComposeTweetProps) {
     const { user: currentUser } = useBackendUserStore();
     const { createTweet } = useTweetsStore();
     const { content, isSubmitting, error, setContent, setIsSubmitting, setError, clearCompose } = useComposeStore();
@@ -19,6 +23,7 @@ export function ComposeTweet() {
             const result = await createTweet(content, currentUser._id.$oid);
             if (result.success) {
                 clearCompose();
+                onClose?.(); // Close modal after successful post
             } else {
                 setError(result.error || 'Failed to post tweet');
             }
@@ -33,6 +38,15 @@ export function ComposeTweet() {
 
     return (
         <View style={styles.container}>
+            {/* Header with close button */}
+            {onClose && (
+                <View style={styles.header}>
+                    <TouchableOpacity onPress={onClose} style={styles.closeButton}>
+                        <Text style={styles.closeButtonText}>✕</Text>
+                    </TouchableOpacity>
+                </View>
+            )}
+
             <View style={styles.content}>
                 {/* Avatar */}
                 <View style={styles.avatar}>
@@ -104,6 +118,25 @@ const styles = StyleSheet.create({
         backgroundColor: '#000',
         borderBottomWidth: 1,
         borderBottomColor: '#333',
+    },
+    header: {
+        flexDirection: 'row',
+        justifyContent: 'flex-end',
+        paddingHorizontal: 16,
+        paddingTop: 8,
+    },
+    closeButton: {
+        width: 32,
+        height: 32,
+        borderRadius: 16,
+        backgroundColor: '#333',
+        justifyContent: 'center',
+        alignItems: 'center',
+    },
+    closeButtonText: {
+        color: '#fff',
+        fontSize: 16,
+        fontWeight: 'bold',
     },
     content: {
         flexDirection: 'row',

@@ -1,11 +1,11 @@
+import { useAuthStore } from '@/lib/stores/authStore';
+import { useBackendUserStore } from '@/lib/stores/backendUserStore';
+import { useTweetsStore } from '@/lib/stores/tweetsStore';
 import React, { useEffect } from 'react';
-import { View, StyleSheet, ScrollView, Text, TouchableOpacity } from 'react-native';
-import { TweetCard } from './TweetCard';
+import { ScrollView, StyleSheet, Text, TouchableOpacity, View, useWindowDimensions } from 'react-native';
 import { ComposeTweet } from './ComposeTweet';
 import { SignInButton } from './SignInButton';
-import { useAuthStore } from '@/lib/stores/authStore';
-import { useTweetsStore } from '@/lib/stores/tweetsStore';
-import { useBackendUserStore } from '@/lib/stores/backendUserStore';
+import { TweetCard } from './TweetCard';
 
 export function Timeline() {
     const { isAuthenticated } = useAuthStore();
@@ -16,12 +16,13 @@ export function Timeline() {
         error,
         fetchTweets,
     } = useTweetsStore();
+    const { height } = useWindowDimensions();
 
     useEffect(() => {
         if (backendUser?._id?.$oid) {
             fetchTweets();
         }
-    }, [fetchTweets, backendUser]);
+    }, [backendUser, fetchTweets]);
 
     if (loading) {
         return (
@@ -42,8 +43,9 @@ export function Timeline() {
         );
     }
 
-    return (
-        <View style={styles.container}>
+    // Create header component for FlatList
+    const ListHeader = () => (
+        <View>
             {/* Header */}
             <View style={styles.header}>
                 <Text style={styles.headerTitle}>Home</Text>
@@ -63,25 +65,37 @@ export function Timeline() {
                     <SignInButton />
                 </View>
             )}
+        </View>
+    );
 
-            {/* Tweets */}
-            <View style={styles.tweetsSection}>
+    // Create empty state component
+    const EmptyState = () => (
+        <View style={styles.emptyState}>
+            <Text style={styles.emptyText}>
+                {isAuthenticated ? 'No tweets yet. Be the first to tweet!' : 'Sign in to see tweets'}
+            </Text>
+        </View>
+    );
+
+    return (
+        <View style={styles.container}>
+            <ScrollView
+                style={[styles.scrollView, { maxHeight: height - 200 }]}
+                contentContainerStyle={styles.scrollContent}
+                showsVerticalScrollIndicator={true}
+                nestedScrollEnabled={true}
+            >
+                <ListHeader />
                 {tweets.length === 0 ? (
-                    <View style={styles.emptyState}>
-                        <Text style={styles.emptyText}>
-                            {isAuthenticated ? 'No tweets yet. Be the first to tweet!' : 'Sign in to see tweets'}
-                        </Text>
-                    </View>
+                    <EmptyState />
                 ) : (
-                    <>
-                        {tweets.map((tweet) => (
-                            <View key={tweet._id.$oid} style={styles.tweetContainer}>
-                                <TweetCard tweet={tweet} />
-                            </View>
-                        ))}
-                    </>
+                    tweets.map((tweet) => (
+                        <View key={tweet._id.$oid} style={styles.tweetContainer}>
+                            <TweetCard tweet={tweet} />
+                        </View>
+                    ))
                 )}
-            </View>
+            </ScrollView>
         </View>
     );
 }
@@ -90,6 +104,12 @@ const styles = StyleSheet.create({
     container: {
         flex: 1,
         backgroundColor: '#000',
+    },
+    scrollView: {
+        flex: 1,
+    },
+    scrollContent: {
+        paddingBottom: 80, // Space for FAB
     },
     loadingContainer: {
         flex: 1,
@@ -123,7 +143,8 @@ const styles = StyleSheet.create({
         fontWeight: 'bold',
     },
     header: {
-        padding: 16,
+        paddingHorizontal: 16,
+        paddingVertical: 8,
         borderBottomWidth: 1,
         borderBottomColor: '#333',
     },
@@ -155,9 +176,6 @@ const styles = StyleSheet.create({
         marginBottom: 24,
         lineHeight: 24,
     },
-    tweetsSection: {
-        flex: 1,
-    },
     emptyState: {
         padding: 32,
         alignItems: 'center',
@@ -170,5 +188,9 @@ const styles = StyleSheet.create({
     tweetContainer: {
         borderBottomWidth: 1,
         borderBottomColor: '#333',
+    },
+    text: {
+        color: '#fff',
+        fontSize: 16,
     },
 });
