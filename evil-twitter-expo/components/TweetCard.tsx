@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
-import { View, StyleSheet, Alert } from 'react-native';
-import { Card, Avatar, Text, Button, Menu, Divider } from 'react-native-paper';
+import { View, StyleSheet, Alert, TouchableOpacity } from 'react-native';
+import { Card, Avatar, Text, Menu, Divider } from 'react-native-paper';
 import { Tweet } from '@/lib/stores/tweetsStore';
 import { useBackendUserStore } from '@/lib/stores/backendUserStore';
 import { useTweetsStore } from '@/lib/stores/tweetsStore';
@@ -137,53 +137,48 @@ export function TweetCard({ tweet }: TweetCardProps) {
 
                         {/* Actions */}
                         <View style={styles.actions}>
-                            <Button
-                                mode="text"
-                                icon="💬"
+                            <TouchableOpacity
+                                style={styles.actionButton}
                                 onPress={handleReply}
-                                compact
                             >
-                                {tweet.reply_count}
-                            </Button>
+                                <Text style={styles.actionIcon}>💬</Text>
+                                <Text style={styles.actionText}>{tweet.reply_count}</Text>
+                            </TouchableOpacity>
 
-                            <Button
-                                mode="text"
-                                icon="🔄"
+                            <TouchableOpacity
+                                style={styles.actionButton}
                                 onPress={handleRetweet}
-                                compact
                             >
-                                {tweet.retweet_count}
-                            </Button>
+                                <Text style={styles.actionIcon}>🔄</Text>
+                                <Text style={styles.actionText}>{tweet.retweet_count}</Text>
+                            </TouchableOpacity>
 
-                            <Button
-                                mode="text"
-                                icon="💬"
+                            <TouchableOpacity
+                                style={styles.actionButton}
                                 onPress={handleQuote}
-                                compact
                             >
-                                {tweet.quote_count}
-                            </Button>
+                                <Text style={styles.actionIcon}>💬</Text>
+                                <Text style={styles.actionText}>{tweet.quote_count}</Text>
+                            </TouchableOpacity>
 
-                            <Button
-                                mode="text"
-                                icon="❤️"
-                                compact
+                            <TouchableOpacity
+                                style={styles.actionButton}
                             >
-                                {tweet.like_count}
-                            </Button>
+                                <Text style={styles.actionIcon}>❤️</Text>
+                                <Text style={styles.actionText}>{tweet.like_count}</Text>
+                            </TouchableOpacity>
 
                             <Menu
                                 visible={showWeaponMenu}
                                 onDismiss={() => setShowWeaponMenu(false)}
                                 anchor={
-                                    <Button
-                                        mode="text"
-                                        icon="⚔️"
+                                    <TouchableOpacity
+                                        style={styles.actionButton}
                                         onPress={() => setShowWeaponMenu(true)}
-                                        compact
                                     >
-                                        Attack
-                                    </Button>
+                                        <Text style={styles.actionIcon}>⚔️</Text>
+                                        <Text style={styles.actionText}>Attack</Text>
+                                    </TouchableOpacity>
                                 }
                             >
                                 {weapons.map((weapon) => (
@@ -199,16 +194,18 @@ export function TweetCard({ tweet }: TweetCardProps) {
                                 visible={false} // We'll implement heal menu similarly
                                 onDismiss={() => { }}
                                 anchor={
-                                    <Button
-                                        mode="text"
-                                        icon="💚"
-                                        compact
+                                    <TouchableOpacity
+                                        style={styles.actionButton}
                                     >
-                                        Heal
-                                    </Button>
+                                        <Text style={styles.actionIcon}>💚</Text>
+                                        <Text style={styles.actionText}>Heal</Text>
+                                    </TouchableOpacity>
                                 }
                             >
-                                {/* Heal weapons would go here */}
+                                <Menu.Item
+                                    onPress={() => { }}
+                                    title="No heal weapons available"
+                                />
                             </Menu>
                         </View>
                     </View>
@@ -319,5 +316,20 @@ const styles = StyleSheet.create({
         paddingTop: 12,
         borderTopWidth: 1,
         borderTopColor: '#333',
+    },
+    actionButton: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        paddingVertical: 8,
+        paddingHorizontal: 12,
+        borderRadius: 16,
+    },
+    actionIcon: {
+        fontSize: 18,
+        marginRight: 4,
+    },
+    actionText: {
+        color: '#888',
+        fontSize: 14,
     },
 });
