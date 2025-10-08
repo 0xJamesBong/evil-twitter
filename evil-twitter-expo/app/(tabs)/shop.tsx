@@ -153,7 +153,6 @@ export default function ShopScreen() {
 
 const styles = StyleSheet.create({
     content: {
-        flex: 1,
         padding: 16,
         maxWidth: 600,
         width: '100%',

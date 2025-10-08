@@ -33,9 +33,17 @@ export const AppLayout: React.FC<Props> = ({ children }) => {
                 <View style={styles.leftSidebar}>
                     <Sidebar />
                 </View>
-                <ScrollView style={styles.centerScroll} contentContainerStyle={styles.centerContent}>
-                    {children}
-                </ScrollView>
+                <View style={styles.centerContainer}>
+                    <ScrollView
+                        style={styles.centerScroll}
+                        contentContainerStyle={styles.centerContent}
+                        showsVerticalScrollIndicator={false}
+                        bounces={false}
+                        alwaysBounceVertical={false}
+                    >
+                        {children}
+                    </ScrollView>
+                </View>
                 <View style={styles.rightSidebar}>
                     <RightSidebar />
                 </View>
@@ -62,22 +70,28 @@ const styles = StyleSheet.create({
         width: 256,
         borderRightWidth: 1,
         borderRightColor: "#333",
+        flexShrink: 0,
+    },
+    centerContainer: {
+        flex: 1,
+        minWidth: 0,
     },
     centerScroll: {
         flex: 1,
-        height: "100%",
     },
     centerContent: {
         flexGrow: 1,
         alignItems: "stretch",
         minWidth: 0,
         backgroundColor: "#000",
+        paddingBottom: 120, // Increased padding to ensure content isn't cut off
     },
     rightSidebar: {
         width: 320,
         borderLeftWidth: 1,
         borderLeftColor: "#333",
         padding: 16,
+        flexShrink: 0,
     },
     // --- mobile layout ---
     mobileContainer: {
