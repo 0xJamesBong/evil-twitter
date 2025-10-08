@@ -3,6 +3,24 @@ const API_BASE_URL = process.env.EXPO_PUBLIC_API_URL || "http://localhost:3000";
 
 export { API_BASE_URL };
 
+// Helper function to get auth headers
+const getAuthHeaders = async () => {
+  const { supabase } = await import("../supabase");
+  const {
+    data: { session },
+  } = await supabase.auth.getSession();
+
+  const headers: Record<string, string> = {
+    "Content-Type": "application/json",
+  };
+
+  if (session?.access_token) {
+    headers["Authorization"] = `Bearer ${session.access_token}`;
+  }
+
+  return headers;
+};
+
 // API service functions
 export const api = {
   // Tweets
@@ -13,9 +31,10 @@ export const api = {
   },
 
   async createTweet(content: string, userId: string) {
+    const headers = await getAuthHeaders();
     const response = await fetch(`${API_BASE_URL}/tweets`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers,
       body: JSON.stringify({ content, owner_id: userId }),
     });
     if (!response.ok) throw new Error("Failed to create tweet");
@@ -23,9 +42,10 @@ export const api = {
   },
 
   async quoteTweet(content: string, originalTweetId: string, userId: string) {
+    const headers = await getAuthHeaders();
     const response = await fetch(`${API_BASE_URL}/tweets/quote`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers,
       body: JSON.stringify({
         content,
         original_tweet_id: originalTweetId,
@@ -37,9 +57,10 @@ export const api = {
   },
 
   async retweetTweet(tweetId: string, userId: string) {
+    const headers = await getAuthHeaders();
     const response = await fetch(`${API_BASE_URL}/tweets/${tweetId}/retweet`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers,
       body: JSON.stringify({ user_id: userId }),
     });
     if (!response.ok) throw new Error("Failed to retweet");
@@ -47,9 +68,10 @@ export const api = {
   },
 
   async replyTweet(content: string, repliedToTweetId: string, userId: string) {
+    const headers = await getAuthHeaders();
     const response = await fetch(`${API_BASE_URL}/tweets/reply`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers,
       body: JSON.stringify({
         content,
         replied_to_tweet_id: repliedToTweetId,
@@ -87,9 +109,10 @@ export const api = {
   },
 
   async buyWeapon(userId: string, catalogId: string) {
+    const headers = await getAuthHeaders();
     const response = await fetch(`${API_BASE_URL}/weapons/${userId}/buy`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers,
       body: JSON.stringify({ catalog_id: catalogId }),
     });
     if (!response.ok) throw new Error("Failed to buy weapon");
