@@ -126,21 +126,21 @@ export const api = {
   },
 
   // Health/Actions
-  async attackTweet(tweetId: string, weaponId: string) {
+  async attackTweet(tweetId: string, amount: number) {
     const response = await fetch(`${API_BASE_URL}/tweets/${tweetId}/attack`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ weapon_id: weaponId }),
+      body: JSON.stringify({ amount }),
     });
     if (!response.ok) throw new Error("Failed to attack tweet");
     return response.json();
   },
 
-  async healTweet(tweetId: string, weaponId: string) {
+  async healTweet(tweetId: string, amount: number) {
     const response = await fetch(`${API_BASE_URL}/tweets/${tweetId}/heal`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ weapon_id: weaponId }),
+      body: JSON.stringify({ amount }),
     });
     if (!response.ok) throw new Error("Failed to heal tweet");
     return response.json();

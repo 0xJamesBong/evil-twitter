@@ -1,6 +1,7 @@
 import { useAuthStore } from '@/lib/stores/authStore';
 import { useBackendUserStore } from '@/lib/stores/backendUserStore';
 import { useTweetsStore } from '@/lib/stores/tweetsStore';
+import { useWeaponsStore } from '@/lib/stores/weaponsStore';
 import React, { useEffect } from 'react';
 import { ScrollView, StyleSheet, Text, TouchableOpacity, View, useWindowDimensions } from 'react-native';
 import { ComposeTweet } from './ComposeTweet';
@@ -16,13 +17,15 @@ export function Timeline() {
         error,
         fetchTweets,
     } = useTweetsStore();
+    const { fetchUserWeapons } = useWeaponsStore();
     const { height } = useWindowDimensions();
 
     useEffect(() => {
         if (backendUser?._id?.$oid) {
             fetchTweets();
+            fetchUserWeapons(backendUser._id.$oid);
         }
-    }, [backendUser, fetchTweets]);
+    }, [backendUser, fetchTweets, fetchUserWeapons]);
 
     if (loading) {
         return (

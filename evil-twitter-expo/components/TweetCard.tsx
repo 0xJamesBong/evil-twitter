@@ -1,8 +1,8 @@
 import { useBackendUserStore } from '@/lib/stores/backendUserStore';
 import { Tweet, useTweetsStore } from '@/lib/stores/tweetsStore';
-import { useWeaponsStore } from '@/lib/stores/weaponsStore';
 import React, { useState } from 'react';
 import { Alert, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { WeaponSelectionModal } from './WeaponSelectionModal';
 
 interface TweetCardProps {
     tweet: Tweet;
@@ -10,11 +10,9 @@ interface TweetCardProps {
 
 export function TweetCard({ tweet }: TweetCardProps) {
     const { user: currentUser } = useBackendUserStore();
-    const { retweetTweet, quoteTweet, replyTweet, attackTweet, healTweet } = useTweetsStore();
-    const { weapons } = useWeaponsStore();
-    const [showQuoteModal, setShowQuoteModal] = useState(false);
-    const [showReplyModal, setShowReplyModal] = useState(false);
-    const [showWeaponMenu, setShowWeaponMenu] = useState(false);
+    const { retweetTweet, attackTweet, healTweet } = useTweetsStore();
+    const [showWeaponModal, setShowWeaponModal] = useState(false);
+    const [weaponActionType, setWeaponActionType] = useState<'attack' | 'heal'>('attack');
 
     const formatTime = (dateString: string) => {
         const date = new Date(dateString);
@@ -45,24 +43,33 @@ export function TweetCard({ tweet }: TweetCardProps) {
         setShowReplyModal(true);
     };
 
-    const handleAttack = async (weaponId: string) => {
-        const result = await attackTweet(tweet._id.$oid, weaponId);
-        if (result.success) {
-            Alert.alert('Success', 'Tweet attacked!');
-        } else {
-            Alert.alert('Error', result.error || 'Failed to attack tweet');
-        }
-        setShowWeaponMenu(false);
+    const handleAttack = () => {
+        setWeaponActionType('attack');
+        setShowWeaponModal(true);
     };
 
-    const handleHeal = async (weaponId: string) => {
-        const result = await healTweet(tweet._id.$oid, weaponId);
+    const handleHeal = () => {
+        setWeaponActionType('heal');
+        setShowWeaponModal(true);
+    };
+
+    const handleWeaponSelect = (weaponId: string, damage: number, health: number) => {
+        setShowWeaponModal(false);
+        // Show amount input modal or use default amount
+        handleActionWithWeapon(weaponId, damage, health);
+    };
+
+    const handleActionWithWeapon = async (weaponId: string, damage: number, health: number) => {
+        const actionAmount = weaponActionType === 'attack' ? damage : health;
+        const result = weaponActionType === 'attack'
+            ? await attackTweet(tweet._id.$oid, actionAmount)
+            : await healTweet(tweet._id.$oid, actionAmount);
+
         if (result.success) {
-            Alert.alert('Success', 'Tweet healed!');
+            Alert.alert('Success', `Tweet ${weaponActionType}ed!`);
         } else {
-            Alert.alert('Error', result.error || 'Failed to heal tweet');
+            Alert.alert('Error', result.error || `Failed to ${weaponActionType} tweet`);
         }
-        setShowWeaponMenu(false);
     };
 
     const getHealthColor = (health: number, maxHealth: number) => {
@@ -73,115 +80,125 @@ export function TweetCard({ tweet }: TweetCardProps) {
     };
 
     return (
-        <View style={styles.container}>
-            {/* Avatar */}
-            <View style={styles.avatar}>
-                <Text style={styles.avatarText}>
-                    {tweet.author?.display_name?.charAt(0).toUpperCase() || '😈'}
-                </Text>
-            </View>
-
-            {/* Content */}
-            <View style={styles.content}>
-                {/* Header */}
-                <View style={styles.header}>
-                    <Text style={styles.displayName}>{tweet.author?.display_name || 'User'}</Text>
-                    <Text style={styles.username}>@{tweet.author?.username || 'user'}</Text>
-                    <Text style={styles.time}>· {formatTime(tweet.created_at)}</Text>
-                    <TouchableOpacity style={styles.moreButton}>
-                        <Text style={styles.moreIcon}>⋯</Text>
-                    </TouchableOpacity>
-                </View>
-
-                {/* Tweet Content */}
-                <Text style={styles.tweetText}>{tweet.content}</Text>
-
-                {/* Health Bar */}
-                <View style={styles.healthContainer}>
-                    <View style={styles.healthBar}>
-                        <View
-                            style={[
-                                styles.healthFill,
-                                {
-                                    width: `${(tweet.health / tweet.max_health) * 100}%`,
-                                    backgroundColor: getHealthColor(tweet.health, tweet.max_health)
-                                }
-                            ]}
-                        />
-                    </View>
-                    <Text style={styles.healthText}>
-                        {tweet.health}/{tweet.max_health} HP
+        <>
+            <View style={styles.container}>
+                {/* Avatar */}
+                <View style={styles.avatar}>
+                    <Text style={styles.avatarText}>
+                        {tweet.author?.display_name?.charAt(0).toUpperCase() || '😈'}
                     </Text>
                 </View>
 
-                {/* Quoted Tweet */}
-                {tweet.quoted_tweet && (
-                    <View style={styles.quotedCard}>
-                        <View style={styles.quotedHeader}>
-                            <View style={styles.quotedAvatar}>
-                                <Text style={styles.quotedAvatarText}>
-                                    {tweet.quoted_tweet.author?.display_name?.charAt(0).toUpperCase() || '😈'}
-                                </Text>
-                            </View>
-                            <View style={styles.quotedInfo}>
-                                <Text style={styles.quotedName}>{tweet.quoted_tweet.author?.display_name || 'User'}</Text>
-                                <Text style={styles.quotedUsername}>@{tweet.quoted_tweet.author?.username || 'user'}</Text>
-                            </View>
-                        </View>
-                        <Text style={styles.quotedText}>{tweet.quoted_tweet.content}</Text>
+                {/* Content */}
+                <View style={styles.content}>
+                    {/* Header */}
+                    <View style={styles.header}>
+                        <Text style={styles.displayName}>{tweet.author?.display_name || 'User'}</Text>
+                        <Text style={styles.username}>@{tweet.author?.username || 'user'}</Text>
+                        <Text style={styles.time}>· {formatTime(tweet.created_at)}</Text>
+                        <TouchableOpacity style={styles.moreButton}>
+                            <Text style={styles.moreIcon}>⋯</Text>
+                        </TouchableOpacity>
                     </View>
-                )}
 
-                {/* Actions */}
-                <View style={styles.actions}>
-                    <TouchableOpacity
-                        style={styles.actionButton}
-                        onPress={handleReply}
-                    >
-                        <Text style={styles.actionIcon}>💬</Text>
-                        <Text style={styles.actionText}>{tweet.reply_count || 0}</Text>
-                    </TouchableOpacity>
+                    {/* Tweet Content */}
+                    <Text style={styles.tweetText}>{tweet.content}</Text>
 
-                    <TouchableOpacity
-                        style={styles.actionButton}
-                        onPress={handleRetweet}
-                    >
-                        <Text style={styles.actionIcon}>🔄</Text>
-                        <Text style={styles.actionText}>{tweet.retweet_count || 0}</Text>
-                    </TouchableOpacity>
+                    {/* Health Bar */}
+                    <View style={styles.healthContainer}>
+                        <View style={styles.healthBar}>
+                            <View
+                                style={[
+                                    styles.healthFill,
+                                    {
+                                        width: `${(tweet.health / tweet.max_health) * 100}%`,
+                                        backgroundColor: getHealthColor(tweet.health, tweet.max_health)
+                                    }
+                                ]}
+                            />
+                        </View>
+                        <Text style={styles.healthText}>
+                            {tweet.health}/{tweet.max_health} HP
+                        </Text>
+                    </View>
 
-                    <TouchableOpacity
-                        style={styles.actionButton}
-                        onPress={handleQuote}
-                    >
-                        <Text style={styles.actionIcon}>💬</Text>
-                        <Text style={styles.actionText}>{tweet.quote_count || 0}</Text>
-                    </TouchableOpacity>
+                    {/* Quoted Tweet */}
+                    {tweet.quoted_tweet && (
+                        <View style={styles.quotedCard}>
+                            <View style={styles.quotedHeader}>
+                                <View style={styles.quotedAvatar}>
+                                    <Text style={styles.quotedAvatarText}>
+                                        {tweet.quoted_tweet.author?.display_name?.charAt(0).toUpperCase() || '😈'}
+                                    </Text>
+                                </View>
+                                <View style={styles.quotedInfo}>
+                                    <Text style={styles.quotedName}>{tweet.quoted_tweet.author?.display_name || 'User'}</Text>
+                                    <Text style={styles.quotedUsername}>@{tweet.quoted_tweet.author?.username || 'user'}</Text>
+                                </View>
+                            </View>
+                            <Text style={styles.quotedText}>{tweet.quoted_tweet.content}</Text>
+                        </View>
+                    )}
 
-                    <TouchableOpacity
-                        style={styles.actionButton}
-                    >
-                        <Text style={styles.actionIcon}>❤️</Text>
-                        <Text style={styles.actionText}>{tweet.like_count || 0}</Text>
-                    </TouchableOpacity>
+                    {/* Actions */}
+                    <View style={styles.actions}>
+                        <TouchableOpacity
+                            style={styles.actionButton}
+                            onPress={handleReply}
+                        >
+                            <Text style={styles.actionIcon}>💬</Text>
+                            <Text style={styles.actionText}>{tweet.reply_count || 0}</Text>
+                        </TouchableOpacity>
 
-                    <TouchableOpacity
-                        style={styles.actionButton}
-                        onPress={() => setShowWeaponMenu(true)}
-                    >
-                        <Text style={styles.actionIcon}>⚔️</Text>
-                        <Text style={styles.actionText}>Attack</Text>
-                    </TouchableOpacity>
+                        <TouchableOpacity
+                            style={styles.actionButton}
+                            onPress={handleRetweet}
+                        >
+                            <Text style={styles.actionIcon}>🔄</Text>
+                            <Text style={styles.actionText}>{tweet.retweet_count || 0}</Text>
+                        </TouchableOpacity>
 
-                    <TouchableOpacity
-                        style={styles.actionButton}
-                    >
-                        <Text style={styles.actionIcon}>💚</Text>
-                        <Text style={styles.actionText}>Heal</Text>
-                    </TouchableOpacity>
+                        <TouchableOpacity
+                            style={styles.actionButton}
+                            onPress={handleQuote}
+                        >
+                            <Text style={styles.actionIcon}>💬</Text>
+                            <Text style={styles.actionText}>{tweet.quote_count || 0}</Text>
+                        </TouchableOpacity>
+
+                        <TouchableOpacity
+                            style={styles.actionButton}
+                        >
+                            <Text style={styles.actionIcon}>❤️</Text>
+                            <Text style={styles.actionText}>{tweet.like_count || 0}</Text>
+                        </TouchableOpacity>
+
+                        <TouchableOpacity
+                            style={styles.actionButton}
+                            onPress={handleAttack}
+                        >
+                            <Text style={styles.actionIcon}>⚔️</Text>
+                            <Text style={styles.actionText}>Attack</Text>
+                        </TouchableOpacity>
+
+                        <TouchableOpacity
+                            style={styles.actionButton}
+                            onPress={handleHeal}
+                        >
+                            <Text style={styles.actionIcon}>💚</Text>
+                            <Text style={styles.actionText}>Heal</Text>
+                        </TouchableOpacity>
+                    </View>
                 </View>
             </View>
-        </View>
+
+            <WeaponSelectionModal
+                visible={showWeaponModal}
+                onClose={() => setShowWeaponModal(false)}
+                onSelectWeapon={handleWeaponSelect}
+                actionType={weaponActionType}
+            />
+        </>
     );
 }
 

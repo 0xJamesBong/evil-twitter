@@ -58,12 +58,13 @@ interface TweetsState {
   ) => Promise<{ success: boolean; error?: string }>;
   attackTweet: (
     tweetId: string,
-    weaponId: string
+    amount: number
   ) => Promise<{ success: boolean; error?: string }>;
   healTweet: (
     tweetId: string,
-    weaponId: string
+    amount: number
   ) => Promise<{ success: boolean; error?: string }>;
+  updateTweet: (tweetId: string, updates: Partial<Tweet>) => void;
   clearError: () => void;
 }
 
@@ -150,11 +151,15 @@ export const useTweetsStore = create<TweetsState>((set, get) => ({
     }
   },
 
-  attackTweet: async (tweetId: string, weaponId: string) => {
+  attackTweet: async (tweetId: string, amount: number) => {
     try {
-      await api.attackTweet(tweetId, weaponId);
-      // Refresh tweets to get updated health
-      await get().fetchTweets();
+      const result = await api.attackTweet(tweetId, amount);
+
+      // Update the tweet's health in the store
+      get().updateTweet(tweetId, {
+        health: result.health_after,
+      });
+
       return { success: true };
     } catch (error) {
       const errorMessage =
@@ -164,11 +169,15 @@ export const useTweetsStore = create<TweetsState>((set, get) => ({
     }
   },
 
-  healTweet: async (tweetId: string, weaponId: string) => {
+  healTweet: async (tweetId: string, amount: number) => {
     try {
-      await api.healTweet(tweetId, weaponId);
-      // Refresh tweets to get updated health
-      await get().fetchTweets();
+      const result = await api.healTweet(tweetId, amount);
+
+      // Update the tweet's health in the store
+      get().updateTweet(tweetId, {
+        health: result.health_after,
+      });
+
       return { success: true };
     } catch (error) {
       const errorMessage =
@@ -176,6 +185,14 @@ export const useTweetsStore = create<TweetsState>((set, get) => ({
       set({ error: errorMessage });
       return { success: false, error: errorMessage };
     }
+  },
+
+  updateTweet: (tweetId: string, updates: Partial<Tweet>) => {
+    set((state) => ({
+      tweets: state.tweets.map((tweet) =>
+        tweet._id.$oid === tweetId ? { ...tweet, ...updates } : tweet
+      ),
+    }));
   },
 
   clearError: () => {
