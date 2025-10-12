@@ -14,13 +14,17 @@ export function ComposeTweet({ onClose }: ComposeTweetProps) {
     const { content, isSubmitting, error, setContent, setIsSubmitting, setError, clearCompose } = useComposeStore();
 
     const handleSubmit = async () => {
-        if (!content.trim() || !currentUser?._id?.$oid) return;
+        if (!content.trim()) return;
+        if (!currentUser?._id?.$oid) {
+            setError('You must be logged in to post');
+            return;
+        }
 
         setIsSubmitting(true);
         setError(null);
 
         try {
-            const result = await createTweet(content, currentUser._id.$oid);
+            const result = await createTweet(content.trim());
             if (result.success) {
                 clearCompose();
                 onClose?.(); // Close modal after successful post

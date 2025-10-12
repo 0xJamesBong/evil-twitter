@@ -1,6 +1,6 @@
 use axum::routing::{delete, get, post};
 use dotenvy::dotenv;
-use tower_http::cors::{Any, CorsLayer};
+use tower_http::cors::CorsLayer;
 
 use mongodb::Client;
 use utoipa::OpenApi;
@@ -64,18 +64,25 @@ use routes::weapons::{buy_weapon, get_user_weapons, get_weapon_catalog_endpoint}
             models::user::ImproveRateRequest,
             models::user::AttackRateRequest,
             models::tweet::Tweet,
+            models::tweet::TweetView,
             models::tweet::TweetType,
             models::tweet::CreateTweet,
             models::tweet::CreateReply,
             models::tweet::CreateQuote,
             models::tweet::TweetHealthHistory,
+            models::tweet::TweetHealthState,
             models::tweet::TweetHealAction,
             models::tweet::TweetAttackAction,
+            models::tweet::TweetMetrics,
+            models::tweet::TweetAuthorSnapshot,
+            models::tweet::TweetViewerContext,
+            models::tweet::TweetViralitySnapshot,
             models::follow::Follow,
             models::follow::CreateFollow,
             models::tool::Weapon,
             routes::tweet::HealTweetRequest,
             routes::tweet::AttackTweetRequest,
+            routes::tweet::TweetListResponse,
             routes::weapons::BuyWeaponRequest,
             models::weapon_catalog::WeaponCatalogItem,
             routes::migration::MigrationResponse

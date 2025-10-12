@@ -58,7 +58,7 @@ export function ReplyThreadPage({ rootTweetId, onClose }: ReplyThreadPageProps) 
 
         setIsSubmitting(true);
         try {
-            const result = await replyTweet(replyContent.trim(), rootTweetId, currentUser._id.$oid);
+            const result = await replyTweet(replyContent.trim(), rootTweetId);
 
             if (result.success) {
                 setReplyContent('');

@@ -1,81 +1,244 @@
 import { create } from "zustand";
-import { api } from "../services/api";
+
+const API_BASE_URL = process.env.EXPO_PUBLIC_API_URL || "http://localhost:3000";
+
+type ObjectIdRef = { $oid: string };
+
+export type TweetType = "original" | "retweet" | "quote" | "reply";
+
+export interface TweetMetrics {
+  likes: number;
+  retweets: number;
+  quotes: number;
+  replies: number;
+  impressions: number;
+}
+
+export interface TweetAuthorSnapshot {
+  username?: string;
+  display_name?: string;
+  avatar_url?: string;
+}
+
+export interface TweetAuthor {
+  username?: string | null;
+  display_name?: string | null;
+  avatar_url?: string | null;
+}
+
+export interface TweetViewerContext {
+  is_liked: boolean;
+  is_retweeted: boolean;
+  is_quoted: boolean;
+}
+
+export interface TweetHealthAction {
+  timestamp: string;
+  amount: number;
+  health_before: number;
+  health_after: number;
+}
+
+export interface TweetHealthHistory {
+  heal_history: TweetHealthAction[];
+  attack_history: TweetHealthAction[];
+}
+
+export interface TweetHealthState {
+  current: number;
+  max: number;
+  history: TweetHealthHistory;
+}
+
+export interface TweetViralitySnapshot {
+  score: number;
+  momentum: number;
+  health_multiplier: number;
+}
 
 export interface Tweet {
-  _id: { $oid: string };
+  _id: ObjectIdRef;
+  owner_id: ObjectIdRef;
   content: string;
-  author_id: string;
-  tweet_type: "original" | "retweet" | "quote" | "reply";
-  original_tweet_id?: string;
-  replied_to_tweet_id?: string;
-  root_tweet_id?: string;
-  reply_depth?: number;
-  retweet_count: number;
-  like_count: number;
-  reply_count: number;
-  quote_count: number;
+  tweet_type: TweetType;
+  quoted_tweet_id?: ObjectIdRef;
+  replied_to_tweet_id?: ObjectIdRef;
+  root_tweet_id?: ObjectIdRef;
+  reply_depth: number;
   created_at: string;
-  updated_at: string;
-  health: number;
-  max_health: number;
-  health_history: {
-    health: number;
-    heal_history: any[];
-    attack_history: any[];
-  };
+  updated_at?: string;
+  metrics: TweetMetrics;
+  author_snapshot: TweetAuthorSnapshot;
+  author?: TweetAuthor;
+  viewer_context: TweetViewerContext;
+  health: TweetHealthState;
+  virality: TweetViralitySnapshot;
   quoted_tweet?: Tweet;
   replied_to_tweet?: Tweet;
-  author?: {
-    _id: { $oid: string };
-    username: string;
-    display_name: string;
-    avatar_url?: string;
-  };
+  author_display_name?: string;
+  author_username?: string;
+  author_avatar_url?: string | null;
+  likes_count: number;
+  retweets_count: number;
+  replies_count: number;
+  quote_count: number;
+  max_health: number;
 }
+
+interface TweetListResponse {
+  tweets: any[];
+  total: number;
+}
+
+const getAuthHeaders = async (
+  includeJson: boolean = true
+): Promise<Record<string, string>> => {
+  const { supabase } = await import("../supabase");
+  const {
+    data: { session },
+  } = await supabase.auth.getSession();
+
+  const headers: Record<string, string> = {};
+  if (includeJson) {
+    headers["Content-Type"] = "application/json";
+  }
+  if (session?.access_token) {
+    headers["Authorization"] = `Bearer ${session.access_token}`;
+  }
+  return headers;
+};
+
+const parseJson = async <T>(response: Response): Promise<T> => {
+  let data: any = null;
+  try {
+    data = await response.json();
+  } catch {
+    data = null;
+  }
+
+  if (!response.ok) {
+    const message =
+      (data && typeof data === "object" && "error" in data && data.error) ||
+      response.statusText ||
+      "Request failed";
+    throw new Error(String(message));
+  }
+
+  return (data ?? {}) as T;
+};
+
+function normalizeTweet(raw: any): Tweet {
+  if (!raw) {
+    throw new Error("Cannot normalise empty tweet payload");
+  }
+
+  const metrics: TweetMetrics = {
+    likes: raw.metrics?.likes ?? raw.likes_count ?? 0,
+    retweets: raw.metrics?.retweets ?? raw.retweets_count ?? 0,
+    quotes: raw.metrics?.quotes ?? raw.quote_count ?? 0,
+    replies: raw.metrics?.replies ?? raw.replies_count ?? 0,
+    impressions: raw.metrics?.impressions ?? 0,
+  };
+
+  const rawHistory = raw.health?.history ?? {};
+  const health: TweetHealthState = {
+    current: raw.health?.current ?? raw.health ?? 100,
+    max: raw.health?.max ?? raw.max_health ?? 100,
+    history: {
+      heal_history: rawHistory.heal_history ?? [],
+      attack_history: rawHistory.attack_history ?? [],
+    },
+  };
+
+  const author_snapshot: TweetAuthorSnapshot = {
+    username: raw.author_snapshot?.username ?? raw.author_username ?? undefined,
+    display_name:
+      raw.author_snapshot?.display_name ?? raw.author_display_name ?? undefined,
+    avatar_url:
+      raw.author_snapshot?.avatar_url ?? raw.author_avatar_url ?? undefined,
+  };
+
+  const author: TweetAuthor = {
+    username: author_snapshot.username ?? null,
+    display_name: author_snapshot.display_name ?? null,
+    avatar_url: author_snapshot.avatar_url ?? null,
+  };
+
+  const viewer_context: TweetViewerContext = {
+    is_liked: raw.viewer_context?.is_liked ?? raw.is_liked ?? false,
+    is_retweeted: raw.viewer_context?.is_retweeted ?? raw.is_retweeted ?? false,
+    is_quoted: raw.viewer_context?.is_quoted ?? false,
+  };
+
+  const virality: TweetViralitySnapshot = {
+    score: raw.virality?.score ?? 0,
+    momentum: raw.virality?.momentum ?? 0,
+    health_multiplier: raw.virality?.health_multiplier ?? 1,
+  };
+
+  const normalized: Tweet = {
+    ...raw,
+    tweet_type: (raw.tweet_type ?? "original").toString().toLowerCase() as TweetType,
+    metrics,
+    author_snapshot,
+    author,
+    viewer_context,
+    health,
+    virality,
+    quoted_tweet: raw.quoted_tweet ? normalizeTweet(raw.quoted_tweet) : undefined,
+    replied_to_tweet: raw.replied_to_tweet
+      ? normalizeTweet(raw.replied_to_tweet)
+      : undefined,
+    author_display_name: author.display_name ?? undefined,
+    author_username: author.username ?? undefined,
+    author_avatar_url: author.avatar_url ?? undefined,
+    likes_count: metrics.likes,
+    retweets_count: metrics.retweets,
+    replies_count: metrics.replies,
+    quote_count: metrics.quotes,
+    max_health: health.max,
+  };
+
+  return normalized;
+}
+
+const normalizeTweetList = (rawTweets: any[] | undefined): Tweet[] =>
+  (rawTweets ?? []).map(normalizeTweet);
 
 interface TweetsState {
   tweets: Tweet[];
   loading: boolean;
   error: string | null;
 
-  // Quote modal state
   showQuoteModal: boolean;
   quoteTweetId: string | null;
   quoteContent: string;
 
-  // Reply modal state
   showReplyModal: boolean;
   replyTweetId: string | null;
   replyContent: string;
 
-  // Thread state
   threads: Record<string, Tweet[]>;
   threadLoading: boolean;
   threadError: string | null;
 
-  // Reply thread modal state
   showReplyThreadModal: boolean;
   replyThreadTweetId: string | null;
 
-  // Actions
   fetchTweets: () => Promise<void>;
   createTweet: (
-    content: string,
-    userId: string
+    content: string
   ) => Promise<{ success: boolean; error?: string }>;
   quoteTweet: (
     content: string,
-    originalTweetId: string,
-    userId: string
+    quotedTweetId: string
   ) => Promise<{ success: boolean; error?: string }>;
   retweetTweet: (
-    tweetId: string,
-    userId: string
+    tweetId: string
   ) => Promise<{ success: boolean; error?: string }>;
   replyTweet: (
     content: string,
-    repliedToTweetId: string,
-    userId: string
+    repliedToTweetId: string
   ) => Promise<{ success: boolean; error?: string }>;
   attackTweet: (
     tweetId: string,
@@ -85,22 +248,19 @@ interface TweetsState {
     tweetId: string,
     amount: number
   ) => Promise<{ success: boolean; error?: string }>;
-  updateTweet: (tweetId: string, updates: Partial<Tweet>) => void;
+  updateTweet: (tweetId: string, updater: (tweet: Tweet) => Tweet) => void;
   clearError: () => void;
 
-  // Quote modal actions
   openQuoteModal: (tweetId: string) => void;
   closeQuoteModal: () => void;
   setQuoteContent: (content: string) => void;
   clearQuoteData: () => void;
 
-  // Reply modal actions
   openReplyModal: (tweetId: string) => void;
   closeReplyModal: () => void;
   setReplyContent: (content: string) => void;
   clearReplyData: () => void;
 
-  // Thread actions
   fetchThread: (
     tweetId: string,
     limit?: number,
@@ -109,7 +269,6 @@ interface TweetsState {
   clearThread: (tweetId: string) => void;
   clearAllThreads: () => void;
 
-  // Reply thread modal actions
   openReplyThreadModal: (tweetId: string) => void;
   closeReplyThreadModal: () => void;
 }
@@ -119,152 +278,244 @@ export const useTweetsStore = create<TweetsState>((set, get) => ({
   loading: false,
   error: null,
 
-  // Quote modal state
   showQuoteModal: false,
   quoteTweetId: null,
   quoteContent: "",
 
-  // Reply modal state
   showReplyModal: false,
   replyTweetId: null,
   replyContent: "",
 
-  // Thread state
   threads: {},
   threadLoading: false,
   threadError: null,
 
-  // Reply thread modal state
   showReplyThreadModal: false,
   replyThreadTweetId: null,
 
   fetchTweets: async () => {
     set({ loading: true, error: null });
-
     try {
-      const response = await api.getTweets();
-      console.log("fetched tweets: ", response.tweets);
-      set({ tweets: response.tweets || [], loading: false });
+      const response = await fetch(`${API_BASE_URL}/tweets`);
+      const data = await parseJson<TweetListResponse>(response);
+      const tweets = normalizeTweetList(data.tweets);
+      set({ tweets, loading: false });
     } catch (error) {
-      const errorMessage =
-        error instanceof Error ? error.message : "Failed to fetch tweets";
-      set({ error: errorMessage, loading: false });
+      set({
+        error:
+          error instanceof Error ? error.message : "Failed to fetch tweets",
+        loading: false,
+      });
     }
   },
 
-  createTweet: async (content: string, userId: string) => {
+  createTweet: async (content: string) => {
     try {
-      const newTweet = await api.createTweet(content, userId);
-      const { tweets } = get();
-      set({ tweets: [newTweet, ...tweets] });
+      const headers = await getAuthHeaders();
+      const response = await fetch(`${API_BASE_URL}/tweets`, {
+        method: "POST",
+        headers,
+        body: JSON.stringify({ content }),
+      });
+      const data = await parseJson<any>(response);
+      const newTweet = normalizeTweet(data);
+      set((state) => ({
+        tweets: [newTweet, ...state.tweets],
+      }));
       return { success: true };
     } catch (error) {
-      const errorMessage =
+      const message =
         error instanceof Error ? error.message : "Failed to create tweet";
-      set({ error: errorMessage });
-      return { success: false, error: errorMessage };
+      set({ error: message });
+      return { success: false, error: message };
     }
   },
 
-  quoteTweet: async (
-    content: string,
-    originalTweetId: string,
-    userId: string
-  ) => {
+  quoteTweet: async (content: string, quotedTweetId: string) => {
     try {
-      const newTweet = await api.quoteTweet(content, originalTweetId, userId);
-      const { tweets } = get();
-      set({ tweets: [newTweet, ...tweets] });
+      const headers = await getAuthHeaders();
+      const response = await fetch(
+        `${API_BASE_URL}/tweets/${quotedTweetId}/quote`,
+        {
+          method: "POST",
+          headers,
+          body: JSON.stringify({ content }),
+        }
+      );
+      const data = await parseJson<any>(response);
+      const newTweet = normalizeTweet(data);
+      set((state) => ({
+        tweets: [newTweet, ...state.tweets],
+      }));
+
+      get().updateTweet(quotedTweetId, (tweet) => ({
+        ...tweet,
+        metrics: {
+          ...tweet.metrics,
+          quotes: tweet.metrics.quotes + 1,
+        },
+        quote_count: tweet.quote_count + 1,
+      }));
+
       return { success: true };
     } catch (error) {
-      const errorMessage =
+      const message =
         error instanceof Error ? error.message : "Failed to quote tweet";
-      set({ error: errorMessage });
-      return { success: false, error: errorMessage };
+      set({ error: message });
+      return { success: false, error: message };
     }
   },
 
-  retweetTweet: async (tweetId: string, userId: string) => {
+  retweetTweet: async (tweetId: string) => {
     try {
-      const newTweet = await api.retweetTweet(tweetId, userId);
-      const { tweets } = get();
-      set({ tweets: [newTweet, ...tweets] });
+      const headers = await getAuthHeaders();
+      const response = await fetch(
+        `${API_BASE_URL}/tweets/${tweetId}/retweet`,
+        {
+          method: "POST",
+          headers,
+        }
+      );
+      const data = await parseJson<any>(response);
+      const newTweet = normalizeTweet(data);
+      set((state) => ({
+        tweets: [newTweet, ...state.tweets],
+      }));
+
+      get().updateTweet(tweetId, (tweet) => ({
+        ...tweet,
+        metrics: {
+          ...tweet.metrics,
+          retweets: tweet.metrics.retweets + 1,
+        },
+        retweets_count: tweet.retweets_count + 1,
+      }));
+
       return { success: true };
     } catch (error) {
-      const errorMessage =
+      const message =
         error instanceof Error ? error.message : "Failed to retweet";
-      set({ error: errorMessage });
-      return { success: false, error: errorMessage };
+      set({ error: message });
+      return { success: false, error: message };
     }
   },
 
-  replyTweet: async (
-    content: string,
-    repliedToTweetId: string,
-    userId: string
-  ) => {
+  replyTweet: async (content: string, repliedToTweetId: string) => {
     try {
-      const newTweet = await api.replyTweet(content, repliedToTweetId, userId);
-      const { tweets } = get();
-      set({ tweets: [newTweet, ...tweets] });
+      const headers = await getAuthHeaders();
+      const response = await fetch(
+        `${API_BASE_URL}/tweets/${repliedToTweetId}/reply`,
+        {
+          method: "POST",
+          headers,
+          body: JSON.stringify({ content }),
+        }
+      );
+      const data = await parseJson<any>(response);
+      const newTweet = normalizeTweet(data);
+      set((state) => ({
+        tweets: [newTweet, ...state.tweets],
+      }));
+
+      get().updateTweet(repliedToTweetId, (tweet) => ({
+        ...tweet,
+        metrics: {
+          ...tweet.metrics,
+          replies: tweet.metrics.replies + 1,
+        },
+        replies_count: tweet.replies_count + 1,
+      }));
+
       return { success: true };
     } catch (error) {
-      const errorMessage =
+      const message =
         error instanceof Error ? error.message : "Failed to reply to tweet";
-      set({ error: errorMessage });
-      return { success: false, error: errorMessage };
+      set({ error: message });
+      return { success: false, error: message };
     }
   },
 
   attackTweet: async (tweetId: string, amount: number) => {
     try {
-      const result = await api.attackTweet(tweetId, amount);
-
-      // Update the tweet's health in the store
-      get().updateTweet(tweetId, {
-        health: result.health_after,
+      const response = await fetch(`${API_BASE_URL}/tweets/${tweetId}/attack`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ amount }),
       });
+      const data = await parseJson<any>(response);
+
+      get().updateTweet(tweetId, (tweet) => ({
+        ...tweet,
+        health: {
+          ...tweet.health,
+          current: data.health_after ?? tweet.health.current,
+        },
+      }));
 
       return { success: true };
     } catch (error) {
-      const errorMessage =
+      const message =
         error instanceof Error ? error.message : "Failed to attack tweet";
-      set({ error: errorMessage });
-      return { success: false, error: errorMessage };
+      set({ error: message });
+      return { success: false, error: message };
     }
   },
 
   healTweet: async (tweetId: string, amount: number) => {
     try {
-      const result = await api.healTweet(tweetId, amount);
-
-      // Update the tweet's health in the store
-      get().updateTweet(tweetId, {
-        health: result.health_after,
+      const response = await fetch(`${API_BASE_URL}/tweets/${tweetId}/heal`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ amount }),
       });
+      const data = await parseJson<any>(response);
+
+      get().updateTweet(tweetId, (tweet) => ({
+        ...tweet,
+        health: {
+          ...tweet.health,
+          current: data.health_after ?? tweet.health.current,
+        },
+      }));
 
       return { success: true };
     } catch (error) {
-      const errorMessage =
+      const message =
         error instanceof Error ? error.message : "Failed to heal tweet";
-      set({ error: errorMessage });
-      return { success: false, error: errorMessage };
+      set({ error: message });
+      return { success: false, error: message };
     }
   },
 
-  updateTweet: (tweetId: string, updates: Partial<Tweet>) => {
-    set((state) => ({
-      tweets: state.tweets.map((tweet) =>
-        tweet._id.$oid === tweetId ? { ...tweet, ...updates } : tweet
-      ),
-    }));
+  updateTweet: (tweetId: string, updater: (tweet: Tweet) => Tweet) => {
+    set((state) => {
+      const updateCollection = (collection: Tweet[]) =>
+        collection.map((tweet) =>
+          tweet._id.$oid === tweetId ? updater(tweet) : tweet
+        );
+
+      const updatedThreads = Object.entries(state.threads).reduce<
+        Record<string, Tweet[]>
+      >((acc, [id, list]) => {
+        acc[id] = updateCollection(list);
+        return acc;
+      }, {});
+
+      return {
+        tweets: updateCollection(state.tweets),
+        threads: updatedThreads,
+      };
+    });
   },
 
   clearError: () => {
     set({ error: null });
   },
 
-  // Quote modal actions
   openQuoteModal: (tweetId: string) => {
     set({
       showQuoteModal: true,
@@ -293,7 +544,6 @@ export const useTweetsStore = create<TweetsState>((set, get) => ({
     });
   },
 
-  // Reply modal actions
   openReplyModal: (tweetId: string) => {
     set({
       showReplyModal: true,
@@ -322,20 +572,25 @@ export const useTweetsStore = create<TweetsState>((set, get) => ({
     });
   },
 
-  // Thread actions
-  fetchThread: async (
-    tweetId: string,
-    limit: number = 50,
-    offset: number = 0
-  ) => {
+  fetchThread: async (tweetId: string, limit: number = 50, offset: number = 0) => {
     set({ threadLoading: true, threadError: null });
 
     try {
-      const response = await api.getThread(tweetId, limit, offset);
+      const headers = await getAuthHeaders(false);
+      const response = await fetch(
+        `${API_BASE_URL}/tweets/${tweetId}/thread?limit=${limit}&offset=${offset}`,
+        {
+          method: "GET",
+          headers,
+        }
+      );
+      const data = await parseJson<TweetListResponse>(response);
+      const normalizedTweets = normalizeTweetList(data.tweets);
+
       set((state) => ({
         threads: {
           ...state.threads,
-          [tweetId]: response.tweets,
+          [tweetId]: normalizedTweets,
         },
         threadLoading: false,
       }));
@@ -350,9 +605,9 @@ export const useTweetsStore = create<TweetsState>((set, get) => ({
 
   clearThread: (tweetId: string) => {
     set((state) => {
-      const newThreads = { ...state.threads };
-      delete newThreads[tweetId];
-      return { threads: newThreads };
+      const threads = { ...state.threads };
+      delete threads[tweetId];
+      return { threads };
     });
   },
 
@@ -360,7 +615,6 @@ export const useTweetsStore = create<TweetsState>((set, get) => ({
     set({ threads: {} });
   },
 
-  // Reply thread modal actions
   openReplyThreadModal: (tweetId: string) => {
     set({
       showReplyThreadModal: true,

@@ -30,7 +30,7 @@ export function TweetCard({ tweet }: TweetCardProps) {
     const handleRetweet = async () => {
         if (!currentUser?._id?.$oid) return;
 
-        const result = await retweetTweet(tweet._id.$oid, currentUser._id.$oid);
+        const result = await retweetTweet(tweet._id.$oid);
         if (result.success) {
             Alert.alert('Success', 'Tweet retweeted!');
         } else {
@@ -92,7 +92,7 @@ export function TweetCard({ tweet }: TweetCardProps) {
                 {/* Avatar */}
                 <View style={styles.avatar}>
                     <Text style={styles.avatarText}>
-                        {tweet.author?.display_name?.charAt(0).toUpperCase() || '😈'}
+                        {tweet.author_display_name?.charAt(0).toUpperCase() || tweet.author_username?.charAt(0).toUpperCase() || '😈'}
                     </Text>
                 </View>
 
@@ -100,8 +100,8 @@ export function TweetCard({ tweet }: TweetCardProps) {
                 <View style={styles.content}>
                     {/* Header */}
                     <View style={styles.header}>
-                        <Text style={styles.displayName}>{tweet.author?.display_name || 'User'}</Text>
-                        <Text style={styles.username}>@{tweet.author?.username || 'user'}</Text>
+                        <Text style={styles.displayName}>{tweet.author_display_name || tweet.author_username || 'User'}</Text>
+                        <Text style={styles.username}>@{tweet.author_username || 'user'}</Text>
                         <Text style={styles.time}>· {formatTime(tweet.created_at)}</Text>
                         <TouchableOpacity style={styles.moreButton}>
                             <Text style={styles.moreIcon}>⋯</Text>
@@ -112,7 +112,7 @@ export function TweetCard({ tweet }: TweetCardProps) {
                     {tweet.tweet_type === 'reply' && tweet.replied_to_tweet && (
                         <View style={styles.replyingToContainer}>
                             <Text style={styles.replyingToText}>
-                                Replying to <Text style={styles.replyingToUsername}>@{tweet.replied_to_tweet.author?.username || 'user'}</Text>
+                                Replying to <Text style={styles.replyingToUsername}>@{tweet.replied_to_tweet?.author_username || 'user'}</Text>
                             </Text>
                         </View>
                     )}
@@ -121,7 +121,7 @@ export function TweetCard({ tweet }: TweetCardProps) {
                     {tweet.tweet_type === 'quote' && tweet.quoted_tweet && (
                         <View style={styles.replyingToContainer}>
                             <Text style={styles.replyingToText}>
-                                Quoting <Text style={styles.replyingToUsername}>@{tweet.quoted_tweet.author?.username || 'user'}</Text>
+                                Quoting <Text style={styles.replyingToUsername}>@{tweet.quoted_tweet?.author_username || 'user'}</Text>
                             </Text>
                         </View>
                     )}
@@ -136,14 +136,14 @@ export function TweetCard({ tweet }: TweetCardProps) {
                                 style={[
                                     styles.healthFill,
                                     {
-                                        width: `${(tweet.health / tweet.max_health) * 100}%`,
-                                        backgroundColor: getHealthColor(tweet.health, tweet.max_health)
+                                        width: `${(tweet.health.current / tweet.max_health) * 100}%`,
+                                        backgroundColor: getHealthColor(tweet.health.current, tweet.max_health)
                                     }
                                 ]}
                             />
                         </View>
                         <Text style={styles.healthText}>
-                            {tweet.health}/{tweet.max_health} HP
+                            {tweet.health.current}/{tweet.max_health} HP
                         </Text>
                     </View>
 
@@ -153,12 +153,12 @@ export function TweetCard({ tweet }: TweetCardProps) {
                             <View style={styles.quotedHeader}>
                                 <View style={styles.quotedAvatar}>
                                     <Text style={styles.quotedAvatarText}>
-                                        {tweet.quoted_tweet.author?.display_name?.charAt(0).toUpperCase() || '😈'}
+                                        {tweet.quoted_tweet?.author_display_name?.charAt(0).toUpperCase() || tweet.quoted_tweet?.author_username?.charAt(0).toUpperCase() || '😈'}
                                     </Text>
                                 </View>
                                 <View style={styles.quotedInfo}>
-                                    <Text style={styles.quotedName}>{tweet.quoted_tweet.author?.display_name || 'User'}</Text>
-                                    <Text style={styles.quotedUsername}>@{tweet.quoted_tweet.author?.username || 'user'}</Text>
+                                    <Text style={styles.quotedName}>{tweet.quoted_tweet?.author_display_name || tweet.quoted_tweet?.author_username || 'User'}</Text>
+                                    <Text style={styles.quotedUsername}>@{tweet.quoted_tweet?.author_username || 'user'}</Text>
                                 </View>
                             </View>
                             <Text style={styles.quotedText}>{tweet.quoted_tweet.content}</Text>
@@ -169,11 +169,11 @@ export function TweetCard({ tweet }: TweetCardProps) {
                     <View style={styles.actions}>
                         <TouchableOpacity
                             style={styles.actionButton}
-                            onPress={tweet.reply_count > 0 ? handleViewThread : handleReply}
+                            onPress={tweet.replies_count > 0 ? handleViewThread : handleReply}
                         >
                             <Text style={styles.actionIcon}>💬</Text>
                             <Text style={styles.actionText}>
-                                {tweet.reply_count > 0 ? `View ${tweet.reply_count} replies` : 'Reply'}
+                            {tweet.replies_count > 0 ? `View ${tweet.replies_count} replies` : 'Reply'}
                             </Text>
                         </TouchableOpacity>
 
@@ -182,7 +182,7 @@ export function TweetCard({ tweet }: TweetCardProps) {
                             onPress={handleRetweet}
                         >
                             <Text style={styles.actionIcon}>🔄</Text>
-                            <Text style={styles.actionText}>{tweet.retweet_count || 0}</Text>
+                            <Text style={styles.actionText}>{tweet.retweets_count || 0}</Text>
                         </TouchableOpacity>
 
                         <TouchableOpacity
@@ -197,7 +197,7 @@ export function TweetCard({ tweet }: TweetCardProps) {
                             style={styles.actionButton}
                         >
                             <Text style={styles.actionIcon}>❤️</Text>
-                            <Text style={styles.actionText}>{tweet.like_count || 0}</Text>
+                            <Text style={styles.actionText}>{tweet.likes_count || 0}</Text>
                         </TouchableOpacity>
 
                         <TouchableOpacity

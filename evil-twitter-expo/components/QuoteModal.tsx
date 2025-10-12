@@ -54,7 +54,7 @@ export function QuoteModal() {
             return;
         }
 
-        const result = await quoteTweet(localContent.trim(), quoteTweetId, currentUser._id.$oid);
+        const result = await quoteTweet(localContent.trim(), quoteTweetId);
 
         if (result.success) {
             Alert.alert('Success', 'Tweet quoted successfully!');
@@ -118,15 +118,15 @@ export function QuoteModal() {
                                 <View style={styles.originalTweetHeader}>
                                     <View style={styles.originalTweetAvatar}>
                                         <Text style={styles.originalTweetAvatarText}>
-                                            {originalTweet.author?.display_name?.charAt(0).toUpperCase() || '😈'}
+                                            {originalTweet.author_display_name?.charAt(0).toUpperCase() || originalTweet.author_username?.charAt(0).toUpperCase() || '😈'}
                                         </Text>
                                     </View>
                                     <View style={styles.originalTweetInfo}>
                                         <Text style={styles.originalTweetName}>
-                                            {originalTweet.author?.display_name || 'User'}
+                                            {originalTweet.author_display_name || originalTweet.author_username || 'User'}
                                         </Text>
                                         <Text style={styles.originalTweetUsername}>
-                                            @{originalTweet.author?.username || 'user'}
+                                            @{originalTweet.author_username || 'user'}
                                         </Text>
                                     </View>
                                 </View>

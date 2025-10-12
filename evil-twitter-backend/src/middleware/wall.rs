@@ -11,11 +11,11 @@ use mongodb::{
 use serde::Serialize;
 use utoipa::ToSchema;
 
-use crate::models::tweet::Tweet;
+use crate::models::tweet::{Tweet, TweetView};
 
 #[derive(Debug, Serialize, ToSchema)]
 pub struct WallResponse {
-    pub tweets: Vec<Tweet>,
+    pub tweets: Vec<TweetView>,
     pub total: i64,
 }
 
@@ -23,7 +23,7 @@ pub struct WallResponse {
 pub async fn compose_wall(
     State(db): State<Database>,
     Path(user_id): Path<String>,
-) -> Result<Vec<Tweet>, (StatusCode, Json<serde_json::Value>)> {
+) -> Result<Vec<TweetView>, (StatusCode, Json<serde_json::Value>)> {
     let tweet_collection: Collection<Tweet> = db.collection("tweets");
     let user_collection: Collection<crate::models::user::User> = db.collection("users");
 
@@ -73,5 +73,14 @@ pub async fn compose_wall(
     })?;
 
     println!("Wall: Found {} tweets", all_tweets.len());
-    Ok(all_tweets)
+
+    // Enrich with quoted/replied tweets
+    let enriched_tweets = crate::routes::tweet::enrich_tweets_with_references(
+        all_tweets,
+        &tweet_collection,
+        &user_collection,
+    )
+    .await?;
+
+    Ok(enriched_tweets)
 }
