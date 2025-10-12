@@ -43,15 +43,16 @@ export const api = {
 
   async quoteTweet(content: string, originalTweetId: string, userId: string) {
     const headers = await getAuthHeaders();
-    const response = await fetch(`${API_BASE_URL}/tweets/quote`, {
-      method: "POST",
-      headers,
-      body: JSON.stringify({
-        content,
-        original_tweet_id: originalTweetId,
-        owner_id: userId,
-      }),
-    });
+    const response = await fetch(
+      `${API_BASE_URL}/tweets/${originalTweetId}/quote`,
+      {
+        method: "POST",
+        headers,
+        body: JSON.stringify({
+          content,
+        }),
+      }
+    );
     if (!response.ok) throw new Error("Failed to quote tweet");
     return response.json();
   },

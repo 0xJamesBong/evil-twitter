@@ -36,6 +36,11 @@ interface TweetsState {
   loading: boolean;
   error: string | null;
 
+  // Quote modal state
+  showQuoteModal: boolean;
+  quoteTweetId: string | null;
+  quoteContent: string;
+
   // Actions
   fetchTweets: () => Promise<void>;
   createTweet: (
@@ -66,12 +71,23 @@ interface TweetsState {
   ) => Promise<{ success: boolean; error?: string }>;
   updateTweet: (tweetId: string, updates: Partial<Tweet>) => void;
   clearError: () => void;
+
+  // Quote modal actions
+  openQuoteModal: (tweetId: string) => void;
+  closeQuoteModal: () => void;
+  setQuoteContent: (content: string) => void;
+  clearQuoteData: () => void;
 }
 
 export const useTweetsStore = create<TweetsState>((set, get) => ({
   tweets: [],
   loading: false,
   error: null,
+
+  // Quote modal state
+  showQuoteModal: false,
+  quoteTweetId: null,
+  quoteContent: "",
 
   fetchTweets: async () => {
     set({ loading: true, error: null });
@@ -197,5 +213,34 @@ export const useTweetsStore = create<TweetsState>((set, get) => ({
 
   clearError: () => {
     set({ error: null });
+  },
+
+  // Quote modal actions
+  openQuoteModal: (tweetId: string) => {
+    set({
+      showQuoteModal: true,
+      quoteTweetId: tweetId,
+      quoteContent: "",
+    });
+  },
+
+  closeQuoteModal: () => {
+    set({
+      showQuoteModal: false,
+      quoteTweetId: null,
+      quoteContent: "",
+    });
+  },
+
+  setQuoteContent: (content: string) => {
+    set({ quoteContent: content });
+  },
+
+  clearQuoteData: () => {
+    set({
+      showQuoteModal: false,
+      quoteTweetId: null,
+      quoteContent: "",
+    });
   },
 }));
