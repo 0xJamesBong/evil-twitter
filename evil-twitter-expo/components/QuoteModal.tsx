@@ -7,6 +7,7 @@ import {
     TouchableOpacity,
     StyleSheet,
     Alert,
+    ScrollView,
 } from 'react-native';
 import { useTweetsStore } from '@/lib/stores/tweetsStore';
 import { useBackendUserStore } from '@/lib/stores/backendUserStore';
@@ -20,9 +21,13 @@ export function QuoteModal() {
         setQuoteContent,
         clearQuoteData,
         quoteTweet,
+        tweets,
     } = useTweetsStore();
 
     const { user: currentUser } = useBackendUserStore();
+
+    // Find the original tweet being quoted
+    const originalTweet = tweets.find(tweet => tweet._id.$oid === quoteTweetId);
 
     const handleQuoteSubmit = async () => {
         if (!quoteContent.trim()) {
@@ -52,7 +57,7 @@ export function QuoteModal() {
     return (
         <Modal
             visible={showQuoteModal}
-            animationType="slide"
+            animationType="fade"
             transparent={true}
             onRequestClose={closeQuoteModal}
         >
@@ -65,22 +70,51 @@ export function QuoteModal() {
                         </TouchableOpacity>
                     </View>
 
-                    <View style={styles.content}>
-                        <Text style={styles.label}>Add your comment:</Text>
-                        <TextInput
-                            style={styles.textInput}
-                            value={quoteContent}
-                            onChangeText={setQuoteContent}
-                            placeholder="What are your thoughts?"
-                            multiline
-                            numberOfLines={4}
-                            textAlignVertical="top"
-                            maxLength={280}
-                        />
-                        <Text style={styles.characterCount}>
-                            {quoteContent.length}/280
-                        </Text>
-                    </View>
+                    <ScrollView style={styles.scrollContent}>
+                        {/* Original Tweet Preview */}
+                        {originalTweet && (
+                            <View style={styles.originalTweetContainer}>
+                                <Text style={styles.originalTweetLabel}>Quoting:</Text>
+                                <View style={styles.originalTweet}>
+                                    <View style={styles.originalTweetHeader}>
+                                        <View style={styles.originalTweetAvatar}>
+                                            <Text style={styles.originalTweetAvatarText}>
+                                                {originalTweet.author?.display_name?.charAt(0).toUpperCase() || '😈'}
+                                            </Text>
+                                        </View>
+                                        <View style={styles.originalTweetInfo}>
+                                            <Text style={styles.originalTweetName}>
+                                                {originalTweet.author?.display_name || 'User'}
+                                            </Text>
+                                            <Text style={styles.originalTweetUsername}>
+                                                @{originalTweet.author?.username || 'user'}
+                                            </Text>
+                                        </View>
+                                    </View>
+                                    <Text style={styles.originalTweetContent}>
+                                        {originalTweet.content}
+                                    </Text>
+                                </View>
+                            </View>
+                        )}
+
+                        <View style={styles.content}>
+                            <Text style={styles.label}>Add your comment:</Text>
+                            <TextInput
+                                style={styles.textInput}
+                                value={quoteContent}
+                                onChangeText={setQuoteContent}
+                                placeholder="What are your thoughts?"
+                                multiline
+                                numberOfLines={4}
+                                textAlignVertical="top"
+                                maxLength={280}
+                            />
+                            <Text style={styles.characterCount}>
+                                {quoteContent.length}/280
+                            </Text>
+                        </View>
+                    </ScrollView>
 
                     <View style={styles.actions}>
                         <TouchableOpacity
@@ -105,7 +139,7 @@ export function QuoteModal() {
 const styles = StyleSheet.create({
     overlay: {
         flex: 1,
-        backgroundColor: 'rgba(0, 0, 0, 0.5)',
+        backgroundColor: 'rgba(0, 0, 0, 0.3)',
         justifyContent: 'center',
         alignItems: 'center',
     },
@@ -115,6 +149,9 @@ const styles = StyleSheet.create({
         width: '90%',
         maxWidth: 500,
         maxHeight: '80%',
+    },
+    scrollContent: {
+        flex: 1,
     },
     header: {
         flexDirection: 'row',
@@ -187,5 +224,58 @@ const styles = StyleSheet.create({
         color: '#fff',
         fontSize: 16,
         fontWeight: 'bold',
+    },
+    originalTweetContainer: {
+        padding: 16,
+        borderBottomWidth: 1,
+        borderBottomColor: '#333',
+    },
+    originalTweetLabel: {
+        color: '#888',
+        fontSize: 14,
+        marginBottom: 8,
+    },
+    originalTweet: {
+        backgroundColor: '#2a2a2a',
+        borderRadius: 8,
+        padding: 12,
+        borderWidth: 1,
+        borderColor: '#444',
+    },
+    originalTweetHeader: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        marginBottom: 8,
+    },
+    originalTweetAvatar: {
+        width: 32,
+        height: 32,
+        borderRadius: 16,
+        backgroundColor: '#536471',
+        justifyContent: 'center',
+        alignItems: 'center',
+        marginRight: 8,
+    },
+    originalTweetAvatarText: {
+        color: '#fff',
+        fontSize: 14,
+        fontWeight: 'bold',
+    },
+    originalTweetInfo: {
+        flex: 1,
+    },
+    originalTweetName: {
+        color: '#fff',
+        fontSize: 14,
+        fontWeight: 'bold',
+    },
+    originalTweetUsername: {
+        color: '#888',
+        fontSize: 12,
+    },
+    originalTweetContent: {
+        color: '#fff',
+        fontSize: 14,
+        lineHeight: 18,
     },
 });
