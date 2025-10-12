@@ -53,6 +53,10 @@ interface TweetsState {
   threadLoading: boolean;
   threadError: string | null;
 
+  // Reply thread modal state
+  showReplyThreadModal: boolean;
+  replyThreadTweetId: string | null;
+
   // Actions
   fetchTweets: () => Promise<void>;
   createTweet: (
@@ -104,6 +108,10 @@ interface TweetsState {
   ) => Promise<void>;
   clearThread: (tweetId: string) => void;
   clearAllThreads: () => void;
+
+  // Reply thread modal actions
+  openReplyThreadModal: (tweetId: string) => void;
+  closeReplyThreadModal: () => void;
 }
 
 export const useTweetsStore = create<TweetsState>((set, get) => ({
@@ -125,6 +133,10 @@ export const useTweetsStore = create<TweetsState>((set, get) => ({
   threads: {},
   threadLoading: false,
   threadError: null,
+
+  // Reply thread modal state
+  showReplyThreadModal: false,
+  replyThreadTweetId: null,
 
   fetchTweets: async () => {
     set({ loading: true, error: null });
@@ -346,5 +358,20 @@ export const useTweetsStore = create<TweetsState>((set, get) => ({
 
   clearAllThreads: () => {
     set({ threads: {} });
+  },
+
+  // Reply thread modal actions
+  openReplyThreadModal: (tweetId: string) => {
+    set({
+      showReplyThreadModal: true,
+      replyThreadTweetId: tweetId,
+    });
+  },
+
+  closeReplyThreadModal: () => {
+    set({
+      showReplyThreadModal: false,
+      replyThreadTweetId: null,
+    });
   },
 }));

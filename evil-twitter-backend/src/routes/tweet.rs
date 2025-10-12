@@ -3,7 +3,7 @@ use base64::{Engine as _, engine::general_purpose::URL_SAFE_NO_PAD};
 use axum::{
     Json,
     extract::{Path, State},
-    http::StatusCode,
+    http::{StatusCode, HeaderMap},
 };
 use futures::{StreamExt, TryStreamExt};
 use mongodb::{
@@ -1608,7 +1608,26 @@ pub async fn get_thread(
     State(db): State<Database>,
     Path(id): Path<String>,
     axum::extract::Query(params): axum::extract::Query<std::collections::HashMap<String, String>>,
+    headers: HeaderMap,
 ) -> Result<Json<TweetListResponse>, (StatusCode, Json<serde_json::Value>)> {
+    // Extract Supabase user ID from Authorization header
+    let auth_header = headers
+        .get("authorization")
+        .and_then(|h| h.to_str().ok())
+        .ok_or_else(|| {
+            (
+                StatusCode::UNAUTHORIZED,
+                Json(serde_json::json!({"error": "Missing authorization header"})),
+            )
+        })?;
+
+    let supabase_id = extract_supabase_id_from_auth_header(auth_header).map_err(|err| {
+        (
+            StatusCode::UNAUTHORIZED,
+            Json(serde_json::json!({"error": format!("Invalid token: {}", err)})),
+        )
+    })?;
+
     let collection: Collection<Tweet> = db.collection("tweets");
 
     let root_tweet_id = ObjectId::parse_str(&id).map_err(|_| {

@@ -1,3 +1,4 @@
+import { API_BASE_URL } from "@/lib/services/api";
 import { useAuthStore } from "@/lib/stores/authStore";
 import { DarkTheme, DefaultTheme, ThemeProvider } from "@react-navigation/native";
 import { Stack } from "expo-router";
@@ -19,6 +20,7 @@ export default function RootLayout() {
   const isCompactSidebar = width < 1024;
   const isStackedLayout = width < 768;
 
+  console.log("API_BASE_URL: ", API_BASE_URL);
   useEffect(() => {
     initialize();
   }, [initialize]);

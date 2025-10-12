@@ -4,7 +4,7 @@ import React, { useState } from 'react';
 import { Alert, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { WeaponSelectionModal } from './WeaponSelectionModal';
 import { QuoteModal } from './QuoteModal';
-import { ReplyModal } from './ReplyModal';
+import { ReplyThreadModal } from './ReplyThreadModal';
 import { ThreadModal } from './ThreadModal';
 
 interface TweetCardProps {
@@ -13,7 +13,7 @@ interface TweetCardProps {
 
 export function TweetCard({ tweet }: TweetCardProps) {
     const { user: currentUser } = useBackendUserStore();
-    const { retweetTweet, attackTweet, healTweet, openQuoteModal, openReplyModal, fetchThread } = useTweetsStore();
+    const { retweetTweet, attackTweet, healTweet, openQuoteModal, openReplyModal, fetchThread, openReplyThreadModal } = useTweetsStore();
     const [showWeaponModal, setShowWeaponModal] = useState(false);
     const [weaponActionType, setWeaponActionType] = useState<'attack' | 'heal'>('attack');
 
@@ -43,7 +43,7 @@ export function TweetCard({ tweet }: TweetCardProps) {
     };
 
     const handleReply = () => {
-        openReplyModal(tweet._id.$oid);
+        openReplyThreadModal(tweet._id.$oid);
     };
 
     const handleAttack = () => {
@@ -108,6 +108,24 @@ export function TweetCard({ tweet }: TweetCardProps) {
                         </TouchableOpacity>
                     </View>
 
+                    {/* Replying to indicator */}
+                    {tweet.tweet_type === 'reply' && tweet.replied_to_tweet && (
+                        <View style={styles.replyingToContainer}>
+                            <Text style={styles.replyingToText}>
+                                Replying to <Text style={styles.replyingToUsername}>@{tweet.replied_to_tweet.author?.username || 'user'}</Text>
+                            </Text>
+                        </View>
+                    )}
+
+                    {/* Quoting indicator */}
+                    {tweet.tweet_type === 'quote' && tweet.quoted_tweet && (
+                        <View style={styles.replyingToContainer}>
+                            <Text style={styles.replyingToText}>
+                                Quoting <Text style={styles.replyingToUsername}>@{tweet.quoted_tweet.author?.username || 'user'}</Text>
+                            </Text>
+                        </View>
+                    )}
+
                     {/* Tweet Content */}
                     <Text style={styles.tweetText}>{tweet.content}</Text>
 
@@ -155,7 +173,7 @@ export function TweetCard({ tweet }: TweetCardProps) {
                         >
                             <Text style={styles.actionIcon}>💬</Text>
                             <Text style={styles.actionText}>
-                                {tweet.reply_count > 0 ? `View ${tweet.reply_count}` : 'Reply'}
+                                {tweet.reply_count > 0 ? `View ${tweet.reply_count} replies` : 'Reply'}
                             </Text>
                         </TouchableOpacity>
 
@@ -208,7 +226,7 @@ export function TweetCard({ tweet }: TweetCardProps) {
                 actionType={weaponActionType}
             />
             <QuoteModal />
-            <ReplyModal />
+            <ReplyThreadModal />
             <ThreadModal />
         </>
     );
@@ -267,6 +285,18 @@ const styles = StyleSheet.create({
     moreIcon: {
         color: '#71767b',
         fontSize: 18,
+    },
+    replyingToContainer: {
+        marginBottom: 4,
+        marginLeft: 0,
+    },
+    replyingToText: {
+        color: '#71767b',
+        fontSize: 13,
+    },
+    replyingToUsername: {
+        color: '#1DA1F2',
+        fontWeight: '500',
     },
     tweetText: {
         color: '#fff',
