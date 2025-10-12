@@ -70,15 +70,17 @@ export const api = {
 
   async replyTweet(content: string, repliedToTweetId: string, userId: string) {
     const headers = await getAuthHeaders();
-    const response = await fetch(`${API_BASE_URL}/tweets/reply`, {
-      method: "POST",
-      headers,
-      body: JSON.stringify({
-        content,
-        replied_to_tweet_id: repliedToTweetId,
-        owner_id: userId,
-      }),
-    });
+    const response = await fetch(
+      `${API_BASE_URL}/tweets/${repliedToTweetId}/reply`,
+      {
+        method: "POST",
+        headers,
+        body: JSON.stringify({
+          content,
+          replied_to_tweet_id: repliedToTweetId,
+        }),
+      }
+    );
     if (!response.ok) throw new Error("Failed to reply to tweet");
     return response.json();
   },

@@ -12,59 +12,59 @@ import {
 import { useTweetsStore } from '@/lib/stores/tweetsStore';
 import { useBackendUserStore } from '@/lib/stores/backendUserStore';
 
-export function QuoteModal() {
+export function ReplyModal() {
     const {
-        showQuoteModal,
-        quoteTweetId,
-        quoteContent,
-        closeQuoteModal,
-        setQuoteContent,
-        clearQuoteData,
-        quoteTweet,
+        showReplyModal,
+        replyTweetId,
+        replyContent,
+        closeReplyModal,
+        setReplyContent,
+        clearReplyData,
+        replyTweet,
         tweets,
     } = useTweetsStore();
 
     const { user: currentUser } = useBackendUserStore();
 
-    // Find the original tweet being quoted
-    const originalTweet = tweets.find(tweet => tweet._id.$oid === quoteTweetId);
+    // Find the original tweet being replied to
+    const originalTweet = tweets.find(tweet => tweet._id.$oid === replyTweetId);
 
-    const handleQuoteSubmit = async () => {
-        if (!quoteContent.trim()) {
-            Alert.alert('Error', 'Please enter some content for your quote');
+    const handleReplySubmit = async () => {
+        if (!replyContent.trim()) {
+            Alert.alert('Error', 'Please enter some content for your reply');
             return;
         }
 
-        if (!currentUser?._id?.$oid || !quoteTweetId) {
-            Alert.alert('Error', 'Unable to quote tweet');
+        if (!currentUser?._id?.$oid || !replyTweetId) {
+            Alert.alert('Error', 'Unable to reply to tweet');
             return;
         }
 
-        const result = await quoteTweet(quoteContent.trim(), quoteTweetId, currentUser._id.$oid);
+        const result = await replyTweet(replyContent.trim(), replyTweetId, currentUser._id.$oid);
 
         if (result.success) {
-            Alert.alert('Success', 'Tweet quoted successfully!');
-            clearQuoteData();
+            Alert.alert('Success', 'Reply posted successfully!');
+            clearReplyData();
         } else {
-            Alert.alert('Error', result.error || 'Failed to quote tweet');
+            Alert.alert('Error', result.error || 'Failed to reply to tweet');
         }
     };
 
     const handleCancel = () => {
-        clearQuoteData();
+        clearReplyData();
     };
 
     return (
         <Modal
-            visible={showQuoteModal}
+            visible={showReplyModal}
             animationType="fade"
             transparent={true}
-            onRequestClose={closeQuoteModal}
+            onRequestClose={closeReplyModal}
         >
             <View style={styles.overlay}>
                 <View style={styles.modalContainer}>
                     <View style={styles.header}>
-                        <Text style={styles.title}>Quote Tweet</Text>
+                        <Text style={styles.title}>Reply to Tweet</Text>
                         <TouchableOpacity onPress={handleCancel} style={styles.closeButton}>
                             <Text style={styles.closeText}>✕</Text>
                         </TouchableOpacity>
@@ -78,7 +78,7 @@ export function QuoteModal() {
                         {/* Original Tweet Preview */}
                         {originalTweet && (
                             <View style={styles.originalTweetContainer}>
-                                <Text style={styles.originalTweetLabel}>Quoting:</Text>
+                                <Text style={styles.originalTweetLabel}>Replying to:</Text>
                                 <View style={styles.originalTweet}>
                                     <View style={styles.originalTweetHeader}>
                                         <View style={styles.originalTweetAvatar}>
@@ -103,12 +103,12 @@ export function QuoteModal() {
                         )}
 
                         <View style={styles.content}>
-                            <Text style={styles.label}>Add your comment:</Text>
+                            <Text style={styles.label}>Your reply:</Text>
                             <TextInput
                                 style={styles.textInput}
-                                value={quoteContent}
-                                onChangeText={setQuoteContent}
-                                placeholder="What are your thoughts?"
+                                value={replyContent}
+                                onChangeText={setReplyContent}
+                                placeholder="Tweet your reply..."
                                 multiline
                                 numberOfLines={4}
                                 textAlignVertical="top"
@@ -118,7 +118,7 @@ export function QuoteModal() {
                                 blurOnSubmit={false}
                             />
                             <Text style={styles.characterCount}>
-                                {quoteContent.length}/280
+                                {replyContent.length}/280
                             </Text>
                         </View>
                     </ScrollView>
@@ -131,10 +131,10 @@ export function QuoteModal() {
                             <Text style={styles.cancelButtonText}>Cancel</Text>
                         </TouchableOpacity>
                         <TouchableOpacity
-                            style={styles.quoteButton}
-                            onPress={handleQuoteSubmit}
+                            style={styles.replyButton}
+                            onPress={handleReplySubmit}
                         >
-                            <Text style={styles.quoteButtonText}>Quote Tweet</Text>
+                            <Text style={styles.replyButtonText}>Reply</Text>
                         </TouchableOpacity>
                     </View>
                 </View>
@@ -221,13 +221,13 @@ const styles = StyleSheet.create({
         color: '#888',
         fontSize: 16,
     },
-    quoteButton: {
+    replyButton: {
         backgroundColor: '#1DA1F2',
         paddingVertical: 12,
         paddingHorizontal: 24,
         borderRadius: 8,
     },
-    quoteButtonText: {
+    replyButtonText: {
         color: '#fff',
         fontSize: 16,
         fontWeight: 'bold',

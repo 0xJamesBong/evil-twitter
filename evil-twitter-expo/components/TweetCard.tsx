@@ -4,6 +4,7 @@ import React, { useState } from 'react';
 import { Alert, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { WeaponSelectionModal } from './WeaponSelectionModal';
 import { QuoteModal } from './QuoteModal';
+import { ReplyModal } from './ReplyModal';
 
 interface TweetCardProps {
     tweet: Tweet;
@@ -11,7 +12,7 @@ interface TweetCardProps {
 
 export function TweetCard({ tweet }: TweetCardProps) {
     const { user: currentUser } = useBackendUserStore();
-    const { retweetTweet, attackTweet, healTweet, openQuoteModal } = useTweetsStore();
+    const { retweetTweet, attackTweet, healTweet, openQuoteModal, openReplyModal } = useTweetsStore();
     const [showWeaponModal, setShowWeaponModal] = useState(false);
     const [weaponActionType, setWeaponActionType] = useState<'attack' | 'heal'>('attack');
 
@@ -41,7 +42,7 @@ export function TweetCard({ tweet }: TweetCardProps) {
     };
 
     const handleReply = () => {
-        setShowReplyModal(true);
+        openReplyModal(tweet._id.$oid);
     };
 
     const handleAttack = () => {
@@ -200,6 +201,7 @@ export function TweetCard({ tweet }: TweetCardProps) {
                 actionType={weaponActionType}
             />
             <QuoteModal />
+            <ReplyModal />
         </>
     );
 }
