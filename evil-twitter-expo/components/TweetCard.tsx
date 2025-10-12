@@ -5,6 +5,7 @@ import { Alert, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { WeaponSelectionModal } from './WeaponSelectionModal';
 import { QuoteModal } from './QuoteModal';
 import { ReplyModal } from './ReplyModal';
+import { ThreadModal } from './ThreadModal';
 
 interface TweetCardProps {
     tweet: Tweet;
@@ -12,7 +13,7 @@ interface TweetCardProps {
 
 export function TweetCard({ tweet }: TweetCardProps) {
     const { user: currentUser } = useBackendUserStore();
-    const { retweetTweet, attackTweet, healTweet, openQuoteModal, openReplyModal } = useTweetsStore();
+    const { retweetTweet, attackTweet, healTweet, openQuoteModal, openReplyModal, fetchThread } = useTweetsStore();
     const [showWeaponModal, setShowWeaponModal] = useState(false);
     const [weaponActionType, setWeaponActionType] = useState<'attack' | 'heal'>('attack');
 
@@ -72,6 +73,10 @@ export function TweetCard({ tweet }: TweetCardProps) {
         } else {
             Alert.alert('Error', result.error || `Failed to ${weaponActionType} tweet`);
         }
+    };
+
+    const handleViewThread = () => {
+        fetchThread(tweet._id.$oid);
     };
 
     const getHealthColor = (health: number, maxHealth: number) => {
@@ -146,10 +151,12 @@ export function TweetCard({ tweet }: TweetCardProps) {
                     <View style={styles.actions}>
                         <TouchableOpacity
                             style={styles.actionButton}
-                            onPress={handleReply}
+                            onPress={tweet.reply_count > 0 ? handleViewThread : handleReply}
                         >
                             <Text style={styles.actionIcon}>💬</Text>
-                            <Text style={styles.actionText}>{tweet.reply_count || 0}</Text>
+                            <Text style={styles.actionText}>
+                                {tweet.reply_count > 0 ? `View ${tweet.reply_count}` : 'Reply'}
+                            </Text>
                         </TouchableOpacity>
 
                         <TouchableOpacity
@@ -202,6 +209,7 @@ export function TweetCard({ tweet }: TweetCardProps) {
             />
             <QuoteModal />
             <ReplyModal />
+            <ThreadModal />
         </>
     );
 }

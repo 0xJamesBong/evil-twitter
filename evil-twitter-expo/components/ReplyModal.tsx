@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import {
     Modal,
     View,
@@ -7,7 +7,8 @@ import {
     TouchableOpacity,
     StyleSheet,
     Alert,
-    ScrollView,
+    KeyboardAvoidingView,
+    Platform,
 } from 'react-native';
 import { useTweetsStore } from '@/lib/stores/tweetsStore';
 import { useBackendUserStore } from '@/lib/stores/backendUserStore';
@@ -25,12 +26,26 @@ export function ReplyModal() {
     } = useTweetsStore();
 
     const { user: currentUser } = useBackendUserStore();
+    const [localContent, setLocalContent] = useState('');
 
     // Find the original tweet being replied to
     const originalTweet = tweets.find(tweet => tweet._id.$oid === replyTweetId);
 
+    // Sync local state with store state
+    useEffect(() => {
+        if (showReplyModal) {
+            setLocalContent(replyContent);
+        }
+    }, [showReplyModal, replyContent]);
+
+    const handleContentChange = (text: string) => {
+        console.log('ReplyModal handleContentChange called with:', text);
+        setLocalContent(text);
+        setReplyContent(text);
+    };
+
     const handleReplySubmit = async () => {
-        if (!replyContent.trim()) {
+        if (!localContent.trim()) {
             Alert.alert('Error', 'Please enter some content for your reply');
             return;
         }
@@ -40,11 +55,12 @@ export function ReplyModal() {
             return;
         }
 
-        const result = await replyTweet(replyContent.trim(), replyTweetId, currentUser._id.$oid);
+        const result = await replyTweet(localContent.trim(), replyTweetId, currentUser._id.$oid);
 
         if (result.success) {
             Alert.alert('Success', 'Reply posted successfully!');
             clearReplyData();
+            setLocalContent('');
         } else {
             Alert.alert('Error', result.error || 'Failed to reply to tweet');
         }
@@ -52,190 +68,167 @@ export function ReplyModal() {
 
     const handleCancel = () => {
         clearReplyData();
+        setLocalContent('');
     };
+
+    if (!showReplyModal) {
+        return null;
+    }
 
     return (
         <Modal
             visible={showReplyModal}
-            animationType="fade"
-            transparent={true}
+            animationType="slide"
+            presentationStyle="pageSheet"
             onRequestClose={closeReplyModal}
         >
-            <View style={styles.overlay}>
-                <View style={styles.modalContainer}>
-                    <View style={styles.header}>
-                        <Text style={styles.title}>Reply to Tweet</Text>
-                        <TouchableOpacity onPress={handleCancel} style={styles.closeButton}>
-                            <Text style={styles.closeText}>✕</Text>
-                        </TouchableOpacity>
-                    </View>
-
-                    <ScrollView
-                        style={styles.scrollContent}
-                        keyboardShouldPersistTaps="handled"
-                        showsVerticalScrollIndicator={false}
+            <KeyboardAvoidingView
+                style={styles.container}
+                behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+            >
+                {/* Header */}
+                <View style={styles.header}>
+                    <TouchableOpacity onPress={handleCancel} style={styles.cancelButton}>
+                        <Text style={styles.cancelButtonText}>Cancel</Text>
+                    </TouchableOpacity>
+                    <Text style={styles.title}>Reply to Tweet</Text>
+                    <TouchableOpacity
+                        onPress={handleReplySubmit}
+                        style={[
+                            styles.replyButton,
+                            !localContent.trim() && styles.replyButtonDisabled
+                        ]}
+                        disabled={!localContent.trim()}
                     >
-                        {/* Original Tweet Preview */}
-                        {originalTweet && (
-                            <View style={styles.originalTweetContainer}>
-                                <Text style={styles.originalTweetLabel}>Replying to:</Text>
-                                <View style={styles.originalTweet}>
-                                    <View style={styles.originalTweetHeader}>
-                                        <View style={styles.originalTweetAvatar}>
-                                            <Text style={styles.originalTweetAvatarText}>
-                                                {originalTweet.author?.display_name?.charAt(0).toUpperCase() || '😈'}
-                                            </Text>
-                                        </View>
-                                        <View style={styles.originalTweetInfo}>
-                                            <Text style={styles.originalTweetName}>
-                                                {originalTweet.author?.display_name || 'User'}
-                                            </Text>
-                                            <Text style={styles.originalTweetUsername}>
-                                                @{originalTweet.author?.username || 'user'}
-                                            </Text>
-                                        </View>
+                        <Text style={[
+                            styles.replyButtonText,
+                            !localContent.trim() && styles.replyButtonTextDisabled
+                        ]}>
+                            Reply
+                        </Text>
+                    </TouchableOpacity>
+                </View>
+
+                {/* Content */}
+                <View style={styles.content}>
+                    {/* Original Tweet Preview */}
+                    {originalTweet && (
+                        <View style={styles.originalTweetContainer}>
+                            <Text style={styles.originalTweetLabel}>Replying to:</Text>
+                            <View style={styles.originalTweet}>
+                                <View style={styles.originalTweetHeader}>
+                                    <View style={styles.originalTweetAvatar}>
+                                        <Text style={styles.originalTweetAvatarText}>
+                                            {originalTweet.author?.display_name?.charAt(0).toUpperCase() || '😈'}
+                                        </Text>
                                     </View>
-                                    <Text style={styles.originalTweetContent}>
-                                        {originalTweet.content}
-                                    </Text>
+                                    <View style={styles.originalTweetInfo}>
+                                        <Text style={styles.originalTweetName}>
+                                            {originalTweet.author?.display_name || 'User'}
+                                        </Text>
+                                        <Text style={styles.originalTweetUsername}>
+                                            @{originalTweet.author?.username || 'user'}
+                                        </Text>
+                                    </View>
                                 </View>
+                                <Text style={styles.originalTweetContent}>
+                                    {originalTweet.content}
+                                </Text>
                             </View>
-                        )}
-
-                        <View style={styles.content}>
-                            <Text style={styles.label}>Your reply:</Text>
-                            <TextInput
-                                style={styles.textInput}
-                                value={replyContent}
-                                onChangeText={setReplyContent}
-                                placeholder="Tweet your reply..."
-                                multiline
-                                numberOfLines={4}
-                                textAlignVertical="top"
-                                maxLength={280}
-                                autoFocus={true}
-                                returnKeyType="default"
-                                blurOnSubmit={false}
-                            />
-                            <Text style={styles.characterCount}>
-                                {replyContent.length}/280
-                            </Text>
                         </View>
-                    </ScrollView>
+                    )}
 
-                    <View style={styles.actions}>
-                        <TouchableOpacity
-                            style={styles.cancelButton}
-                            onPress={handleCancel}
-                        >
-                            <Text style={styles.cancelButtonText}>Cancel</Text>
-                        </TouchableOpacity>
-                        <TouchableOpacity
-                            style={styles.replyButton}
-                            onPress={handleReplySubmit}
-                        >
-                            <Text style={styles.replyButtonText}>Reply</Text>
-                        </TouchableOpacity>
+                    {/* Reply Input */}
+                    <View style={styles.inputContainer}>
+                        <Text style={styles.inputLabel}>Your reply:</Text>
+
+                        {/* Test simple TextInput */}
+                        <TextInput
+                            style={[styles.textInput, { marginBottom: 8 }]}
+                            value={localContent}
+                            onChangeText={(text) => {
+                                console.log('Simple TextInput onChangeText:', text);
+                                setLocalContent(text);
+                                setReplyContent(text);
+                            }}
+                            placeholder="Type here to test..."
+                        />
+
+                        {/* Original TextInput */}
+                        <TextInput
+                            style={styles.textInput}
+                            value={localContent}
+                            onChangeText={handleContentChange}
+                            onFocus={() => console.log('ReplyModal TextInput focused')}
+                            onBlur={() => console.log('ReplyModal TextInput blurred')}
+                            placeholder="Tweet your reply..."
+                            multiline
+                            textAlignVertical="top"
+                            maxLength={280}
+                            autoFocus={true}
+                            returnKeyType="default"
+                            blurOnSubmit={false}
+                        />
+                        <Text style={styles.characterCount}>
+                            {localContent.length}/280
+                        </Text>
                     </View>
                 </View>
-            </View>
+            </KeyboardAvoidingView>
         </Modal>
     );
 }
 
 const styles = StyleSheet.create({
-    overlay: {
+    container: {
         flex: 1,
-        backgroundColor: 'rgba(0, 0, 0, 0.3)',
-        justifyContent: 'center',
-        alignItems: 'center',
-    },
-    modalContainer: {
-        backgroundColor: '#1a1a1a',
-        borderRadius: 12,
-        width: '90%',
-        maxWidth: 500,
-        maxHeight: '80%',
-    },
-    scrollContent: {
-        flex: 1,
+        backgroundColor: '#000',
     },
     header: {
         flexDirection: 'row',
         justifyContent: 'space-between',
         alignItems: 'center',
-        padding: 16,
+        paddingHorizontal: 16,
+        paddingVertical: 12,
         borderBottomWidth: 1,
         borderBottomColor: '#333',
     },
     title: {
-        color: '#fff',
         fontSize: 18,
         fontWeight: 'bold',
-    },
-    closeButton: {
-        padding: 4,
-    },
-    closeText: {
-        color: '#888',
-        fontSize: 18,
-    },
-    content: {
-        padding: 16,
-    },
-    label: {
         color: '#fff',
-        fontSize: 16,
-        marginBottom: 8,
-    },
-    textInput: {
-        backgroundColor: '#2a2a2a',
-        borderWidth: 1,
-        borderColor: '#444',
-        borderRadius: 8,
-        padding: 12,
-        color: '#fff',
-        fontSize: 16,
-        minHeight: 100,
-    },
-    characterCount: {
-        color: '#888',
-        fontSize: 12,
-        textAlign: 'right',
-        marginTop: 4,
-    },
-    actions: {
-        flexDirection: 'row',
-        justifyContent: 'flex-end',
-        padding: 16,
-        gap: 12,
     },
     cancelButton: {
-        paddingVertical: 12,
-        paddingHorizontal: 24,
-        borderRadius: 8,
-        borderWidth: 1,
-        borderColor: '#444',
+        paddingVertical: 8,
+        paddingHorizontal: 12,
     },
     cancelButtonText: {
-        color: '#888',
+        color: '#1DA1F2',
         fontSize: 16,
     },
     replyButton: {
         backgroundColor: '#1DA1F2',
-        paddingVertical: 12,
-        paddingHorizontal: 24,
-        borderRadius: 8,
+        paddingVertical: 8,
+        paddingHorizontal: 16,
+        borderRadius: 20,
+    },
+    replyButtonDisabled: {
+        backgroundColor: '#333',
     },
     replyButtonText: {
         color: '#fff',
         fontSize: 16,
         fontWeight: 'bold',
     },
-    originalTweetContainer: {
+    replyButtonTextDisabled: {
+        color: '#666',
+    },
+    content: {
+        flex: 1,
         padding: 16,
-        borderBottomWidth: 1,
-        borderBottomColor: '#333',
+    },
+    originalTweetContainer: {
+        marginBottom: 16,
     },
     originalTweetLabel: {
         color: '#888',
@@ -243,11 +236,11 @@ const styles = StyleSheet.create({
         marginBottom: 8,
     },
     originalTweet: {
-        backgroundColor: '#2a2a2a',
+        backgroundColor: '#1a1a1a',
         borderRadius: 8,
         padding: 12,
         borderWidth: 1,
-        borderColor: '#444',
+        borderColor: '#333',
     },
     originalTweetHeader: {
         flexDirection: 'row',
@@ -258,7 +251,7 @@ const styles = StyleSheet.create({
         width: 32,
         height: 32,
         borderRadius: 16,
-        backgroundColor: '#536471',
+        backgroundColor: '#1DA1F2',
         justifyContent: 'center',
         alignItems: 'center',
         marginRight: 8,
@@ -283,6 +276,31 @@ const styles = StyleSheet.create({
     originalTweetContent: {
         color: '#fff',
         fontSize: 14,
-        lineHeight: 18,
+        lineHeight: 20,
+    },
+    inputContainer: {
+        flex: 1,
+    },
+    inputLabel: {
+        color: '#fff',
+        fontSize: 16,
+        marginBottom: 8,
+    },
+    textInput: {
+        backgroundColor: '#1a1a1a',
+        borderWidth: 1,
+        borderColor: '#333',
+        borderRadius: 8,
+        padding: 12,
+        color: '#fff',
+        fontSize: 16,
+        minHeight: 120,
+        textAlignVertical: 'top',
+    },
+    characterCount: {
+        color: '#888',
+        fontSize: 12,
+        textAlign: 'right',
+        marginTop: 4,
     },
 });

@@ -148,4 +148,17 @@ export const api = {
     if (!response.ok) throw new Error("Failed to heal tweet");
     return response.json();
   },
+
+  async getThread(tweetId: string, limit: number = 50, offset: number = 0) {
+    const headers = await getAuthHeaders();
+    const response = await fetch(
+      `${API_BASE_URL}/tweets/${tweetId}/thread?limit=${limit}&offset=${offset}`,
+      {
+        method: "GET",
+        headers,
+      }
+    );
+    if (!response.ok) throw new Error("Failed to fetch thread");
+    return response.json();
+  },
 };

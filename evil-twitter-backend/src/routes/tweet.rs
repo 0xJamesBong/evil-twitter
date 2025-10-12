@@ -5,7 +5,7 @@ use axum::{
     extract::{Path, State},
     http::StatusCode,
 };
-use futures::TryStreamExt;
+use futures::{StreamExt, TryStreamExt};
 use mongodb::{
     Collection, Database,
     bson::{doc, oid::ObjectId},
@@ -175,6 +175,8 @@ pub async fn create_tweet(
         tweet_type: TweetType::Original,
         original_tweet_id: None,
         replied_to_tweet_id: None,
+        root_tweet_id: None, // Will be set to self.id after insertion
+        reply_depth: 0,      // Original tweets have depth 0
         created_at: now,
         likes_count: 0,
         retweets_count: 0,
@@ -202,7 +204,23 @@ pub async fn create_tweet(
     })?;
 
     let mut created_tweet = tweet;
-    created_tweet.id = Some(result.inserted_id.as_object_id().unwrap());
+    let inserted_id = result.inserted_id.as_object_id().unwrap();
+    created_tweet.id = Some(inserted_id);
+    created_tweet.root_tweet_id = Some(inserted_id); // Set root_tweet_id to self for original tweets
+
+    // Update the tweet in the database with the root_tweet_id
+    collection
+        .update_one(
+            doc! {"_id": inserted_id},
+            doc! {"$set": {"root_tweet_id": inserted_id}},
+        )
+        .await
+        .map_err(|_| {
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(serde_json::json!({"error": "Failed to update tweet"})),
+            )
+        })?;
 
     Ok((StatusCode::CREATED, Json(created_tweet)))
 }
@@ -649,6 +667,8 @@ pub async fn generate_fake_tweets(
             tweet_type: TweetType::Original,
             original_tweet_id: None,
             replied_to_tweet_id: None,
+            root_tweet_id: None,
+            reply_depth: 0,
             created_at: mongodb::bson::DateTime::now(),
             likes_count: 42,
             retweets_count: 8,
@@ -674,6 +694,8 @@ pub async fn generate_fake_tweets(
             tweet_type: TweetType::Original,
             original_tweet_id: None,
             replied_to_tweet_id: None,
+            root_tweet_id: None,
+            reply_depth: 0,
             created_at: mongodb::bson::DateTime::now(),
             likes_count: 67,
             retweets_count: 12,
@@ -699,6 +721,8 @@ pub async fn generate_fake_tweets(
             tweet_type: TweetType::Original,
             original_tweet_id: None,
             replied_to_tweet_id: None,
+            root_tweet_id: None,
+            reply_depth: 0,
             created_at: mongodb::bson::DateTime::now(),
             likes_count: 89,
             retweets_count: 15,
@@ -724,6 +748,8 @@ pub async fn generate_fake_tweets(
             tweet_type: TweetType::Original,
             original_tweet_id: None,
             replied_to_tweet_id: None,
+            root_tweet_id: None,
+            reply_depth: 0,
             created_at: mongodb::bson::DateTime::now(),
             likes_count: 34,
             retweets_count: 6,
@@ -749,6 +775,8 @@ pub async fn generate_fake_tweets(
             tweet_type: TweetType::Original,
             original_tweet_id: None,
             replied_to_tweet_id: None,
+            root_tweet_id: None,
+            reply_depth: 0,
             created_at: mongodb::bson::DateTime::now(),
             likes_count: 56,
             retweets_count: 9,
@@ -904,6 +932,8 @@ pub async fn retweet_tweet(
         tweet_type: TweetType::Retweet,
         original_tweet_id: Some(original_tweet_id),
         replied_to_tweet_id: None,
+        root_tweet_id: None,
+        reply_depth: 0,
         created_at: now,
         likes_count: 0,
         retweets_count: 0,
@@ -1043,6 +1073,8 @@ pub async fn quote_tweet(
         tweet_type: TweetType::Quote,
         original_tweet_id: Some(original_tweet_id),
         replied_to_tweet_id: None,
+        root_tweet_id: None,
+        reply_depth: 0,
         created_at: now,
         likes_count: 0,
         retweets_count: 0,
@@ -1155,7 +1187,7 @@ pub async fn reply_tweet(
         )
     })?;
 
-    let _original_tweet = collection
+    let original_tweet = collection
         .find_one(doc! {"_id": original_tweet_id})
         .await
         .map_err(|_| {
@@ -1174,6 +1206,12 @@ pub async fn reply_tweet(
     let now = mongodb::bson::DateTime::now();
     let id = Some(ObjectId::new());
 
+    // Calculate root_tweet_id and reply_depth
+    let root_tweet_id = original_tweet
+        .root_tweet_id
+        .unwrap_or(original_tweet.id.unwrap());
+    let reply_depth = original_tweet.reply_depth + 1;
+
     // Create the reply
     let reply = Tweet {
         id,
@@ -1182,6 +1220,8 @@ pub async fn reply_tweet(
         tweet_type: TweetType::Reply,
         original_tweet_id: None,
         replied_to_tweet_id: Some(original_tweet_id),
+        root_tweet_id: Some(root_tweet_id),
+        reply_depth,
         created_at: now,
         likes_count: 0,
         retweets_count: 0,
@@ -1547,4 +1587,97 @@ pub async fn attack_tweet(
             "damage": actual_damage
         })),
     ))
+}
+
+/// Get thread for a tweet (all replies in the thread)
+#[utoipa::path(
+    get,
+    path = "/tweets/{id}/thread",
+    params(
+        ("id" = String, Path, description = "Root tweet ID"),
+        ("limit" = Option<i64>, Query, description = "Number of tweets per page (default: 50)"),
+        ("offset" = Option<i64>, Query, description = "Number of tweets to skip (default: 0)")
+    ),
+    responses(
+        (status = 200, description = "Thread found", body = TweetListResponse),
+        (status = 404, description = "Tweet not found")
+    ),
+    tag = "tweets"
+)]
+pub async fn get_thread(
+    State(db): State<Database>,
+    Path(id): Path<String>,
+    axum::extract::Query(params): axum::extract::Query<std::collections::HashMap<String, String>>,
+) -> Result<Json<TweetListResponse>, (StatusCode, Json<serde_json::Value>)> {
+    let collection: Collection<Tweet> = db.collection("tweets");
+
+    let root_tweet_id = ObjectId::parse_str(&id).map_err(|_| {
+        (
+            StatusCode::BAD_REQUEST,
+            Json(serde_json::json!({"error": "Invalid tweet ID"})),
+        )
+    })?;
+
+    // Parse query parameters
+    let limit = params
+        .get("limit")
+        .and_then(|s| s.parse::<i64>().ok())
+        .unwrap_or(50)
+        .min(100); // Cap at 100 to prevent abuse
+    let offset = params
+        .get("offset")
+        .and_then(|s| s.parse::<i64>().ok())
+        .unwrap_or(0);
+
+    // Find all tweets in the thread (including the root tweet)
+    let filter = doc! {
+        "$or": [
+            {"_id": root_tweet_id},
+            {"root_tweet_id": root_tweet_id}
+        ]
+    };
+
+    let sort = doc! {
+        "reply_depth": 1,
+        "created_at": 1
+    };
+
+    let mut cursor = collection
+        .find(filter.clone())
+        .sort(sort)
+        .skip(offset as u64)
+        .limit(limit)
+        .await
+        .map_err(|_| {
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(serde_json::json!({"error": "Database error"})),
+            )
+        })?;
+
+    let mut tweets = Vec::new();
+    while let Some(tweet) = cursor.next().await {
+        tweets.push(tweet.map_err(|_| {
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(serde_json::json!({"error": "Database error"})),
+            )
+        })?);
+    }
+
+    // Get total count for pagination
+    let total = collection
+        .count_documents(filter.clone())
+        .await
+        .map_err(|_| {
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(serde_json::json!({"error": "Database error"})),
+            )
+        })?;
+
+    Ok(Json(TweetListResponse {
+        tweets,
+        total: total as i64,
+    }))
 }

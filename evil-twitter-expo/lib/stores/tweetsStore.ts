@@ -8,6 +8,8 @@ export interface Tweet {
   tweet_type: "original" | "retweet" | "quote" | "reply";
   original_tweet_id?: string;
   replied_to_tweet_id?: string;
+  root_tweet_id?: string;
+  reply_depth?: number;
   retweet_count: number;
   like_count: number;
   reply_count: number;
@@ -45,6 +47,11 @@ interface TweetsState {
   showReplyModal: boolean;
   replyTweetId: string | null;
   replyContent: string;
+
+  // Thread state
+  threads: Record<string, Tweet[]>;
+  threadLoading: boolean;
+  threadError: string | null;
 
   // Actions
   fetchTweets: () => Promise<void>;
@@ -88,6 +95,15 @@ interface TweetsState {
   closeReplyModal: () => void;
   setReplyContent: (content: string) => void;
   clearReplyData: () => void;
+
+  // Thread actions
+  fetchThread: (
+    tweetId: string,
+    limit?: number,
+    offset?: number
+  ) => Promise<void>;
+  clearThread: (tweetId: string) => void;
+  clearAllThreads: () => void;
 }
 
 export const useTweetsStore = create<TweetsState>((set, get) => ({
@@ -104,6 +120,11 @@ export const useTweetsStore = create<TweetsState>((set, get) => ({
   showReplyModal: false,
   replyTweetId: null,
   replyContent: "",
+
+  // Thread state
+  threads: {},
+  threadLoading: false,
+  threadError: null,
 
   fetchTweets: async () => {
     set({ loading: true, error: null });
@@ -287,5 +308,43 @@ export const useTweetsStore = create<TweetsState>((set, get) => ({
       replyTweetId: null,
       replyContent: "",
     });
+  },
+
+  // Thread actions
+  fetchThread: async (
+    tweetId: string,
+    limit: number = 50,
+    offset: number = 0
+  ) => {
+    set({ threadLoading: true, threadError: null });
+
+    try {
+      const response = await api.getThread(tweetId, limit, offset);
+      set((state) => ({
+        threads: {
+          ...state.threads,
+          [tweetId]: response.tweets,
+        },
+        threadLoading: false,
+      }));
+    } catch (error) {
+      set({
+        threadError:
+          error instanceof Error ? error.message : "Failed to fetch thread",
+        threadLoading: false,
+      });
+    }
+  },
+
+  clearThread: (tweetId: string) => {
+    set((state) => {
+      const newThreads = { ...state.threads };
+      delete newThreads[tweetId];
+      return { threads: newThreads };
+    });
+  },
+
+  clearAllThreads: () => {
+    set({ threads: {} });
   },
 }));

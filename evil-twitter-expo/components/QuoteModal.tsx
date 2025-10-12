@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import {
     Modal,
     View,
@@ -7,7 +7,8 @@ import {
     TouchableOpacity,
     StyleSheet,
     Alert,
-    ScrollView,
+    KeyboardAvoidingView,
+    Platform,
 } from 'react-native';
 import { useTweetsStore } from '@/lib/stores/tweetsStore';
 import { useBackendUserStore } from '@/lib/stores/backendUserStore';
@@ -25,12 +26,25 @@ export function QuoteModal() {
     } = useTweetsStore();
 
     const { user: currentUser } = useBackendUserStore();
+    const [localContent, setLocalContent] = useState('');
 
     // Find the original tweet being quoted
     const originalTweet = tweets.find(tweet => tweet._id.$oid === quoteTweetId);
 
+    // Sync local state with store state
+    useEffect(() => {
+        if (showQuoteModal) {
+            setLocalContent(quoteContent);
+        }
+    }, [showQuoteModal, quoteContent]);
+
+    const handleContentChange = (text: string) => {
+        setLocalContent(text);
+        setQuoteContent(text);
+    };
+
     const handleQuoteSubmit = async () => {
-        if (!quoteContent.trim()) {
+        if (!localContent.trim()) {
             Alert.alert('Error', 'Please enter some content for your quote');
             return;
         }
@@ -40,11 +54,12 @@ export function QuoteModal() {
             return;
         }
 
-        const result = await quoteTweet(quoteContent.trim(), quoteTweetId, currentUser._id.$oid);
+        const result = await quoteTweet(localContent.trim(), quoteTweetId, currentUser._id.$oid);
 
         if (result.success) {
             Alert.alert('Success', 'Tweet quoted successfully!');
             clearQuoteData();
+            setLocalContent('');
         } else {
             Alert.alert('Error', result.error || 'Failed to quote tweet');
         }
@@ -52,190 +67,151 @@ export function QuoteModal() {
 
     const handleCancel = () => {
         clearQuoteData();
+        setLocalContent('');
     };
+
+    if (!showQuoteModal) {
+        return null;
+    }
 
     return (
         <Modal
             visible={showQuoteModal}
-            animationType="fade"
-            transparent={true}
+            animationType="slide"
+            presentationStyle="pageSheet"
             onRequestClose={closeQuoteModal}
         >
-            <View style={styles.overlay}>
-                <View style={styles.modalContainer}>
-                    <View style={styles.header}>
-                        <Text style={styles.title}>Quote Tweet</Text>
-                        <TouchableOpacity onPress={handleCancel} style={styles.closeButton}>
-                            <Text style={styles.closeText}>✕</Text>
-                        </TouchableOpacity>
-                    </View>
-
-                    <ScrollView
-                        style={styles.scrollContent}
-                        keyboardShouldPersistTaps="handled"
-                        showsVerticalScrollIndicator={false}
+            <KeyboardAvoidingView
+                style={styles.container}
+                behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+            >
+                {/* Header */}
+                <View style={styles.header}>
+                    <TouchableOpacity onPress={handleCancel} style={styles.cancelButton}>
+                        <Text style={styles.cancelButtonText}>Cancel</Text>
+                    </TouchableOpacity>
+                    <Text style={styles.title}>Quote Tweet</Text>
+                    <TouchableOpacity
+                        onPress={handleQuoteSubmit}
+                        style={[
+                            styles.quoteButton,
+                            !localContent.trim() && styles.quoteButtonDisabled
+                        ]}
+                        disabled={!localContent.trim()}
                     >
-                        {/* Original Tweet Preview */}
-                        {originalTweet && (
-                            <View style={styles.originalTweetContainer}>
-                                <Text style={styles.originalTweetLabel}>Quoting:</Text>
-                                <View style={styles.originalTweet}>
-                                    <View style={styles.originalTweetHeader}>
-                                        <View style={styles.originalTweetAvatar}>
-                                            <Text style={styles.originalTweetAvatarText}>
-                                                {originalTweet.author?.display_name?.charAt(0).toUpperCase() || '😈'}
-                                            </Text>
-                                        </View>
-                                        <View style={styles.originalTweetInfo}>
-                                            <Text style={styles.originalTweetName}>
-                                                {originalTweet.author?.display_name || 'User'}
-                                            </Text>
-                                            <Text style={styles.originalTweetUsername}>
-                                                @{originalTweet.author?.username || 'user'}
-                                            </Text>
-                                        </View>
+                        <Text style={[
+                            styles.quoteButtonText,
+                            !localContent.trim() && styles.quoteButtonTextDisabled
+                        ]}>
+                            Quote
+                        </Text>
+                    </TouchableOpacity>
+                </View>
+
+                {/* Content */}
+                <View style={styles.content}>
+                    {/* Original Tweet Preview */}
+                    {originalTweet && (
+                        <View style={styles.originalTweetContainer}>
+                            <Text style={styles.originalTweetLabel}>Quoting:</Text>
+                            <View style={styles.originalTweet}>
+                                <View style={styles.originalTweetHeader}>
+                                    <View style={styles.originalTweetAvatar}>
+                                        <Text style={styles.originalTweetAvatarText}>
+                                            {originalTweet.author?.display_name?.charAt(0).toUpperCase() || '😈'}
+                                        </Text>
                                     </View>
-                                    <Text style={styles.originalTweetContent}>
-                                        {originalTweet.content}
-                                    </Text>
+                                    <View style={styles.originalTweetInfo}>
+                                        <Text style={styles.originalTweetName}>
+                                            {originalTweet.author?.display_name || 'User'}
+                                        </Text>
+                                        <Text style={styles.originalTweetUsername}>
+                                            @{originalTweet.author?.username || 'user'}
+                                        </Text>
+                                    </View>
                                 </View>
+                                <Text style={styles.originalTweetContent}>
+                                    {originalTweet.content}
+                                </Text>
                             </View>
-                        )}
-
-                        <View style={styles.content}>
-                            <Text style={styles.label}>Add your comment:</Text>
-                            <TextInput
-                                style={styles.textInput}
-                                value={quoteContent}
-                                onChangeText={setQuoteContent}
-                                placeholder="What are your thoughts?"
-                                multiline
-                                numberOfLines={4}
-                                textAlignVertical="top"
-                                maxLength={280}
-                                autoFocus={true}
-                                returnKeyType="default"
-                                blurOnSubmit={false}
-                            />
-                            <Text style={styles.characterCount}>
-                                {quoteContent.length}/280
-                            </Text>
                         </View>
-                    </ScrollView>
+                    )}
 
-                    <View style={styles.actions}>
-                        <TouchableOpacity
-                            style={styles.cancelButton}
-                            onPress={handleCancel}
-                        >
-                            <Text style={styles.cancelButtonText}>Cancel</Text>
-                        </TouchableOpacity>
-                        <TouchableOpacity
-                            style={styles.quoteButton}
-                            onPress={handleQuoteSubmit}
-                        >
-                            <Text style={styles.quoteButtonText}>Quote Tweet</Text>
-                        </TouchableOpacity>
+                    {/* Quote Input */}
+                    <View style={styles.inputContainer}>
+                        <Text style={styles.inputLabel}>Add your comment:</Text>
+                        <TextInput
+                            style={styles.textInput}
+                            value={localContent}
+                            onChangeText={handleContentChange}
+                            placeholder="What are your thoughts?"
+                            multiline
+                            textAlignVertical="top"
+                            maxLength={280}
+                            autoFocus={true}
+                            returnKeyType="default"
+                            blurOnSubmit={false}
+                        />
+                        <Text style={styles.characterCount}>
+                            {localContent.length}/280
+                        </Text>
                     </View>
                 </View>
-            </View>
+            </KeyboardAvoidingView>
         </Modal>
     );
 }
 
 const styles = StyleSheet.create({
-    overlay: {
+    container: {
         flex: 1,
-        backgroundColor: 'rgba(0, 0, 0, 0.3)',
-        justifyContent: 'center',
-        alignItems: 'center',
-    },
-    modalContainer: {
-        backgroundColor: '#1a1a1a',
-        borderRadius: 12,
-        width: '90%',
-        maxWidth: 500,
-        maxHeight: '80%',
-    },
-    scrollContent: {
-        flex: 1,
+        backgroundColor: '#000',
     },
     header: {
         flexDirection: 'row',
         justifyContent: 'space-between',
         alignItems: 'center',
-        padding: 16,
+        paddingHorizontal: 16,
+        paddingVertical: 12,
         borderBottomWidth: 1,
         borderBottomColor: '#333',
     },
     title: {
-        color: '#fff',
         fontSize: 18,
         fontWeight: 'bold',
-    },
-    closeButton: {
-        padding: 4,
-    },
-    closeText: {
-        color: '#888',
-        fontSize: 18,
-    },
-    content: {
-        padding: 16,
-    },
-    label: {
         color: '#fff',
-        fontSize: 16,
-        marginBottom: 8,
-    },
-    textInput: {
-        backgroundColor: '#2a2a2a',
-        borderWidth: 1,
-        borderColor: '#444',
-        borderRadius: 8,
-        padding: 12,
-        color: '#fff',
-        fontSize: 16,
-        minHeight: 100,
-    },
-    characterCount: {
-        color: '#888',
-        fontSize: 12,
-        textAlign: 'right',
-        marginTop: 4,
-    },
-    actions: {
-        flexDirection: 'row',
-        justifyContent: 'flex-end',
-        padding: 16,
-        gap: 12,
     },
     cancelButton: {
-        paddingVertical: 12,
-        paddingHorizontal: 24,
-        borderRadius: 8,
-        borderWidth: 1,
-        borderColor: '#444',
+        paddingVertical: 8,
+        paddingHorizontal: 12,
     },
     cancelButtonText: {
-        color: '#888',
+        color: '#1DA1F2',
         fontSize: 16,
     },
     quoteButton: {
         backgroundColor: '#1DA1F2',
-        paddingVertical: 12,
-        paddingHorizontal: 24,
-        borderRadius: 8,
+        paddingVertical: 8,
+        paddingHorizontal: 16,
+        borderRadius: 20,
+    },
+    quoteButtonDisabled: {
+        backgroundColor: '#333',
     },
     quoteButtonText: {
         color: '#fff',
         fontSize: 16,
         fontWeight: 'bold',
     },
-    originalTweetContainer: {
+    quoteButtonTextDisabled: {
+        color: '#666',
+    },
+    content: {
+        flex: 1,
         padding: 16,
-        borderBottomWidth: 1,
-        borderBottomColor: '#333',
+    },
+    originalTweetContainer: {
+        marginBottom: 16,
     },
     originalTweetLabel: {
         color: '#888',
@@ -243,11 +219,11 @@ const styles = StyleSheet.create({
         marginBottom: 8,
     },
     originalTweet: {
-        backgroundColor: '#2a2a2a',
+        backgroundColor: '#1a1a1a',
         borderRadius: 8,
         padding: 12,
         borderWidth: 1,
-        borderColor: '#444',
+        borderColor: '#333',
     },
     originalTweetHeader: {
         flexDirection: 'row',
@@ -258,7 +234,7 @@ const styles = StyleSheet.create({
         width: 32,
         height: 32,
         borderRadius: 16,
-        backgroundColor: '#536471',
+        backgroundColor: '#1DA1F2',
         justifyContent: 'center',
         alignItems: 'center',
         marginRight: 8,
@@ -283,6 +259,31 @@ const styles = StyleSheet.create({
     originalTweetContent: {
         color: '#fff',
         fontSize: 14,
-        lineHeight: 18,
+        lineHeight: 20,
+    },
+    inputContainer: {
+        flex: 1,
+    },
+    inputLabel: {
+        color: '#fff',
+        fontSize: 16,
+        marginBottom: 8,
+    },
+    textInput: {
+        backgroundColor: '#1a1a1a',
+        borderWidth: 1,
+        borderColor: '#333',
+        borderRadius: 8,
+        padding: 12,
+        color: '#fff',
+        fontSize: 16,
+        minHeight: 120,
+        textAlignVertical: 'top',
+    },
+    characterCount: {
+        color: '#888',
+        fontSize: 12,
+        textAlign: 'right',
+        marginTop: 4,
     },
 });

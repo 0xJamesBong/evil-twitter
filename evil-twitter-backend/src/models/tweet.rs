@@ -31,6 +31,12 @@ pub struct Tweet {
     #[schema(value_type = String, example = "507f1f77bcf86cd799439011")]
     pub replied_to_tweet_id: Option<ObjectId>,
 
+    #[schema(value_type = String, example = "507f1f77bcf86cd799439011")]
+    pub root_tweet_id: Option<ObjectId>,
+
+    #[schema(example = "0")]
+    pub reply_depth: i32,
+
     #[schema(example = "2024-01-01T00:00:00Z")]
     pub created_at: DateTime,
 
