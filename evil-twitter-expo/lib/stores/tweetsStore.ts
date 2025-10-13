@@ -85,6 +85,18 @@ export interface Tweet {
   max_health: number;
 }
 
+export interface ThreadApiResponse {
+  tweet: any;
+  parents: any[];
+  replies: any[];
+}
+
+export interface ThreadData {
+  tweet: Tweet;
+  parents: Tweet[];
+  replies: Tweet[];
+}
+
 interface TweetListResponse {
   tweets: any[];
   total: number;
@@ -108,6 +120,14 @@ const getAuthHeaders = async (
   return headers;
 };
 
+const flattenTweetPayload = (raw: any) => {
+  if (raw && typeof raw === "object" && "tweet" in raw && raw.tweet) {
+    const { tweet, ...rest } = raw;
+    return { ...tweet, ...rest };
+  }
+  return raw;
+};
+
 const parseJson = async <T>(response: Response): Promise<T> => {
   let data: any = null;
   try {
@@ -128,22 +148,24 @@ const parseJson = async <T>(response: Response): Promise<T> => {
 };
 
 function normalizeTweet(raw: any): Tweet {
-  if (!raw) {
+  const base = flattenTweetPayload(raw);
+
+  if (!base) {
     throw new Error("Cannot normalise empty tweet payload");
   }
 
   const metrics: TweetMetrics = {
-    likes: raw.metrics?.likes ?? raw.likes_count ?? 0,
-    retweets: raw.metrics?.retweets ?? raw.retweets_count ?? 0,
-    quotes: raw.metrics?.quotes ?? raw.quote_count ?? 0,
-    replies: raw.metrics?.replies ?? raw.replies_count ?? 0,
-    impressions: raw.metrics?.impressions ?? 0,
+    likes: base.metrics?.likes ?? base.likes_count ?? 0,
+    retweets: base.metrics?.retweets ?? base.retweets_count ?? 0,
+    quotes: base.metrics?.quotes ?? base.quote_count ?? 0,
+    replies: base.metrics?.replies ?? base.replies_count ?? 0,
+    impressions: base.metrics?.impressions ?? 0,
   };
 
-  const rawHistory = raw.health?.history ?? {};
+  const rawHistory = base.health?.history ?? {};
   const health: TweetHealthState = {
-    current: raw.health?.current ?? raw.health ?? 100,
-    max: raw.health?.max ?? raw.max_health ?? 100,
+    current: base.health?.current ?? base.health ?? 100,
+    max: base.health?.max ?? base.max_health ?? 100,
     history: {
       heal_history: rawHistory.heal_history ?? [],
       attack_history: rawHistory.attack_history ?? [],
@@ -151,11 +173,11 @@ function normalizeTweet(raw: any): Tweet {
   };
 
   const author_snapshot: TweetAuthorSnapshot = {
-    username: raw.author_snapshot?.username ?? raw.author_username ?? undefined,
+    username: base.author_snapshot?.username ?? base.author_username ?? undefined,
     display_name:
-      raw.author_snapshot?.display_name ?? raw.author_display_name ?? undefined,
+      base.author_snapshot?.display_name ?? base.author_display_name ?? undefined,
     avatar_url:
-      raw.author_snapshot?.avatar_url ?? raw.author_avatar_url ?? undefined,
+      base.author_snapshot?.avatar_url ?? base.author_avatar_url ?? undefined,
   };
 
   const author: TweetAuthor = {
@@ -165,20 +187,20 @@ function normalizeTweet(raw: any): Tweet {
   };
 
   const viewer_context: TweetViewerContext = {
-    is_liked: raw.viewer_context?.is_liked ?? raw.is_liked ?? false,
-    is_retweeted: raw.viewer_context?.is_retweeted ?? raw.is_retweeted ?? false,
-    is_quoted: raw.viewer_context?.is_quoted ?? false,
+    is_liked: base.viewer_context?.is_liked ?? base.is_liked ?? false,
+    is_retweeted: base.viewer_context?.is_retweeted ?? base.is_retweeted ?? false,
+    is_quoted: base.viewer_context?.is_quoted ?? false,
   };
 
   const virality: TweetViralitySnapshot = {
-    score: raw.virality?.score ?? 0,
-    momentum: raw.virality?.momentum ?? 0,
-    health_multiplier: raw.virality?.health_multiplier ?? 1,
+    score: base.virality?.score ?? 0,
+    momentum: base.virality?.momentum ?? 0,
+    health_multiplier: base.virality?.health_multiplier ?? 1,
   };
 
   const normalized: Tweet = {
-    ...raw,
-    tweet_type: (raw.tweet_type ?? "original")
+    ...base,
+    tweet_type: (base.tweet_type ?? "original")
       .toString()
       .toLowerCase() as TweetType,
     metrics,
@@ -187,11 +209,11 @@ function normalizeTweet(raw: any): Tweet {
     viewer_context,
     health,
     virality,
-    quoted_tweet: raw.quoted_tweet
-      ? normalizeTweet(raw.quoted_tweet)
+    quoted_tweet: base.quoted_tweet
+      ? normalizeTweet(base.quoted_tweet)
       : undefined,
-    replied_to_tweet: raw.replied_to_tweet
-      ? normalizeTweet(raw.replied_to_tweet)
+    replied_to_tweet: base.replied_to_tweet
+      ? normalizeTweet(base.replied_to_tweet)
       : undefined,
     author_display_name: author.display_name ?? undefined,
     author_username: author.username ?? undefined,
@@ -222,7 +244,7 @@ interface TweetsState {
   replyTweetId: string | null;
   replyContent: string;
 
-  threads: Record<string, Tweet[]>;
+  threads: Record<string, ThreadData>;
   threadLoading: boolean;
   threadError: string | null;
 
@@ -266,11 +288,7 @@ interface TweetsState {
   setReplyContent: (content: string) => void;
   clearReplyData: () => void;
 
-  fetchThread: (
-    tweetId: string,
-    limit?: number,
-    offset?: number
-  ) => Promise<void>;
+  fetchThread: (tweetId: string) => Promise<void>;
   clearThread: (tweetId: string) => void;
   clearAllThreads: () => void;
 
@@ -431,23 +449,39 @@ export const useTweetsStore = create<TweetsState>((set, get) => ({
       const newTweet = normalizeTweet(data);
 
       set((state) => {
-        const rootId =
-          newTweet.root_tweet_id?.$oid ??
-          state.tweets.find((t) => t._id.$oid === repliedToTweetId)?.root_tweet_id?.$oid ??
-          repliedToTweetId;
+        const updatedThreads: Record<string, ThreadData> = {
+          ...state.threads,
+        };
 
-        const updatedThreads = { ...state.threads };
+        const rootId = newTweet.root_tweet_id?.$oid;
+        const keysToUpdate = new Set<string>();
         if (rootId) {
-          const existing = updatedThreads[rootId] ?? [];
-          const withoutNew = existing.filter(
+          keysToUpdate.add(rootId);
+        }
+        keysToUpdate.add(repliedToTweetId);
+
+        keysToUpdate.forEach((key) => {
+          const thread = updatedThreads[key];
+          if (!thread) {
+            return;
+          }
+
+          const nextReplies = [...thread.replies].filter(
             (tweet) => tweet._id.$oid !== newTweet._id.$oid
           );
-          const withNew = [...withoutNew, newTweet].sort(
-            (a, b) =>
-              new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
-          );
-          updatedThreads[rootId] = withNew;
-        }
+          nextReplies.push(newTweet);
+          nextReplies.sort((a, b) => {
+            if (a.reply_depth === b.reply_depth) {
+              return new Date(a.created_at).getTime() - new Date(b.created_at).getTime();
+            }
+            return (a.reply_depth ?? 0) - (b.reply_depth ?? 0);
+          });
+
+          updatedThreads[key] = {
+            ...thread,
+            replies: nextReplies,
+          };
+        });
 
         return {
           tweets: [newTweet, ...state.tweets],
@@ -549,9 +583,17 @@ export const useTweetsStore = create<TweetsState>((set, get) => ({
         );
 
       const updatedThreads = Object.entries(state.threads).reduce<
-        Record<string, Tweet[]>
-      >((acc, [id, list]) => {
-        acc[id] = updateCollection(list);
+        Record<string, ThreadData>
+      >((acc, [id, thread]) => {
+        const updatedThread: ThreadData = {
+          tweet:
+            thread.tweet._id.$oid === tweetId
+              ? updater(thread.tweet)
+              : thread.tweet,
+          parents: updateCollection(thread.parents),
+          replies: updateCollection(thread.replies),
+        };
+        acc[id] = updatedThread;
         return acc;
       }, {});
 
@@ -622,36 +664,28 @@ export const useTweetsStore = create<TweetsState>((set, get) => ({
     });
   },
 
-  fetchThread: async (
-    tweetId: string,
-    limit: number = 50,
-    offset: number = 0
-  ) => {
-    set((state) => ({
+  fetchThread: async (tweetId: string) => {
+    set({
       threadLoading: true,
       threadError: null,
-      threads: {
-        ...state.threads,
-        [tweetId]: state.threads[tweetId] ?? [],
-      },
-    }));
-
+    });
     try {
       const headers = await getAuthHeaders(false);
-      const response = await fetch(
-        `${API_BASE_URL}/tweets/${tweetId}/thread?limit=${limit}&offset=${offset}`,
-        {
-          method: "GET",
-          headers,
-        }
-      );
-      const data = await parseJson<TweetListResponse>(response);
-      const normalizedTweets = normalizeTweetList(data.tweets);
+      const response = await fetch(`${API_BASE_URL}/tweets/${tweetId}/thread`, {
+        method: "GET",
+        headers,
+      });
+      const data = await parseJson<ThreadApiResponse>(response);
+      const normalizedThread: ThreadData = {
+        tweet: normalizeTweet(data.tweet),
+        parents: normalizeTweetList(data.parents),
+        replies: normalizeTweetList(data.replies),
+      };
 
       set((state) => ({
         threads: {
           ...state.threads,
-          [tweetId]: normalizedTweets,
+          [tweetId]: normalizedThread,
         },
         threadLoading: false,
       }));

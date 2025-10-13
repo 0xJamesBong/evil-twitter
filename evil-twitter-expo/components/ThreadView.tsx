@@ -1,229 +1,242 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo } from 'react';
 import {
-    View,
-    Text,
-    StyleSheet,
-    FlatList,
-    TouchableOpacity,
-    ActivityIndicator,
-    Alert,
+  ActivityIndicator,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
 } from 'react-native';
-import { Tweet, useTweetsStore } from '@/lib/stores/tweetsStore';
+import { ThreadData, Tweet, useTweetsStore } from '@/lib/stores/tweetsStore';
 import { TweetCard } from './TweetCard';
 
 interface ThreadViewProps {
-    rootTweetId: string;
-    onClose?: () => void;
+  rootTweetId: string;
+  onClose?: () => void;
 }
 
+const groupRepliesByParent = (replies: Tweet[]): Map<string, Tweet[]> => {
+  const map = new Map<string, Tweet[]>();
+  replies.forEach((reply) => {
+    const parentId = reply.replied_to_tweet_id?.$oid;
+    if (!parentId) {
+      return;
+    }
+    const list = map.get(parentId) ?? [];
+    list.push(reply);
+    map.set(parentId, list);
+  });
+  map.forEach((list) => {
+    list.sort((a, b) => {
+      if (a.reply_depth === b.reply_depth) {
+        return new Date(a.created_at).getTime() - new Date(b.created_at).getTime();
+      }
+      return (a.reply_depth ?? 0) - (b.reply_depth ?? 0);
+    });
+  });
+  return map;
+};
+
 export function ThreadView({ rootTweetId, onClose }: ThreadViewProps) {
-    const { threads, threadLoading, threadError, fetchThread } = useTweetsStore();
-    const [expandedReplies, setExpandedReplies] = useState<Set<string>>(new Set());
+  const { threads, threadLoading, threadError, fetchThread } = useTweetsStore();
+  const thread: ThreadData | undefined = threads[rootTweetId];
 
-    const threadTweets = threads[rootTweetId] || [];
-    const rootTweet = threadTweets.find(tweet => tweet._id.$oid === rootTweetId);
-    const replies = threadTweets.filter(tweet => tweet._id.$oid !== rootTweetId);
+  useEffect(() => {
+    if (!thread) {
+      fetchThread(rootTweetId);
+    }
+  }, [fetchThread, rootTweetId, thread]);
 
-    useEffect(() => {
-        if (!threadTweets.length) {
-            fetchThread(rootTweetId);
-        }
-    }, [rootTweetId, fetchThread, threadTweets.length]);
+  const anchorTweet = thread?.tweet;
+  const parents = thread?.parents ?? [];
+  const replies = thread?.replies ?? [];
+  const repliesByParent = useMemo(
+    () => groupRepliesByParent(replies),
+    [replies]
+  );
 
-    const toggleReplyExpansion = (tweetId: string) => {
-        setExpandedReplies(prev => {
-            const newSet = new Set(prev);
-            if (newSet.has(tweetId)) {
-                newSet.delete(tweetId);
-            } else {
-                newSet.add(tweetId);
-            }
-            return newSet;
-        });
-    };
+  const anchorId = anchorTweet?._id.$oid ?? rootTweetId;
 
-    const renderReply = (tweet: Tweet, depth: number = 0) => {
-        const isExpanded = expandedReplies.has(tweet._id.$oid);
-        const childReplies = replies.filter(
-            reply => reply.replied_to_tweet_id === tweet._id.$oid
-        );
-
-        return (
-            <View key={tweet._id.$oid} style={[styles.replyContainer, { marginLeft: depth * 20 }]}>
-                <TweetCard tweet={tweet} />
-
-                {childReplies.length > 0 && (
-                    <TouchableOpacity
-                        style={styles.expandButton}
-                        onPress={() => toggleReplyExpansion(tweet._id.$oid)}
-                    >
-                        <Text style={styles.expandButtonText}>
-                            {isExpanded ? 'Hide replies' : `Show ${childReplies.length} replies`}
-                        </Text>
-                    </TouchableOpacity>
-                )}
-
-                {isExpanded && childReplies.length > 0 && (
-                    <View style={styles.childReplies}>
-                        {childReplies.map(reply => renderReply(reply, depth + 1))}
-                    </View>
-                )}
-            </View>
-        );
-    };
-
-    const renderTopLevelReplies = () => {
-        const topLevelReplies = replies.filter(
-            reply => reply.reply_depth === 1 || !reply.reply_depth
-        );
-
-        return topLevelReplies.map(reply => renderReply(reply));
-    };
-
-    if (threadLoading) {
-        return (
-            <View style={styles.loadingContainer}>
-                <ActivityIndicator size="large" color="#1DA1F2" />
-                <Text style={styles.loadingText}>Loading thread...</Text>
-            </View>
-        );
+  const renderReplies = (parentId: string, depth: number = 0): React.ReactNode => {
+    const children = repliesByParent.get(parentId);
+    if (!children || children.length === 0) {
+      return null;
     }
 
-    if (threadError) {
-        return (
-            <View style={styles.errorContainer}>
-                <Text style={styles.errorText}>Error: {threadError}</Text>
-                <TouchableOpacity
-                    style={styles.retryButton}
-                    onPress={() => fetchThread(rootTweetId)}
-                >
-                    <Text style={styles.retryButtonText}>Retry</Text>
-                </TouchableOpacity>
-            </View>
-        );
-    }
+    return children.map((child) => (
+      <View
+        key={child._id.$oid}
+        style={[styles.replyContainer, { marginLeft: depth * 20 }]}
+      >
+        <TweetCard tweet={child} />
+        {renderReplies(child._id.$oid, depth + 1)}
+      </View>
+    ));
+  };
 
-    if (!rootTweet) {
-        return (
-            <View style={styles.errorContainer}>
-                <Text style={styles.errorText}>Thread not found</Text>
-            </View>
-        );
-    }
-
+  if (threadLoading && !thread) {
     return (
-        <View style={styles.container}>
-            <View style={styles.header}>
-                <Text style={styles.headerTitle}>Thread</Text>
-                {onClose && (
-                    <TouchableOpacity onPress={onClose} style={styles.closeButton}>
-                        <Text style={styles.closeButtonText}>✕</Text>
-                    </TouchableOpacity>
-                )}
-            </View>
-
-            <FlatList
-                data={[rootTweet]}
-                renderItem={({ item }) => <TweetCard tweet={item} />}
-                keyExtractor={(item) => item._id.$oid}
-                style={styles.rootTweet}
-            />
-
-            <View style={styles.repliesSection}>
-                <Text style={styles.repliesTitle}>
-                    {replies.length} {replies.length === 1 ? 'reply' : 'replies'}
-                </Text>
-                {renderTopLevelReplies()}
-            </View>
-        </View>
+      <View style={styles.loadingContainer}>
+        <ActivityIndicator size="large" color="#1DA1F2" />
+        <Text style={styles.loadingText}>Loading thread...</Text>
+      </View>
     );
+  }
+
+  if (threadError) {
+    return (
+      <View style={styles.errorContainer}>
+        <Text style={styles.errorText}>Error: {threadError}</Text>
+        <TouchableOpacity
+          style={styles.retryButton}
+          onPress={() => fetchThread(rootTweetId)}
+        >
+          <Text style={styles.retryButtonText}>Retry</Text>
+        </TouchableOpacity>
+      </View>
+    );
+  }
+
+  if (!anchorTweet) {
+    return (
+      <View style={styles.errorContainer}>
+        <Text style={styles.errorText}>Thread not found</Text>
+      </View>
+    );
+  }
+
+  return (
+    <View style={styles.container}>
+      <View style={styles.header}>
+        <Text style={styles.headerTitle}>Thread</Text>
+        {onClose && (
+          <TouchableOpacity onPress={onClose} style={styles.closeButton}>
+            <Text style={styles.closeButtonText}>✕</Text>
+          </TouchableOpacity>
+        )}
+      </View>
+
+      <ScrollView
+        style={styles.scroll}
+        contentContainerStyle={styles.scrollContent}
+        showsVerticalScrollIndicator={false}
+      >
+        {parents.length > 0 && (
+          <View style={styles.parentChain}>
+            {parents.map((parent) => (
+              <View key={parent._id.$oid} style={styles.parentItem}>
+                <TweetCard tweet={parent} />
+              </View>
+            ))}
+            <View style={styles.divider} />
+          </View>
+        )}
+
+        <View style={styles.anchorWrapper}>
+          <TweetCard tweet={anchorTweet} />
+        </View>
+
+        <View style={styles.repliesSection}>
+          <Text style={styles.repliesTitle}>
+            {replies.length} {replies.length === 1 ? 'Reply' : 'Replies'}
+          </Text>
+          <View>{renderReplies(anchorId)}</View>
+        </View>
+      </ScrollView>
+    </View>
+  );
 }
 
 const styles = StyleSheet.create({
-    container: {
-        flex: 1,
-        backgroundColor: '#000',
-    },
-    header: {
-        flexDirection: 'row',
-        justifyContent: 'space-between',
-        alignItems: 'center',
-        padding: 16,
-        borderBottomWidth: 1,
-        borderBottomColor: '#333',
-    },
-    headerTitle: {
-        fontSize: 18,
-        fontWeight: 'bold',
-        color: '#fff',
-    },
-    closeButton: {
-        padding: 8,
-    },
-    closeButtonText: {
-        fontSize: 18,
-        color: '#1DA1F2',
-    },
-    rootTweet: {
-        borderBottomWidth: 1,
-        borderBottomColor: '#333',
-    },
-    repliesSection: {
-        flex: 1,
-        padding: 16,
-    },
-    repliesTitle: {
-        fontSize: 16,
-        fontWeight: '600',
-        color: '#fff',
-        marginBottom: 16,
-    },
-    replyContainer: {
-        marginBottom: 8,
-    },
-    expandButton: {
-        padding: 8,
-        marginLeft: 16,
-        marginTop: 4,
-    },
-    expandButtonText: {
-        color: '#1DA1F2',
-        fontSize: 14,
-    },
-    childReplies: {
-        marginTop: 8,
-    },
-    loadingContainer: {
-        flex: 1,
-        justifyContent: 'center',
-        alignItems: 'center',
-        backgroundColor: '#000',
-    },
-    loadingText: {
-        color: '#fff',
-        marginTop: 16,
-    },
-    errorContainer: {
-        flex: 1,
-        justifyContent: 'center',
-        alignItems: 'center',
-        backgroundColor: '#000',
-        padding: 16,
-    },
-    errorText: {
-        color: '#ff4444',
-        fontSize: 16,
-        textAlign: 'center',
-        marginBottom: 16,
-    },
-    retryButton: {
-        backgroundColor: '#1DA1F2',
-        paddingHorizontal: 16,
-        paddingVertical: 8,
-        borderRadius: 20,
-    },
-    retryButtonText: {
-        color: '#fff',
-        fontWeight: '600',
-    },
+  container: {
+    flex: 1,
+    backgroundColor: '#000',
+  },
+  header: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    padding: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: '#333',
+  },
+  headerTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#fff',
+  },
+  closeButton: {
+    padding: 8,
+  },
+  closeButtonText: {
+    fontSize: 18,
+    color: '#1DA1F2',
+  },
+  scroll: {
+    flex: 1,
+  },
+  scrollContent: {
+    paddingBottom: 48,
+  },
+  parentChain: {
+    paddingVertical: 12,
+  },
+  parentItem: {
+    marginBottom: 12,
+  },
+  divider: {
+    height: 1,
+    backgroundColor: '#2f3336',
+    marginVertical: 12,
+  },
+  anchorWrapper: {
+    marginBottom: 16,
+  },
+  repliesSection: {
+    paddingBottom: 24,
+    gap: 12,
+  },
+  repliesTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#fff',
+    paddingHorizontal: 16,
+  },
+  replyContainer: {
+    marginBottom: 12,
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: '#000',
+  },
+  loadingText: {
+    color: '#fff',
+    marginTop: 16,
+    fontSize: 16,
+  },
+  errorContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: '#000',
+    padding: 16,
+  },
+  errorText: {
+    color: '#ff5252',
+    fontSize: 16,
+    textAlign: 'center',
+    marginBottom: 16,
+  },
+  retryButton: {
+    backgroundColor: '#1DA1F2',
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 20,
+  },
+  retryButtonText: {
+    color: '#fff',
+    fontWeight: '600',
+  },
 });

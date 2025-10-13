@@ -2,7 +2,7 @@ use std::collections::{HashMap, HashSet};
 
 use axum::{
     Json,
-    extract::{Path, Query, State},
+    extract::{Path, State},
     http::{HeaderMap, StatusCode},
 };
 use base64::{Engine as _, engine::general_purpose::URL_SAFE_NO_PAD};
@@ -54,6 +54,13 @@ fn ok_message(message: &str) -> Json<Value> {
 pub struct TweetListResponse {
     pub tweets: Vec<TweetView>,
     pub total: i64,
+}
+
+#[derive(Debug, Serialize, ToSchema)]
+pub struct TweetThreadResponse {
+    pub tweet: TweetView,
+    pub parents: Vec<TweetView>,
+    pub replies: Vec<TweetView>,
 }
 
 #[derive(Debug, serde::Deserialize, ToSchema)]
@@ -992,12 +999,10 @@ pub async fn attack_tweet(
     get,
     path = "/tweets/{id}/thread",
     params(
-        ("id" = String, Path, description = "Root tweet ID"),
-        ("limit" = Option<i64>, Query, description = "Page size"),
-        ("offset" = Option<i64>, Query, description = "Pagination offset")
+        ("id" = String, Path, description = "Tweet ID whose thread should be fetched")
     ),
     responses(
-        (status = 200, description = "Thread fetched", body = TweetListResponse),
+        (status = 200, description = "Thread fetched", body = TweetThreadResponse),
         (status = 404, description = "Tweet not found")
     ),
     tag = "tweets"
@@ -1005,9 +1010,8 @@ pub async fn attack_tweet(
 pub async fn get_thread(
     State(db): State<Database>,
     Path(id): Path<String>,
-    Query(params): Query<HashMap<String, String>>,
     headers: HeaderMap,
-) -> Result<Json<TweetListResponse>, ApiError> {
+) -> Result<Json<TweetThreadResponse>, ApiError> {
     let tweet_collection: Collection<Tweet> = db.collection("tweets");
     let user_collection: Collection<User> = db.collection("users");
 
@@ -1022,41 +1026,115 @@ pub async fn get_thread(
         )
     })?;
 
-    let root_id = parse_object_id(&id, "tweet")?;
+    let tweet_id = parse_object_id(&id, "tweet")?;
 
-    let limit = params
-        .get("limit")
-        .and_then(|v| v.parse::<i64>().ok())
-        .unwrap_or(50)
-        .min(100);
-    let offset = params
-        .get("offset")
-        .and_then(|v| v.parse::<i64>().ok())
-        .unwrap_or(0);
+    let target_tweet = tweet_collection
+        .find_one(doc! {"_id": tweet_id})
+        .await
+        .map_err(|_| internal_error("Database error fetching tweet"))?
+        .ok_or_else(|| not_found("Tweet not found"))?;
 
-    let filter = doc! {
-        "$or": [
-            {"_id": root_id},
-            {"root_tweet_id": root_id}
-        ]
+    let target_id = target_tweet
+        .id
+        .ok_or_else(|| internal_error("Tweet document missing identifier"))?;
+    let root_id = target_tweet.root_tweet_id.unwrap_or(target_id);
+
+    // Build parent chain from root to immediate parent
+    let mut parent_chain: Vec<Tweet> = Vec::new();
+    let mut current = target_tweet.clone();
+    while let Some(parent_id) = current.replied_to_tweet_id {
+        let parent = tweet_collection
+            .find_one(doc! {"_id": parent_id})
+            .await
+            .map_err(|_| internal_error("Database error fetching parent tweet"))?;
+        let parent = match parent {
+            Some(tweet) => tweet,
+            None => break,
+        };
+        current = parent.clone();
+        parent_chain.push(parent);
+    }
+    parent_chain.reverse();
+    let parent_ids: HashSet<ObjectId> = parent_chain
+        .iter()
+        .filter_map(|tweet| tweet.id)
+        .collect();
+
+    // Collect all tweets in the same root thread
+    let mut cursor = tweet_collection
+        .find(doc! {"root_tweet_id": root_id})
+        .await
+        .map_err(|_| internal_error("Database error fetching thread tweets"))?;
+
+    let mut thread_tweets: Vec<Tweet> = Vec::new();
+    while let Some(tweet) = cursor
+        .try_next()
+        .await
+        .map_err(|_| internal_error("Database error iterating thread tweets"))?
+    {
+        thread_tweets.push(tweet);
+    }
+
+    // Gather all descendants (sub-tree) of the target tweet
+    let mut remaining: Vec<Tweet> = thread_tweets
+        .into_iter()
+        .filter(|tweet| {
+            if let Some(id) = tweet.id {
+                id != target_id && !parent_ids.contains(&id)
+            } else {
+                true
+            }
+        })
+        .collect();
+
+    let mut descendants: Vec<Tweet> = Vec::new();
+    let mut frontier: Vec<ObjectId> = vec![target_id];
+    while let Some(parent_id) = frontier.pop() {
+        let mut index = 0;
+        while index < remaining.len() {
+            if remaining[index].replied_to_tweet_id == Some(parent_id) {
+                let child = remaining.remove(index);
+                if let Some(child_id) = child.id {
+                    frontier.push(child_id);
+                }
+                descendants.push(child);
+            } else {
+                index += 1;
+            }
+        }
+    }
+
+    descendants.sort_by(|a, b| {
+        a.reply_depth
+            .cmp(&b.reply_depth)
+            .then_with(|| a.created_at.cmp(&b.created_at))
+    });
+
+    let parents_view = if parent_chain.is_empty() {
+        Vec::new()
+    } else {
+        hydrate_tweets_with_references(parent_chain, &tweet_collection, &user_collection).await?
     };
 
-    let cursor = tweet_collection
-        .find(filter)
-        .sort(doc! {"reply_depth": 1, "created_at": 1})
-        .skip(offset as u64)
-        .limit(limit)
-        .await
-        .map_err(|_| internal_error("Database error fetching thread"))?;
+    let mut target_view = hydrate_tweets_with_references(
+        vec![target_tweet.clone()],
+        &tweet_collection,
+        &user_collection,
+    )
+    .await?;
+    let target_view = target_view
+        .pop()
+        .ok_or_else(|| internal_error("Failed to hydrate target tweet"))?;
 
-    let tweets: Vec<Tweet> = cursor
-        .try_collect()
-        .await
-        .map_err(|_| internal_error("Database error collecting thread tweets"))?;
+    let replies_view = if descendants.is_empty() {
+        Vec::new()
+    } else {
+        hydrate_tweets_with_references(descendants, &tweet_collection, &user_collection).await?
+    };
 
-    let tweets =
-        hydrate_tweets_with_references(tweets, &tweet_collection, &user_collection).await?;
-
-    let total = tweets.len() as i64;
-    Ok(Json(TweetListResponse { tweets, total }))
+    Ok(Json(TweetThreadResponse {
+        tweet: target_view,
+        parents: parents_view,
+        replies: replies_view,
+    }))
 }

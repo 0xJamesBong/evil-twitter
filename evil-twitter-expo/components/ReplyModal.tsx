@@ -33,9 +33,25 @@ export function ReplyModal() {
         const fromTimeline = tweets.find(tweet => tweet._id.$oid === replyTweetId);
         if (fromTimeline) return fromTimeline;
 
-        for (const threadTweets of Object.values(threads)) {
-            const match = threadTweets.find(tweet => tweet._id.$oid === replyTweetId);
-            if (match) return match;
+        for (const threadData of Object.values(threads)) {
+            if (!threadData) continue;
+            if (threadData.tweet._id.$oid === replyTweetId) {
+                return threadData.tweet;
+            }
+
+            const parentMatch = threadData.parents.find(
+                (tweet) => tweet._id.$oid === replyTweetId
+            );
+            if (parentMatch) {
+                return parentMatch;
+            }
+
+            const replyMatch = threadData.replies.find(
+                (tweet) => tweet._id.$oid === replyTweetId
+            );
+            if (replyMatch) {
+                return replyMatch;
+            }
         }
 
         return null;

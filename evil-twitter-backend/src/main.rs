@@ -83,6 +83,7 @@ use routes::weapons::{buy_weapon, get_user_weapons, get_weapon_catalog_endpoint}
             routes::tweet::HealTweetRequest,
             routes::tweet::AttackTweetRequest,
             routes::tweet::TweetListResponse,
+            routes::tweet::TweetThreadResponse,
             routes::weapons::BuyWeaponRequest,
             models::weapon_catalog::WeaponCatalogItem,
             routes::migration::MigrationResponse
