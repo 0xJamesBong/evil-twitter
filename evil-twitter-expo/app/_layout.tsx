@@ -1,7 +1,7 @@
 import { API_BASE_URL } from "@/lib/services/api";
 import { useAuthStore } from "@/lib/stores/authStore";
 import { DarkTheme, DefaultTheme, ThemeProvider } from "@react-navigation/native";
-import { Stack } from "expo-router";
+import { Stack, useRouter } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import { useEffect } from "react";
 import { Platform, SafeAreaView, StyleSheet, Text, TouchableOpacity, useColorScheme, useWindowDimensions, View } from "react-native";
@@ -130,27 +130,35 @@ const styles = StyleSheet.create({
 
 // Sidebar Component
 function Sidebar({ compact }: { compact: boolean }) {
+  const router = useRouter();
+
   const navigation = [
-    { name: 'Home', icon: '🏠' },
-    { name: 'Explore', icon: '🔍' },
-    { name: 'Notifications', icon: '🔔' },
-    { name: 'Messages', icon: '✉️' },
-    { name: 'Bookmarks', icon: '🔖' },
-    { name: 'Profile', icon: '👤' },
-    { name: 'Shop', icon: '🛒' },
+    { name: 'Home', icon: '🏠', route: '/(tabs)' },
+    { name: 'Explore', icon: '🔍', route: '/(tabs)/explore' },
+    { name: 'Notifications', icon: '🔔', route: '/(tabs)/notifications' },
+    { name: 'Messages', icon: '✉️', route: '/(tabs)/messages' },
+    { name: 'Bookmarks', icon: '🔖', route: '/(tabs)/bookmarks' },
+    { name: 'Profile', icon: '👤', route: '/(tabs)/profile' },
+    { name: 'Shop', icon: '🛒', route: '/(tabs)/shop' },
   ];
 
   return (
     <View style={[sidebarStyles.sidebarContainer, compact && sidebarStyles.sidebarContainerCompact]}>
       <View>
-        <Text style={[sidebarStyles.logo, compact && sidebarStyles.logoCompact]}>ET</Text>
-        {!compact ? (
-          <Text style={sidebarStyles.logoSubtitle}>Evil Twitter</Text>
-        ) : null}
+        <TouchableOpacity onPress={() => router.push('/(tabs)' as any)}>
+          <Text style={[sidebarStyles.logo, compact && sidebarStyles.logoCompact]}>ET</Text>
+          {!compact ? (
+            <Text style={sidebarStyles.logoSubtitle}>Evil Twitter</Text>
+          ) : null}
+        </TouchableOpacity>
 
         <View style={sidebarStyles.navList}>
           {navigation.map((item) => (
-            <TouchableOpacity key={item.name} style={sidebarStyles.navItem}>
+            <TouchableOpacity
+              key={item.name}
+              style={sidebarStyles.navItem}
+              onPress={() => router.push(item.route as any)}
+            >
               <Text style={sidebarStyles.navIcon}>{item.icon}</Text>
               {!compact ? <Text style={sidebarStyles.navLabel}>{item.name}</Text> : null}
             </TouchableOpacity>

@@ -24,9 +24,12 @@ export function Navbar() {
             <View style={styles.navbar}>
                 <View style={styles.navbarContent}>
                     {/* Logo */}
-                    <View style={styles.logoContainer}>
+                    <TouchableOpacity
+                        style={styles.logoContainer}
+                        onPress={() => router.push('/(tabs)' as any)}
+                    >
                         <Text style={styles.logo}>😈 Evil Twitter</Text>
-                    </View>
+                    </TouchableOpacity>
 
                     {/* Navigation Items */}
                     <View style={styles.navItems}>
@@ -37,19 +40,31 @@ export function Navbar() {
                             <Text style={styles.navIcon}>🏠</Text>
                             <Text style={styles.navText}>Home</Text>
                         </TouchableOpacity>
-                        <TouchableOpacity style={styles.navItem}>
+                        <TouchableOpacity
+                            style={styles.navItem}
+                            onPress={() => router.push('/(tabs)/explore' as any)}
+                        >
                             <Text style={styles.navIcon}>🔍</Text>
                             <Text style={styles.navText}>Explore</Text>
                         </TouchableOpacity>
-                        <TouchableOpacity style={styles.navItem}>
+                        <TouchableOpacity
+                            style={styles.navItem}
+                            onPress={() => router.push('/(tabs)/notifications' as any)}
+                        >
                             <Text style={styles.navIcon}>🔔</Text>
                             <Text style={styles.navText}>Notifications</Text>
                         </TouchableOpacity>
-                        <TouchableOpacity style={styles.navItem}>
+                        <TouchableOpacity
+                            style={styles.navItem}
+                            onPress={() => router.push('/(tabs)/messages' as any)}
+                        >
                             <Text style={styles.navIcon}>✉️</Text>
                             <Text style={styles.navText}>Messages</Text>
                         </TouchableOpacity>
-                        <TouchableOpacity style={styles.navItem}>
+                        <TouchableOpacity
+                            style={styles.navItem}
+                            onPress={() => router.push('/(tabs)/bookmarks' as any)}
+                        >
                             <Text style={styles.navIcon}>🔖</Text>
                             <Text style={styles.navText}>Bookmarks</Text>
                         </TouchableOpacity>
