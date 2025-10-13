@@ -1,11 +1,14 @@
 import { API_BASE_URL } from "@/lib/services/api";
 import { useAuthStore } from "@/lib/stores/authStore";
+import { useBackendUserStore } from "@/lib/stores/backendUserStore";
 import { DarkTheme, DefaultTheme, ThemeProvider } from "@react-navigation/native";
 import { Stack, useRouter } from "expo-router";
 import { StatusBar } from "expo-status-bar";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { Platform, SafeAreaView, StyleSheet, Text, TouchableOpacity, useColorScheme, useWindowDimensions, View } from "react-native";
 import { MD3DarkTheme, MD3LightTheme, PaperProvider } from "react-native-paper";
+import { SignInButton } from "@/components/SignInButton";
+import { AuthModal } from "@/components/AuthModal";
 
 export const unstable_settings = {
   anchor: '(tabs)',
@@ -131,6 +134,9 @@ const styles = StyleSheet.create({
 // Sidebar Component
 function Sidebar({ compact }: { compact: boolean }) {
   const router = useRouter();
+  const { isAuthenticated, user, logout } = useAuthStore();
+  const { user: backendUser } = useBackendUserStore();
+  const [showAuthModal, setShowAuthModal] = useState(false);
 
   const navigation = [
     { name: 'Home', icon: '🏠', route: '/(tabs)' },
@@ -141,6 +147,18 @@ function Sidebar({ compact }: { compact: boolean }) {
     { name: 'Profile', icon: '👤', route: '/(tabs)/profile' },
     { name: 'Shop', icon: '🛒', route: '/(tabs)/shop' },
   ];
+
+  const handleLogout = async () => {
+    try {
+      await logout();
+    } catch (error) {
+      console.error('Logout error:', error);
+    }
+  };
+
+  const handleAuthSuccess = () => {
+    setShowAuthModal(false);
+  };
 
   return (
     <View style={[sidebarStyles.sidebarContainer, compact && sidebarStyles.sidebarContainerCompact]}>
@@ -171,18 +189,63 @@ function Sidebar({ compact }: { compact: boolean }) {
           <Text style={sidebarStyles.tweetButtonText}>{compact ? '✍️' : 'Tweet'}</Text>
         </TouchableOpacity>
 
-        <View style={sidebarStyles.profileCard}>
-          <View style={sidebarStyles.profileAvatar}>
-            <Text style={sidebarStyles.profileAvatarText}>EG</Text>
+        {isAuthenticated && backendUser ? (
+          <View style={sidebarStyles.profileCard}>
+            <TouchableOpacity
+              style={sidebarStyles.profileLink}
+              onPress={() => router.push('/(tabs)/profile' as any)}
+            >
+              <View style={sidebarStyles.profileAvatar}>
+                <Text style={sidebarStyles.profileAvatarText}>
+                  {backendUser.display_name?.charAt(0).toUpperCase() || '😈'}
+                </Text>
+              </View>
+              {!compact ? (
+                <View style={sidebarStyles.profileMeta}>
+                  <Text style={sidebarStyles.profileName}>
+                    {backendUser.display_name || 'User'}
+                  </Text>
+                  <Text style={sidebarStyles.profileHandle}>
+                    @{backendUser.username || 'user'}
+                  </Text>
+                </View>
+              ) : null}
+            </TouchableOpacity>
+            {!compact ? (
+              <TouchableOpacity onPress={handleLogout} style={sidebarStyles.logoutButton}>
+                <Text style={sidebarStyles.logoutText}>Logout</Text>
+              </TouchableOpacity>
+            ) : (
+              <TouchableOpacity onPress={handleLogout} style={sidebarStyles.logoutButtonCompact}>
+                <Text style={sidebarStyles.logoutIcon}>🚪</Text>
+              </TouchableOpacity>
+            )}
           </View>
-          {!compact ? (
-            <View style={sidebarStyles.profileMeta}>
-              <Text style={sidebarStyles.profileName}>Evil Genius</Text>
-              <Text style={sidebarStyles.profileHandle}>@evilgenius</Text>
-            </View>
-          ) : null}
-          {!compact ? <Text style={sidebarStyles.profileMenu}>⋯</Text> : null}
-        </View>
+        ) : (
+          <View style={sidebarStyles.authSection}>
+            {!compact ? (
+              <SignInButton
+                style={sidebarStyles.loginButton}
+                textStyle={sidebarStyles.loginText}
+                text="Sign In"
+                onAuthSuccess={handleAuthSuccess}
+              />
+            ) : (
+              <TouchableOpacity
+                style={sidebarStyles.loginButtonCompact}
+                onPress={() => setShowAuthModal(true)}
+              >
+                <Text style={sidebarStyles.loginIcon}>🔑</Text>
+              </TouchableOpacity>
+            )}
+          </View>
+        )}
+
+        <AuthModal
+          isOpen={showAuthModal}
+          onClose={() => setShowAuthModal(false)}
+          onAuthSuccess={handleAuthSuccess}
+        />
       </View>
     </View>
   );
@@ -335,6 +398,63 @@ const sidebarStyles = StyleSheet.create({
   },
   profileMenu: {
     color: '#9ca3af',
+    fontSize: 18,
+  },
+  profileLink: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+    gap: 12,
+  },
+  logoutButton: {
+    backgroundColor: '#ef4444',
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    borderRadius: 8,
+  },
+  logoutText: {
+    color: '#fff',
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  logoutButtonCompact: {
+    backgroundColor: '#ef4444',
+    paddingVertical: 8,
+    paddingHorizontal: 8,
+    borderRadius: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  logoutIcon: {
+    fontSize: 16,
+  },
+  authSection: {
+    alignItems: 'center',
+  },
+  loginButton: {
+    backgroundColor: '#1d9bf0',
+    paddingVertical: 12,
+    paddingHorizontal: 24,
+    borderRadius: 24,
+    alignItems: 'center',
+    justifyContent: 'center',
+    width: '100%',
+  },
+  loginText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: 'bold',
+  },
+  loginButtonCompact: {
+    backgroundColor: '#1d9bf0',
+    paddingVertical: 12,
+    paddingHorizontal: 12,
+    borderRadius: 24,
+    alignItems: 'center',
+    justifyContent: 'center',
+    width: '100%',
+  },
+  loginIcon: {
     fontSize: 18,
   },
 });
