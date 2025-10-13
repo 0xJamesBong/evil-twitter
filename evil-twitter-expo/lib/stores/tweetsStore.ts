@@ -178,14 +178,18 @@ function normalizeTweet(raw: any): Tweet {
 
   const normalized: Tweet = {
     ...raw,
-    tweet_type: (raw.tweet_type ?? "original").toString().toLowerCase() as TweetType,
+    tweet_type: (raw.tweet_type ?? "original")
+      .toString()
+      .toLowerCase() as TweetType,
     metrics,
     author_snapshot,
     author,
     viewer_context,
     health,
     virality,
-    quoted_tweet: raw.quoted_tweet ? normalizeTweet(raw.quoted_tweet) : undefined,
+    quoted_tweet: raw.quoted_tweet
+      ? normalizeTweet(raw.quoted_tweet)
+      : undefined,
     replied_to_tweet: raw.replied_to_tweet
       ? normalizeTweet(raw.replied_to_tweet)
       : undefined,
@@ -572,8 +576,19 @@ export const useTweetsStore = create<TweetsState>((set, get) => ({
     });
   },
 
-  fetchThread: async (tweetId: string, limit: number = 50, offset: number = 0) => {
-    set({ threadLoading: true, threadError: null });
+  fetchThread: async (
+    tweetId: string,
+    limit: number = 50,
+    offset: number = 0
+  ) => {
+    set((state) => ({
+      threadLoading: true,
+      threadError: null,
+      threads: {
+        ...state.threads,
+        [tweetId]: state.threads[tweetId] ?? [],
+      },
+    }));
 
     try {
       const headers = await getAuthHeaders(false);
@@ -612,7 +627,7 @@ export const useTweetsStore = create<TweetsState>((set, get) => ({
   },
 
   clearAllThreads: () => {
-    set({ threads: {} });
+    set({ threads: {}, threadLoading: false, threadError: null });
   },
 
   openReplyThreadModal: (tweetId: string) => {

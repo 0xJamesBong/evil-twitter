@@ -1,18 +1,18 @@
 use std::collections::{HashMap, HashSet};
 
-use base64::{engine::general_purpose::URL_SAFE_NO_PAD, Engine as _};
 use axum::{
+    Json,
     extract::{Path, Query, State},
     http::{HeaderMap, StatusCode},
-    Json,
 };
+use base64::{Engine as _, engine::general_purpose::URL_SAFE_NO_PAD};
 use futures::TryStreamExt;
 use mongodb::{
-    bson::{doc, oid::ObjectId},
     Collection, Database,
+    bson::{doc, oid::ObjectId},
 };
 use serde::Serialize;
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 use utoipa::ToSchema;
 
 use crate::{
@@ -20,8 +20,8 @@ use crate::{
     models::{
         tweet::{
             CreateTweet, Tweet, TweetAttackAction, TweetAuthorSnapshot, TweetHealAction,
-            TweetHealthState, TweetMetrics, TweetType, TweetView, TweetViralitySnapshot,
-            TweetViewerContext,
+            TweetHealthState, TweetMetrics, TweetType, TweetView, TweetViewerContext,
+            TweetViralitySnapshot,
         },
         user::User,
     },
@@ -89,11 +89,12 @@ fn extract_supabase_id_from_auth_header(auth_header: &str) -> Result<String, Str
     }
 
     let payload_b64 = parts[1];
-    let decoded =
-        URL_SAFE_NO_PAD.decode(payload_b64).map_err(|e| format!("base64 decode error: {e}"))?;
+    let decoded = URL_SAFE_NO_PAD
+        .decode(payload_b64)
+        .map_err(|e| format!("base64 decode error: {e}"))?;
 
-    let payload: Value = serde_json::from_slice(&decoded)
-        .map_err(|e| format!("payload JSON parse error: {e}"))?;
+    let payload: Value =
+        serde_json::from_slice(&decoded).map_err(|e| format!("payload JSON parse error: {e}"))?;
 
     if let Some(sub) = payload.get("sub").and_then(|v| v.as_str()) {
         return Ok(sub.to_string());
@@ -133,8 +134,7 @@ async fn ensure_author_snapshots(
     let missing_owner_ids: HashSet<ObjectId> = tweets
         .iter()
         .filter(|tweet| {
-            tweet.author_snapshot.username.is_none()
-                || tweet.author_snapshot.display_name.is_none()
+            tweet.author_snapshot.username.is_none() || tweet.author_snapshot.display_name.is_none()
         })
         .map(|tweet| tweet.owner_id)
         .collect();
@@ -365,9 +365,7 @@ pub async fn enrich_tweets_with_references(
     ),
     tag = "tweets"
 )]
-pub async fn get_tweets(
-    State(db): State<Database>,
-) -> Result<Json<TweetListResponse>, ApiError> {
+pub async fn get_tweets(State(db): State<Database>) -> Result<Json<TweetListResponse>, ApiError> {
     let tweet_collection: Collection<Tweet> = db.collection("tweets");
     let user_collection: Collection<User> = db.collection("users");
 
@@ -382,7 +380,8 @@ pub async fn get_tweets(
         .await
         .map_err(|_| internal_error("Database error collecting tweets"))?;
 
-    let tweets = hydrate_tweets_with_references(tweets, &tweet_collection, &user_collection).await?;
+    let tweets =
+        hydrate_tweets_with_references(tweets, &tweet_collection, &user_collection).await?;
     let total = tweets.len() as i64;
 
     Ok(Json(TweetListResponse { tweets, total }))
@@ -449,8 +448,8 @@ pub async fn generate_fake_tweets(
     let user_collection: Collection<User> = db.collection("users");
 
     let now = mongodb::bson::DateTime::now();
-    let owner_id = ObjectId::parse_str("68d9b685550f1355d0f01ba4")
-        .unwrap_or_else(|_| ObjectId::new());
+    let owner_id =
+        ObjectId::parse_str("68d9b685550f1355d0f01ba4").unwrap_or_else(|_| ObjectId::new());
 
     let templates = [
         "Just discovered this amazing new coffee shop downtown! ☕ #coffee #morningvibes",
@@ -583,8 +582,8 @@ pub async fn retweet_tweet(
         .await
         .map_err(|_| internal_error("Failed to update retweet count"))?;
 
-    let mut hydrated = hydrate_tweets_with_references(vec![retweet], &collection, &user_collection)
-        .await?;
+    let mut hydrated =
+        hydrate_tweets_with_references(vec![retweet], &collection, &user_collection).await?;
 
     hydrated
         .pop()
@@ -830,7 +829,10 @@ pub async fn migrate_health(
         .await
         .map_err(|_| internal_error("Failed to migrate tweet health states"))?;
 
-    Ok((StatusCode::OK, ok_message("Tweet health migration completed")))
+    Ok((
+        StatusCode::OK,
+        ok_message("Tweet health migration completed"),
+    ))
 }
 
 #[utoipa::path(
@@ -845,14 +847,14 @@ pub async fn migrate_users_dollar_rate(
     let user_collection: Collection<User> = db.collection("users");
 
     user_collection
-        .update_many(
-            doc! {},
-            doc! {"$set": {"dollar_conversion_rate": 10000}},
-        )
+        .update_many(doc! {}, doc! {"$set": {"dollar_conversion_rate": 10000}})
         .await
         .map_err(|_| internal_error("Failed to migrate users' dollar conversion rate"))?;
 
-    Ok((StatusCode::OK, ok_message("User dollar conversion rate migration completed")))
+    Ok((
+        StatusCode::OK,
+        ok_message("User dollar conversion rate migration completed"),
+    ))
 }
 
 #[utoipa::path(

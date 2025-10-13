@@ -4,7 +4,7 @@ import React, { useState } from 'react';
 import { Alert, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { WeaponSelectionModal } from './WeaponSelectionModal';
 import { QuoteModal } from './QuoteModal';
-import { ReplyThreadModal } from './ReplyThreadModal';
+import { ReplyModal } from './ReplyModal';
 import { ThreadModal } from './ThreadModal';
 
 interface TweetCardProps {
@@ -13,7 +13,7 @@ interface TweetCardProps {
 
 export function TweetCard({ tweet }: TweetCardProps) {
     const { user: currentUser } = useBackendUserStore();
-    const { retweetTweet, attackTweet, healTweet, openQuoteModal, openReplyModal, fetchThread, openReplyThreadModal } = useTweetsStore();
+    const { retweetTweet, attackTweet, healTweet, openQuoteModal, openReplyModal, fetchThread, clearAllThreads } = useTweetsStore();
     const [showWeaponModal, setShowWeaponModal] = useState(false);
     const [weaponActionType, setWeaponActionType] = useState<'attack' | 'heal'>('attack');
 
@@ -43,7 +43,7 @@ export function TweetCard({ tweet }: TweetCardProps) {
     };
 
     const handleReply = () => {
-        openReplyThreadModal(tweet._id.$oid);
+        openReplyModal(tweet._id.$oid);
     };
 
     const handleAttack = () => {
@@ -76,6 +76,7 @@ export function TweetCard({ tweet }: TweetCardProps) {
     };
 
     const handleViewThread = () => {
+        clearAllThreads();
         fetchThread(tweet._id.$oid);
     };
 
@@ -88,7 +89,7 @@ export function TweetCard({ tweet }: TweetCardProps) {
 
     return (
         <>
-            <View style={styles.container}>
+            <TouchableOpacity activeOpacity={0.85} onPress={handleViewThread} style={styles.container}>
                 {/* Avatar */}
                 <View style={styles.avatar}>
                     <Text style={styles.avatarText}>
@@ -169,12 +170,10 @@ export function TweetCard({ tweet }: TweetCardProps) {
                     <View style={styles.actions}>
                         <TouchableOpacity
                             style={styles.actionButton}
-                            onPress={tweet.replies_count > 0 ? handleViewThread : handleReply}
+                            onPress={handleReply}
                         >
                             <Text style={styles.actionIcon}>💬</Text>
-                            <Text style={styles.actionText}>
-                            {tweet.replies_count > 0 ? `View ${tweet.replies_count} replies` : 'Reply'}
-                            </Text>
+                            <Text style={styles.actionText}>{tweet.replies_count || 0}</Text>
                         </TouchableOpacity>
 
                         <TouchableOpacity
@@ -217,7 +216,7 @@ export function TweetCard({ tweet }: TweetCardProps) {
                         </TouchableOpacity>
                     </View>
                 </View>
-            </View>
+            </TouchableOpacity>
 
             <WeaponSelectionModal
                 visible={showWeaponModal}
@@ -226,7 +225,7 @@ export function TweetCard({ tweet }: TweetCardProps) {
                 actionType={weaponActionType}
             />
             <QuoteModal />
-            <ReplyThreadModal />
+            <ReplyModal />
             <ThreadModal />
         </>
     );

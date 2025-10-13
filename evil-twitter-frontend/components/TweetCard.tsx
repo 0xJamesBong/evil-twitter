@@ -37,7 +37,9 @@ interface Tweet {
     _id: { $oid: string };
     content: string;
     tweet_type: "Original" | "Retweet" | "Quote" | "Reply";
-    original_tweet_id?: { $oid: string } | null;
+    quoted_tweet_id?: { $oid: string } | null;
+    root_tweet_id?: { $oid: string } | null;
+    reply_depth?: number;
     replied_to_tweet_id?: { $oid: string } | null;
     created_at: { $date: { $numberLong: string } };
     likes_count: number;
