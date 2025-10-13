@@ -1,3 +1,4 @@
+import { router } from 'expo-router';
 import { useBackendUserStore } from '@/lib/stores/backendUserStore';
 import { Tweet, useTweetsStore } from '@/lib/stores/tweetsStore';
 import React, { useState } from 'react';
@@ -75,10 +76,14 @@ export function TweetCard({ tweet }: TweetCardProps) {
         }
     };
 
+    // const handleViewThread = () => {
+    //     clearAllThreads();
+    //     fetchThread(tweet._id.$oid);
+    // };
     const handleViewThread = () => {
-        clearAllThreads();
-        fetchThread(tweet._id.$oid);
+        router.push(`/tweets/${tweet._id.$oid}`);
     };
+
 
     const getHealthColor = (health: number, maxHealth: number) => {
         const percentage = health / maxHealth;

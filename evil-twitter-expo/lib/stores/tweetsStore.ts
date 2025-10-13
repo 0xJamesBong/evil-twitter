@@ -230,6 +230,7 @@ interface TweetsState {
   replyThreadTweetId: string | null;
 
   fetchTweets: () => Promise<void>;
+  fetchTweet: (tweetId: string) => Promise<Tweet | null>;
   createTweet: (
     content: string
   ) => Promise<{ success: boolean; error?: string }>;
@@ -310,6 +311,17 @@ export const useTweetsStore = create<TweetsState>((set, get) => ({
           error instanceof Error ? error.message : "Failed to fetch tweets",
         loading: false,
       });
+    }
+  },
+
+  fetchTweet: async (tweetId: string) => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/tweets/${tweetId}`);
+      const data = await parseJson<any>(response);
+      return normalizeTweet(data);
+    } catch (error) {
+      console.error("Failed to fetch tweet:", error);
+      return null;
     }
   },
 
