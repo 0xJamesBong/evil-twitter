@@ -16,6 +16,8 @@ export default function TweetPage() {
     const { tweetId } = useLocalSearchParams<{ tweetId: string }>();
     const { fetchTweet, fetchThread, threads, threadLoading, threadError } = useTweetsStore();
 
+    console.log('threads', threads);
+
     const [tweet, setTweet] = useState<Tweet | null>(null);
     const [loading, setLoading] = useState(true);
     const [refreshing, setRefreshing] = useState(false);
