@@ -429,9 +429,31 @@ export const useTweetsStore = create<TweetsState>((set, get) => ({
       );
       const data = await parseJson<any>(response);
       const newTweet = normalizeTweet(data);
-      set((state) => ({
-        tweets: [newTweet, ...state.tweets],
-      }));
+
+      set((state) => {
+        const rootId =
+          newTweet.root_tweet_id?.$oid ??
+          state.tweets.find((t) => t._id.$oid === repliedToTweetId)?.root_tweet_id?.$oid ??
+          repliedToTweetId;
+
+        const updatedThreads = { ...state.threads };
+        if (rootId) {
+          const existing = updatedThreads[rootId] ?? [];
+          const withoutNew = existing.filter(
+            (tweet) => tweet._id.$oid !== newTweet._id.$oid
+          );
+          const withNew = [...withoutNew, newTweet].sort(
+            (a, b) =>
+              new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
+          );
+          updatedThreads[rootId] = withNew;
+        }
+
+        return {
+          tweets: [newTweet, ...state.tweets],
+          threads: updatedThreads,
+        };
+      });
 
       get().updateTweet(repliedToTweetId, (tweet) => ({
         ...tweet,
@@ -441,6 +463,18 @@ export const useTweetsStore = create<TweetsState>((set, get) => ({
         },
         replies_count: tweet.replies_count + 1,
       }));
+
+      const rootTweetId = newTweet.root_tweet_id?.$oid;
+      if (rootTweetId && rootTweetId !== repliedToTweetId) {
+        get().updateTweet(rootTweetId, (tweet) => ({
+          ...tweet,
+          metrics: {
+            ...tweet.metrics,
+            replies: tweet.metrics.replies + 1,
+          },
+          replies_count: tweet.replies_count + 1,
+        }));
+      }
 
       return { success: true };
     } catch (error) {

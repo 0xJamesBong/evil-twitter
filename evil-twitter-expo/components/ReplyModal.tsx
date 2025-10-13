@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
     Modal,
     View,
@@ -8,9 +8,11 @@ import {
     StyleSheet,
     KeyboardAvoidingView,
     Platform,
+    ActivityIndicator,
 } from 'react-native';
-import { useTweetsStore } from '@/lib/stores/tweetsStore';
+import { Tweet, useTweetsStore } from '@/lib/stores/tweetsStore';
 import { useBackendUserStore } from '@/lib/stores/backendUserStore';
+import { TweetComponent } from './TweetComponent';
 
 export function ReplyModal() {
     const {
@@ -22,10 +24,9 @@ export function ReplyModal() {
         replyTweet,
         tweets,
         threads,
+        fetchTweet,
     } = useTweetsStore();
     const { user: currentUser } = useBackendUserStore();
-    const [isSubmitting, setIsSubmitting] = useState(false);
-
     const targetTweet = useMemo(() => {
         if (!replyTweetId) return null;
 
@@ -40,19 +41,58 @@ export function ReplyModal() {
         return null;
     }, [replyTweetId, threads, tweets]);
 
+    const [isSubmitting, setIsSubmitting] = useState(false);
+    const [originalTweet, setOriginalTweet] = useState<Tweet | null>(targetTweet ?? null);
+    const [originalLoading, setOriginalLoading] = useState(false);
+    const [localContent, setLocalContent] = useState(replyContent);
+
+    useEffect(() => {
+        setLocalContent(showReplyModal ? replyContent : '');
+    }, [showReplyModal, replyContent]);
+
+    useEffect(() => {
+        let isMounted = true;
+
+        if (!replyTweetId || !showReplyModal) {
+            setOriginalTweet(null);
+            setOriginalLoading(false);
+            return;
+        }
+
+        if (targetTweet) {
+            setOriginalTweet(targetTweet);
+            setOriginalLoading(false);
+            return;
+        }
+
+        const hydrateOriginal = async () => {
+            setOriginalLoading(true);
+            const fetched = await fetchTweet(replyTweetId);
+            if (!isMounted) return;
+            setOriginalTweet(fetched);
+            setOriginalLoading(false);
+        };
+
+        hydrateOriginal();
+
+        return () => {
+            isMounted = false;
+        };
+    }, [replyTweetId, targetTweet, fetchTweet, showReplyModal]);
+
     const handleClose = () => {
         if (isSubmitting) return;
         clearReplyData();
     };
 
     const handleSubmit = async () => {
-        if (!replyTweetId || !replyContent.trim() || !currentUser?._id?.$oid) {
+        if (!replyTweetId || !localContent.trim() || !currentUser?._id?.$oid) {
             return;
         }
 
         setIsSubmitting(true);
         try {
-            const result = await replyTweet(replyContent.trim(), replyTweetId);
+            const result = await replyTweet(localContent.trim(), replyTweetId);
             if (result.success) {
                 clearReplyData();
             }
@@ -61,9 +101,16 @@ export function ReplyModal() {
         }
     };
 
+    const handleContentChange = (text: string) => {
+        setLocalContent(text);
+        setReplyContent(text);
+    };
+
     if (!showReplyModal || !replyTweetId) {
         return null;
     }
+
+    const previewTweet = originalTweet || targetTweet;
 
     return (
         <Modal
@@ -84,51 +131,59 @@ export function ReplyModal() {
                         </TouchableOpacity>
                     </View>
 
-                    {targetTweet && (
+                    {originalLoading && (
+                        <View style={styles.loadingTweet}>
+                            <ActivityIndicator size="small" color="#1DA1F2" />
+                            <Text style={styles.loadingTweetText}>Fetching original tweet...</Text>
+                        </View>
+                    )}
+
+                    {previewTweet && (
                         <View style={styles.preview}>
-                            <View style={styles.previewAvatar}>
-                                <Text style={styles.previewAvatarText}>
-                                    {targetTweet.author_display_name?.charAt(0).toUpperCase() ||
-                                        targetTweet.author_username?.charAt(0).toUpperCase() ||
-                                        '😈'}
-                                </Text>
-                            </View>
-                            <View style={styles.previewContent}>
-                                <View style={styles.previewHeader}>
-                                    <Text style={styles.previewName}>
-                                        {targetTweet.author_display_name ||
-                                            targetTweet.author_username ||
-                                            'User'}
-                                    </Text>
-                                    <Text style={styles.previewUsername}>
-                                        @{targetTweet.author_username || 'user'}
-                                    </Text>
-                                </View>
-                                <Text style={styles.previewText}>{targetTweet.content}</Text>
-                            </View>
+                            <TweetComponent
+                                tweet={previewTweet}
+                                isClickable={false}
+                                showActions={false}
+                            />
+                        </View>
+                    )}
+
+                    {!originalLoading && !previewTweet && (
+                        <View style={styles.missingTweetContainer}>
+                            <Text style={styles.missingTweetText}>Original tweet unavailable</Text>
                         </View>
                     )}
 
                     <View style={styles.inputContainer}>
+                        {previewTweet && (
+                            <Text style={styles.replyingToLabel}>
+                                Replying to{' '}
+                                <Text style={styles.replyingToUsername}>
+                                    @{previewTweet.author_username || 'user'}
+                                </Text>
+                            </Text>
+                        )}
                         <TextInput
                             style={styles.input}
                             placeholder="Tweet your reply..."
                             placeholderTextColor="#6b6e72"
                             multiline
-                            value={replyContent}
-                            onChangeText={setReplyContent}
+                            value={localContent}
+                            onChangeText={handleContentChange}
                             maxLength={280}
                             editable={!isSubmitting}
+                            autoFocus
+                            textAlignVertical="top"
                         />
                         <View style={styles.footer}>
-                            <Text style={styles.counter}>{replyContent.length}/280</Text>
+                            <Text style={styles.counter}>{localContent.length}/280</Text>
                             <TouchableOpacity
                                 style={[
                                     styles.submitButton,
-                                    (!replyContent.trim() || isSubmitting) && styles.submitButtonDisabled,
+                                    (!localContent.trim() || isSubmitting) && styles.submitButtonDisabled,
                                 ]}
                                 onPress={handleSubmit}
-                                disabled={!replyContent.trim() || isSubmitting}
+                                disabled={!localContent.trim() || isSubmitting}
                             >
                                 <Text style={styles.submitButtonText}>
                                     {isSubmitting ? 'Replying...' : 'Reply'}
@@ -213,10 +268,39 @@ const styles = StyleSheet.create({
         fontSize: 15,
         lineHeight: 20,
     },
+    loadingTweet: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        paddingVertical: 12,
+        paddingHorizontal: 8,
+        gap: 8,
+    },
+    loadingTweetText: {
+        color: '#6b6e72',
+        fontSize: 14,
+    },
+    missingTweetContainer: {
+        paddingVertical: 12,
+        paddingHorizontal: 8,
+    },
+    missingTweetText: {
+        color: '#6b6e72',
+        fontSize: 14,
+        fontStyle: 'italic',
+    },
     inputContainer: {
         borderTopWidth: 1,
         borderTopColor: '#2f3336',
         paddingTop: 16,
+    },
+    replyingToLabel: {
+        color: '#6b6e72',
+        fontSize: 14,
+        marginBottom: 8,
+    },
+    replyingToUsername: {
+        color: '#1DA1F2',
+        fontWeight: '600',
     },
     input: {
         minHeight: 80,

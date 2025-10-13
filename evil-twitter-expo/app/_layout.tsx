@@ -9,6 +9,7 @@ import { Platform, SafeAreaView, StyleSheet, Text, TouchableOpacity, useColorSch
 import { MD3DarkTheme, MD3LightTheme, PaperProvider } from "react-native-paper";
 import { SignInButton } from "@/components/SignInButton";
 import { AuthModal } from "@/components/AuthModal";
+import { ReplyModal } from "@/components/ReplyModal";
 
 export const unstable_settings = {
   anchor: '(tabs)',
@@ -73,6 +74,7 @@ export default function RootLayout() {
               ) : null}
             </View>
           </View>
+          <ReplyModal />
         </SafeAreaView>
       </ThemeProvider>
     </PaperProvider>
