@@ -11,6 +11,7 @@ import { useBackendUserStore } from '@/lib/stores/backendUserStore';
 import { Tweet, useTweetsStore } from '@/lib/stores/tweetsStore';
 import { WeaponSelectionModal } from './WeaponSelectionModal';
 import { QuoteModal } from './QuoteModal';
+import { ReplyModal } from './ReplyModal';
 import { ReplyThreadModal } from './ReplyThreadModal';
 
 interface TweetComponentProps {
@@ -32,7 +33,7 @@ export function TweetComponent({
         attackTweet,
         healTweet,
         openQuoteModal,
-        openReplyThreadModal
+        openReplyModal
     } = useTweetsStore();
 
     const [showWeaponModal, setShowWeaponModal] = useState(false);
@@ -71,7 +72,7 @@ export function TweetComponent({
     };
 
     const handleReply = () => {
-        openReplyThreadModal(tweet._id.$oid);
+        openReplyModal(tweet._id.$oid);
     };
 
     const handleAttack = () => {
@@ -193,32 +194,65 @@ export function TweetComponent({
 
                     {/* Actions */}
                     <View style={styles.actions}>
-                        <TouchableOpacity style={styles.actionButton} onPress={handleReply}>
+                        <TouchableOpacity
+                            style={styles.actionButton}
+                            onPress={(e) => {
+                                e.stopPropagation();
+                                handleReply();
+                            }}
+                        >
                             <Text style={styles.actionIcon}>💬</Text>
                             <Text style={styles.actionText}>{tweet.replies_count || 0}</Text>
                         </TouchableOpacity>
 
-                        <TouchableOpacity style={styles.actionButton} onPress={handleRetweet}>
+                        <TouchableOpacity
+                            style={styles.actionButton}
+                            onPress={(e) => {
+                                e.stopPropagation();
+                                handleRetweet();
+                            }}
+                        >
                             <Text style={styles.actionIcon}>🔄</Text>
                             <Text style={styles.actionText}>{tweet.retweets_count || 0}</Text>
                         </TouchableOpacity>
 
-                        <TouchableOpacity style={styles.actionButton} onPress={handleQuote}>
+                        <TouchableOpacity
+                            style={styles.actionButton}
+                            onPress={(e) => {
+                                e.stopPropagation();
+                                handleQuote();
+                            }}
+                        >
                             <Text style={styles.actionIcon}>💬</Text>
                             <Text style={styles.actionText}>{tweet.quote_count || 0}</Text>
                         </TouchableOpacity>
 
-                        <TouchableOpacity style={styles.actionButton}>
+                        <TouchableOpacity
+                            style={styles.actionButton}
+                            onPress={(e) => e.stopPropagation()}
+                        >
                             <Text style={styles.actionIcon}>❤️</Text>
                             <Text style={styles.actionText}>{tweet.likes_count || 0}</Text>
                         </TouchableOpacity>
 
-                        <TouchableOpacity style={styles.actionButton} onPress={handleAttack}>
+                        <TouchableOpacity
+                            style={styles.actionButton}
+                            onPress={(e) => {
+                                e.stopPropagation();
+                                handleAttack();
+                            }}
+                        >
                             <Text style={styles.actionIcon}>⚔️</Text>
                             <Text style={styles.actionText}>Attack</Text>
                         </TouchableOpacity>
 
-                        <TouchableOpacity style={styles.actionButton} onPress={handleHeal}>
+                        <TouchableOpacity
+                            style={styles.actionButton}
+                            onPress={(e) => {
+                                e.stopPropagation();
+                                handleHeal();
+                            }}
+                        >
                             <Text style={styles.actionIcon}>💚</Text>
                             <Text style={styles.actionText}>Heal</Text>
                         </TouchableOpacity>
@@ -248,6 +282,7 @@ export function TweetComponent({
                 actionType={weaponActionType}
             />
             <QuoteModal />
+            <ReplyModal />
             <ReplyThreadModal />
         </>
     );
