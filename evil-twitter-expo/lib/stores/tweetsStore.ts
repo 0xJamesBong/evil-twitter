@@ -173,9 +173,12 @@ function normalizeTweet(raw: any): Tweet {
   };
 
   const author_snapshot: TweetAuthorSnapshot = {
-    username: base.author_snapshot?.username ?? base.author_username ?? undefined,
+    username:
+      base.author_snapshot?.username ?? base.author_username ?? undefined,
     display_name:
-      base.author_snapshot?.display_name ?? base.author_display_name ?? undefined,
+      base.author_snapshot?.display_name ??
+      base.author_display_name ??
+      undefined,
     avatar_url:
       base.author_snapshot?.avatar_url ?? base.author_avatar_url ?? undefined,
   };
@@ -188,7 +191,8 @@ function normalizeTweet(raw: any): Tweet {
 
   const viewer_context: TweetViewerContext = {
     is_liked: base.viewer_context?.is_liked ?? base.is_liked ?? false,
-    is_retweeted: base.viewer_context?.is_retweeted ?? base.is_retweeted ?? false,
+    is_retweeted:
+      base.viewer_context?.is_retweeted ?? base.is_retweeted ?? false,
     is_quoted: base.viewer_context?.is_quoted ?? false,
   };
 
@@ -233,6 +237,7 @@ const normalizeTweetList = (rawTweets: any[] | undefined): Tweet[] =>
 
 interface TweetsState {
   tweets: Tweet[];
+  userTweets: Tweet[];
   loading: boolean;
   error: string | null;
 
@@ -252,6 +257,7 @@ interface TweetsState {
   replyThreadTweetId: string | null;
 
   fetchTweets: () => Promise<void>;
+  fetchUserTweets: (userId: string) => Promise<void>;
   fetchTweet: (tweetId: string) => Promise<Tweet | null>;
   createTweet: (
     content: string
@@ -298,6 +304,7 @@ interface TweetsState {
 
 export const useTweetsStore = create<TweetsState>((set, get) => ({
   tweets: [],
+  userTweets: [],
   loading: false,
   error: null,
 
@@ -327,6 +334,24 @@ export const useTweetsStore = create<TweetsState>((set, get) => ({
       set({
         error:
           error instanceof Error ? error.message : "Failed to fetch tweets",
+        loading: false,
+      });
+    }
+  },
+
+  fetchUserTweets: async (userId: string) => {
+    set({ loading: true, error: null });
+    try {
+      const response = await fetch(`${API_BASE_URL}/users/${userId}/wall`);
+      const data = await parseJson<TweetListResponse>(response);
+      const userTweets = normalizeTweetList(data.tweets);
+      set({ userTweets, loading: false });
+    } catch (error) {
+      set({
+        error:
+          error instanceof Error
+            ? error.message
+            : "Failed to fetch user tweets",
         loading: false,
       });
     }
@@ -472,7 +497,10 @@ export const useTweetsStore = create<TweetsState>((set, get) => ({
           nextReplies.push(newTweet);
           nextReplies.sort((a, b) => {
             if (a.reply_depth === b.reply_depth) {
-              return new Date(a.created_at).getTime() - new Date(b.created_at).getTime();
+              return (
+                new Date(a.created_at).getTime() -
+                new Date(b.created_at).getTime()
+              );
             }
             return (a.reply_depth ?? 0) - (b.reply_depth ?? 0);
           });
