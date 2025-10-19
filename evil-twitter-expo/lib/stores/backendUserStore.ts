@@ -27,6 +27,7 @@ interface BackendUserState {
 interface BackendUserActions {
   createUser: (user: User) => Promise<void>;
   fetchUser: (supabaseId: string) => Promise<void>;
+  fetchUserById: (userId: string) => Promise<void>;
   syncWithSupabase: (supabaseUser: any) => Promise<void>;
   clearUser: () => void;
 }
@@ -106,6 +107,32 @@ export const useBackendUserStore = create<
           error: "User not found in backend",
         });
       }
+    } catch (error) {
+      set({
+        error: error instanceof Error ? error.message : "An error occurred",
+        isLoading: false,
+      });
+    }
+  },
+
+  fetchUserById: async (userId: string) => {
+    set({ isLoading: true, error: null });
+    try {
+      const response = await fetch(`${API_BASE_URL}/users/${userId}`);
+      if (!response.ok) {
+        if (response.status === 404) {
+          set({
+            user: null,
+            isLoading: false,
+            error: "User not found",
+          });
+          return;
+        }
+        throw new Error(`Failed to fetch user: ${response.status}`);
+      }
+
+      const user = await response.json();
+      set({ user, isLoading: false });
     } catch (error) {
       set({
         error: error instanceof Error ? error.message : "An error occurred",
