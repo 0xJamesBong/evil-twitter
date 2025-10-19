@@ -1,17 +1,17 @@
-import React, { useState } from 'react';
-import {
-    View,
-    Text,
-    StyleSheet,
-    TouchableOpacity,
-    Alert,
-} from 'react-native';
-import { router } from 'expo-router';
 import { useBackendUserStore } from '@/lib/stores/backendUserStore';
 import { Tweet, useTweetsStore } from '@/lib/stores/tweetsStore';
-import { WeaponSelectionModal } from './WeaponSelectionModal';
+import { router } from 'expo-router';
+import React, { useState } from 'react';
+import {
+    Alert,
+    StyleSheet,
+    Text,
+    TouchableOpacity,
+    View,
+} from 'react-native';
 import { QuoteModal } from './QuoteModal';
 import { ReplyThreadModal } from './ReplyThreadModal';
+import { WeaponSelectionModal } from './WeaponSelectionModal';
 
 interface TweetComponentProps {
     tweet: Tweet;
@@ -112,18 +112,38 @@ export function TweetComponent({
         <View style={[styles.tweetContainer, isReply && styles.replyContainer]}>
             {/* Header */}
             <View style={styles.header}>
-                <View style={styles.avatar}>
+                <TouchableOpacity
+                    style={styles.avatar}
+                    onPress={(e) => {
+                        e.stopPropagation(); // Prevent tweet click when clicking avatar
+                        router.push(`/profile/${tweet.owner_id.$oid}`);
+                    }}
+                >
                     <Text style={styles.avatarText}>
                         {tweet.author_display_name?.charAt(0).toUpperCase() ||
                             tweet.author_username?.charAt(0).toUpperCase() || '😈'}
                     </Text>
-                </View>
+                </TouchableOpacity>
                 <View style={styles.tweetContent}>
                     <View style={styles.tweetHeader}>
-                        <Text style={styles.displayName}>
-                            {tweet.author_display_name || tweet.author_username || 'User'}
-                        </Text>
-                        <Text style={styles.username}>@{tweet.author_username || 'user'}</Text>
+                        <TouchableOpacity
+                            onPress={(e) => {
+                                e.stopPropagation(); // Prevent tweet click when clicking name
+                                router.push(`/profile/${tweet.owner_id.$oid}`);
+                            }}
+                        >
+                            <Text style={styles.displayName}>
+                                {tweet.author_display_name || tweet.author_username || 'User'}
+                            </Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity
+                            onPress={(e) => {
+                                e.stopPropagation(); // Prevent tweet click when clicking username
+                                router.push(`/profile/${tweet.owner_id.$oid}`);
+                            }}
+                        >
+                            <Text style={styles.username}>@{tweet.author_username || 'user'}</Text>
+                        </TouchableOpacity>
                         <Text style={styles.time}>· {formatTime(tweet.created_at)}</Text>
                         {!isReply && (
                             <TouchableOpacity style={styles.moreButton}>
@@ -136,7 +156,14 @@ export function TweetComponent({
                     {tweet.tweet_type === 'reply' && tweet.replied_to_tweet && (
                         <View style={styles.replyingToContainer}>
                             <Text style={styles.replyingToText}>
-                                Replying to <Text style={styles.replyingToUsername}>@{tweet.replied_to_tweet?.author_username || 'user'}</Text>
+                                Replying to <TouchableOpacity
+                                    onPress={(e) => {
+                                        e.stopPropagation(); // Prevent tweet click when clicking username
+                                        router.push(`/profile/${tweet.replied_to_tweet?.owner_id.$oid}`);
+                                    }}
+                                >
+                                    <Text style={styles.replyingToUsername}>@{tweet.replied_to_tweet?.author_username || 'user'}</Text>
+                                </TouchableOpacity>
                             </Text>
                         </View>
                     )}
@@ -145,7 +172,14 @@ export function TweetComponent({
                     {tweet.tweet_type === 'quote' && tweet.quoted_tweet && (
                         <View style={styles.replyingToContainer}>
                             <Text style={styles.replyingToText}>
-                                Quoting <Text style={styles.replyingToUsername}>@{tweet.quoted_tweet?.author_username || 'user'}</Text>
+                                Quoting <TouchableOpacity
+                                    onPress={(e) => {
+                                        e.stopPropagation(); // Prevent tweet click when clicking username
+                                        router.push(`/profile/${tweet.quoted_tweet?.owner_id.$oid}`);
+                                    }}
+                                >
+                                    <Text style={styles.replyingToUsername}>@{tweet.quoted_tweet?.author_username || 'user'}</Text>
+                                </TouchableOpacity>
                             </Text>
                         </View>
                     )}
@@ -157,18 +191,38 @@ export function TweetComponent({
                     {tweet.quoted_tweet && (
                         <View style={styles.quotedCard}>
                             <View style={styles.quotedHeader}>
-                                <View style={styles.quotedAvatar}>
+                                <TouchableOpacity
+                                    style={styles.quotedAvatar}
+                                    onPress={(e) => {
+                                        e.stopPropagation(); // Prevent tweet click when clicking avatar
+                                        router.push(`/profile/${tweet.quoted_tweet?.owner_id.$oid}`);
+                                    }}
+                                >
                                     <Text style={styles.quotedAvatarText}>
                                         {tweet.quoted_tweet?.author_display_name?.charAt(0).toUpperCase() ||
                                             tweet.quoted_tweet?.author_username?.charAt(0).toUpperCase() || '😈'}
                                     </Text>
-                                </View>
+                                </TouchableOpacity>
                                 <View style={styles.quotedInfo}>
-                                    <Text style={styles.quotedName}>
-                                        {tweet.quoted_tweet?.author_display_name ||
-                                            tweet.quoted_tweet?.author_username || 'User'}
-                                    </Text>
-                                    <Text style={styles.quotedUsername}>@{tweet.quoted_tweet?.author_username || 'user'}</Text>
+                                    <TouchableOpacity
+                                        onPress={(e) => {
+                                            e.stopPropagation(); // Prevent tweet click when clicking name
+                                            router.push(`/profile/${tweet.quoted_tweet?.owner_id.$oid}`);
+                                        }}
+                                    >
+                                        <Text style={styles.quotedName}>
+                                            {tweet.quoted_tweet?.author_display_name ||
+                                                tweet.quoted_tweet?.author_username || 'User'}
+                                        </Text>
+                                    </TouchableOpacity>
+                                    <TouchableOpacity
+                                        onPress={(e) => {
+                                            e.stopPropagation(); // Prevent tweet click when clicking username
+                                            router.push(`/profile/${tweet.quoted_tweet?.owner_id.$oid}`);
+                                        }}
+                                    >
+                                        <Text style={styles.quotedUsername}>@{tweet.quoted_tweet?.author_username || 'user'}</Text>
+                                    </TouchableOpacity>
                                 </View>
                             </View>
                             <Text style={styles.quotedText}>{tweet.quoted_tweet.content}</Text>
