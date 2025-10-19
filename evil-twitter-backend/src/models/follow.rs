@@ -5,10 +5,13 @@ use utoipa::ToSchema;
 #[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 pub struct Follow {
     #[serde(rename = "_id", skip_serializing_if = "Option::is_none")]
+    #[schema(value_type = String, example = "507f1f77bcf86cd799439011")]
     pub id: Option<ObjectId>,
     #[serde(skip)]
+    #[schema(value_type = String, example = "507f1f77bcf86cd799439011")]
     pub follower_id: ObjectId,
     #[serde(skip)]
+    #[schema(value_type = String, example = "507f1f77bcf86cd799439011")]
     pub following_id: ObjectId,
     pub created_at: chrono::DateTime<chrono::Utc>,
 }

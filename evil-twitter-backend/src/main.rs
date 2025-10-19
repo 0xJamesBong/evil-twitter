@@ -12,7 +12,7 @@ mod models;
 mod routes;
 
 use routes::follow::{follow_user, get_following_list, unfollow_user};
-use routes::migration::{migrate_tweets_health, migrate_users_weapons};
+use routes::migration::{migrate_tweets_health, migrate_user_objectids, migrate_users_weapons};
 use routes::ping::ping_handler;
 use routes::tweet::{
     attack_tweet, clear_all_data, create_tweet, generate_fake_tweets, get_thread, get_tweet,
@@ -51,6 +51,7 @@ use routes::weapons::{buy_weapon, get_user_weapons, get_weapon_catalog_endpoint}
         routes::tweet::migrate_users_dollar_rate,
         routes::migration::migrate_tweets_health,
         routes::migration::migrate_users_weapons,
+        routes::migration::migrate_user_objectids,
         routes::follow::follow_user,
         routes::follow::unfollow_user,
         routes::follow::get_follow_status,
@@ -149,6 +150,10 @@ async fn main() -> anyhow::Result<()> {
         .route("/admin/clear-all", post(clear_all_data))
         .route("/admin/migrate-health", post(migrate_tweets_health))
         .route("/admin/migrate-users-weapons", post(migrate_users_weapons))
+        .route(
+            "/admin/migrate-user-objectids",
+            post(migrate_user_objectids),
+        )
         .route(
             "/admin/migrate-users-dollar-rate",
             post(migrate_users_dollar_rate),
