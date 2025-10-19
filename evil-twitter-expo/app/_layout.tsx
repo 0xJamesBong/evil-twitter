@@ -1,3 +1,6 @@
+import { AuthModal } from "@/components/AuthModal";
+import { ReplyModal } from "@/components/ReplyModal";
+import { SignInButton } from "@/components/SignInButton";
 import { API_BASE_URL } from "@/lib/services/api";
 import { useAuthStore } from "@/lib/stores/authStore";
 import { useBackendUserStore } from "@/lib/stores/backendUserStore";
@@ -7,9 +10,6 @@ import { StatusBar } from "expo-status-bar";
 import { useEffect, useState } from "react";
 import { Platform, SafeAreaView, StyleSheet, Text, TouchableOpacity, useColorScheme, useWindowDimensions, View } from "react-native";
 import { MD3DarkTheme, MD3LightTheme, PaperProvider } from "react-native-paper";
-import { SignInButton } from "@/components/SignInButton";
-import { AuthModal } from "@/components/AuthModal";
-import { ReplyModal } from "@/components/ReplyModal";
 
 export const unstable_settings = {
   anchor: '(tabs)',
@@ -142,12 +142,12 @@ function Sidebar({ compact }: { compact: boolean }) {
 
   const navigation = [
     { name: 'Home', icon: '🏠', route: '/(tabs)' },
-    { name: 'Explore', icon: '🔍', route: '/(tabs)/explore' },
-    { name: 'Notifications', icon: '🔔', route: '/(tabs)/notifications' },
-    { name: 'Messages', icon: '✉️', route: '/(tabs)/messages' },
-    { name: 'Bookmarks', icon: '🔖', route: '/(tabs)/bookmarks' },
+    // { name: 'Explore', icon: '🔍', route: '/(tabs)/explore' },
+    // { name: 'Notifications', icon: '🔔', route: '/(tabs)/notifications' },
+    // { name: 'Messages', icon: '✉️', route: '/(tabs)/messages' },
+    // { name: 'Bookmarks', icon: '🔖', route: '/(tabs)/bookmarks' },
     { name: 'Profile', icon: '👤', route: '/(tabs)/profile' },
-    { name: 'Shop', icon: '🛒', route: '/(tabs)/shop' },
+    // { name: 'Shop', icon: '🛒', route: '/(tabs)/shop' },
   ];
 
   const handleLogout = async () => {

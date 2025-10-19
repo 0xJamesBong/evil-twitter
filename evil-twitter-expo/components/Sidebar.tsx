@@ -9,11 +9,12 @@ export function Sidebar() {
 
     const navigation = [
         { name: 'Home', icon: '🏠', route: '/(tabs)' },
-        { name: 'Explore', icon: '🔍', route: '/(tabs)/explore' },
-        { name: 'Notifications', icon: '🔔', route: '/(tabs)/notifications' },
-        { name: 'Messages', icon: '✉️', route: '/(tabs)/messages' },
-        { name: 'Bookmarks', icon: '🔖', route: '/(tabs)/bookmarks' },
+        // { name: 'Explore', icon: '🔍', route: '/(tabs)/explore' },
+        // { name: 'Notifications', icon: '🔔', route: '/(tabs)/notifications' },
+        // { name: 'Messages', icon: '✉️', route: '/(tabs)/messages' },
+        // { name: 'Bookmarks', icon: '🔖', route: '/(tabs)/bookmarks' },
         { name: 'Profile', icon: '👤', route: '/(tabs)/profile' },
+        // { name: 'Shop', icon: '🛒', route: '/(tabs)/shop' },
     ];
 
     return (

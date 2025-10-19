@@ -1,10 +1,10 @@
+import { TweetCard } from '@/components/TweetCard';
 import { useAuthStore } from '@/lib/stores/authStore';
 import { useBackendUserStore } from '@/lib/stores/backendUserStore';
-import { useWeaponsStore } from '@/lib/stores/weaponsStore';
 import { useTweetsStore } from '@/lib/stores/tweetsStore';
-import { TweetCard } from '@/components/TweetCard';
+import { useWeaponsStore } from '@/lib/stores/weaponsStore';
 import React, { useEffect } from 'react';
-import { Alert, FlatList, ScrollView, StyleSheet, Text, TouchableOpacity, View, ActivityIndicator } from 'react-native';
+import { ActivityIndicator, Alert, FlatList, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { Card } from 'react-native-paper';
 
 export default function ProfileScreen() {
@@ -188,16 +188,16 @@ export default function ProfileScreen() {
                                 <Text style={styles.accountInfoLabel}>Email:</Text>
                                 <Text style={styles.accountInfoValue}>{authUser?.email || 'N/A'}</Text>
                             </View>
-                            <View style={styles.accountInfoRow}>
+                            {/* <View style={styles.accountInfoRow}>
                                 <Text style={styles.accountInfoLabel}>Supabase User ID:</Text>
                                 <Text style={styles.accountInfoValue}>{authUser?.id || 'N/A'}</Text>
-                            </View>
-                            <View style={styles.accountInfoRow}>
+                            </View> */}
+                            {/* <View style={styles.accountInfoRow}>
                                 <Text style={styles.accountInfoLabel}>Backend User ID:</Text>
                                 <Text style={styles.accountInfoValue}>
                                     {backendUser?._id?.$oid || 'Not loaded'}
-                                </Text>
-                            </View>
+                                </Text> 
+                            </View> */}
                             <View style={styles.accountInfoRow}>
                                 <Text style={styles.accountInfoLabel}>Created:</Text>
                                 <Text style={styles.accountInfoValue}>
