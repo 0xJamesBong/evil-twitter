@@ -26,27 +26,6 @@ export default function ProfileScreen() {
         }
     }, [backendUser, fetchUserWeapons, fetchUserTweets]);
 
-    const handleSignOut = async () => {
-        Alert.alert(
-            'Sign Out',
-            'Are you sure you want to sign out?',
-            [
-                { text: 'Cancel', style: 'cancel' },
-                {
-                    text: 'Sign Out',
-                    style: 'destructive',
-                    onPress: async () => {
-                        try {
-                            await logout();
-                        } catch (error) {
-                            console.error('Logout error:', error);
-                            Alert.alert('Error', 'Failed to sign out');
-                        }
-                    }
-                }
-            ]
-        );
-    };
 
     const handleSyncWithSupabase = async () => {
         if (authUser) {
@@ -135,21 +114,28 @@ export default function ProfileScreen() {
                         </View>
 
                         <View style={styles.profileDetails}>
-                            <Text style={styles.displayName}>
-                                {backendUser?.display_name || authUser?.user_metadata?.display_name || authUser?.email?.split('@')[0] || 'User'}
-                            </Text>
-                            <Text style={styles.username}>
-                                @{backendUser?.username || authUser?.user_metadata?.username || authUser?.email?.split('@')[0] || 'user'}
-                            </Text>
+                            <View style={styles.profileHeaderRow}>
+                                <View style={styles.profileInfo}>
+                                    <Text style={styles.displayName}>
+                                        {backendUser?.display_name || authUser?.user_metadata?.display_name || authUser?.email?.split('@')[0] || 'User'}
+                                    </Text>
+                                    <Text style={styles.username}>
+                                        @{backendUser?.username || authUser?.user_metadata?.username || authUser?.email?.split('@')[0] || 'user'}
+                                    </Text>
 
-                            {backendUser?.bio && (
-                                <Text style={styles.bio}>{backendUser.bio}</Text>
-                            )}
+                                    {backendUser?.bio && (
+                                        <Text style={styles.bio}>{backendUser.bio}</Text>
+                                    )}
 
-                            <View style={styles.profileMeta}>
-                                <Text style={styles.metaText}>
-                                    📅 Joined {authUser?.created_at ? formatDate(authUser.created_at) : 'Unknown'}
-                                </Text>
+                                    <View style={styles.profileMeta}>
+                                        <Text style={styles.metaText}>
+                                            📅 Joined {authUser?.created_at ? formatDate(authUser.created_at) : 'Unknown'}
+                                        </Text>
+                                    </View>
+                                </View>
+                                <TouchableOpacity style={styles.syncButtonTop} onPress={handleSyncWithSupabase}>
+                                    <Text style={styles.syncButtonText}>🔄 Sync</Text>
+                                </TouchableOpacity>
                             </View>
                         </View>
                     </View>
@@ -170,10 +156,10 @@ export default function ProfileScreen() {
                         <Text style={styles.statLabel}>Following</Text>
                     </View>
                     <View style={[styles.statItem, styles.dollarRateItem]}>
-                        <Text style={styles.statNumber}>
+                        <Text style={[styles.statNumber, styles.dollarRateText]}>
                             ${backendUser?.dollar_conversion_rate?.toLocaleString() || '0'}
                         </Text>
-                        <Text style={styles.statLabel}>Dollar Rate</Text>
+                        <Text style={[styles.statLabel, styles.dollarRateText]}>Dollar Rate</Text>
                     </View>
                 </View>
 
@@ -271,16 +257,6 @@ export default function ProfileScreen() {
                     )}
                 </View>
 
-                {/* Action Buttons */}
-                <View style={styles.actionButtons}>
-                    <TouchableOpacity style={styles.syncButton} onPress={handleSyncWithSupabase}>
-                        <Text style={styles.syncButtonText}>🔄 Sync with Supabase</Text>
-                    </TouchableOpacity>
-
-                    <TouchableOpacity style={styles.signOutButton} onPress={handleSignOut}>
-                        <Text style={styles.signOutButtonText}>🚪 Sign Out</Text>
-                    </TouchableOpacity>
-                </View>
             </ScrollView>
         </View>
     );
@@ -316,10 +292,6 @@ const styles = StyleSheet.create({
         height: 200,
         backgroundColor: '#1d9bf0',
     },
-    profileInfo: {
-        paddingHorizontal: 16,
-        paddingBottom: 16,
-    },
     avatarContainer: {
         marginTop: -40,
         marginBottom: 16,
@@ -341,6 +313,14 @@ const styles = StyleSheet.create({
     },
     profileDetails: {
         marginTop: 8,
+    },
+    profileHeaderRow: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'flex-start',
+    },
+    profileInfo: {
+        flex: 1,
     },
     displayName: {
         fontSize: 20,
@@ -381,10 +361,13 @@ const styles = StyleSheet.create({
         marginBottom: 8,
     },
     dollarRateItem: {
-        backgroundColor: '#8b5cf6',
+        backgroundColor: '#536471',
         borderRadius: 8,
         paddingVertical: 8,
         paddingHorizontal: 4,
+    },
+    dollarRateText: {
+        color: '#fff',
     },
     statNumber: {
         fontSize: 20,
@@ -481,33 +464,9 @@ const styles = StyleSheet.create({
         fontSize: 14,
         color: '#71767b',
     },
-    actionButtons: {
-        paddingHorizontal: 16,
-        paddingVertical: 16,
-        gap: 12,
-    },
-    syncButton: {
-        backgroundColor: '#1d9bf0',
-        paddingVertical: 12,
-        paddingHorizontal: 16,
-        borderRadius: 20,
-        alignItems: 'center',
-    },
     syncButtonText: {
         color: '#fff',
-        fontSize: 15,
-        fontWeight: 'bold',
-    },
-    signOutButton: {
-        backgroundColor: '#f4212e',
-        paddingVertical: 12,
-        paddingHorizontal: 16,
-        borderRadius: 20,
-        alignItems: 'center',
-    },
-    signOutButtonText: {
-        color: '#fff',
-        fontSize: 15,
+        fontSize: 14,
         fontWeight: 'bold',
     },
     loadingContainer: {
@@ -587,5 +546,13 @@ const styles = StyleSheet.create({
     emptyTweets: {
         alignItems: 'center',
         padding: 32,
+    },
+    syncButtonTop: {
+        backgroundColor: '#1d9bf0',
+        paddingVertical: 8,
+        paddingHorizontal: 12,
+        borderRadius: 16,
+        alignItems: 'center',
+        marginLeft: 16,
     },
 });
