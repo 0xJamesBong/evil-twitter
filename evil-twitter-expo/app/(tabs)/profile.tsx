@@ -1,13 +1,17 @@
 import { useAuthStore } from '@/lib/stores/authStore';
 import { useBackendUserStore } from '@/lib/stores/backendUserStore';
 import { useWeaponsStore } from '@/lib/stores/weaponsStore';
+import { useTweetsStore } from '@/lib/stores/tweetsStore';
+import { TweetCard } from '@/components/TweetCard';
 import React, { useEffect } from 'react';
-import { Alert, FlatList, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { Alert, FlatList, ScrollView, StyleSheet, Text, TouchableOpacity, View, ActivityIndicator } from 'react-native';
+import { Card } from 'react-native-paper';
 
 export default function ProfileScreen() {
     const { user: authUser, logout, isAuthenticated } = useAuthStore();
     const { user: backendUser, fetchUser, syncWithSupabase, isLoading: backendLoading } = useBackendUserStore();
     const { weapons, fetchUserWeapons } = useWeaponsStore();
+    const { userTweets, fetchUserTweets, loading: tweetsLoading } = useTweetsStore();
 
     useEffect(() => {
         if (authUser?.id && !backendUser) {
@@ -18,30 +22,10 @@ export default function ProfileScreen() {
     useEffect(() => {
         if (backendUser?._id?.$oid) {
             fetchUserWeapons(backendUser._id.$oid);
+            fetchUserTweets(backendUser._id.$oid);
         }
-    }, [backendUser, fetchUserWeapons]);
+    }, [backendUser, fetchUserWeapons, fetchUserTweets]);
 
-    const handleSignOut = async () => {
-        Alert.alert(
-            'Sign Out',
-            'Are you sure you want to sign out?',
-            [
-                { text: 'Cancel', style: 'cancel' },
-                {
-                    text: 'Sign Out',
-                    style: 'destructive',
-                    onPress: async () => {
-                        try {
-                            await logout();
-                        } catch (error) {
-                            console.error('Logout error:', error);
-                            Alert.alert('Error', 'Failed to sign out');
-                        }
-                    }
-                }
-            ]
-        );
-    };
 
     const handleSyncWithSupabase = async () => {
         if (authUser) {
@@ -98,7 +82,11 @@ export default function ProfileScreen() {
     if (backendLoading) {
         return (
             <View style={styles.container}>
+                <View style={styles.header}>
+                    <Text style={styles.headerTitle}>Profile</Text>
+                </View>
                 <View style={styles.loadingContainer}>
+                    <ActivityIndicator size="large" color="#1d9bf0" />
                     <Text style={styles.loadingText}>Loading profile...</Text>
                 </View>
             </View>
@@ -126,21 +114,28 @@ export default function ProfileScreen() {
                         </View>
 
                         <View style={styles.profileDetails}>
-                            <Text style={styles.displayName}>
-                                {backendUser?.display_name || authUser?.user_metadata?.display_name || authUser?.email?.split('@')[0] || 'User'}
-                            </Text>
-                            <Text style={styles.username}>
-                                @{backendUser?.username || authUser?.user_metadata?.username || authUser?.email?.split('@')[0] || 'user'}
-                            </Text>
+                            <View style={styles.profileHeaderRow}>
+                                <View style={styles.profileInfo}>
+                                    <Text style={styles.displayName}>
+                                        {backendUser?.display_name || authUser?.user_metadata?.display_name || authUser?.email?.split('@')[0] || 'User'}
+                                    </Text>
+                                    <Text style={styles.username}>
+                                        @{backendUser?.username || authUser?.user_metadata?.username || authUser?.email?.split('@')[0] || 'user'}
+                                    </Text>
 
-                            {backendUser?.bio && (
-                                <Text style={styles.bio}>{backendUser.bio}</Text>
-                            )}
+                                    {backendUser?.bio && (
+                                        <Text style={styles.bio}>{backendUser.bio}</Text>
+                                    )}
 
-                            <View style={styles.profileMeta}>
-                                <Text style={styles.metaText}>
-                                    📅 Joined {authUser?.created_at ? formatDate(authUser.created_at) : 'Unknown'}
-                                </Text>
+                                    <View style={styles.profileMeta}>
+                                        <Text style={styles.metaText}>
+                                            📅 Joined {authUser?.created_at ? formatDate(authUser.created_at) : 'Unknown'}
+                                        </Text>
+                                    </View>
+                                </View>
+                                <TouchableOpacity style={styles.syncButtonTop} onPress={handleSyncWithSupabase}>
+                                    <Text style={styles.syncButtonText}>🔄 Sync</Text>
+                                </TouchableOpacity>
                             </View>
                         </View>
                     </View>
@@ -160,6 +155,12 @@ export default function ProfileScreen() {
                         <Text style={styles.statNumber}>{backendUser?.following_count || 0}</Text>
                         <Text style={styles.statLabel}>Following</Text>
                     </View>
+                    <View style={[styles.statItem, styles.dollarRateItem]}>
+                        <Text style={[styles.statNumber, styles.dollarRateText]}>
+                            ${backendUser?.dollar_conversion_rate?.toLocaleString() || '0'}
+                        </Text>
+                        <Text style={[styles.statLabel, styles.dollarRateText]}>Dollar Rate</Text>
+                    </View>
                 </View>
 
                 {/* Tabs */}
@@ -176,6 +177,41 @@ export default function ProfileScreen() {
                     <TouchableOpacity style={styles.tab}>
                         <Text style={styles.tabText}>Likes</Text>
                     </TouchableOpacity>
+                </View>
+
+                {/* Account Information Section */}
+                <View style={styles.accountInfoSection}>
+                    <Text style={styles.sectionTitle}>📋 Account Information</Text>
+                    <Card style={styles.accountInfoCard}>
+                        <Card.Content style={styles.accountInfoContent}>
+                            <View style={styles.accountInfoRow}>
+                                <Text style={styles.accountInfoLabel}>Email:</Text>
+                                <Text style={styles.accountInfoValue}>{authUser?.email || 'N/A'}</Text>
+                            </View>
+                            <View style={styles.accountInfoRow}>
+                                <Text style={styles.accountInfoLabel}>Supabase User ID:</Text>
+                                <Text style={styles.accountInfoValue}>{authUser?.id || 'N/A'}</Text>
+                            </View>
+                            <View style={styles.accountInfoRow}>
+                                <Text style={styles.accountInfoLabel}>Backend User ID:</Text>
+                                <Text style={styles.accountInfoValue}>
+                                    {backendUser?._id?.$oid || 'Not loaded'}
+                                </Text>
+                            </View>
+                            <View style={styles.accountInfoRow}>
+                                <Text style={styles.accountInfoLabel}>Created:</Text>
+                                <Text style={styles.accountInfoValue}>
+                                    {authUser?.created_at ? formatDate(authUser.created_at) : 'N/A'}
+                                </Text>
+                            </View>
+                            <View style={styles.accountInfoRow}>
+                                <Text style={styles.accountInfoLabel}>Last Sign In:</Text>
+                                <Text style={styles.accountInfoValue}>
+                                    {authUser?.last_sign_in_at ? formatDate(authUser.last_sign_in_at) : 'N/A'}
+                                </Text>
+                            </View>
+                        </Card.Content>
+                    </Card>
                 </View>
 
                 {/* Weapons Section */}
@@ -197,16 +233,30 @@ export default function ProfileScreen() {
                     )}
                 </View>
 
-                {/* Action Buttons */}
-                <View style={styles.actionButtons}>
-                    <TouchableOpacity style={styles.syncButton} onPress={handleSyncWithSupabase}>
-                        <Text style={styles.syncButtonText}>🔄 Sync with Supabase</Text>
-                    </TouchableOpacity>
-
-                    <TouchableOpacity style={styles.signOutButton} onPress={handleSignOut}>
-                        <Text style={styles.signOutButtonText}>🚪 Sign Out</Text>
-                    </TouchableOpacity>
+                {/* User Tweets Section */}
+                <View style={styles.tweetsSection}>
+                    <Text style={styles.sectionTitle}>🐦 My Tweets ({userTweets.length})</Text>
+                    {tweetsLoading ? (
+                        <View style={styles.loadingTweets}>
+                            <ActivityIndicator size="small" color="#1d9bf0" />
+                            <Text style={styles.loadingTweetsText}>Loading tweets...</Text>
+                        </View>
+                    ) : userTweets.length > 0 ? (
+                        <FlatList
+                            data={userTweets.slice(0, 5)} // Show only first 5 tweets
+                            renderItem={({ item }) => <TweetCard tweet={item} />}
+                            keyExtractor={(item) => item._id.$oid}
+                            scrollEnabled={false}
+                            contentContainerStyle={styles.tweetsList}
+                        />
+                    ) : (
+                        <View style={styles.emptyTweets}>
+                            <Text style={styles.emptyText}>No tweets yet</Text>
+                            <Text style={styles.emptySubtext}>Start tweeting to see your posts here!</Text>
+                        </View>
+                    )}
                 </View>
+
             </ScrollView>
         </View>
     );
@@ -242,10 +292,6 @@ const styles = StyleSheet.create({
         height: 200,
         backgroundColor: '#1d9bf0',
     },
-    profileInfo: {
-        paddingHorizontal: 16,
-        paddingBottom: 16,
-    },
     avatarContainer: {
         marginTop: -40,
         marginBottom: 16,
@@ -267,6 +313,14 @@ const styles = StyleSheet.create({
     },
     profileDetails: {
         marginTop: 8,
+    },
+    profileHeaderRow: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'flex-start',
+    },
+    profileInfo: {
+        flex: 1,
     },
     displayName: {
         fontSize: 20,
@@ -298,10 +352,22 @@ const styles = StyleSheet.create({
         paddingVertical: 16,
         borderBottomWidth: 1,
         borderBottomColor: '#2f3336',
+        flexWrap: 'wrap',
     },
     statItem: {
         flex: 1,
         alignItems: 'center',
+        minWidth: '25%',
+        marginBottom: 8,
+    },
+    dollarRateItem: {
+        backgroundColor: '#536471',
+        borderRadius: 8,
+        paddingVertical: 8,
+        paddingHorizontal: 4,
+    },
+    dollarRateText: {
+        color: '#fff',
     },
     statNumber: {
         fontSize: 20,
@@ -398,33 +464,9 @@ const styles = StyleSheet.create({
         fontSize: 14,
         color: '#71767b',
     },
-    actionButtons: {
-        paddingHorizontal: 16,
-        paddingVertical: 16,
-        gap: 12,
-    },
-    syncButton: {
-        backgroundColor: '#1d9bf0',
-        paddingVertical: 12,
-        paddingHorizontal: 16,
-        borderRadius: 20,
-        alignItems: 'center',
-    },
     syncButtonText: {
         color: '#fff',
-        fontSize: 15,
-        fontWeight: 'bold',
-    },
-    signOutButton: {
-        backgroundColor: '#f4212e',
-        paddingVertical: 12,
-        paddingHorizontal: 16,
-        borderRadius: 20,
-        alignItems: 'center',
-    },
-    signOutButtonText: {
-        color: '#fff',
-        fontSize: 15,
+        fontSize: 14,
         fontWeight: 'bold',
     },
     loadingContainer: {
@@ -449,5 +491,68 @@ const styles = StyleSheet.create({
         color: '#71767b',
         fontSize: 16,
         textAlign: 'center',
+    },
+    accountInfoSection: {
+        paddingHorizontal: 16,
+        paddingVertical: 16,
+    },
+    accountInfoCard: {
+        backgroundColor: '#16181c',
+        borderRadius: 12,
+        borderWidth: 1,
+        borderColor: '#2f3336',
+    },
+    accountInfoContent: {
+        padding: 16,
+    },
+    accountInfoRow: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        paddingVertical: 8,
+        borderBottomWidth: 1,
+        borderBottomColor: '#2f3336',
+    },
+    accountInfoLabel: {
+        fontSize: 14,
+        color: '#71767b',
+        flex: 1,
+    },
+    accountInfoValue: {
+        fontSize: 14,
+        color: '#e7e9ea',
+        flex: 2,
+        textAlign: 'right',
+        fontFamily: 'monospace',
+    },
+    tweetsSection: {
+        paddingHorizontal: 16,
+        paddingVertical: 16,
+    },
+    tweetsList: {
+        gap: 8,
+    },
+    loadingTweets: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
+        padding: 32,
+    },
+    loadingTweetsText: {
+        color: '#71767b',
+        fontSize: 14,
+        marginLeft: 8,
+    },
+    emptyTweets: {
+        alignItems: 'center',
+        padding: 32,
+    },
+    syncButtonTop: {
+        backgroundColor: '#1d9bf0',
+        paddingVertical: 8,
+        paddingHorizontal: 12,
+        borderRadius: 16,
+        alignItems: 'center',
+        marginLeft: 16,
     },
 });
