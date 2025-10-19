@@ -1,5 +1,7 @@
 import { TweetCard } from '@/components/TweetCard';
+import { useAuthStore } from '@/lib/stores/authStore';
 import { useBackendUserStore } from '@/lib/stores/backendUserStore';
+import { useFollowStore } from '@/lib/stores/followStore';
 import { useTweetsStore } from '@/lib/stores/tweetsStore';
 import { useWeaponsStore } from '@/lib/stores/weaponsStore';
 import { useLocalSearchParams, useRouter } from 'expo-router';
@@ -13,6 +15,16 @@ export default function UserProfileScreen() {
     const { fetchUserById, user: targetUser, isLoading: userLoading } = useBackendUserStore();
     const { weapons, fetchUserWeapons } = useWeaponsStore();
     const { userTweets, fetchUserTweets, loading: tweetsLoading } = useTweetsStore();
+    const { user: currentUser } = useAuthStore();
+    const {
+        isFollowing,
+        isLoading: followLoading,
+        error: followError,
+        followUser,
+        unfollowUser,
+        checkFollowStatus,
+        clearError
+    } = useFollowStore();
     useEffect(() => {
         if (userId) {
             fetchUserById(userId);
@@ -23,8 +35,13 @@ export default function UserProfileScreen() {
         if (targetUser?._id?.$oid) {
             fetchUserWeapons(targetUser._id.$oid);
             fetchUserTweets(targetUser._id.$oid);
+
+            // Check follow status if current user is logged in
+            if (currentUser?.id && targetUser._id.$oid !== currentUser.id) {
+                checkFollowStatus(targetUser._id.$oid, currentUser.id);
+            }
         }
-    }, [targetUser, fetchUserWeapons, fetchUserTweets]);
+    }, [targetUser, fetchUserWeapons, fetchUserTweets, currentUser, checkFollowStatus]);
 
     const formatDate = (dateInput: any) => {
         try {
@@ -50,6 +67,20 @@ export default function UserProfileScreen() {
             });
         } catch {
             return 'Unknown';
+        }
+    };
+
+    const handleFollowToggle = async () => {
+        if (!targetUser?._id?.$oid || !currentUser?.id) return;
+
+        try {
+            if (isFollowing) {
+                await unfollowUser(targetUser._id.$oid, currentUser.id);
+            } else {
+                await followUser(targetUser._id.$oid, currentUser.id);
+            }
+        } catch (error) {
+            console.error('Follow action failed:', error);
         }
     };
 
@@ -150,6 +181,31 @@ export default function UserProfileScreen() {
                                 </View>
                             </View>
                         </View>
+
+                        {/* Follow Button */}
+                        {currentUser?.id && targetUser?._id?.$oid !== currentUser.id && (
+                            <View style={styles.followButtonContainer}>
+                                <TouchableOpacity
+                                    style={[
+                                        styles.followButton,
+                                        isFollowing && styles.followingButton
+                                    ]}
+                                    onPress={handleFollowToggle}
+                                    disabled={followLoading}
+                                >
+                                    {followLoading ? (
+                                        <ActivityIndicator size="small" color={isFollowing ? "#71767b" : "#fff"} />
+                                    ) : (
+                                        <Text style={[
+                                            styles.followButtonText,
+                                            isFollowing && styles.followingButtonText
+                                        ]}>
+                                            {isFollowing ? 'Following' : 'Follow'}
+                                        </Text>
+                                    )}
+                                </TouchableOpacity>
+                            </View>
+                        )}
                     </View>
                 </View>
 
@@ -508,5 +564,31 @@ const styles = StyleSheet.create({
         color: '#fff',
         fontSize: 16,
         fontWeight: 'bold',
+    },
+    followButtonContainer: {
+        position: 'absolute',
+        top: 16,
+        right: 16,
+    },
+    followButton: {
+        backgroundColor: '#1d9bf0',
+        paddingVertical: 8,
+        paddingHorizontal: 16,
+        borderRadius: 20,
+        alignItems: 'center',
+        minWidth: 80,
+    },
+    followingButton: {
+        backgroundColor: 'transparent',
+        borderWidth: 1,
+        borderColor: '#71767b',
+    },
+    followButtonText: {
+        color: '#fff',
+        fontSize: 14,
+        fontWeight: 'bold',
+    },
+    followingButtonText: {
+        color: '#71767b',
     },
 });

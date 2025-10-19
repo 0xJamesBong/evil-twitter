@@ -1,25 +1,33 @@
-use mongodb::bson::{oid::ObjectId, DateTime};
+use mongodb::bson::oid::ObjectId;
 use serde::{Deserialize, Serialize};
 use utoipa::ToSchema;
 
-#[derive(Debug, Serialize, Deserialize, Clone, ToSchema)]
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 pub struct Follow {
     #[serde(rename = "_id", skip_serializing_if = "Option::is_none")]
-    #[schema(value_type = String, example = "507f1f77bcf86cd799439011")]
     pub id: Option<ObjectId>,
-
-    #[schema(value_type = String, example = "507f1f77bcf86cd799439011")]
+    #[serde(skip)]
     pub follower_id: ObjectId,
-
-    #[schema(value_type = String, example = "507f1f77bcf86cd799439012")]
+    #[serde(skip)]
     pub following_id: ObjectId,
-
-    #[schema(example = "2024-01-01T00:00:00Z")]
-    pub created_at: DateTime,
+    pub created_at: chrono::DateTime<chrono::Utc>,
 }
 
-#[derive(Debug, Deserialize, ToSchema)]
-pub struct CreateFollow {
-    #[schema(example = "507f1f77bcf86cd799439012")]
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
+pub struct FollowRequest {
     pub following_id: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
+pub struct FollowResponse {
+    pub success: bool,
+    pub message: String,
+    pub is_following: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
+pub struct FollowStats {
+    pub followers_count: i32,
+    pub following_count: i32,
+    pub is_following: bool,
 }
