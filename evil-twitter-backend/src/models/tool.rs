@@ -70,10 +70,10 @@ impl UseOnTweet for Weapon {
             return;
         }
         let damage = self.damage;
-        let health_before = tweet.health;
+        let health_before = tweet.health.current;
         let health_after = health_before.saturating_sub(damage);
 
-        tweet.health = health_after;
+        tweet.health.current = health_after;
 
         // Record the attack in history of the tweet
         let attack = TweetAttackAction {
@@ -82,7 +82,7 @@ impl UseOnTweet for Weapon {
             health_before,
             health_after,
         };
-        tweet.health_history.attack_history.push(attack);
+        tweet.health.history.attack_history.push(attack);
 
         // Degrade the weapon
         self.degrade(damage);
