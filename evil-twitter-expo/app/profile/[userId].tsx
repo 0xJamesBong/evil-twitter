@@ -2,6 +2,7 @@ import { TweetCard } from '@/components/TweetCard';
 import { useAuthStore } from '@/lib/stores/authStore';
 import { useBackendUserStore } from '@/lib/stores/backendUserStore';
 import { useFollowStore } from '@/lib/stores/followStore';
+import { useProfileStore } from '@/lib/stores/profileStore';
 import { useTweetsStore } from '@/lib/stores/tweetsStore';
 import { useWeaponsStore } from '@/lib/stores/weaponsStore';
 import { useLocalSearchParams, useRouter } from 'expo-router';
@@ -26,7 +27,27 @@ export default function UserProfileScreen() {
         checkFollowStatus,
         clearError
     } = useFollowStore();
-    // No need for target user state - userId is the target user ID
+
+    // Profile store for the user being viewed
+    const {
+        profileUser,
+        isLoading: profileLoading,
+        error: profileError,
+        fetchProfile,
+        clearProfile
+    } = useProfileStore();
+
+    // Fetch the profile user data
+    useEffect(() => {
+        if (userId) {
+            fetchProfile(userId);
+        }
+
+        // Cleanup when component unmounts
+        return () => {
+            clearProfile();
+        };
+    }, [userId, fetchProfile, clearProfile]);
 
     // Ensure current user is loaded for follow functionality
     useEffect(() => {
@@ -106,7 +127,43 @@ export default function UserProfileScreen() {
     );
 
 
-    if (!userId) {
+    if (profileLoading) {
+        return (
+            <View style={styles.container}>
+                <View style={styles.header}>
+                    <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
+                        <Text style={styles.backButtonText}>← Back</Text>
+                    </TouchableOpacity>
+                    <Text style={styles.headerTitle}>Profile</Text>
+                </View>
+                <View style={styles.loadingContainer}>
+                    <ActivityIndicator size="large" color="#1d9bf0" />
+                    <Text style={styles.loadingText}>Loading profile...</Text>
+                </View>
+            </View>
+        );
+    }
+
+    if (profileError) {
+        return (
+            <View style={styles.container}>
+                <View style={styles.header}>
+                    <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
+                        <Text style={styles.backButtonText}>← Back</Text>
+                    </TouchableOpacity>
+                    <Text style={styles.headerTitle}>Profile</Text>
+                </View>
+                <View style={styles.errorContainer}>
+                    <Text style={styles.errorText}>{profileError}</Text>
+                    <TouchableOpacity style={styles.retryButton} onPress={() => userId && fetchProfile(userId)}>
+                        <Text style={styles.retryButtonText}>Retry</Text>
+                    </TouchableOpacity>
+                </View>
+            </View>
+        );
+    }
+
+    if (!userId || !profileUser) {
         return (
             <View style={styles.container}>
                 <View style={styles.header}>
@@ -143,20 +200,30 @@ export default function UserProfileScreen() {
                     <View style={styles.profileInfo}>
                         <View style={styles.avatarContainer}>
                             <View style={styles.profileAvatar}>
-                                <Text style={styles.avatarText}>😈</Text>
+                                <Text style={styles.avatarText}>
+                                    {profileUser?.display_name?.charAt(0).toUpperCase() || '😈'}
+                                </Text>
                             </View>
                         </View>
 
                         <View style={styles.profileDetails}>
                             <View style={styles.profileHeaderRow}>
                                 <View style={styles.profileInfo}>
-                                    <Text style={styles.displayName}>User {userId}</Text>
-                                    <Text style={styles.username}>@user{userId}</Text>
+                                    <Text style={styles.displayName}>
+                                        {profileUser?.display_name || 'Unknown User'}
+                                    </Text>
+                                    <Text style={styles.username}>
+                                        @{profileUser?.username || 'unknown'}
+                                    </Text>
 
-                                    <Text style={styles.bio}>This is a user profile</Text>
+                                    {profileUser?.bio && (
+                                        <Text style={styles.bio}>{profileUser.bio}</Text>
+                                    )}
 
                                     <View style={styles.profileMeta}>
-                                        <Text style={styles.metaText}>📅 Joined Recently</Text>
+                                        <Text style={styles.metaText}>
+                                            📅 Joined {profileUser?.created_at ? formatDate(profileUser.created_at) : 'Unknown'}
+                                        </Text>
                                     </View>
                                 </View>
                             </View>
@@ -192,19 +259,21 @@ export default function UserProfileScreen() {
                 {/* Profile Stats */}
                 <View style={styles.statsContainer}>
                     <View style={styles.statItem}>
-                        <Text style={styles.statNumber}>{userTweets.length}</Text>
+                        <Text style={styles.statNumber}>{profileUser?.tweets_count || 0}</Text>
                         <Text style={styles.statLabel}>Tweets</Text>
                     </View>
                     <View style={styles.statItem}>
-                        <Text style={styles.statNumber}>0</Text>
+                        <Text style={styles.statNumber}>{profileUser?.followers_count || 0}</Text>
                         <Text style={styles.statLabel}>Followers</Text>
                     </View>
                     <View style={styles.statItem}>
-                        <Text style={styles.statNumber}>0</Text>
+                        <Text style={styles.statNumber}>{profileUser?.following_count || 0}</Text>
                         <Text style={styles.statLabel}>Following</Text>
                     </View>
                     <View style={[styles.statItem, styles.dollarRateItem]}>
-                        <Text style={[styles.statNumber, styles.dollarRateText]}>$0</Text>
+                        <Text style={[styles.statNumber, styles.dollarRateText]}>
+                            ${profileUser?.dollar_conversion_rate?.toLocaleString() || '0'}
+                        </Text>
                         <Text style={[styles.statLabel, styles.dollarRateText]}>Dollar Rate</Text>
                     </View>
                 </View>
