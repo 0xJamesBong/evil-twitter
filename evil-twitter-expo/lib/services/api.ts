@@ -1,5 +1,5 @@
 // API configuration and base URL
-const API_BASE_URL = process.env.EXPO_PUBLIC_API_URL || "http://localhost:3000";
+import { API_BASE_URL } from "../config/api";
 
 export { API_BASE_URL };
 

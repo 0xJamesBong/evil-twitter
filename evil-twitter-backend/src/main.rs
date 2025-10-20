@@ -11,8 +11,8 @@ mod middleware;
 mod models;
 mod routes;
 
-use routes::follow::{follow_user, unfollow_user};
-use routes::migration::{migrate_tweets_health, migrate_users_weapons};
+use routes::follow::{follow_user, get_following_list, unfollow_user};
+use routes::migration::{migrate_tweets_health, migrate_user_objectids, migrate_users_weapons};
 use routes::ping::ping_handler;
 use routes::tweet::{
     attack_tweet, clear_all_data, create_tweet, generate_fake_tweets, get_thread, get_tweet,
@@ -51,8 +51,11 @@ use routes::weapons::{buy_weapon, get_user_weapons, get_weapon_catalog_endpoint}
         routes::tweet::migrate_users_dollar_rate,
         routes::migration::migrate_tweets_health,
         routes::migration::migrate_users_weapons,
+        routes::migration::migrate_user_objectids,
         routes::follow::follow_user,
         routes::follow::unfollow_user,
+        routes::follow::get_follow_status,
+        routes::follow::get_following_list,
         routes::weapons::buy_weapon,
         routes::weapons::get_user_weapons,
         routes::weapons::get_weapon_catalog_endpoint
@@ -78,7 +81,10 @@ use routes::weapons::{buy_weapon, get_user_weapons, get_weapon_catalog_endpoint}
             models::tweet::TweetViewerContext,
             models::tweet::TweetViralitySnapshot,
             models::follow::Follow,
-            models::follow::CreateFollow,
+            models::follow::FollowRequest,
+            models::follow::FollowResponse,
+            models::follow::FollowStats,
+            routes::follow::FollowingListResponse,
             models::tool::Weapon,
             routes::tweet::HealTweetRequest,
             routes::tweet::AttackTweetRequest,
@@ -145,11 +151,20 @@ async fn main() -> anyhow::Result<()> {
         .route("/admin/migrate-health", post(migrate_tweets_health))
         .route("/admin/migrate-users-weapons", post(migrate_users_weapons))
         .route(
+            "/admin/migrate-user-objectids",
+            post(migrate_user_objectids),
+        )
+        .route(
             "/admin/migrate-users-dollar-rate",
             post(migrate_users_dollar_rate),
         )
-        .route("/follows", post(follow_user))
-        .route("/follows/{following_id}", delete(unfollow_user))
+        .route("/users/{user_id}/follow", post(follow_user))
+        .route("/users/{user_id}/follow", delete(unfollow_user))
+        .route(
+            "/users/{user_id}/follow-status",
+            get(routes::follow::get_follow_status),
+        )
+        .route("/users/{user_id}/following", get(get_following_list))
         .route("/weapons/catalog", get(get_weapon_catalog_endpoint))
         .route("/weapons/{user_id}/buy", post(buy_weapon))
         .route("/users/{user_id}/weapons", get(get_user_weapons))

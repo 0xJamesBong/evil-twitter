@@ -1,17 +1,23 @@
 import { TweetCard } from '@/components/TweetCard';
 import { useAuthStore } from '@/lib/stores/authStore';
 import { useBackendUserStore } from '@/lib/stores/backendUserStore';
+import { useFollowingStore } from '@/lib/stores/followingStore';
+import { useFollowStore } from '@/lib/stores/followStore';
 import { useTweetsStore } from '@/lib/stores/tweetsStore';
 import { useWeaponsStore } from '@/lib/stores/weaponsStore';
+import { useRouter } from 'expo-router';
 import React, { useEffect } from 'react';
 import { ActivityIndicator, Alert, FlatList, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { Card } from 'react-native-paper';
 
 export default function ProfileScreen() {
+    const router = useRouter();
     const { user: authUser, logout, isAuthenticated } = useAuthStore();
     const { user: backendUser, fetchUser, syncWithSupabase, isLoading: backendLoading } = useBackendUserStore();
     const { weapons, fetchUserWeapons } = useWeaponsStore();
     const { userTweets, fetchUserTweets, loading: tweetsLoading } = useTweetsStore();
+    const { following, fetchFollowing, isLoading: followingLoading } = useFollowingStore();
+    const { followUser, unfollowUser, isFollowing, isLoading: followLoading } = useFollowStore();
 
     useEffect(() => {
         if (authUser?.id && !backendUser) {
@@ -23,8 +29,9 @@ export default function ProfileScreen() {
         if (backendUser?._id?.$oid) {
             fetchUserWeapons(backendUser._id.$oid);
             fetchUserTweets(backendUser._id.$oid);
+            fetchFollowing(backendUser._id.$oid);
         }
-    }, [backendUser, fetchUserWeapons, fetchUserTweets]);
+    }, [backendUser]);
 
 
     const handleSyncWithSupabase = async () => {
@@ -36,6 +43,25 @@ export default function ProfileScreen() {
                 console.error('Sync error:', error);
                 Alert.alert('Error', 'Failed to sync profile');
             }
+        }
+    };
+
+    const handleFollowToggle = async (userId: string) => {
+        if (!backendUser?._id?.$oid) return;
+
+        try {
+            if (isFollowing) {
+                await unfollowUser(userId, backendUser._id.$oid);
+            } else {
+                await followUser(userId, backendUser._id.$oid);
+            }
+            // Refresh the following list after follow/unfollow
+            if (backendUser?._id?.$oid) {
+                fetchFollowing(backendUser._id.$oid);
+            }
+        } catch (error) {
+            console.error('Follow action failed:', error);
+            Alert.alert('Error', 'Failed to update follow status');
         }
     };
 
@@ -188,16 +214,16 @@ export default function ProfileScreen() {
                                 <Text style={styles.accountInfoLabel}>Email:</Text>
                                 <Text style={styles.accountInfoValue}>{authUser?.email || 'N/A'}</Text>
                             </View>
-                            {/* <View style={styles.accountInfoRow}>
+                            <View style={styles.accountInfoRow}>
                                 <Text style={styles.accountInfoLabel}>Supabase User ID:</Text>
                                 <Text style={styles.accountInfoValue}>{authUser?.id || 'N/A'}</Text>
-                            </View> */}
-                            {/* <View style={styles.accountInfoRow}>
+                            </View>
+                            <View style={styles.accountInfoRow}>
                                 <Text style={styles.accountInfoLabel}>Backend User ID:</Text>
                                 <Text style={styles.accountInfoValue}>
                                     {backendUser?._id?.$oid || 'Not loaded'}
-                                </Text> 
-                            </View> */}
+                                </Text>
+                            </View>
                             <View style={styles.accountInfoRow}>
                                 <Text style={styles.accountInfoLabel}>Created:</Text>
                                 <Text style={styles.accountInfoValue}>
@@ -253,6 +279,61 @@ export default function ProfileScreen() {
                         <View style={styles.emptyTweets}>
                             <Text style={styles.emptyText}>No tweets yet</Text>
                             <Text style={styles.emptySubtext}>Start tweeting to see your posts here!</Text>
+                        </View>
+                    )}
+                </View>
+
+                {/* Following Section */}
+                <View style={styles.followingSection}>
+                    <Text style={styles.sectionTitle}>👥 Following ({following.length})</Text>
+                    {followingLoading ? (
+                        <View style={styles.loadingContainer}>
+                            <ActivityIndicator size="small" color="#1d9bf0" />
+                            <Text style={styles.loadingText}>Loading following...</Text>
+                        </View>
+                    ) : following.length > 0 ? (
+                        <FlatList
+                            data={following.slice(0, 5)} // Show only first 5
+                            renderItem={({ item }) => (
+                                <TouchableOpacity
+                                    style={styles.followingItem}
+                                    onPress={() => router.push(`/profile/${item._id.$oid}`)}
+                                >
+                                    <View style={styles.followingAvatar}>
+                                        <Text style={styles.followingAvatarText}>
+                                            {item.display_name?.charAt(0).toUpperCase() || item.username?.charAt(0).toUpperCase() || '😈'}
+                                        </Text>
+                                    </View>
+                                    <View style={styles.followingInfo}>
+                                        <Text style={styles.followingName}>{item.display_name || item.username || 'User'}</Text>
+                                        <Text style={styles.followingUsername}>@{item.username || 'user'}</Text>
+                                        {item.bio && (
+                                            <Text style={styles.followingBio} numberOfLines={2}>{item.bio}</Text>
+                                        )}
+                                    </View>
+                                    <TouchableOpacity
+                                        style={[styles.followingFollowButton, isFollowing && styles.followingFollowingButton]}
+                                        onPress={() => handleFollowToggle(item._id.$oid)}
+                                        disabled={followLoading}
+                                    >
+                                        {followLoading ? (
+                                            <ActivityIndicator size="small" color={isFollowing ? "#71767b" : "#fff"} />
+                                        ) : (
+                                            <Text style={[styles.followingFollowButtonText, isFollowing && styles.followingFollowingButtonText]}>
+                                                {isFollowing ? 'Following' : 'Follow'}
+                                            </Text>
+                                        )}
+                                    </TouchableOpacity>
+                                </TouchableOpacity>
+                            )}
+                            keyExtractor={(item) => item._id.$oid}
+                            scrollEnabled={false}
+                            contentContainerStyle={styles.followingList}
+                        />
+                    ) : (
+                        <View style={styles.emptyFollowing}>
+                            <Text style={styles.emptyText}>Not following anyone yet</Text>
+                            <Text style={styles.emptySubtext}>Start following people to see them here!</Text>
                         </View>
                     )}
                 </View>
@@ -554,5 +635,79 @@ const styles = StyleSheet.create({
         borderRadius: 16,
         alignItems: 'center',
         marginLeft: 16,
+    },
+    followingSection: {
+        paddingHorizontal: 16,
+        paddingVertical: 16,
+    },
+    followingList: {
+        gap: 12,
+    },
+    followingItem: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        padding: 12,
+        backgroundColor: '#16181c',
+        borderRadius: 12,
+        borderWidth: 1,
+        borderColor: '#2f3336',
+    },
+    followingAvatar: {
+        width: 40,
+        height: 40,
+        borderRadius: 20,
+        backgroundColor: '#536471',
+        justifyContent: 'center',
+        alignItems: 'center',
+        marginRight: 12,
+    },
+    followingAvatarText: {
+        color: '#fff',
+        fontSize: 16,
+        fontWeight: 'bold',
+    },
+    followingInfo: {
+        flex: 1,
+    },
+    followingName: {
+        fontSize: 16,
+        fontWeight: 'bold',
+        color: '#fff',
+        marginBottom: 2,
+    },
+    followingUsername: {
+        fontSize: 14,
+        color: '#71767b',
+        marginBottom: 4,
+    },
+    followingBio: {
+        fontSize: 14,
+        color: '#e7e9ea',
+        lineHeight: 18,
+    },
+    emptyFollowing: {
+        alignItems: 'center',
+        padding: 32,
+    },
+    followingFollowButton: {
+        backgroundColor: '#1d9bf0',
+        paddingVertical: 6,
+        paddingHorizontal: 12,
+        borderRadius: 16,
+        alignItems: 'center',
+        minWidth: 70,
+    },
+    followingFollowingButton: {
+        backgroundColor: 'transparent',
+        borderWidth: 1,
+        borderColor: '#71767b',
+    },
+    followingFollowButtonText: {
+        color: '#fff',
+        fontSize: 12,
+        fontWeight: 'bold',
+    },
+    followingFollowingButtonText: {
+        color: '#71767b',
     },
 });

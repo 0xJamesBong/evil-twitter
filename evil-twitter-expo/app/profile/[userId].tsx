@@ -1,5 +1,8 @@
 import { TweetCard } from '@/components/TweetCard';
+import { useAuthStore } from '@/lib/stores/authStore';
 import { useBackendUserStore } from '@/lib/stores/backendUserStore';
+import { useFollowStore } from '@/lib/stores/followStore';
+import { useProfileStore } from '@/lib/stores/profileStore';
 import { useTweetsStore } from '@/lib/stores/tweetsStore';
 import { useWeaponsStore } from '@/lib/stores/weaponsStore';
 import { useLocalSearchParams, useRouter } from 'expo-router';
@@ -10,21 +13,61 @@ import { Card } from 'react-native-paper';
 export default function UserProfileScreen() {
     const { userId } = useLocalSearchParams<{ userId: string }>();
     const router = useRouter();
-    const { fetchUserById, user: targetUser, isLoading: userLoading } = useBackendUserStore();
+
     const { weapons, fetchUserWeapons } = useWeaponsStore();
     const { userTweets, fetchUserTweets, loading: tweetsLoading } = useTweetsStore();
+    const { user: currentBackendUser, fetchUser: fetchCurrentUser } = useBackendUserStore();
+    const { user: authUser } = useAuthStore();
+    const {
+        isFollowing,
+        isLoading: followLoading,
+        error: followError,
+        followUser,
+        unfollowUser,
+        checkFollowStatus,
+        clearError
+    } = useFollowStore();
+
+    // Profile store for the user being viewed
+    const {
+        profileUser,
+        isLoading: profileLoading,
+        error: profileError,
+        fetchProfile,
+        clearProfile
+    } = useProfileStore();
+
+    // Fetch the profile user data
     useEffect(() => {
         if (userId) {
-            fetchUserById(userId);
+            fetchProfile(userId);
         }
-    }, [userId, fetchUserById]);
+
+        // Cleanup when component unmounts
+        return () => {
+            clearProfile();
+        };
+    }, [userId, fetchProfile, clearProfile]);
+
+    // Ensure current user is loaded for follow functionality
+    useEffect(() => {
+        if (authUser?.id && !currentBackendUser) {
+            console.log('Profile page: Loading current backend user for Supabase ID:', authUser.id);
+            fetchCurrentUser(authUser.id);
+        }
+    }, [authUser?.id, currentBackendUser, fetchCurrentUser]);
 
     useEffect(() => {
-        if (targetUser?._id?.$oid) {
-            fetchUserWeapons(targetUser._id.$oid);
-            fetchUserTweets(targetUser._id.$oid);
+        if (userId) {
+            fetchUserWeapons(userId);
+            fetchUserTweets(userId);
+
+            // Check follow status if current user is logged in
+            if (currentBackendUser?._id?.$oid && userId !== currentBackendUser._id.$oid) {
+                checkFollowStatus(userId, currentBackendUser._id.$oid);
+            }
         }
-    }, [targetUser, fetchUserWeapons, fetchUserTweets]);
+    }, [userId, currentBackendUser]);
 
     const formatDate = (dateInput: any) => {
         try {
@@ -53,6 +96,20 @@ export default function UserProfileScreen() {
         }
     };
 
+    const handleFollowToggle = async () => {
+        if (!userId || !currentBackendUser?._id?.$oid) return;
+
+        try {
+            if (isFollowing) {
+                await unfollowUser(userId, currentBackendUser._id.$oid);
+            } else {
+                await followUser(userId, currentBackendUser._id.$oid);
+            }
+        } catch (error) {
+            console.error('Follow action failed:', error);
+        }
+    };
+
     const renderWeapon = ({ item }: { item: any }) => (
         <Card style={styles.weaponCard}>
             <Card.Content style={styles.weaponContent}>
@@ -69,7 +126,8 @@ export default function UserProfileScreen() {
         </Card>
     );
 
-    if (userLoading) {
+
+    if (profileLoading) {
         return (
             <View style={styles.container}>
                 <View style={styles.header}>
@@ -86,7 +144,26 @@ export default function UserProfileScreen() {
         );
     }
 
-    if (!targetUser) {
+    if (profileError) {
+        return (
+            <View style={styles.container}>
+                <View style={styles.header}>
+                    <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
+                        <Text style={styles.backButtonText}>← Back</Text>
+                    </TouchableOpacity>
+                    <Text style={styles.headerTitle}>Profile</Text>
+                </View>
+                <View style={styles.errorContainer}>
+                    <Text style={styles.errorText}>{profileError}</Text>
+                    <TouchableOpacity style={styles.retryButton} onPress={() => userId && fetchProfile(userId)}>
+                        <Text style={styles.retryButtonText}>Retry</Text>
+                    </TouchableOpacity>
+                </View>
+            </View>
+        );
+    }
+
+    if (!userId || !profileUser) {
         return (
             <View style={styles.container}>
                 <View style={styles.header}>
@@ -115,6 +192,7 @@ export default function UserProfileScreen() {
                 <Text style={styles.headerTitle}>Profile</Text>
             </View>
 
+
             <ScrollView style={styles.scrollView}>
                 {/* Profile Header */}
                 <View style={styles.profileHeader}>
@@ -123,7 +201,7 @@ export default function UserProfileScreen() {
                         <View style={styles.avatarContainer}>
                             <View style={styles.profileAvatar}>
                                 <Text style={styles.avatarText}>
-                                    {targetUser?.display_name?.charAt(0).toUpperCase() || '😈'}
+                                    {profileUser?.display_name?.charAt(0).toUpperCase() || '😈'}
                                 </Text>
                             </View>
                         </View>
@@ -132,44 +210,69 @@ export default function UserProfileScreen() {
                             <View style={styles.profileHeaderRow}>
                                 <View style={styles.profileInfo}>
                                     <Text style={styles.displayName}>
-                                        {targetUser?.display_name || 'User'}
+                                        {profileUser?.display_name || 'Unknown User'}
                                     </Text>
                                     <Text style={styles.username}>
-                                        @{targetUser?.username || 'user'}
+                                        @{profileUser?.username || 'unknown'}
                                     </Text>
 
-                                    {targetUser?.bio && (
-                                        <Text style={styles.bio}>{targetUser.bio}</Text>
+                                    {profileUser?.bio && (
+                                        <Text style={styles.bio}>{profileUser.bio}</Text>
                                     )}
 
                                     <View style={styles.profileMeta}>
                                         <Text style={styles.metaText}>
-                                            📅 Joined {targetUser?.created_at ? formatDate(targetUser.created_at) : 'Unknown'}
+                                            📅 Joined {profileUser?.created_at ? formatDate(profileUser.created_at) : 'Unknown'}
                                         </Text>
                                     </View>
                                 </View>
                             </View>
                         </View>
+
+                        {/* Follow Button */}
+                        {currentBackendUser?._id?.$oid && userId && currentBackendUser._id.$oid !== userId && (
+                            <View style={styles.followButtonContainer}>
+                                <TouchableOpacity
+                                    style={[
+                                        styles.followButton,
+                                        isFollowing && styles.followingButton
+                                    ]}
+                                    onPress={handleFollowToggle}
+                                    disabled={followLoading}
+                                >
+                                    {followLoading ? (
+                                        <ActivityIndicator size="small" color={isFollowing ? "#71767b" : "#fff"} />
+                                    ) : (
+                                        <Text style={[
+                                            styles.followButtonText,
+                                            isFollowing && styles.followingButtonText
+                                        ]}>
+                                            {isFollowing ? 'Following' : 'Follow'}
+                                        </Text>
+                                    )}
+                                </TouchableOpacity>
+                            </View>
+                        )}
                     </View>
                 </View>
 
                 {/* Profile Stats */}
                 <View style={styles.statsContainer}>
                     <View style={styles.statItem}>
-                        <Text style={styles.statNumber}>{targetUser?.tweets_count || 0}</Text>
+                        <Text style={styles.statNumber}>{profileUser?.tweets_count || 0}</Text>
                         <Text style={styles.statLabel}>Tweets</Text>
                     </View>
                     <View style={styles.statItem}>
-                        <Text style={styles.statNumber}>{targetUser?.followers_count || 0}</Text>
+                        <Text style={styles.statNumber}>{profileUser?.followers_count || 0}</Text>
                         <Text style={styles.statLabel}>Followers</Text>
                     </View>
                     <View style={styles.statItem}>
-                        <Text style={styles.statNumber}>{targetUser?.following_count || 0}</Text>
+                        <Text style={styles.statNumber}>{profileUser?.following_count || 0}</Text>
                         <Text style={styles.statLabel}>Following</Text>
                     </View>
                     <View style={[styles.statItem, styles.dollarRateItem]}>
                         <Text style={[styles.statNumber, styles.dollarRateText]}>
-                            ${targetUser?.dollar_conversion_rate?.toLocaleString() || '0'}
+                            ${profileUser?.dollar_conversion_rate?.toLocaleString() || '0'}
                         </Text>
                         <Text style={[styles.statLabel, styles.dollarRateText]}>Dollar Rate</Text>
                     </View>
@@ -508,5 +611,31 @@ const styles = StyleSheet.create({
         color: '#fff',
         fontSize: 16,
         fontWeight: 'bold',
+    },
+    followButtonContainer: {
+        position: 'absolute',
+        top: 16,
+        right: 16,
+    },
+    followButton: {
+        backgroundColor: '#1d9bf0',
+        paddingVertical: 8,
+        paddingHorizontal: 16,
+        borderRadius: 20,
+        alignItems: 'center',
+        minWidth: 80,
+    },
+    followingButton: {
+        backgroundColor: 'transparent',
+        borderWidth: 1,
+        borderColor: '#71767b',
+    },
+    followButtonText: {
+        color: '#fff',
+        fontSize: 14,
+        fontWeight: 'bold',
+    },
+    followingButtonText: {
+        color: '#71767b',
     },
 });
