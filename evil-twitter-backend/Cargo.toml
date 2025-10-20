@@ -2,6 +2,7 @@
 name = "evil-twitter"
 version = "0.1.0"
 edition = "2024"
+default-run = "evil-twitter"
 
 [dependencies]
 axum = { version = "0.8.4", features = ["multipart", "macros"] }
@@ -37,3 +38,11 @@ utoipa = { version = "5.0.0", features = ["axum_extras", "uuid", "chrono"] }
 utoipa-axum = "0.2.0"
 utoipa-swagger-ui = { version = "9.0.2", features = ["axum"] }
 mongodb-gridfs = "0.2.7"
+
+[[bin]]
+name = "create_fake_users"
+path = "create_fake_users.rs"
+
+[[bin]]
+name = "create_fake_tweets"
+path = "create_fake_tweets.rs"
