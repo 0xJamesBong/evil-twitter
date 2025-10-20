@@ -1,6 +1,5 @@
 import { create } from "zustand";
-
-const API_BASE_URL = process.env.EXPO_PUBLIC_API_URL || "http://localhost:3000";
+import { API_BASE_URL } from "../config/api";
 
 type ObjectIdRef = { $oid: string };
 

@@ -31,7 +31,7 @@ export default function ProfileScreen() {
             fetchUserTweets(backendUser._id.$oid);
             fetchFollowing(backendUser._id.$oid);
         }
-    }, [backendUser, fetchUserWeapons, fetchUserTweets, fetchFollowing]);
+    }, [backendUser]);
 
 
     const handleSyncWithSupabase = async () => {
@@ -47,13 +47,13 @@ export default function ProfileScreen() {
     };
 
     const handleFollowToggle = async (userId: string) => {
-        if (!authUser?.id) return;
+        if (!backendUser?._id?.$oid) return;
 
         try {
             if (isFollowing) {
-                await unfollowUser(userId, authUser.id);
+                await unfollowUser(userId, backendUser._id.$oid);
             } else {
-                await followUser(userId, authUser.id);
+                await followUser(userId, backendUser._id.$oid);
             }
             // Refresh the following list after follow/unfollow
             if (backendUser?._id?.$oid) {

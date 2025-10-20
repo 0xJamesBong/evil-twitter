@@ -1,6 +1,5 @@
 import { create } from "zustand";
-
-const API_BASE_URL = process.env.EXPO_PUBLIC_API_URL || "http://localhost:8080";
+import { API_BASE_URL } from "../config/api";
 
 interface FollowingUser {
   _id: { $oid: string };

@@ -12,10 +12,11 @@ import { Card } from 'react-native-paper';
 export default function UserProfileScreen() {
     const { userId } = useLocalSearchParams<{ userId: string }>();
     const router = useRouter();
-    const { fetchUserById, user: targetUser, isLoading: userLoading } = useBackendUserStore();
+
     const { weapons, fetchUserWeapons } = useWeaponsStore();
     const { userTweets, fetchUserTweets, loading: tweetsLoading } = useTweetsStore();
-    const { user: currentUser } = useAuthStore();
+    const { user: currentBackendUser, fetchUser: fetchCurrentUser } = useBackendUserStore();
+    const { user: authUser } = useAuthStore();
     const {
         isFollowing,
         isLoading: followLoading,
@@ -25,23 +26,27 @@ export default function UserProfileScreen() {
         checkFollowStatus,
         clearError
     } = useFollowStore();
+    // No need for target user state - userId is the target user ID
+
+    // Ensure current user is loaded for follow functionality
+    useEffect(() => {
+        if (authUser?.id && !currentBackendUser) {
+            console.log('Profile page: Loading current backend user for Supabase ID:', authUser.id);
+            fetchCurrentUser(authUser.id);
+        }
+    }, [authUser?.id, currentBackendUser, fetchCurrentUser]);
+
     useEffect(() => {
         if (userId) {
-            fetchUserById(userId);
-        }
-    }, [userId, fetchUserById]);
-
-    useEffect(() => {
-        if (targetUser?._id?.$oid) {
-            fetchUserWeapons(targetUser._id.$oid);
-            fetchUserTweets(targetUser._id.$oid);
+            fetchUserWeapons(userId);
+            fetchUserTweets(userId);
 
             // Check follow status if current user is logged in
-            if (currentUser?.id && targetUser._id.$oid !== currentUser.id) {
-                checkFollowStatus(targetUser._id.$oid, currentUser.id);
+            if (currentBackendUser?._id?.$oid && userId !== currentBackendUser._id.$oid) {
+                checkFollowStatus(userId, currentBackendUser._id.$oid);
             }
         }
-    }, [targetUser, fetchUserWeapons, fetchUserTweets, currentUser, checkFollowStatus]);
+    }, [userId, currentBackendUser]);
 
     const formatDate = (dateInput: any) => {
         try {
@@ -71,13 +76,13 @@ export default function UserProfileScreen() {
     };
 
     const handleFollowToggle = async () => {
-        if (!targetUser?._id?.$oid || !currentUser?.id) return;
+        if (!userId || !currentBackendUser?._id?.$oid) return;
 
         try {
             if (isFollowing) {
-                await unfollowUser(targetUser._id.$oid, currentUser.id);
+                await unfollowUser(userId, currentBackendUser._id.$oid);
             } else {
-                await followUser(targetUser._id.$oid, currentUser.id);
+                await followUser(userId, currentBackendUser._id.$oid);
             }
         } catch (error) {
             console.error('Follow action failed:', error);
@@ -100,24 +105,8 @@ export default function UserProfileScreen() {
         </Card>
     );
 
-    if (userLoading) {
-        return (
-            <View style={styles.container}>
-                <View style={styles.header}>
-                    <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
-                        <Text style={styles.backButtonText}>← Back</Text>
-                    </TouchableOpacity>
-                    <Text style={styles.headerTitle}>Profile</Text>
-                </View>
-                <View style={styles.loadingContainer}>
-                    <ActivityIndicator size="large" color="#1d9bf0" />
-                    <Text style={styles.loadingText}>Loading profile...</Text>
-                </View>
-            </View>
-        );
-    }
 
-    if (!targetUser) {
+    if (!userId) {
         return (
             <View style={styles.container}>
                 <View style={styles.header}>
@@ -146,6 +135,7 @@ export default function UserProfileScreen() {
                 <Text style={styles.headerTitle}>Profile</Text>
             </View>
 
+
             <ScrollView style={styles.scrollView}>
                 {/* Profile Header */}
                 <View style={styles.profileHeader}>
@@ -153,37 +143,27 @@ export default function UserProfileScreen() {
                     <View style={styles.profileInfo}>
                         <View style={styles.avatarContainer}>
                             <View style={styles.profileAvatar}>
-                                <Text style={styles.avatarText}>
-                                    {targetUser?.display_name?.charAt(0).toUpperCase() || '😈'}
-                                </Text>
+                                <Text style={styles.avatarText}>😈</Text>
                             </View>
                         </View>
 
                         <View style={styles.profileDetails}>
                             <View style={styles.profileHeaderRow}>
                                 <View style={styles.profileInfo}>
-                                    <Text style={styles.displayName}>
-                                        {targetUser?.display_name || 'User'}
-                                    </Text>
-                                    <Text style={styles.username}>
-                                        @{targetUser?.username || 'user'}
-                                    </Text>
+                                    <Text style={styles.displayName}>User {userId}</Text>
+                                    <Text style={styles.username}>@user{userId}</Text>
 
-                                    {targetUser?.bio && (
-                                        <Text style={styles.bio}>{targetUser.bio}</Text>
-                                    )}
+                                    <Text style={styles.bio}>This is a user profile</Text>
 
                                     <View style={styles.profileMeta}>
-                                        <Text style={styles.metaText}>
-                                            📅 Joined {targetUser?.created_at ? formatDate(targetUser.created_at) : 'Unknown'}
-                                        </Text>
+                                        <Text style={styles.metaText}>📅 Joined Recently</Text>
                                     </View>
                                 </View>
                             </View>
                         </View>
 
                         {/* Follow Button */}
-                        {currentUser?.id && targetUser?._id?.$oid !== currentUser.id && (
+                        {currentBackendUser?._id?.$oid && userId && currentBackendUser._id.$oid !== userId && (
                             <View style={styles.followButtonContainer}>
                                 <TouchableOpacity
                                     style={[
@@ -212,21 +192,19 @@ export default function UserProfileScreen() {
                 {/* Profile Stats */}
                 <View style={styles.statsContainer}>
                     <View style={styles.statItem}>
-                        <Text style={styles.statNumber}>{targetUser?.tweets_count || 0}</Text>
+                        <Text style={styles.statNumber}>{userTweets.length}</Text>
                         <Text style={styles.statLabel}>Tweets</Text>
                     </View>
                     <View style={styles.statItem}>
-                        <Text style={styles.statNumber}>{targetUser?.followers_count || 0}</Text>
+                        <Text style={styles.statNumber}>0</Text>
                         <Text style={styles.statLabel}>Followers</Text>
                     </View>
                     <View style={styles.statItem}>
-                        <Text style={styles.statNumber}>{targetUser?.following_count || 0}</Text>
+                        <Text style={styles.statNumber}>0</Text>
                         <Text style={styles.statLabel}>Following</Text>
                     </View>
                     <View style={[styles.statItem, styles.dollarRateItem]}>
-                        <Text style={[styles.statNumber, styles.dollarRateText]}>
-                            ${targetUser?.dollar_conversion_rate?.toLocaleString() || '0'}
-                        </Text>
+                        <Text style={[styles.statNumber, styles.dollarRateText]}>$0</Text>
                         <Text style={[styles.statLabel, styles.dollarRateText]}>Dollar Rate</Text>
                     </View>
                 </View>
