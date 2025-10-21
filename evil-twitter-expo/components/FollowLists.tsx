@@ -1,5 +1,3 @@
-import { useFollowersStore } from '@/lib/stores/followersStore';
-import { useFollowingStore } from '@/lib/stores/followingStore';
 import { useFollowStore } from '@/lib/stores/followStore';
 import { useRouter } from 'expo-router';
 import React, { useEffect, useState } from 'react';
@@ -21,10 +19,19 @@ export function FollowLists({
     const router = useRouter();
     const [activeTab, setActiveTab] = useState<'followers' | 'following'>('followers');
 
-    // Stores
-    const { followers, fetchFollowers, isLoading: followersLoading } = useFollowersStore();
-    const { following, fetchFollowing, isLoading: followingLoading } = useFollowingStore();
-    const { isFollowing, followUser, unfollowUser, isLoading: followLoading } = useFollowStore();
+    // Unified store
+    const {
+        followers,
+        followersLoading,
+        following,
+        followingLoading,
+        isFollowing,
+        followStatusLoading,
+        fetchFollowers,
+        fetchFollowing,
+        followUser,
+        unfollowUser
+    } = useFollowStore();
 
     // Fetch data when component mounts or userId changes
     useEffect(() => {
@@ -74,9 +81,9 @@ export function FollowLists({
                 <TouchableOpacity
                     style={[styles.followButton, isFollowing && styles.followingButton]}
                     onPress={() => handleFollowToggle(item._id.$oid)}
-                    disabled={followLoading}
+                    disabled={followStatusLoading}
                 >
-                    {followLoading ? (
+                    {followStatusLoading ? (
                         <ActivityIndicator size="small" color={isFollowing ? "#71767b" : "#fff"} />
                     ) : (
                         <Text style={[styles.followButtonText, isFollowing && styles.followingButtonText]}>

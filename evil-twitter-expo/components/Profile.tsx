@@ -46,10 +46,11 @@ export function Profile({
     // Follow functionality
     const {
         isFollowing,
-        isLoading: followLoading,
+        followStatusLoading,
         followUser,
         unfollowUser,
-        checkFollowStatus
+        checkFollowStatus,
+        clearFollowStatus
     } = useFollowStore();
 
     // Tweets and weapons
@@ -82,13 +83,18 @@ export function Profile({
         if (displayUserId) {
             fetchUserWeapons(displayUserId);
             fetchUserTweets(displayUserId);
-
-            // Check follow status if viewing another user
-            if (!isOwnProfile && currentBackendUser?._id?.$oid && userId !== currentBackendUser._id.$oid) {
-                checkFollowStatus(userId!, currentBackendUser._id.$oid);
-            }
         }
-    }, [displayUserId, isOwnProfile, currentBackendUser, userId, fetchUserWeapons, fetchUserTweets, checkFollowStatus]);
+    }, [displayUserId, fetchUserWeapons, fetchUserTweets]);
+
+    // Check follow status when viewing another user
+    useEffect(() => {
+        if (!isOwnProfile && currentBackendUser?._id?.$oid && userId && currentBackendUser._id.$oid !== userId) {
+            checkFollowStatus(userId, currentBackendUser._id.$oid);
+        } else if (isOwnProfile) {
+            // Clear follow status when viewing own profile
+            clearFollowStatus();
+        }
+    }, [isOwnProfile, currentBackendUser, userId, checkFollowStatus, clearFollowStatus]);
 
     const handleSyncWithSupabase = async () => {
         if (authUser) {
@@ -111,8 +117,14 @@ export function Profile({
             } else {
                 await followUser(userId, currentBackendUser._id.$oid);
             }
+
+            // Refresh profile data to get updated follower counts
+            if (!isOwnProfile && userId) {
+                await fetchProfile(userId);
+            }
         } catch (error) {
             console.error('Follow action failed:', error);
+            Alert.alert('Error', 'Failed to update follow status');
         }
     };
 
@@ -315,12 +327,13 @@ export function Profile({
                                 <TouchableOpacity
                                     style={[
                                         styles.followButton,
-                                        isFollowing && styles.followingButton
+                                        isFollowing && styles.followingButton,
+                                        followStatusLoading && styles.followButtonDisabled
                                     ]}
                                     onPress={handleFollowToggle}
-                                    disabled={followLoading}
+                                    disabled={followStatusLoading}
                                 >
-                                    {followLoading ? (
+                                    {followStatusLoading ? (
                                         <ActivityIndicator size="small" color={isFollowing ? "#71767b" : "#fff"} />
                                     ) : (
                                         <Text style={[
@@ -823,6 +836,9 @@ const styles = StyleSheet.create({
     },
     followingButtonText: {
         color: '#71767b',
+    },
+    followButtonDisabled: {
+        opacity: 0.6,
     },
     syncButtonTop: {
         backgroundColor: '#1d9bf0',

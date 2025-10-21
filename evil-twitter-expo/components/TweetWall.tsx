@@ -1,6 +1,6 @@
 import { TweetCard } from '@/components/TweetCard';
 import { Tweet } from '@/lib/stores/tweetsStore';
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { ActivityIndicator, FlatList, RefreshControl, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 
 // Tweet source configuration
@@ -70,12 +70,7 @@ export function TweetWall({
     const [error, setError] = useState<string | null>(null);
     const [hasMore, setHasMore] = useState(true);
 
-    // Load tweets on mount
-    useEffect(() => {
-        loadTweets();
-    }, []);
-
-    const loadTweets = async () => {
+    const loadTweets = useCallback(async () => {
         try {
             setLoading(true);
             setError(null);
@@ -88,7 +83,12 @@ export function TweetWall({
         } finally {
             setLoading(false);
         }
-    };
+    }, [tweetSource, maxTweets]);
+
+    // Load tweets on mount
+    useEffect(() => {
+        loadTweets();
+    }, [loadTweets]);
 
     const handleRefresh = async () => {
         if (!tweetSource.refreshTweets) return;
