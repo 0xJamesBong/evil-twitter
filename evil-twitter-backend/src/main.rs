@@ -11,7 +11,7 @@ mod middleware;
 mod models;
 mod routes;
 
-use routes::follow::{follow_user, get_following_list, unfollow_user};
+use routes::follow::{follow_user, get_followers_list, get_following_list, unfollow_user};
 use routes::migration::{migrate_tweets_health, migrate_user_objectids, migrate_users_weapons};
 use routes::ping::ping_handler;
 use routes::tweet::{
@@ -56,6 +56,7 @@ use routes::weapons::{buy_weapon, get_user_weapons, get_weapon_catalog_endpoint}
         routes::follow::unfollow_user,
         routes::follow::get_follow_status,
         routes::follow::get_following_list,
+        routes::follow::get_followers_list,
         routes::weapons::buy_weapon,
         routes::weapons::get_user_weapons,
         routes::weapons::get_weapon_catalog_endpoint
@@ -85,6 +86,7 @@ use routes::weapons::{buy_weapon, get_user_weapons, get_weapon_catalog_endpoint}
             models::follow::FollowResponse,
             models::follow::FollowStats,
             routes::follow::FollowingListResponse,
+            routes::follow::FollowersListResponse,
             models::tool::Weapon,
             routes::tweet::HealTweetRequest,
             routes::tweet::AttackTweetRequest,
@@ -165,6 +167,7 @@ async fn main() -> anyhow::Result<()> {
             get(routes::follow::get_follow_status),
         )
         .route("/users/{user_id}/following", get(get_following_list))
+        .route("/users/{user_id}/followers", get(get_followers_list))
         .route("/weapons/catalog", get(get_weapon_catalog_endpoint))
         .route("/weapons/{user_id}/buy", post(buy_weapon))
         .route("/users/{user_id}/weapons", get(get_user_weapons))
