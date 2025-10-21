@@ -358,6 +358,15 @@ export function Profile({
                     </View>
                 </View>
 
+                {/* Followers/Following Section */}
+                {displayUserId && (
+                    <FollowLists
+                        userId={displayUserId}
+                        currentUserId={currentBackendUser?._id?.$oid}
+                        showFollowButtons={!isOwnProfile}
+                    />
+                )}
+
                 {/* Tabs */}
                 <View style={styles.tabsContainer}>
                     <TouchableOpacity style={[styles.tab, styles.activeTab]}>
@@ -468,14 +477,6 @@ export function Profile({
                     )}
                 </View>
 
-                {/* Followers/Following Section */}
-                {displayUserId && (
-                    <FollowLists
-                        userId={displayUserId}
-                        currentUserId={currentBackendUser?._id?.$oid}
-                        showFollowButtons={!isOwnProfile}
-                    />
-                )}
             </ScrollView>
         </View>
     );
