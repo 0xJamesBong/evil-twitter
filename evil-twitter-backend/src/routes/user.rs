@@ -81,6 +81,8 @@ pub async fn create_user(
         followers_count: 0,
         following_count: 0,
         tweets_count: 0,
+        intimate_followers_count: 0,
+        intimate_follow_requests_count: 0,
         dollar_conversion_rate: 10000,
         weapon_ids: Vec::new(),
     };

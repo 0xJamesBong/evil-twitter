@@ -414,13 +414,16 @@ pub async fn get_intimate_follow_status(
             )
         })?;
 
+    let request_status_value = request_status.map(|r| r.status);
+    let has_pending_request = matches!(
+        request_status_value.as_ref(),
+        Some(IntimateFollowRequestStatus::Pending)
+    );
+
     let status = IntimateFollowStatus {
         is_intimate_follower,
-        has_pending_request: matches!(
-            request_status.as_ref().map(|r| r.status),
-            Some(IntimateFollowRequestStatus::Pending)
-        ),
-        request_status: request_status.map(|r| r.status),
+        has_pending_request,
+        request_status: request_status_value,
     };
 
     Ok(Json(status))

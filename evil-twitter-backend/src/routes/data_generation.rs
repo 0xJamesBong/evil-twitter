@@ -145,12 +145,14 @@ pub async fn generate_fake_users(
             avatar_url: None,
             bio: Some(format!("Fake user {} - Software Developer", name)),
             created_at: mongodb::bson::DateTime::now(),
-            followers_count: 0,
-            following_count: 0,
-            tweets_count: 0,
-            dollar_conversion_rate: 10000,
-            weapon_ids: vec![],
-        };
+        followers_count: 0,
+        following_count: 0,
+        tweets_count: 0,
+        intimate_followers_count: 0,
+        intimate_follow_requests_count: 0,
+        dollar_conversion_rate: 10000,
+        weapon_ids: vec![],
+    };
 
         match user_collection.insert_one(&user).await {
             Ok(result) => {
@@ -277,6 +279,7 @@ pub async fn generate_fake_tweets(
                 owner_id: user_id,
                 content,
                 tweet_type: crate::models::tweet::TweetType::Original,
+                visibility: crate::models::tweet::TweetVisibility::Public,
                 quoted_tweet_id: None,
                 replied_to_tweet_id: None,
                 root_tweet_id: None,
@@ -537,12 +540,14 @@ pub async fn generate_fake_data(
             avatar_url: None,
             bio: Some(format!("Fake user {} - Software Developer", name)),
             created_at: mongodb::bson::DateTime::now(),
-            followers_count: 0,
-            following_count: 0,
-            tweets_count: 0,
-            dollar_conversion_rate: 10000,
-            weapon_ids: vec![],
-        };
+        followers_count: 0,
+        following_count: 0,
+        tweets_count: 0,
+        intimate_followers_count: 0,
+        intimate_follow_requests_count: 0,
+        dollar_conversion_rate: 10000,
+        weapon_ids: vec![],
+    };
 
         match user_collection.insert_one(&user).await {
             Ok(result) => {
@@ -629,6 +634,7 @@ pub async fn generate_fake_data(
                 owner_id: user_id,
                 content,
                 tweet_type: crate::models::tweet::TweetType::Original,
+                visibility: crate::models::tweet::TweetVisibility::Public,
                 quoted_tweet_id: None,
                 replied_to_tweet_id: None,
                 root_tweet_id: None,
