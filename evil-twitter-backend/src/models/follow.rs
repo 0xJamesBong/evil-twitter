@@ -1,6 +1,7 @@
 use chrono::{DateTime, Utc};
 use mongodb::bson::oid::ObjectId;
-use serde::{Deserialize, Serialize};
+use serde::{de, Deserialize, Serialize};
+use serde::de::Deserializer;
 use utoipa::ToSchema;
 
 #[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
@@ -70,18 +71,49 @@ impl IntimateFollowRequestStatus {
     }
 }
 
+fn now_utc() -> DateTime<Utc> {
+    Utc::now()
+}
+
+fn deserialize_object_id<'de, D>(deserializer: D) -> Result<ObjectId, D::Error>
+where
+    D: Deserializer<'de>,
+{
+    #[derive(Deserialize)]
+    struct OidWrapper {
+        #[serde(rename = "$oid")]
+        oid: String,
+    }
+
+    #[derive(Deserialize)]
+    #[serde(untagged)]
+    enum ObjectIdRepr {
+        String(String),
+        Wrapped(OidWrapper),
+    }
+
+    match ObjectIdRepr::deserialize(deserializer)? {
+        ObjectIdRepr::String(raw) => ObjectId::parse_str(&raw).map_err(|e| de::Error::custom(e.to_string())),
+        ObjectIdRepr::Wrapped(wrapper) => ObjectId::parse_str(&wrapper.oid).map_err(|e| de::Error::custom(e.to_string())),
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 pub struct IntimateFollowRequest {
     #[serde(rename = "_id", skip_serializing_if = "Option::is_none")]
     #[schema(value_type = String, example = "507f1f77bcf86cd799439011")]
     pub id: Option<ObjectId>,
     #[schema(value_type = String, example = "507f1f77bcf86cd799439011")]
+    #[serde(deserialize_with = "deserialize_object_id")]
     pub requester_id: ObjectId,
     #[schema(value_type = String, example = "507f1f77bcf86cd799439011")]
+    #[serde(deserialize_with = "deserialize_object_id")]
     pub target_id: ObjectId,
     #[serde(default)]
     pub status: IntimateFollowRequestStatus,
+    #[serde(default = "now_utc")]
     pub created_at: DateTime<Utc>,
+    #[serde(default = "now_utc")]
     pub updated_at: DateTime<Utc>,
 }
 
