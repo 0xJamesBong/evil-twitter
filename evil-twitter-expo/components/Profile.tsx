@@ -47,6 +47,7 @@ export function Profile({
     const {
         isFollowing,
         followStatusLoading,
+        followActionLoading,
         followUser,
         unfollowUser,
         checkFollowStatus,
@@ -127,6 +128,11 @@ export function Profile({
             Alert.alert('Error', 'Failed to update follow status');
         }
     };
+
+    const followButtonBusy = Boolean(
+        followStatusLoading ||
+        (displayUserId ? followActionLoading[displayUserId] : false)
+    );
 
     const formatDate = (dateInput: any) => {
         try {
@@ -328,12 +334,12 @@ export function Profile({
                                     style={[
                                         styles.followButton,
                                         isFollowing && styles.followingButton,
-                                        followStatusLoading && styles.followButtonDisabled
+                                        followButtonBusy && styles.followButtonDisabled
                                     ]}
                                     onPress={handleFollowToggle}
-                                    disabled={followStatusLoading}
+                                    disabled={followButtonBusy}
                                 >
-                                    {followStatusLoading ? (
+                                    {followButtonBusy ? (
                                         <ActivityIndicator size="small" color={isFollowing ? "#71767b" : "#fff"} />
                                     ) : (
                                         <Text style={[
