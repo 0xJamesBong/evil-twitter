@@ -1,3 +1,4 @@
+import { FollowListItem } from '@/components/FollowListItem';
 import { FollowLists } from '@/components/FollowLists';
 import { TweetCard } from '@/components/TweetCard';
 import { useAuthStore } from '@/lib/stores/authStore';
@@ -465,7 +466,7 @@ export function Profile({
                                         </TouchableOpacity>
                                     )}
                                     {intimateStatusError && (
-                                        <Text style={styles.intimateErrorText}>{intimateStatusError}</Text>
+                                        <Text style={styles.intimateErrorText}>Intimate status error: {intimateStatusError}</Text>
                                     )}
                                 </View>
                             </View>
@@ -518,22 +519,20 @@ export function Profile({
                                 <Text style={styles.intimateEmptyText}>No intimate followers yet</Text>
                             ) : (
                                 intimateFollowers.slice(0, 6).map((follower) => (
-                                    <View key={follower._id.$oid} style={styles.intimateListItem}>
-                                        <View style={styles.intimateUserDetails}>
-                                            <Text style={styles.intimateUserName}>
-                                                {follower.display_name || follower.username}
-                                            </Text>
-                                            <Text style={styles.intimateUserHandle}>
-                                                @{follower.username}
-                                            </Text>
-                                        </View>
-                                        <TouchableOpacity
-                                            style={styles.intimateActionButton}
-                                            onPress={() => handleEjectIntimate(follower._id.$oid)}
-                                        >
-                                            <Text style={styles.intimateActionButtonText}>Remove</Text>
-                                        </TouchableOpacity>
-                                    </View>
+                                    <FollowListItem
+                                        key={follower._id.$oid}
+                                        user={follower}
+                                        showBio={false}
+                                        onPress={() => router.push(`/profile/${follower._id.$oid}`)}
+                                        rightContent={
+                                            <TouchableOpacity
+                                                style={styles.intimateActionButton}
+                                                onPress={() => handleEjectIntimate(follower._id.$oid)}
+                                            >
+                                                <Text style={styles.intimateActionButtonText}>Remove</Text>
+                                            </TouchableOpacity>
+                                        }
+                                    />
                                 ))
                             )}
                             {intimateFollowersError && (
@@ -551,16 +550,12 @@ export function Profile({
                                 <Text style={styles.intimateEmptyText}>Not following anyone intimately yet</Text>
                             ) : (
                                 intimateFollowing.slice(0, 6).map((user) => (
-                                    <View key={user._id.$oid} style={styles.intimateListItem}>
-                                        <View style={styles.intimateUserDetails}>
-                                            <Text style={styles.intimateUserName}>
-                                                {user.display_name || user.username}
-                                            </Text>
-                                            <Text style={styles.intimateUserHandle}>
-                                                @{user.username}
-                                            </Text>
-                                        </View>
-                                    </View>
+                                    <FollowListItem
+                                        key={user._id.$oid}
+                                        user={user}
+                                        showBio={false}
+                                        onPress={() => router.push(`/profile/${user._id.$oid}`)}
+                                    />
                                 ))
                             )}
                             {intimateFollowingError && (
@@ -578,32 +573,31 @@ export function Profile({
                                 <Text style={styles.intimateEmptyText}>No pending requests</Text>
                             ) : (
                                 intimateRequests.map((entry) => (
-                                    <View key={entry.user._id.$oid} style={styles.intimateListItem}>
-                                        <View style={styles.intimateUserDetails}>
-                                            <Text style={styles.intimateUserName}>
-                                                {entry.user.display_name || entry.user.username}
-                                            </Text>
-                                            <Text style={styles.intimateUserHandle}>
-                                                @{entry.user.username}
-                                            </Text>
-                                            <Text style={styles.intimateRequestedAt}>
-                                                Requested {formatDate(entry.requested_at)}
-                                            </Text>
-                                        </View>
-                                        <View style={styles.intimateActionsRow}>
-                                            <TouchableOpacity
-                                                style={[styles.intimateActionButton, styles.intimateApproveButton]}
-                                                onPress={() => handleApproveIntimate(entry.user._id.$oid)}
-                                            >
-                                                <Text style={styles.intimateApproveText}>Approve</Text>
-                                            </TouchableOpacity>
-                                            <TouchableOpacity
-                                                style={[styles.intimateActionButton, styles.intimateRejectButton]}
-                                                onPress={() => handleRejectIntimate(entry.user._id.$oid)}
-                                            >
-                                                <Text style={styles.intimateRejectText}>Reject</Text>
-                                            </TouchableOpacity>
-                                        </View>
+                                    <View key={entry.user._id.$oid} style={styles.intimateListItemWrapper}>
+                                        <FollowListItem
+                                            user={entry.user}
+                                            showBio={false}
+                                            onPress={() => router.push(`/profile/${entry.user._id.$oid}`)}
+                                            rightContent={
+                                                <View style={styles.intimateActionsRow}>
+                                                    <TouchableOpacity
+                                                        style={[styles.intimateActionButton, styles.intimateApproveButton]}
+                                                        onPress={() => handleApproveIntimate(entry.user._id.$oid)}
+                                                    >
+                                                        <Text style={styles.intimateApproveText}>Approve</Text>
+                                                    </TouchableOpacity>
+                                                    <TouchableOpacity
+                                                        style={[styles.intimateActionButton, styles.intimateRejectButton]}
+                                                        onPress={() => handleRejectIntimate(entry.user._id.$oid)}
+                                                    >
+                                                        <Text style={styles.intimateRejectText}>Reject</Text>
+                                                    </TouchableOpacity>
+                                                </View>
+                                            }
+                                        />
+                                        <Text style={styles.intimateRequestedAt}>
+                                            Requested {formatDate(entry.requested_at)}
+                                        </Text>
                                     </View>
                                 ))
                             )}
@@ -912,24 +906,8 @@ const styles = StyleSheet.create({
         color: '#71767b',
         fontSize: 13,
     },
-    intimateListItem: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-        paddingVertical: 8,
-        gap: 12,
-    },
-    intimateUserDetails: {
-        flex: 1,
-    },
-    intimateUserName: {
-        color: '#fff',
-        fontSize: 14,
-        fontWeight: 'bold',
-    },
-    intimateUserHandle: {
-        color: '#71767b',
-        fontSize: 12,
+    intimateListItemWrapper: {
+        gap: 4,
     },
     intimateRequestedAt: {
         color: '#71767b',

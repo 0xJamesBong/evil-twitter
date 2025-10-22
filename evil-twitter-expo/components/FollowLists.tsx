@@ -1,4 +1,5 @@
-import { useFollowStore } from '@/lib/stores/followStore';
+import { FollowListItem } from '@/components/FollowListItem';
+import { FollowUser, useFollowStore } from '@/lib/stores/followStore';
 import { useRouter } from 'expo-router';
 import React, { useEffect, useState } from 'react';
 import { ActivityIndicator, FlatList, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
@@ -29,9 +30,9 @@ export function FollowLists({
         followStatusLoading,
         fetchFollowers,
         fetchFollowing,
-        followUser,
-        unfollowUser
-    } = useFollowStore();
+    followUser,
+    unfollowUser
+  } = useFollowStore();
 
     // Fetch data when component mounts or userId changes
     useEffect(() => {
@@ -60,39 +61,15 @@ export function FollowLists({
         }
     };
 
-    const renderUserItem = ({ item }: { item: any }) => (
-        <TouchableOpacity
-            style={styles.userItem}
-            onPress={() => router.push(`/profile/${item._id.$oid}`)}
-        >
-            <View style={styles.userAvatar}>
-                <Text style={styles.userAvatarText}>
-                    {item.display_name?.charAt(0).toUpperCase() || item.username?.charAt(0).toUpperCase() || '😈'}
-                </Text>
-            </View>
-            <View style={styles.userInfo}>
-                <Text style={styles.userName}>{item.display_name || item.username || 'User'}</Text>
-                <Text style={styles.userUsername}>@{item.username || 'user'}</Text>
-                {item.bio && (
-                    <Text style={styles.userBio} numberOfLines={2}>{item.bio}</Text>
-                )}
-            </View>
-            {showFollowButtons && currentUserId && item._id.$oid !== currentUserId && (
-                <TouchableOpacity
-                    style={[styles.followButton, isFollowing && styles.followingButton]}
-                    onPress={() => handleFollowToggle(item._id.$oid)}
-                    disabled={followStatusLoading}
-                >
-                    {followStatusLoading ? (
-                        <ActivityIndicator size="small" color={isFollowing ? "#71767b" : "#fff"} />
-                    ) : (
-                        <Text style={[styles.followButtonText, isFollowing && styles.followingButtonText]}>
-                            {isFollowing ? 'Following' : 'Follow'}
-                        </Text>
-                    )}
-                </TouchableOpacity>
-            )}
-        </TouchableOpacity>
+    const renderUserItem = ({ item }: { item: FollowUser }) => (
+        <FollowListItem
+            user={item}
+            onPress={(user) => router.push(`/profile/${user._id.$oid}`)}
+            showFollowButton={Boolean(showFollowButtons && currentUserId && item._id.$oid !== currentUserId)}
+            isFollowed={isFollowing}
+            followBusy={followStatusLoading}
+            onToggleFollow={() => handleFollowToggle(item._id.$oid)}
+        />
     );
 
     const renderEmptyState = (type: 'followers' | 'following') => (
@@ -198,76 +175,13 @@ const styles = StyleSheet.create({
     tabText: {
         fontSize: 14,
         color: '#71767b',
-        fontWeight: 'bold',
     },
     activeTabText: {
         color: '#fff',
+        fontWeight: 'bold',
     },
     listContainer: {
         gap: 12,
-    },
-    userItem: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        padding: 12,
-        backgroundColor: '#16181c',
-        borderRadius: 12,
-        borderWidth: 1,
-        borderColor: '#2f3336',
-    },
-    userAvatar: {
-        width: 40,
-        height: 40,
-        borderRadius: 20,
-        backgroundColor: '#536471',
-        justifyContent: 'center',
-        alignItems: 'center',
-        marginRight: 12,
-    },
-    userAvatarText: {
-        color: '#fff',
-        fontSize: 16,
-        fontWeight: 'bold',
-    },
-    userInfo: {
-        flex: 1,
-    },
-    userName: {
-        fontSize: 16,
-        fontWeight: 'bold',
-        color: '#fff',
-        marginBottom: 2,
-    },
-    userUsername: {
-        fontSize: 14,
-        color: '#71767b',
-        marginBottom: 4,
-    },
-    userBio: {
-        fontSize: 14,
-        color: '#e7e9ea',
-        lineHeight: 18,
-    },
-    followButton: {
-        backgroundColor: '#1d9bf0',
-        paddingVertical: 6,
-        paddingHorizontal: 12,
-        borderRadius: 16,
-        alignItems: 'center',
-        minWidth: 70,
-    },
-    followingButton: {
-        backgroundColor: 'transparent',
-        borderWidth: 1,
-        borderColor: '#71767b',
-    },
-    followButtonText: {
-        color: '#fff',
-        fontSize: 12,
-        fontWeight: 'bold',
-    },
-    followingButtonText: {
-        color: '#71767b',
     },
     loadingContainer: {
         flexDirection: 'row',
