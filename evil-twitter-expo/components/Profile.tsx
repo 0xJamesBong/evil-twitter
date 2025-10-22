@@ -64,6 +64,10 @@ export function Profile({
         intimateFollowersLoading,
         fetchIntimateFollowers,
         intimateFollowersError,
+        intimateFollowing,
+        intimateFollowingLoading,
+        intimateFollowingError,
+        fetchIntimateFollowing,
         intimateRequests,
         intimateRequestsLoading,
         fetchIntimateRequests,
@@ -110,9 +114,16 @@ export function Profile({
         const ownerId = currentUserId;
         if (isOwnProfile && ownerId) {
             fetchIntimateFollowers(ownerId);
+            fetchIntimateFollowing(ownerId, ownerId);
             fetchIntimateRequests(ownerId);
         }
-    }, [isOwnProfile, currentUserId, fetchIntimateFollowers, fetchIntimateRequests]);
+    }, [
+        isOwnProfile,
+        currentUserId,
+        fetchIntimateFollowers,
+        fetchIntimateFollowing,
+        fetchIntimateRequests,
+    ]);
 
     // Check follow status when viewing another user
     useEffect(() => {
@@ -527,6 +538,33 @@ export function Profile({
                             )}
                             {intimateFollowersError && (
                                 <Text style={styles.intimateErrorText}>{intimateFollowersError}</Text>
+                            )}
+                        </View>
+
+                        <View style={styles.intimateBlock}>
+                            <Text style={styles.intimateHeading}>
+                                Intimate Following ({intimateFollowing.length})
+                            </Text>
+                            {intimateFollowingLoading ? (
+                                <ActivityIndicator size="small" color="#1d9bf0" />
+                            ) : intimateFollowing.length === 0 ? (
+                                <Text style={styles.intimateEmptyText}>Not following anyone intimately yet</Text>
+                            ) : (
+                                intimateFollowing.slice(0, 6).map((user) => (
+                                    <View key={user._id.$oid} style={styles.intimateListItem}>
+                                        <View style={styles.intimateUserDetails}>
+                                            <Text style={styles.intimateUserName}>
+                                                {user.display_name || user.username}
+                                            </Text>
+                                            <Text style={styles.intimateUserHandle}>
+                                                @{user.username}
+                                            </Text>
+                                        </View>
+                                    </View>
+                                ))
+                            )}
+                            {intimateFollowingError && (
+                                <Text style={styles.intimateErrorText}>{intimateFollowingError}</Text>
                             )}
                         </View>
 

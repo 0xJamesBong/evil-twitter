@@ -17,7 +17,8 @@ use routes::data_generation::{
 use routes::follow::{
     approve_intimate_follow, eject_intimate_follower, follow_user, get_followers_list,
     get_following_list, get_intimate_follow_requests, get_intimate_follow_status,
-    get_intimate_followers_list, reject_intimate_follow, request_intimate_follow, unfollow_user,
+    get_intimate_followers_list, get_intimate_following_list, reject_intimate_follow,
+    request_intimate_follow, unfollow_user,
 };
 use routes::migration::{migrate_tweets_health, migrate_user_objectids, migrate_users_weapons};
 use routes::ping::ping_handler;
@@ -71,6 +72,7 @@ use routes::weapons::{buy_weapon, get_user_weapons, get_weapon_catalog_endpoint}
         routes::follow::eject_intimate_follower,
         routes::follow::get_intimate_follow_status,
         routes::follow::get_intimate_followers_list,
+        routes::follow::get_intimate_following_list,
         routes::follow::get_intimate_follow_requests,
         routes::weapons::buy_weapon,
         routes::weapons::get_user_weapons,
@@ -111,6 +113,7 @@ use routes::weapons::{buy_weapon, get_user_weapons, get_weapon_catalog_endpoint}
             routes::follow::IntimateFollowersListResponse,
             routes::follow::IntimateFollowRequestEntry,
             routes::follow::IntimateFollowRequestsResponse,
+            routes::follow::IntimateFollowingListResponse,
             routes::data_generation::DataGenerationResponse,
             routes::data_generation::UserGenerationRequest,
             routes::data_generation::TweetGenerationRequest,
@@ -220,6 +223,10 @@ async fn main() -> anyhow::Result<()> {
         .route(
             "/users/{user_id}/intimate-followers",
             get(get_intimate_followers_list),
+        )
+        .route(
+            "/users/{user_id}/intimate-following",
+            get(get_intimate_following_list),
         )
         .route(
             "/users/{user_id}/intimate-follow/requests",

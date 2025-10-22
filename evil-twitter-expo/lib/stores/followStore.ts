@@ -46,6 +46,10 @@ interface FollowState {
   intimateFollowersLoading: boolean;
   intimateFollowersError: string | null;
 
+  intimateFollowing: FollowUser[];
+  intimateFollowingLoading: boolean;
+  intimateFollowingError: string | null;
+
   intimateRequests: IntimateFollowRequestEntry[];
   intimateRequestsLoading: boolean;
   intimateRequestsError: string | null;
@@ -72,6 +76,7 @@ interface FollowActions {
   rejectIntimateFollower: (targetUserId: string, requesterId: string) => Promise<void>;
   ejectIntimateFollower: (targetUserId: string, followerId: string) => Promise<void>;
   fetchIntimateFollowers: (userId: string) => Promise<void>;
+  fetchIntimateFollowing: (userId: string, viewerId: string) => Promise<void>;
   fetchIntimateRequests: (userId: string) => Promise<void>;
   clearIntimateState: () => void;
   clearIntimateErrors: () => void;
@@ -124,6 +129,10 @@ export const useFollowStore = create<FollowState & FollowActions>((set, get) => 
   intimateFollowers: [],
   intimateFollowersLoading: false,
   intimateFollowersError: null,
+
+  intimateFollowing: [],
+  intimateFollowingLoading: false,
+  intimateFollowingError: null,
 
   intimateRequests: [],
   intimateRequestsLoading: false,
@@ -296,6 +305,14 @@ export const useFollowStore = create<FollowState & FollowActions>((set, get) => 
         intimateStatusLoading: false,
         intimateStatusError: null,
       });
+
+      if (data.is_intimate_follower) {
+        try {
+          await get().fetchIntimateFollowing(currentUserId, currentUserId);
+        } catch (err) {
+          console.warn("Failed to refresh intimate following list", err);
+        }
+      }
     } catch (error) {
       set({
         intimateStatusError:
@@ -437,6 +454,33 @@ export const useFollowStore = create<FollowState & FollowActions>((set, get) => 
     }
   },
 
+  fetchIntimateFollowing: async (userId: string, viewerId: string) => {
+    set({ intimateFollowingLoading: true, intimateFollowingError: null });
+    try {
+      const response = await fetch(
+        `${API_BASE_URL}/users/${userId}/intimate-following?viewer_id=${viewerId}`
+      );
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || "Failed to fetch intimate following");
+      }
+      const data = await response.json();
+      set({
+        intimateFollowing: data.following || [],
+        intimateFollowingLoading: false,
+        intimateFollowingError: null,
+      });
+    } catch (error) {
+      set({
+        intimateFollowingError:
+          error instanceof Error
+            ? error.message
+            : "Failed to fetch intimate following",
+        intimateFollowingLoading: false,
+      });
+    }
+  },
+
   fetchIntimateRequests: async (userId: string) => {
     set({ intimateRequestsLoading: true, intimateRequestsError: null });
     try {
@@ -473,6 +517,9 @@ export const useFollowStore = create<FollowState & FollowActions>((set, get) => 
       intimateFollowers: [],
       intimateFollowersError: null,
       intimateFollowersLoading: false,
+      intimateFollowing: [],
+      intimateFollowingError: null,
+      intimateFollowingLoading: false,
       intimateRequests: [],
       intimateRequestsError: null,
       intimateRequestsLoading: false,
@@ -483,6 +530,7 @@ export const useFollowStore = create<FollowState & FollowActions>((set, get) => 
     set({
       intimateStatusError: null,
       intimateFollowersError: null,
+      intimateFollowingError: null,
       intimateRequestsError: null,
     });
   },

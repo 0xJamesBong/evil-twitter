@@ -1282,6 +1282,113 @@ pub async fn get_intimate_followers_list(
     Ok(Json(IntimateFollowersListResponse { followers }))
 }
 
+/// List users that a given user intimately follows.
+#[utoipa::path(
+    get,
+    path = "/users/{user_id}/intimate-following",
+    params(
+        ("user_id" = String, Path, description = "User ID whose intimate following list should be returned"),
+        ("viewer_id" = String, Query, description = "ID of the viewer requesting the list; must match user_id")
+    ),
+    responses(
+        (status = 200, description = "Intimate following retrieved", body = IntimateFollowingListResponse),
+        (status = 400, description = "Bad request"),
+        (status = 403, description = "Forbidden"),
+        (status = 404, description = "User not found"),
+        (status = 500, description = "Internal server error")
+    ),
+    tag = "follows"
+)]
+pub async fn get_intimate_following_list(
+    State(db): State<Database>,
+    Path(user_id): Path<String>,
+    axum::extract::Query(params): axum::extract::Query<std::collections::HashMap<String, String>>,
+) -> Result<Json<IntimateFollowingListResponse>, ApiError> {
+    let intimate_collection: Collection<IntimateFollow> = db.collection("intimate_follows");
+    let user_collection: Collection<User> = db.collection("users");
+
+    let viewer_id = params.get("viewer_id").ok_or_else(|| {
+        (
+            StatusCode::BAD_REQUEST,
+            Json(json!({"error": "Missing viewer_id parameter"})),
+        )
+    })?;
+
+    if viewer_id != &user_id {
+        return Err((
+            StatusCode::FORBIDDEN,
+            Json(json!({"error": "Cannot view another user's intimate following"})),
+        ));
+    }
+
+    let follower_id = ObjectId::parse_str(&user_id).map_err(|_| {
+        (
+            StatusCode::BAD_REQUEST,
+            Json(json!({"error": "Invalid user ID"})),
+        )
+    })?;
+
+    user_collection
+        .find_one(doc! {"_id": follower_id})
+        .await
+        .map_err(|_| {
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(json!({"error": "Database error"})),
+            )
+        })?
+        .ok_or_else(|| {
+            (
+                StatusCode::NOT_FOUND,
+                Json(json!({"error": "User not found"})),
+            )
+        })?;
+
+    let mut cursor = intimate_collection
+        .find(doc! {"follower_id": follower_id})
+        .await
+        .map_err(|_| {
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(json!({"error": "Database error"})),
+            )
+        })?;
+
+    let mut following_ids = Vec::new();
+    while let Some(entry) = cursor.try_next().await.map_err(|_| {
+        (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(json!({"error": "Database error"})),
+        )
+    })? {
+        following_ids.push(entry.following_id);
+    }
+
+    let mut following = Vec::new();
+    if !following_ids.is_empty() {
+        let mut user_cursor = user_collection
+            .find(doc! {"_id": {"$in": &following_ids}})
+            .await
+            .map_err(|_| {
+                (
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    Json(json!({"error": "Database error"})),
+                )
+            })?;
+
+        while let Some(user) = user_cursor.try_next().await.map_err(|_| {
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(json!({"error": "Database error"})),
+            )
+        })? {
+            following.push(user);
+        }
+    }
+
+    Ok(Json(IntimateFollowingListResponse { following }))
+}
+
 /// List pending intimate follow requests for a user.
 #[utoipa::path(
     get,
@@ -1561,6 +1668,11 @@ pub struct FollowersListResponse {
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize, ToSchema)]
 pub struct IntimateFollowersListResponse {
     pub followers: Vec<User>,
+}
+
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, ToSchema)]
+pub struct IntimateFollowingListResponse {
+    pub following: Vec<User>,
 }
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize, ToSchema)]
