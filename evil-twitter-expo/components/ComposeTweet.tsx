@@ -1,6 +1,6 @@
 import { useBackendUserStore } from '@/lib/stores/backendUserStore';
 import { useComposeStore } from '@/lib/stores/composeStore';
-import { useTweetsStore } from '@/lib/stores/tweetsStore';
+import { TweetVisibility, useTweetsStore } from '@/lib/stores/tweetsStore';
 import React from 'react';
 import { StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 
@@ -11,7 +11,17 @@ interface ComposeTweetProps {
 export function ComposeTweet({ onClose }: ComposeTweetProps) {
     const { user: currentUser } = useBackendUserStore();
     const { createTweet } = useTweetsStore();
-    const { content, isSubmitting, error, setContent, setIsSubmitting, setError, clearCompose } = useComposeStore();
+    const {
+        content,
+        isSubmitting,
+        error,
+        visibility,
+        setContent,
+        setIsSubmitting,
+        setError,
+        setVisibility,
+        clearCompose,
+    } = useComposeStore();
 
     const handleSubmit = async () => {
         if (!content.trim()) return;
@@ -24,7 +34,7 @@ export function ComposeTweet({ onClose }: ComposeTweetProps) {
         setError(null);
 
         try {
-            const result = await createTweet(content.trim());
+            const result = await createTweet(content.trim(), visibility);
             if (result.success) {
                 clearCompose();
                 onClose?.(); // Close modal after successful post
@@ -39,6 +49,10 @@ export function ComposeTweet({ onClose }: ComposeTweetProps) {
     };
 
     const isOverLimit = content.length > 280;
+    const visibilityOptions: { value: TweetVisibility; label: string }[] = [
+        { value: 'public', label: 'Public' },
+        { value: 'private', label: 'Intimate' },
+    ];
 
     return (
         <View style={styles.container}>
@@ -77,25 +91,49 @@ export function ComposeTweet({ onClose }: ComposeTweetProps) {
 
                     {/* Actions */}
                     <View style={styles.actions}>
-                        <View style={styles.mediaButtons}>
-                            <TouchableOpacity style={styles.mediaButton}>
-                                <Text style={styles.mediaIcon}>🖼️</Text>
-                            </TouchableOpacity>
-                            <TouchableOpacity style={styles.mediaButton}>
-                                <Text style={styles.mediaIcon}>🎬</Text>
-                            </TouchableOpacity>
-                            <TouchableOpacity style={styles.mediaButton}>
-                                <Text style={styles.mediaIcon}>📊</Text>
-                            </TouchableOpacity>
-                            <TouchableOpacity style={styles.mediaButton}>
-                                <Text style={styles.mediaIcon}>😊</Text>
-                            </TouchableOpacity>
-                            <TouchableOpacity style={styles.mediaButton}>
-                                <Text style={styles.mediaIcon}>📅</Text>
-                            </TouchableOpacity>
-                            <TouchableOpacity style={styles.mediaButton}>
-                                <Text style={styles.mediaIcon}>📍</Text>
-                            </TouchableOpacity>
+                        <View style={styles.leftActions}>
+                            <View style={styles.mediaButtons}>
+                                <TouchableOpacity style={styles.mediaButton}>
+                                    <Text style={styles.mediaIcon}>🖼️</Text>
+                                </TouchableOpacity>
+                                <TouchableOpacity style={styles.mediaButton}>
+                                    <Text style={styles.mediaIcon}>🎬</Text>
+                                </TouchableOpacity>
+                                <TouchableOpacity style={styles.mediaButton}>
+                                    <Text style={styles.mediaIcon}>📊</Text>
+                                </TouchableOpacity>
+                                <TouchableOpacity style={styles.mediaButton}>
+                                    <Text style={styles.mediaIcon}>😊</Text>
+                                </TouchableOpacity>
+                                <TouchableOpacity style={styles.mediaButton}>
+                                    <Text style={styles.mediaIcon}>📅</Text>
+                                </TouchableOpacity>
+                                <TouchableOpacity style={styles.mediaButton}>
+                                    <Text style={styles.mediaIcon}>📍</Text>
+                                </TouchableOpacity>
+                            </View>
+
+                            <View style={styles.visibilitySelector}>
+                                {visibilityOptions.map((option) => (
+                                    <TouchableOpacity
+                                        key={option.value}
+                                        style={[
+                                            styles.visibilityChip,
+                                            visibility === option.value && styles.visibilityChipActive,
+                                        ]}
+                                        onPress={() => setVisibility(option.value)}
+                                    >
+                                        <Text
+                                            style={[
+                                                styles.visibilityChipText,
+                                                visibility === option.value && styles.visibilityChipTextActive,
+                                            ]}
+                                        >
+                                            {option.label}
+                                        </Text>
+                                    </TouchableOpacity>
+                                ))}
+                            </View>
                         </View>
 
                         <TouchableOpacity
@@ -189,6 +227,10 @@ const styles = StyleSheet.create({
         borderTopWidth: 1,
         borderTopColor: '#2f3336',
     },
+    leftActions: {
+        flexDirection: 'column',
+        gap: 8,
+    },
     mediaButtons: {
         flexDirection: 'row',
         gap: 4,
@@ -216,5 +258,28 @@ const styles = StyleSheet.create({
         color: '#fff',
         fontSize: 15,
         fontWeight: 'bold',
+    },
+    visibilitySelector: {
+        flexDirection: 'row',
+        gap: 8,
+    },
+    visibilityChip: {
+        paddingVertical: 4,
+        paddingHorizontal: 12,
+        borderRadius: 16,
+        borderWidth: 1,
+        borderColor: '#2f3336',
+    },
+    visibilityChipActive: {
+        backgroundColor: '#1d9bf0',
+        borderColor: '#1d9bf0',
+    },
+    visibilityChipText: {
+        color: '#e7e9ea',
+        fontSize: 12,
+        fontWeight: 'bold',
+    },
+    visibilityChipTextActive: {
+        color: '#fff',
     },
 });

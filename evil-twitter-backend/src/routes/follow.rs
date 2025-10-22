@@ -3,15 +3,20 @@ use axum::{
     extract::{Path, State},
     http::StatusCode,
 };
+use chrono::{DateTime, Utc};
 use futures::TryStreamExt;
 use mongodb::{
     Collection, Database,
-    bson::{doc, oid::ObjectId},
+    bson::{DateTime as BsonDateTime, doc, oid::ObjectId},
 };
 use serde_json::{Value, json};
 use utoipa::ToSchema;
 
-use crate::models::follow::{Follow, FollowRequest, FollowResponse, FollowStats};
+use crate::models::follow::{
+    Follow, FollowRequest, FollowResponse, FollowStats, IntimateFollow,
+    IntimateFollowActionRequest, IntimateFollowActionResponse, IntimateFollowRequest,
+    IntimateFollowRequestStatus, IntimateFollowStatus,
+};
 use crate::models::user::User;
 
 type ApiError = (StatusCode, Json<Value>);
@@ -159,6 +164,413 @@ pub async fn follow_user(
     }))
 }
 
+/// Remove an intimate follower from your list.
+#[utoipa::path(
+    delete,
+    path = "/users/{user_id}/intimate-follow",
+    params(
+        ("user_id" = String, Path, description = "User ID that owns the account")
+    ),
+    request_body = IntimateFollowActionRequest,
+    responses(
+        (status = 200, description = "Intimate follower removed", body = IntimateFollowActionResponse),
+        (status = 400, description = "Bad request"),
+        (status = 404, description = "User not found"),
+        (status = 500, description = "Internal server error")
+    ),
+    tag = "follows"
+)]
+pub async fn eject_intimate_follower(
+    State(db): State<Database>,
+    Path(user_id): Path<String>,
+    Json(payload): Json<IntimateFollowActionRequest>,
+) -> Result<Json<IntimateFollowActionResponse>, ApiError> {
+    let intimate_collection: Collection<IntimateFollow> = db.collection("intimate_follows");
+    let request_collection: Collection<IntimateFollowRequest> =
+        db.collection("intimate_follow_requests");
+    let user_collection: Collection<User> = db.collection("users");
+
+    let target_id = ObjectId::parse_str(&user_id).map_err(|_| {
+        (
+            StatusCode::BAD_REQUEST,
+            Json(json!({"error": "Invalid target user ID"})),
+        )
+    })?;
+    let follower_id = ObjectId::parse_str(&payload.requester_id).map_err(|_| {
+        (
+            StatusCode::BAD_REQUEST,
+            Json(json!({"error": "Invalid follower user ID"})),
+        )
+    })?;
+
+    let target_user = user_collection
+        .find_one(doc! {"_id": target_id})
+        .await
+        .map_err(|_| {
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(json!({"error": "Database error"})),
+            )
+        })?
+        .ok_or_else(|| {
+            (
+                StatusCode::NOT_FOUND,
+                Json(json!({"error": "Target user not found"})),
+            )
+        })?;
+
+    let follower_user = user_collection
+        .find_one(doc! {"_id": follower_id})
+        .await
+        .map_err(|_| {
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(json!({"error": "Database error"})),
+            )
+        })?
+        .ok_or_else(|| {
+            (
+                StatusCode::NOT_FOUND,
+                Json(json!({"error": "Follower user not found"})),
+            )
+        })?;
+
+    let delete_result = intimate_collection
+        .delete_one(doc! {"follower_id": follower_id, "following_id": target_id})
+        .await
+        .map_err(|_| {
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(json!({"error": "Failed to remove intimate follower"})),
+            )
+        })?;
+
+    if delete_result.deleted_count == 0 {
+        return Ok(Json(IntimateFollowActionResponse {
+            success: true,
+            message: format!(
+                "{} is not currently an intimate follower",
+                follower_user.display_name
+            ),
+            relationship_status: Some(IntimateFollowRequestStatus::Rejected),
+            is_intimate_follower: false,
+        }));
+    }
+
+    user_collection
+        .update_one(
+            doc! {"_id": target_id},
+            doc! {"$inc": {"intimate_followers_count": -1}},
+        )
+        .await
+        .map_err(|_| {
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(json!({"error": "Failed to update counters"})),
+            )
+        })?;
+
+    // Mark any outstanding request as rejected so the follower must request again.
+    if let Some(existing_request) = request_collection
+        .find_one(doc! {"requester_id": follower_id, "target_id": target_id})
+        .await
+        .map_err(|_| {
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(json!({"error": "Database error"})),
+            )
+        })?
+    {
+        if let Some(request_id) = existing_request.id {
+            request_collection
+                .update_one(
+                    doc! {"_id": request_id},
+                    doc! {
+                        "$set": {
+                            "status": IntimateFollowRequestStatus::Rejected.as_str(),
+                            "updated_at": BsonDateTime::from_chrono(Utc::now()),
+                        },
+                    },
+                )
+                .await
+                .map_err(|_| {
+                    (
+                        StatusCode::INTERNAL_SERVER_ERROR,
+                        Json(json!({"error": "Failed to update request status"})),
+                    )
+                })?;
+        }
+    }
+
+    Ok(Json(IntimateFollowActionResponse {
+        success: true,
+        message: format!(
+            "Removed {} from your intimate followers",
+            follower_user.display_name
+        ),
+        relationship_status: Some(IntimateFollowRequestStatus::Rejected),
+        is_intimate_follower: false,
+    }))
+}
+
+/// Retrieve intimate follow status between two users.
+#[utoipa::path(
+    get,
+    path = "/users/{user_id}/intimate-follow/status",
+    params(
+        ("user_id" = String, Path, description = "Target user ID to check status against"),
+        ("follower_id" = String, Query, description = "Viewer user ID performing the lookup")
+    ),
+    responses(
+        (status = 200, description = "Status retrieved", body = IntimateFollowStatus),
+        (status = 400, description = "Bad request"),
+        (status = 404, description = "User not found"),
+        (status = 500, description = "Internal server error")
+    ),
+    tag = "follows"
+)]
+pub async fn get_intimate_follow_status(
+    State(db): State<Database>,
+    Path(user_id): Path<String>,
+    axum::extract::Query(params): axum::extract::Query<std::collections::HashMap<String, String>>,
+) -> Result<Json<IntimateFollowStatus>, ApiError> {
+    let intimate_collection: Collection<IntimateFollow> = db.collection("intimate_follows");
+    let request_collection: Collection<IntimateFollowRequest> =
+        db.collection("intimate_follow_requests");
+    let user_collection: Collection<User> = db.collection("users");
+
+    let target_id = ObjectId::parse_str(&user_id).map_err(|_| {
+        (
+            StatusCode::BAD_REQUEST,
+            Json(json!({"error": "Invalid target user ID"})),
+        )
+    })?;
+
+    let follower_param = params.get("follower_id").ok_or_else(|| {
+        (
+            StatusCode::BAD_REQUEST,
+            Json(json!({"error": "Missing follower_id parameter"})),
+        )
+    })?;
+
+    let follower_id = ObjectId::parse_str(follower_param).map_err(|_| {
+        (
+            StatusCode::BAD_REQUEST,
+            Json(json!({"error": "Invalid follower user ID"})),
+        )
+    })?;
+
+    // Ensure both users exist to provide consistent errors
+    user_collection
+        .find_one(doc! {"_id": target_id})
+        .await
+        .map_err(|_| {
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(json!({"error": "Database error"})),
+            )
+        })?
+        .ok_or_else(|| {
+            (
+                StatusCode::NOT_FOUND,
+                Json(json!({"error": "Target user not found"})),
+            )
+        })?;
+
+    user_collection
+        .find_one(doc! {"_id": follower_id})
+        .await
+        .map_err(|_| {
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(json!({"error": "Database error"})),
+            )
+        })?
+        .ok_or_else(|| {
+            (
+                StatusCode::NOT_FOUND,
+                Json(json!({"error": "Follower user not found"})),
+            )
+        })?;
+
+    let is_intimate_follower = intimate_collection
+        .find_one(doc! {"follower_id": follower_id, "following_id": target_id})
+        .await
+        .map_err(|_| {
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(json!({"error": "Database error"})),
+            )
+        })?
+        .is_some();
+
+    let request_status = request_collection
+        .find_one(doc! {"requester_id": follower_id, "target_id": target_id})
+        .await
+        .map_err(|_| {
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(json!({"error": "Database error"})),
+            )
+        })?;
+
+    let status = IntimateFollowStatus {
+        is_intimate_follower,
+        has_pending_request: matches!(
+            request_status.as_ref().map(|r| r.status),
+            Some(IntimateFollowRequestStatus::Pending)
+        ),
+        request_status: request_status.map(|r| r.status),
+    };
+
+    Ok(Json(status))
+}
+/// Reject an intimate follow request.
+#[utoipa::path(
+    post,
+    path = "/users/{user_id}/intimate-follow/reject",
+    params(
+        ("user_id" = String, Path, description = "User ID that owns the account being requested")
+    ),
+    request_body = IntimateFollowActionRequest,
+    responses(
+        (status = 200, description = "Intimate follow request rejected", body = IntimateFollowActionResponse),
+        (status = 400, description = "Bad request"),
+        (status = 404, description = "Request not found"),
+        (status = 500, description = "Internal server error")
+    ),
+    tag = "follows"
+)]
+pub async fn reject_intimate_follow(
+    State(db): State<Database>,
+    Path(user_id): Path<String>,
+    Json(payload): Json<IntimateFollowActionRequest>,
+) -> Result<Json<IntimateFollowActionResponse>, ApiError> {
+    let request_collection: Collection<IntimateFollowRequest> =
+        db.collection("intimate_follow_requests");
+    let user_collection: Collection<User> = db.collection("users");
+
+    let target_id = ObjectId::parse_str(&user_id).map_err(|_| {
+        (
+            StatusCode::BAD_REQUEST,
+            Json(json!({"error": "Invalid target user ID"})),
+        )
+    })?;
+    let requester_id = ObjectId::parse_str(&payload.requester_id).map_err(|_| {
+        (
+            StatusCode::BAD_REQUEST,
+            Json(json!({"error": "Invalid requester user ID"})),
+        )
+    })?;
+
+    let target_user = user_collection
+        .find_one(doc! {"_id": target_id})
+        .await
+        .map_err(|_| {
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(json!({"error": "Database error"})),
+            )
+        })?
+        .ok_or_else(|| {
+            (
+                StatusCode::NOT_FOUND,
+                Json(json!({"error": "Target user not found"})),
+            )
+        })?;
+
+    let requester_user = user_collection
+        .find_one(doc! {"_id": requester_id})
+        .await
+        .map_err(|_| {
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(json!({"error": "Database error"})),
+            )
+        })?
+        .ok_or_else(|| {
+            (
+                StatusCode::NOT_FOUND,
+                Json(json!({"error": "Requester user not found"})),
+            )
+        })?;
+
+    let Some(existing_request) = request_collection
+        .find_one(doc! {"requester_id": requester_id, "target_id": target_id})
+        .await
+        .map_err(|_| {
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(json!({"error": "Database error"})),
+            )
+        })?
+    else {
+        return Err((
+            StatusCode::NOT_FOUND,
+            Json(json!({"error": "No intimate follow request found"})),
+        ));
+    };
+
+    if existing_request.status == IntimateFollowRequestStatus::Rejected {
+        return Ok(Json(IntimateFollowActionResponse {
+            success: true,
+            message: "This intimate follow request was already rejected".into(),
+            relationship_status: Some(IntimateFollowRequestStatus::Rejected),
+            is_intimate_follower: false,
+        }));
+    }
+
+    if existing_request.status == IntimateFollowRequestStatus::Approved {
+        return Err((
+            StatusCode::BAD_REQUEST,
+            Json(json!({"error": "Cannot reject an already approved intimate follower"})),
+        ));
+    }
+
+    if let Some(request_id) = existing_request.id {
+        request_collection
+            .update_one(
+                doc! {"_id": request_id},
+                doc! {
+                    "$set": {
+                        "status": IntimateFollowRequestStatus::Rejected.as_str(),
+                        "updated_at": BsonDateTime::from_chrono(Utc::now()),
+                    },
+                },
+            )
+            .await
+            .map_err(|_| {
+                (
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    Json(json!({"error": "Failed to update request"})),
+                )
+            })?;
+    }
+
+    user_collection
+        .update_one(
+            doc! {"_id": target_id},
+            doc! {"$inc": {"intimate_follow_requests_count": -1}},
+        )
+        .await
+        .map_err(|_| {
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(json!({"error": "Failed to update counters"})),
+            )
+        })?;
+
+    Ok(Json(IntimateFollowActionResponse {
+        success: true,
+        message: format!(
+            "Rejected intimate access request from {}",
+            requester_user.display_name
+        ),
+        relationship_status: Some(IntimateFollowRequestStatus::Rejected),
+        is_intimate_follower: false,
+    }))
+}
+
 /// Unfollow a user
 #[utoipa::path(
     delete,
@@ -301,6 +713,398 @@ pub async fn unfollow_user(
     }))
 }
 
+/// Submit an intimate follow request to another user.
+#[utoipa::path(
+    post,
+    path = "/users/{user_id}/intimate-follow/request",
+    params(
+        ("user_id" = String, Path, description = "Target user ID to request intimate follow access for")
+    ),
+    request_body = IntimateFollowActionRequest,
+    responses(
+        (status = 200, description = "Request processed", body = IntimateFollowActionResponse),
+        (status = 400, description = "Bad request"),
+        (status = 404, description = "User not found"),
+        (status = 500, description = "Internal server error")
+    ),
+    tag = "follows"
+)]
+pub async fn request_intimate_follow(
+    State(db): State<Database>,
+    Path(user_id): Path<String>,
+    Json(payload): Json<IntimateFollowActionRequest>,
+) -> Result<Json<IntimateFollowActionResponse>, ApiError> {
+    let request_collection: Collection<IntimateFollowRequest> =
+        db.collection("intimate_follow_requests");
+    let intimate_collection: Collection<IntimateFollow> = db.collection("intimate_follows");
+    let user_collection: Collection<User> = db.collection("users");
+
+    let target_id = ObjectId::parse_str(&user_id).map_err(|_| {
+        (
+            StatusCode::BAD_REQUEST,
+            Json(json!({"error": "Invalid target user ID"})),
+        )
+    })?;
+    let requester_id = ObjectId::parse_str(&payload.requester_id).map_err(|_| {
+        (
+            StatusCode::BAD_REQUEST,
+            Json(json!({"error": "Invalid requester user ID"})),
+        )
+    })?;
+
+    if requester_id == target_id {
+        return Err((
+            StatusCode::BAD_REQUEST,
+            Json(json!({"error": "You cannot send an intimate follow request to yourself"})),
+        ));
+    }
+
+    let target_user = user_collection
+        .find_one(doc! {"_id": target_id})
+        .await
+        .map_err(|_| {
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(json!({"error": "Database error"})),
+            )
+        })?
+        .ok_or_else(|| {
+            (
+                StatusCode::NOT_FOUND,
+                Json(json!({"error": "Target user not found"})),
+            )
+        })?;
+
+    let _requester_user = user_collection
+        .find_one(doc! {"_id": requester_id})
+        .await
+        .map_err(|_| {
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(json!({"error": "Database error"})),
+            )
+        })?
+        .ok_or_else(|| {
+            (
+                StatusCode::NOT_FOUND,
+                Json(json!({"error": "Requester user not found"})),
+            )
+        })?;
+
+    // Already an approved intimate follower?
+    if intimate_collection
+        .find_one(doc! {"follower_id": requester_id, "following_id": target_id})
+        .await
+        .map_err(|_| {
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(json!({"error": "Database error"})),
+            )
+        })?
+        .is_some()
+    {
+        return Ok(Json(IntimateFollowActionResponse {
+            success: true,
+            message: format!(
+                "You already have intimate access to {}",
+                target_user.display_name
+            ),
+            relationship_status: Some(IntimateFollowRequestStatus::Approved),
+            is_intimate_follower: true,
+        }));
+    }
+
+    let now = Utc::now();
+    let mut should_increment_pending = false;
+
+    match request_collection
+        .find_one(doc! {"requester_id": requester_id, "target_id": target_id})
+        .await
+        .map_err(|_| {
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(json!({"error": "Database error"})),
+            )
+        })? {
+        Some(existing) => match existing.status {
+            IntimateFollowRequestStatus::Pending => {
+                return Ok(Json(IntimateFollowActionResponse {
+                    success: true,
+                    message: "Your intimate follow request is already pending approval".into(),
+                    relationship_status: Some(IntimateFollowRequestStatus::Pending),
+                    is_intimate_follower: false,
+                }));
+            }
+            IntimateFollowRequestStatus::Approved => {
+                return Ok(Json(IntimateFollowActionResponse {
+                    success: true,
+                    message: format!(
+                        "You already have intimate access to {}",
+                        target_user.display_name
+                    ),
+                    relationship_status: Some(IntimateFollowRequestStatus::Approved),
+                    is_intimate_follower: true,
+                }));
+            }
+            IntimateFollowRequestStatus::Rejected => {
+                if let Some(request_id) = existing.id {
+                    request_collection
+                        .update_one(
+                            doc! {"_id": request_id},
+                            doc! {
+                                "$set": {
+                                    "status": IntimateFollowRequestStatus::Pending.as_str(),
+                                    "updated_at": BsonDateTime::from_chrono(now),
+                                },
+                            },
+                        )
+                        .await
+                        .map_err(|_| {
+                            (
+                                StatusCode::INTERNAL_SERVER_ERROR,
+                                Json(json!({"error": "Failed to update request"})),
+                            )
+                        })?;
+                    should_increment_pending = true;
+                }
+            }
+        },
+        None => {
+            let request = IntimateFollowRequest {
+                id: None,
+                requester_id,
+                target_id,
+                status: IntimateFollowRequestStatus::Pending,
+                created_at: now,
+                updated_at: now,
+            };
+
+            request_collection.insert_one(&request).await.map_err(|_| {
+                (
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    Json(json!({"error": "Failed to create intimate follow request"})),
+                )
+            })?;
+            should_increment_pending = true;
+        }
+    }
+
+    if should_increment_pending {
+        user_collection
+            .update_one(
+                doc! {"_id": target_id},
+                doc! {"$inc": {"intimate_follow_requests_count": 1}},
+            )
+            .await
+            .map_err(|_| {
+                (
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    Json(json!({"error": "Failed to update request counters"})),
+                )
+            })?;
+    }
+
+    Ok(Json(IntimateFollowActionResponse {
+        success: true,
+        message: format!(
+            "Intimate access request sent to {}",
+            target_user.display_name
+        ),
+        relationship_status: Some(IntimateFollowRequestStatus::Pending),
+        is_intimate_follower: false,
+    }))
+}
+
+/// Approve an intimate follow request.
+#[utoipa::path(
+    post,
+    path = "/users/{user_id}/intimate-follow/approve",
+    params(
+        ("user_id" = String, Path, description = "User ID that owns the account being followed intimately")
+    ),
+    request_body = IntimateFollowActionRequest,
+    responses(
+        (status = 200, description = "Intimate follow request approved", body = IntimateFollowActionResponse),
+        (status = 400, description = "Bad request"),
+        (status = 404, description = "Request not found"),
+        (status = 500, description = "Internal server error")
+    ),
+    tag = "follows"
+)]
+pub async fn approve_intimate_follow(
+    State(db): State<Database>,
+    Path(user_id): Path<String>,
+    Json(payload): Json<IntimateFollowActionRequest>,
+) -> Result<Json<IntimateFollowActionResponse>, ApiError> {
+    let request_collection: Collection<IntimateFollowRequest> =
+        db.collection("intimate_follow_requests");
+    let intimate_collection: Collection<IntimateFollow> = db.collection("intimate_follows");
+    let user_collection: Collection<User> = db.collection("users");
+
+    let target_id = ObjectId::parse_str(&user_id).map_err(|_| {
+        (
+            StatusCode::BAD_REQUEST,
+            Json(json!({"error": "Invalid target user ID"})),
+        )
+    })?;
+    let requester_id = ObjectId::parse_str(&payload.requester_id).map_err(|_| {
+        (
+            StatusCode::BAD_REQUEST,
+            Json(json!({"error": "Invalid requester user ID"})),
+        )
+    })?;
+
+    let target_user = user_collection
+        .find_one(doc! {"_id": target_id})
+        .await
+        .map_err(|_| {
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(json!({"error": "Database error"})),
+            )
+        })?
+        .ok_or_else(|| {
+            (
+                StatusCode::NOT_FOUND,
+                Json(json!({"error": "Target user not found"})),
+            )
+        })?;
+
+    let requester_user = user_collection
+        .find_one(doc! {"_id": requester_id})
+        .await
+        .map_err(|_| {
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(json!({"error": "Database error"})),
+            )
+        })?
+        .ok_or_else(|| {
+            (
+                StatusCode::NOT_FOUND,
+                Json(json!({"error": "Requester user not found"})),
+            )
+        })?;
+
+    let Some(existing_request) = request_collection
+        .find_one(doc! {"requester_id": requester_id, "target_id": target_id})
+        .await
+        .map_err(|_| {
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(json!({"error": "Database error"})),
+            )
+        })?
+    else {
+        return Err((
+            StatusCode::NOT_FOUND,
+            Json(json!({"error": "No intimate follow request found"})),
+        ));
+    };
+
+    if existing_request.status == IntimateFollowRequestStatus::Approved {
+        return Ok(Json(IntimateFollowActionResponse {
+            success: true,
+            message: format!(
+                "{} is already an intimate follower",
+                requester_user.display_name
+            ),
+            relationship_status: Some(IntimateFollowRequestStatus::Approved),
+            is_intimate_follower: true,
+        }));
+    }
+
+    if existing_request.status == IntimateFollowRequestStatus::Rejected {
+        return Err((
+            StatusCode::BAD_REQUEST,
+            Json(json!({"error": "Cannot approve a rejected request"})),
+        ));
+    }
+
+    let mut inserted_relationship = false;
+    if intimate_collection
+        .find_one(doc! {"follower_id": requester_id, "following_id": target_id})
+        .await
+        .map_err(|_| {
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(json!({"error": "Database error"})),
+            )
+        })?
+        .is_none()
+    {
+        let relationship = IntimateFollow {
+            id: None,
+            follower_id: requester_id,
+            following_id: target_id,
+            created_at: Utc::now(),
+        };
+
+        intimate_collection
+            .insert_one(&relationship)
+            .await
+            .map_err(|_| {
+                (
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    Json(json!({"error": "Failed to persist intimate follow"})),
+                )
+            })?;
+        inserted_relationship = true;
+    }
+
+    let now = Utc::now();
+    if let Some(request_id) = existing_request.id {
+        request_collection
+            .update_one(
+                doc! {"_id": request_id},
+                doc! {
+                    "$set": {
+                        "status": IntimateFollowRequestStatus::Approved.as_str(),
+                        "updated_at": BsonDateTime::from_chrono(now),
+                    },
+                },
+            )
+            .await
+            .map_err(|_| {
+                (
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    Json(json!({"error": "Failed to update request status"})),
+                )
+            })?;
+    }
+
+    let mut inc_doc = doc! {};
+    if inserted_relationship {
+        inc_doc.insert("intimate_followers_count", 1);
+    }
+    // Only decrement pending count if it was actually pending.
+    if existing_request.status == IntimateFollowRequestStatus::Pending {
+        inc_doc.insert("intimate_follow_requests_count", -1);
+    }
+
+    if !inc_doc.is_empty() {
+        user_collection
+            .update_one(doc! {"_id": target_id}, doc! {"$inc": inc_doc})
+            .await
+            .map_err(|_| {
+                (
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    Json(json!({"error": "Failed to update counters"})),
+                )
+            })?;
+    }
+
+    Ok(Json(IntimateFollowActionResponse {
+        success: true,
+        message: format!(
+            "Approved intimate access for {}",
+            requester_user.display_name
+        ),
+        relationship_status: Some(IntimateFollowRequestStatus::Approved),
+        is_intimate_follower: true,
+    }))
+}
+
 /// Check if user is following another user
 #[utoipa::path(
     get,
@@ -383,6 +1187,182 @@ pub async fn get_follow_status(
         following_count: user.following_count,
         is_following,
     }))
+}
+
+/// List intimate followers for a given user.
+#[utoipa::path(
+    get,
+    path = "/users/{user_id}/intimate-followers",
+    params(
+        ("user_id" = String, Path, description = "User ID to list intimate followers for")
+    ),
+    responses(
+        (status = 200, description = "Intimate followers retrieved", body = IntimateFollowersListResponse),
+        (status = 400, description = "Bad request"),
+        (status = 404, description = "User not found"),
+        (status = 500, description = "Internal server error")
+    ),
+    tag = "follows"
+)]
+pub async fn get_intimate_followers_list(
+    State(db): State<Database>,
+    Path(user_id): Path<String>,
+) -> Result<Json<IntimateFollowersListResponse>, ApiError> {
+    let intimate_collection: Collection<IntimateFollow> = db.collection("intimate_follows");
+    let user_collection: Collection<User> = db.collection("users");
+
+    let target_id = ObjectId::parse_str(&user_id).map_err(|_| {
+        (
+            StatusCode::BAD_REQUEST,
+            Json(json!({"error": "Invalid user ID"})),
+        )
+    })?;
+
+    user_collection
+        .find_one(doc! {"_id": target_id})
+        .await
+        .map_err(|_| {
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(json!({"error": "Database error"})),
+            )
+        })?
+        .ok_or_else(|| {
+            (
+                StatusCode::NOT_FOUND,
+                Json(json!({"error": "User not found"})),
+            )
+        })?;
+
+    let mut cursor = intimate_collection
+        .find(doc! {"following_id": target_id})
+        .await
+        .map_err(|_| {
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(json!({"error": "Database error"})),
+            )
+        })?;
+
+    let mut follower_ids = Vec::new();
+    while let Some(entry) = cursor.try_next().await.map_err(|_| {
+        (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(json!({"error": "Database error"})),
+        )
+    })? {
+        follower_ids.push(entry.follower_id);
+    }
+
+    let mut followers = Vec::new();
+    if !follower_ids.is_empty() {
+        let mut user_cursor = user_collection
+            .find(doc! {"_id": {"$in": &follower_ids}})
+            .await
+            .map_err(|_| {
+                (
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    Json(json!({"error": "Database error"})),
+                )
+            })?;
+
+        while let Some(user) = user_cursor.try_next().await.map_err(|_| {
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(json!({"error": "Database error"})),
+            )
+        })? {
+            followers.push(user);
+        }
+    }
+
+    Ok(Json(IntimateFollowersListResponse { followers }))
+}
+
+/// List pending intimate follow requests for a user.
+#[utoipa::path(
+    get,
+    path = "/users/{user_id}/intimate-follow/requests",
+    params(
+        ("user_id" = String, Path, description = "User ID to fetch pending intimate follow requests for")
+    ),
+    responses(
+        (status = 200, description = "Pending requests retrieved", body = IntimateFollowRequestsResponse),
+        (status = 400, description = "Bad request"),
+        (status = 404, description = "User not found"),
+        (status = 500, description = "Internal server error")
+    ),
+    tag = "follows"
+)]
+pub async fn get_intimate_follow_requests(
+    State(db): State<Database>,
+    Path(user_id): Path<String>,
+) -> Result<Json<IntimateFollowRequestsResponse>, ApiError> {
+    let request_collection: Collection<IntimateFollowRequest> =
+        db.collection("intimate_follow_requests");
+    let user_collection: Collection<User> = db.collection("users");
+
+    let target_id = ObjectId::parse_str(&user_id).map_err(|_| {
+        (
+            StatusCode::BAD_REQUEST,
+            Json(json!({"error": "Invalid user ID"})),
+        )
+    })?;
+
+    user_collection
+        .find_one(doc! {"_id": target_id})
+        .await
+        .map_err(|_| {
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(json!({"error": "Database error"})),
+            )
+        })?
+        .ok_or_else(|| {
+            (
+                StatusCode::NOT_FOUND,
+                Json(json!({"error": "User not found"})),
+            )
+        })?;
+
+    let mut cursor = request_collection
+        .find(
+            doc! {"target_id": target_id, "status": IntimateFollowRequestStatus::Pending.as_str()},
+        )
+        .await
+        .map_err(|_| {
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(json!({"error": "Database error"})),
+            )
+        })?;
+
+    let mut entries = Vec::new();
+    while let Some(request) = cursor.try_next().await.map_err(|_| {
+        (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(json!({"error": "Database error"})),
+        )
+    })? {
+        if let Some(user) = user_collection
+            .find_one(doc! {"_id": request.requester_id})
+            .await
+            .map_err(|_| {
+                (
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    Json(json!({"error": "Database error"})),
+                )
+            })?
+        {
+            entries.push(IntimateFollowRequestEntry {
+                user,
+                requested_at: request.created_at,
+                status: request.status,
+            });
+        }
+    }
+
+    Ok(Json(IntimateFollowRequestsResponse { requests: entries }))
 }
 
 /// Get list of users that a user is following
@@ -573,4 +1553,21 @@ pub async fn get_followers_list(
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize, ToSchema)]
 pub struct FollowersListResponse {
     pub followers: Vec<User>,
+}
+
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, ToSchema)]
+pub struct IntimateFollowersListResponse {
+    pub followers: Vec<User>,
+}
+
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, ToSchema)]
+pub struct IntimateFollowRequestEntry {
+    pub user: User,
+    pub requested_at: DateTime<Utc>,
+    pub status: IntimateFollowRequestStatus,
+}
+
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, ToSchema)]
+pub struct IntimateFollowRequestsResponse {
+    pub requests: Vec<IntimateFollowRequestEntry>,
 }

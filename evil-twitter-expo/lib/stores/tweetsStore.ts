@@ -4,6 +4,7 @@ import { API_BASE_URL } from "../config/api";
 type ObjectIdRef = { $oid: string };
 
 export type TweetType = "original" | "retweet" | "quote" | "reply";
+export type TweetVisibility = "public" | "private";
 
 export interface TweetMetrics {
   likes: number;
@@ -60,6 +61,7 @@ export interface Tweet {
   owner_id: ObjectIdRef;
   content: string;
   tweet_type: TweetType;
+  visibility: TweetVisibility;
   quoted_tweet_id?: ObjectIdRef;
   replied_to_tweet_id?: ObjectIdRef;
   root_tweet_id?: ObjectIdRef;
@@ -206,6 +208,7 @@ function normalizeTweet(raw: any): Tweet {
     tweet_type: (base.tweet_type ?? "original")
       .toString()
       .toLowerCase() as TweetType,
+    visibility: base.visibility === "private" ? "private" : "public",
     metrics,
     author_snapshot,
     author,
@@ -259,7 +262,8 @@ interface TweetsState {
   fetchUserTweets: (userId: string) => Promise<void>;
   fetchTweet: (tweetId: string) => Promise<Tweet | null>;
   createTweet: (
-    content: string
+    content: string,
+    visibility?: TweetVisibility
   ) => Promise<{ success: boolean; error?: string }>;
   quoteTweet: (
     content: string,
@@ -325,7 +329,8 @@ export const useTweetsStore = create<TweetsState>((set, get) => ({
   fetchTweets: async () => {
     set({ loading: true, error: null });
     try {
-      const response = await fetch(`${API_BASE_URL}/tweets`);
+      const headers = await getAuthHeaders(false);
+      const response = await fetch(`${API_BASE_URL}/tweets`, { headers });
       const data = await parseJson<TweetListResponse>(response);
       const tweets = normalizeTweetList(data.tweets);
       set({ tweets, loading: false });
@@ -341,7 +346,10 @@ export const useTweetsStore = create<TweetsState>((set, get) => ({
   fetchUserTweets: async (userId: string) => {
     set({ loading: true, error: null });
     try {
-      const response = await fetch(`${API_BASE_URL}/users/${userId}/wall`);
+      const headers = await getAuthHeaders(false);
+      const response = await fetch(`${API_BASE_URL}/users/${userId}/wall`, {
+        headers,
+      });
       const data = await parseJson<TweetListResponse>(response);
       const userTweets = normalizeTweetList(data.tweets);
       set({ userTweets, loading: false });
@@ -358,7 +366,10 @@ export const useTweetsStore = create<TweetsState>((set, get) => ({
 
   fetchTweet: async (tweetId: string) => {
     try {
-      const response = await fetch(`${API_BASE_URL}/tweets/${tweetId}`);
+      const headers = await getAuthHeaders(false);
+      const response = await fetch(`${API_BASE_URL}/tweets/${tweetId}`, {
+        headers,
+      });
       const data = await parseJson<any>(response);
       return normalizeTweet(data);
     } catch (error) {
@@ -367,13 +378,13 @@ export const useTweetsStore = create<TweetsState>((set, get) => ({
     }
   },
 
-  createTweet: async (content: string) => {
+  createTweet: async (content: string, visibility: TweetVisibility = "public") => {
     try {
       const headers = await getAuthHeaders();
       const response = await fetch(`${API_BASE_URL}/tweets`, {
         method: "POST",
         headers,
-        body: JSON.stringify({ content }),
+        body: JSON.stringify({ content, visibility }),
       });
       const data = await parseJson<any>(response);
       const newTweet = normalizeTweet(data);

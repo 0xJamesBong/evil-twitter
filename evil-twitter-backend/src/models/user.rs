@@ -38,6 +38,14 @@ pub struct User {
     #[schema(example = "0")]
     pub tweets_count: i32,
 
+    #[serde(default)]
+    #[schema(example = "0")]
+    pub intimate_followers_count: i32,
+
+    #[serde(default)]
+    #[schema(example = "0")]
+    pub intimate_follow_requests_count: i32,
+
     #[schema(example = "10000")]
     pub dollar_conversion_rate: i32,
 

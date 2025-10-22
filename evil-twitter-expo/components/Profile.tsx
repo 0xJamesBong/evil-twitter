@@ -50,7 +50,26 @@ export function Profile({
         followUser,
         unfollowUser,
         checkFollowStatus,
-        clearFollowStatus
+        clearFollowStatus,
+        isIntimateFollower,
+        intimateRequestStatus,
+        intimateStatusLoading,
+        intimateStatusError,
+        checkIntimateFollowStatus,
+        requestIntimateFollow,
+        approveIntimateFollower,
+        rejectIntimateFollower,
+        ejectIntimateFollower,
+        intimateFollowers,
+        intimateFollowersLoading,
+        fetchIntimateFollowers,
+        intimateFollowersError,
+        intimateRequests,
+        intimateRequestsLoading,
+        fetchIntimateRequests,
+        intimateRequestsError,
+        clearIntimateState,
+        clearIntimateErrors,
     } = useFollowStore();
 
     // Tweets and weapons
@@ -60,6 +79,7 @@ export function Profile({
     // Determine which user we're displaying
     const displayUser = isOwnProfile ? currentBackendUser : profileUser;
     const displayUserId = isOwnProfile ? currentBackendUser?._id?.$oid : userId;
+    const currentUserId = currentBackendUser?._id?.$oid;
 
     // Fetch profile data for other users
     useEffect(() => {
@@ -86,15 +106,37 @@ export function Profile({
         }
     }, [displayUserId, fetchUserWeapons, fetchUserTweets]);
 
+    useEffect(() => {
+        const ownerId = currentUserId;
+        if (isOwnProfile && ownerId) {
+            fetchIntimateFollowers(ownerId);
+            fetchIntimateRequests(ownerId);
+        }
+    }, [isOwnProfile, currentUserId, fetchIntimateFollowers, fetchIntimateRequests]);
+
     // Check follow status when viewing another user
     useEffect(() => {
-        if (!isOwnProfile && currentBackendUser?._id?.$oid && userId && currentBackendUser._id.$oid !== userId) {
-            checkFollowStatus(userId, currentBackendUser._id.$oid);
+        if (!isOwnProfile && currentUserId && userId && currentUserId !== userId) {
+            checkFollowStatus(userId, currentUserId);
+            checkIntimateFollowStatus(userId, currentUserId);
         } else if (isOwnProfile) {
-            // Clear follow status when viewing own profile
             clearFollowStatus();
+            clearIntimateState();
         }
-    }, [isOwnProfile, currentBackendUser, userId, checkFollowStatus, clearFollowStatus]);
+
+        return () => {
+            clearIntimateErrors();
+        };
+    }, [
+        isOwnProfile,
+        currentUserId,
+        userId,
+        checkFollowStatus,
+        checkIntimateFollowStatus,
+        clearFollowStatus,
+        clearIntimateState,
+        clearIntimateErrors,
+    ]);
 
     const handleSyncWithSupabase = async () => {
         if (authUser) {
@@ -109,22 +151,63 @@ export function Profile({
     };
 
     const handleFollowToggle = async () => {
-        if (!userId || !currentBackendUser?._id?.$oid) return;
+        if (!userId || !currentUserId) return;
 
         try {
             if (isFollowing) {
-                await unfollowUser(userId, currentBackendUser._id.$oid);
+                await unfollowUser(userId, currentUserId);
             } else {
-                await followUser(userId, currentBackendUser._id.$oid);
+                await followUser(userId, currentUserId);
             }
 
             // Refresh profile data to get updated follower counts
             if (!isOwnProfile && userId) {
                 await fetchProfile(userId);
+                await checkFollowStatus(userId, currentUserId);
             }
         } catch (error) {
             console.error('Follow action failed:', error);
             Alert.alert('Error', 'Failed to update follow status');
+        }
+    };
+
+    const handleRequestIntimateAccess = async () => {
+        if (!userId || !currentUserId) return;
+        try {
+            await requestIntimateFollow(userId, currentUserId);
+        } catch (error) {
+            console.error('Intimate follow request failed:', error);
+            Alert.alert('Error', 'Failed to request intimate access');
+        }
+    };
+
+    const handleApproveIntimate = async (requesterId: string) => {
+        if (!currentUserId) return;
+        try {
+            await approveIntimateFollower(currentUserId, requesterId);
+        } catch (error) {
+            console.error('Approve intimate follower failed:', error);
+            Alert.alert('Error', 'Failed to approve intimate follower');
+        }
+    };
+
+    const handleRejectIntimate = async (requesterId: string) => {
+        if (!currentUserId) return;
+        try {
+            await rejectIntimateFollower(currentUserId, requesterId);
+        } catch (error) {
+            console.error('Reject intimate follower failed:', error);
+            Alert.alert('Error', 'Failed to reject intimate follower');
+        }
+    };
+
+    const handleEjectIntimate = async (followerId: string) => {
+        if (!currentUserId) return;
+        try {
+            await ejectIntimateFollower(currentUserId, followerId);
+        } catch (error) {
+            console.error('Eject intimate follower failed:', error);
+            Alert.alert('Error', 'Failed to remove intimate follower');
         }
     };
 
@@ -322,7 +405,7 @@ export function Profile({
                         </View>
 
                         {/* Follow Button for other users */}
-                        {!isOwnProfile && currentBackendUser?._id?.$oid && userId && currentBackendUser._id.$oid !== userId && (
+                        {!isOwnProfile && currentUserId && userId && currentUserId !== userId && (
                             <View style={styles.followButtonContainer}>
                                 <TouchableOpacity
                                     style={[
@@ -336,14 +419,44 @@ export function Profile({
                                     {followStatusLoading ? (
                                         <ActivityIndicator size="small" color={isFollowing ? "#71767b" : "#fff"} />
                                     ) : (
-                                        <Text style={[
-                                            styles.followButtonText,
-                                            isFollowing && styles.followingButtonText
-                                        ]}>
+                                        <Text
+                                            style={[
+                                                styles.followButtonText,
+                                                isFollowing && styles.followingButtonText
+                                            ]}
+                                        >
                                             {isFollowing ? 'Following' : 'Follow'}
                                         </Text>
                                     )}
                                 </TouchableOpacity>
+
+                                <View style={styles.intimateButtonContainer}>
+                                    {isIntimateFollower ? (
+                                        <Text style={styles.intimateBadge}>⭐ Intimate Access Granted</Text>
+                                    ) : intimateRequestStatus === 'pending' ? (
+                                        <View style={styles.intimatePending}>
+                                            <Text style={styles.intimatePendingText}>Intimate request pending</Text>
+                                        </View>
+                                    ) : (
+                                        <TouchableOpacity
+                                            style={[
+                                                styles.intimateButton,
+                                                intimateStatusLoading && styles.intimateButtonDisabled
+                                            ]}
+                                            onPress={handleRequestIntimateAccess}
+                                            disabled={intimateStatusLoading}
+                                        >
+                                            {intimateStatusLoading ? (
+                                                <ActivityIndicator size="small" color="#fff" />
+                                            ) : (
+                                                <Text style={styles.intimateButtonText}>Request Intimate Access</Text>
+                                            )}
+                                        </TouchableOpacity>
+                                    )}
+                                    {intimateStatusError && (
+                                        <Text style={styles.intimateErrorText}>{intimateStatusError}</Text>
+                                    )}
+                                </View>
                             </View>
                         )}
                     </View>
@@ -375,9 +488,92 @@ export function Profile({
                 {displayUserId && (
                     <FollowLists
                         userId={displayUserId}
-                        currentUserId={currentBackendUser?._id?.$oid}
+                        currentUserId={currentUserId}
                         showFollowButtons={!isOwnProfile}
                     />
+                )}
+
+                {isOwnProfile && (
+                    <View style={styles.intimateSection}>
+                        <Text style={styles.sectionTitle}>⭐ Intimate Circle</Text>
+
+                        <View style={styles.intimateBlock}>
+                            <Text style={styles.intimateHeading}>
+                                Intimate Followers ({intimateFollowers.length})
+                            </Text>
+                            {intimateFollowersLoading ? (
+                                <ActivityIndicator size="small" color="#1d9bf0" />
+                            ) : intimateFollowers.length === 0 ? (
+                                <Text style={styles.intimateEmptyText}>No intimate followers yet</Text>
+                            ) : (
+                                intimateFollowers.slice(0, 6).map((follower) => (
+                                    <View key={follower._id.$oid} style={styles.intimateListItem}>
+                                        <View style={styles.intimateUserDetails}>
+                                            <Text style={styles.intimateUserName}>
+                                                {follower.display_name || follower.username}
+                                            </Text>
+                                            <Text style={styles.intimateUserHandle}>
+                                                @{follower.username}
+                                            </Text>
+                                        </View>
+                                        <TouchableOpacity
+                                            style={styles.intimateActionButton}
+                                            onPress={() => handleEjectIntimate(follower._id.$oid)}
+                                        >
+                                            <Text style={styles.intimateActionButtonText}>Remove</Text>
+                                        </TouchableOpacity>
+                                    </View>
+                                ))
+                            )}
+                            {intimateFollowersError && (
+                                <Text style={styles.intimateErrorText}>{intimateFollowersError}</Text>
+                            )}
+                        </View>
+
+                        <View style={styles.intimateBlock}>
+                            <Text style={styles.intimateHeading}>
+                                Pending Requests ({intimateRequests.length})
+                            </Text>
+                            {intimateRequestsLoading ? (
+                                <ActivityIndicator size="small" color="#1d9bf0" />
+                            ) : intimateRequests.length === 0 ? (
+                                <Text style={styles.intimateEmptyText}>No pending requests</Text>
+                            ) : (
+                                intimateRequests.map((entry) => (
+                                    <View key={entry.user._id.$oid} style={styles.intimateListItem}>
+                                        <View style={styles.intimateUserDetails}>
+                                            <Text style={styles.intimateUserName}>
+                                                {entry.user.display_name || entry.user.username}
+                                            </Text>
+                                            <Text style={styles.intimateUserHandle}>
+                                                @{entry.user.username}
+                                            </Text>
+                                            <Text style={styles.intimateRequestedAt}>
+                                                Requested {formatDate(entry.requested_at)}
+                                            </Text>
+                                        </View>
+                                        <View style={styles.intimateActionsRow}>
+                                            <TouchableOpacity
+                                                style={[styles.intimateActionButton, styles.intimateApproveButton]}
+                                                onPress={() => handleApproveIntimate(entry.user._id.$oid)}
+                                            >
+                                                <Text style={styles.intimateApproveText}>Approve</Text>
+                                            </TouchableOpacity>
+                                            <TouchableOpacity
+                                                style={[styles.intimateActionButton, styles.intimateRejectButton]}
+                                                onPress={() => handleRejectIntimate(entry.user._id.$oid)}
+                                            >
+                                                <Text style={styles.intimateRejectText}>Reject</Text>
+                                            </TouchableOpacity>
+                                        </View>
+                                    </View>
+                                ))
+                            )}
+                            {intimateRequestsError && (
+                                <Text style={styles.intimateErrorText}>{intimateRequestsError}</Text>
+                            )}
+                        </View>
+                    </View>
                 )}
 
                 {/* Tabs */}
@@ -656,6 +852,86 @@ const styles = StyleSheet.create({
         color: '#fff',
         marginBottom: 16,
     },
+    intimateSection: {
+        paddingHorizontal: 16,
+        paddingVertical: 16,
+        gap: 16,
+    },
+    intimateBlock: {
+        backgroundColor: '#16181c',
+        borderRadius: 12,
+        borderWidth: 1,
+        borderColor: '#2f3336',
+        padding: 16,
+        gap: 12,
+    },
+    intimateHeading: {
+        color: '#fff',
+        fontSize: 16,
+        fontWeight: 'bold',
+    },
+    intimateEmptyText: {
+        color: '#71767b',
+        fontSize: 13,
+    },
+    intimateListItem: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        paddingVertical: 8,
+        gap: 12,
+    },
+    intimateUserDetails: {
+        flex: 1,
+    },
+    intimateUserName: {
+        color: '#fff',
+        fontSize: 14,
+        fontWeight: 'bold',
+    },
+    intimateUserHandle: {
+        color: '#71767b',
+        fontSize: 12,
+    },
+    intimateRequestedAt: {
+        color: '#71767b',
+        fontSize: 12,
+        marginTop: 2,
+    },
+    intimateActionsRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 8,
+    },
+    intimateActionButton: {
+        paddingVertical: 6,
+        paddingHorizontal: 12,
+        borderRadius: 16,
+        borderWidth: 1,
+        borderColor: '#2f3336',
+    },
+    intimateActionButtonText: {
+        color: '#f87171',
+        fontSize: 12,
+        fontWeight: 'bold',
+    },
+    intimateApproveButton: {
+        backgroundColor: '#16a34a',
+        borderColor: '#16a34a',
+    },
+    intimateApproveText: {
+        color: '#fff',
+        fontSize: 12,
+        fontWeight: 'bold',
+    },
+    intimateRejectButton: {
+        borderColor: '#f87171',
+    },
+    intimateRejectText: {
+        color: '#f87171',
+        fontSize: 12,
+        fontWeight: 'bold',
+    },
     accountInfoCard: {
         backgroundColor: '#16181c',
         borderRadius: 12,
@@ -815,6 +1091,8 @@ const styles = StyleSheet.create({
         position: 'absolute',
         top: 16,
         right: 16,
+        alignItems: 'flex-end',
+        gap: 8,
     },
     followButton: {
         backgroundColor: '#1d9bf0',
@@ -839,6 +1117,48 @@ const styles = StyleSheet.create({
     },
     followButtonDisabled: {
         opacity: 0.6,
+    },
+    intimateButtonContainer: {
+        width: '100%',
+        alignItems: 'flex-end',
+        gap: 6,
+    },
+    intimateButton: {
+        backgroundColor: '#9333ea',
+        paddingVertical: 6,
+        paddingHorizontal: 16,
+        borderRadius: 20,
+    },
+    intimateButtonDisabled: {
+        opacity: 0.6,
+    },
+    intimateButtonText: {
+        color: '#fff',
+        fontSize: 12,
+        fontWeight: 'bold',
+    },
+    intimateBadge: {
+        backgroundColor: '#1f2937',
+        color: '#fcd34d',
+        paddingVertical: 6,
+        paddingHorizontal: 12,
+        borderRadius: 16,
+        fontSize: 12,
+        fontWeight: 'bold',
+    },
+    intimatePending: {
+        backgroundColor: '#1f2937',
+        paddingVertical: 6,
+        paddingHorizontal: 12,
+        borderRadius: 16,
+    },
+    intimatePendingText: {
+        color: '#f9fafb',
+        fontSize: 12,
+    },
+    intimateErrorText: {
+        color: '#f87171',
+        fontSize: 12,
     },
     syncButtonTop: {
         backgroundColor: '#1d9bf0',

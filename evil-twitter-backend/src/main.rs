@@ -14,7 +14,11 @@ mod routes;
 use routes::data_generation::{
     clear_all_data, generate_fake_data, generate_fake_tweets, generate_fake_users,
 };
-use routes::follow::{follow_user, get_followers_list, get_following_list, unfollow_user};
+use routes::follow::{
+    approve_intimate_follow, eject_intimate_follower, follow_user, get_followers_list,
+    get_following_list, get_intimate_follow_requests, get_intimate_follow_status,
+    get_intimate_followers_list, reject_intimate_follow, request_intimate_follow, unfollow_user,
+};
 use routes::migration::{migrate_tweets_health, migrate_user_objectids, migrate_users_weapons};
 use routes::ping::ping_handler;
 use routes::tweet::{
@@ -61,6 +65,13 @@ use routes::weapons::{buy_weapon, get_user_weapons, get_weapon_catalog_endpoint}
         routes::follow::get_follow_status,
         routes::follow::get_following_list,
         routes::follow::get_followers_list,
+        routes::follow::request_intimate_follow,
+        routes::follow::approve_intimate_follow,
+        routes::follow::reject_intimate_follow,
+        routes::follow::eject_intimate_follower,
+        routes::follow::get_intimate_follow_status,
+        routes::follow::get_intimate_followers_list,
+        routes::follow::get_intimate_follow_requests,
         routes::weapons::buy_weapon,
         routes::weapons::get_user_weapons,
         routes::weapons::get_weapon_catalog_endpoint
@@ -89,8 +100,17 @@ use routes::weapons::{buy_weapon, get_user_weapons, get_weapon_catalog_endpoint}
             models::follow::FollowRequest,
             models::follow::FollowResponse,
             models::follow::FollowStats,
+            models::follow::IntimateFollow,
+            models::follow::IntimateFollowRequest,
+            models::follow::IntimateFollowRequestStatus,
+            models::follow::IntimateFollowActionRequest,
+            models::follow::IntimateFollowActionResponse,
+            models::follow::IntimateFollowStatus,
             routes::follow::FollowingListResponse,
             routes::follow::FollowersListResponse,
+            routes::follow::IntimateFollowersListResponse,
+            routes::follow::IntimateFollowRequestEntry,
+            routes::follow::IntimateFollowRequestsResponse,
             routes::data_generation::DataGenerationResponse,
             routes::data_generation::UserGenerationRequest,
             routes::data_generation::TweetGenerationRequest,
@@ -177,6 +197,34 @@ async fn main() -> anyhow::Result<()> {
         )
         .route("/users/{user_id}/following", get(get_following_list))
         .route("/users/{user_id}/followers", get(get_followers_list))
+        .route(
+            "/users/{user_id}/intimate-follow/request",
+            post(request_intimate_follow),
+        )
+        .route(
+            "/users/{user_id}/intimate-follow/approve",
+            post(approve_intimate_follow),
+        )
+        .route(
+            "/users/{user_id}/intimate-follow/reject",
+            post(reject_intimate_follow),
+        )
+        .route(
+            "/users/{user_id}/intimate-follow",
+            delete(eject_intimate_follower),
+        )
+        .route(
+            "/users/{user_id}/intimate-follow/status",
+            get(get_intimate_follow_status),
+        )
+        .route(
+            "/users/{user_id}/intimate-followers",
+            get(get_intimate_followers_list),
+        )
+        .route(
+            "/users/{user_id}/intimate-follow/requests",
+            get(get_intimate_follow_requests),
+        )
         .route("/weapons/catalog", get(get_weapon_catalog_endpoint))
         .route("/weapons/{user_id}/buy", post(buy_weapon))
         .route("/users/{user_id}/weapons", get(get_user_weapons))

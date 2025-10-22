@@ -1,8 +1,4 @@
-use axum::{
-    Json,
-    extract::{Path, State},
-    http::StatusCode,
-};
+use axum::{Json, http::StatusCode};
 use futures::TryStreamExt;
 use mongodb::{
     Collection, Database,
@@ -11,7 +7,7 @@ use mongodb::{
 use serde::Serialize;
 use utoipa::ToSchema;
 
-use crate::models::tweet::{Tweet, TweetView};
+use crate::models::tweet::{Tweet, TweetView, TweetVisibility};
 
 #[derive(Debug, Serialize, ToSchema)]
 pub struct WallResponse {
@@ -21,23 +17,16 @@ pub struct WallResponse {
 
 /// Wall composition algorithm - determines what tweets to show on a user's wall
 pub async fn compose_wall(
-    State(db): State<Database>,
-    Path(user_id): Path<String>,
+    db: &Database,
+    user_id: ObjectId,
+    include_private: bool,
 ) -> Result<Vec<TweetView>, (StatusCode, Json<serde_json::Value>)> {
     let tweet_collection: Collection<Tweet> = db.collection("tweets");
     let user_collection: Collection<crate::models::user::User> = db.collection("users");
 
-    // Parse user ID
-    let user_object_id = ObjectId::parse_str(&user_id).map_err(|_| {
-        (
-            StatusCode::BAD_REQUEST,
-            Json(serde_json::json!({"error": "Invalid user ID"})),
-        )
-    })?;
-
     // Verify user exists
     let _user = user_collection
-        .find_one(doc! {"_id": user_object_id})
+        .find_one(doc! {"_id": user_id})
         .await
         .map_err(|_| {
             (
@@ -52,35 +41,37 @@ pub async fn compose_wall(
             )
         })?;
 
-    // Wall composition algorithm - return ALL tweets
-    // Get all tweets without sorting first to test
-    println!("Wall: Starting to fetch tweets for user: {}", user_id);
+    let mut cursor = tweet_collection
+        .find(doc! {"owner_id": user_id})
+        .sort(doc! {"created_at": -1})
+        .await
+        .map_err(|_| {
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(serde_json::json!({"error": "Database error"})),
+            )
+        })?;
 
-    let all_tweets_cursor = tweet_collection.find(doc! {}).await.map_err(|e| {
-        println!("Wall: Database error during find: {:?}", e);
+    let mut tweets: Vec<Tweet> = Vec::new();
+    while let Some(tweet) = cursor.try_next().await.map_err(|_| {
         (
             StatusCode::INTERNAL_SERVER_ERROR,
             Json(serde_json::json!({"error": "Database error"})),
         )
-    })?;
+    })? {
+        let is_private = matches!(tweet.visibility, TweetVisibility::Private);
+        if include_private || !is_private {
+            tweets.push(tweet);
+        }
+    }
 
-    let all_tweets: Vec<Tweet> = all_tweets_cursor.try_collect().await.map_err(|e| {
-        println!("Wall: Database error during collect: {:?}", e);
-        (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            Json(serde_json::json!({"error": "Database error"})),
-        )
-    })?;
-
-    println!("Wall: Found {} tweets", all_tweets.len());
-
-    // Enrich with quoted/replied tweets
     let enriched_tweets = crate::routes::tweet::enrich_tweets_with_references(
-        all_tweets,
+        tweets,
         &tweet_collection,
         &user_collection,
     )
-    .await?;
+    .await
+    .map_err(|(status, Json(body))| (status, Json(body)))?;
 
     Ok(enriched_tweets)
 }

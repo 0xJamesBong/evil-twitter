@@ -145,6 +145,11 @@ export function TweetComponent({
                             <Text style={styles.username}>@{tweet.author_username || 'user'}</Text>
                         </TouchableOpacity>
                         <Text style={styles.time}>· {formatTime(tweet.created_at)}</Text>
+                        {tweet.visibility === 'private' && (
+                            <View style={styles.visibilityBadge}>
+                                <Text style={styles.visibilityBadgeText}>Intimate</Text>
+                            </View>
+                        )}
                         {!isReply && (
                             <TouchableOpacity style={styles.moreButton}>
                                 <Text style={styles.moreIcon}>⋯</Text>
@@ -400,6 +405,19 @@ const styles = StyleSheet.create({
     time: {
         color: '#71767b',
         fontSize: 15,
+    },
+    visibilityBadge: {
+        backgroundColor: 'rgba(147, 51, 234, 0.2)',
+        borderRadius: 12,
+        paddingHorizontal: 8,
+        paddingVertical: 2,
+        marginLeft: 6,
+    },
+    visibilityBadgeText: {
+        color: '#c084fc',
+        fontSize: 10,
+        fontWeight: 'bold',
+        textTransform: 'uppercase',
     },
     moreButton: {
         marginLeft: 'auto',

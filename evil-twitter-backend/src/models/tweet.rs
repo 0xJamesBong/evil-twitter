@@ -11,6 +11,20 @@ pub enum TweetType {
     Reply,
 }
 
+/// Access tier for a tweet.
+#[derive(Debug, Serialize, Deserialize, Clone, Copy, PartialEq, Eq, ToSchema)]
+#[serde(rename_all = "lowercase")]
+pub enum TweetVisibility {
+    Public,
+    Private,
+}
+
+impl Default for TweetVisibility {
+    fn default() -> Self {
+        Self::Public
+    }
+}
+
 /// Tweet document stored in MongoDB.
 #[derive(Debug, Serialize, Deserialize, Clone, ToSchema)]
 pub struct Tweet {
@@ -26,6 +40,10 @@ pub struct Tweet {
 
     #[schema(example = "Original")]
     pub tweet_type: TweetType,
+
+    #[serde(default)]
+    #[schema(example = "public")]
+    pub visibility: TweetVisibility,
 
     #[serde(default)]
     #[schema(value_type = String, example = "507f1f77bcf86cd799439012")]
@@ -253,6 +271,10 @@ pub struct TweetAttackAction {
 pub struct CreateTweet {
     #[schema(example = "Hello, world! This is my first tweet.")]
     pub content: String,
+
+    #[serde(default)]
+    #[schema(example = "public")]
+    pub visibility: Option<TweetVisibility>,
 }
 
 #[derive(Debug, Deserialize, ToSchema)]
@@ -262,6 +284,10 @@ pub struct CreateReply {
 
     #[schema(value_type = String, example = "507f1f77bcf86cd799439011")]
     pub replied_to_tweet_id: String,
+
+    #[serde(default)]
+    #[schema(example = "public")]
+    pub visibility: Option<TweetVisibility>,
 }
 
 #[derive(Debug, Deserialize, ToSchema)]
@@ -271,6 +297,10 @@ pub struct CreateQuote {
 
     #[schema(value_type = String, example = "507f1f77bcf86cd799439011")]
     pub quoted_tweet_id: String,
+
+    #[serde(default)]
+    #[schema(example = "public")]
+    pub visibility: Option<TweetVisibility>,
 }
 
 /// Enriched tweet that includes hydrated references.

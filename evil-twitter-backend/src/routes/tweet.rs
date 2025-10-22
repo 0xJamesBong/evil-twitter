@@ -18,10 +18,11 @@ use utoipa::ToSchema;
 use crate::{
     middleware::wall::compose_wall,
     models::{
+        follow::IntimateFollow,
         tweet::{
             CreateTweet, Tweet, TweetAttackAction, TweetAuthorSnapshot, TweetHealAction,
             TweetHealthState, TweetMetrics, TweetType, TweetView, TweetViewerContext,
-            TweetViralitySnapshot,
+            TweetViralitySnapshot, TweetVisibility,
         },
         user::User,
     },
@@ -48,6 +49,67 @@ fn not_found(message: &str) -> ApiError {
 
 fn ok_message(message: &str) -> Json<Value> {
     Json(json!({ "message": message }))
+}
+
+fn unauthorized(message: &str) -> ApiError {
+    json_error(StatusCode::UNAUTHORIZED, message)
+}
+
+fn forbidden(message: &str) -> ApiError {
+    json_error(StatusCode::FORBIDDEN, message)
+}
+
+async fn resolve_viewer(
+    headers: &HeaderMap,
+    user_collection: &Collection<User>,
+) -> ApiResult<Option<User>> {
+    let Some(raw_auth) = headers.get("authorization") else {
+        return Ok(None);
+    };
+
+    let auth_header = raw_auth
+        .to_str()
+        .map_err(|_| unauthorized("Authorization header is malformed"))?;
+
+    let supabase_id = extract_supabase_id_from_auth_header(auth_header)
+        .map_err(|err| unauthorized(&format!("Invalid authorization token: {err}")))?;
+
+    let user = user_collection
+        .find_one(doc! {"supabase_id": supabase_id})
+        .await
+        .map_err(|_| internal_error("Database error fetching viewer"))?;
+
+    if let Some(user) = user {
+        Ok(Some(user))
+    } else {
+        Err(unauthorized("Viewer account not registered"))
+    }
+}
+
+async fn build_private_allow_list(
+    db: &Database,
+    viewer_id: Option<ObjectId>,
+) -> ApiResult<HashSet<ObjectId>> {
+    let mut allow_list = HashSet::new();
+
+    if let Some(viewer_id) = viewer_id {
+        allow_list.insert(viewer_id);
+        let intimate_collection: Collection<IntimateFollow> = db.collection("intimate_follows");
+        let mut cursor = intimate_collection
+            .find(doc! {"follower_id": viewer_id})
+            .await
+            .map_err(|_| internal_error("Database error fetching intimate relationships"))?;
+
+        while let Some(rel) = cursor
+            .try_next()
+            .await
+            .map_err(|_| internal_error("Database error iterating intimate relationships"))?
+        {
+            allow_list.insert(rel.following_id);
+        }
+    }
+
+    Ok(allow_list)
 }
 
 #[derive(Debug, Serialize, ToSchema)]
@@ -291,12 +353,14 @@ pub async fn create_tweet(
 
     let now = mongodb::bson::DateTime::now();
     let tweet_id = ObjectId::new();
+    let visibility = payload.visibility.unwrap_or(TweetVisibility::Public);
 
     let tweet = Tweet {
         id: Some(tweet_id),
         owner_id,
         content: payload.content,
         tweet_type: TweetType::Original,
+        visibility,
         quoted_tweet_id: None,
         replied_to_tweet_id: None,
         root_tweet_id: Some(tweet_id),
@@ -335,6 +399,7 @@ pub async fn create_tweet(
 pub async fn get_tweet(
     State(db): State<Database>,
     Path(id): Path<String>,
+    headers: HeaderMap,
 ) -> Result<Json<TweetView>, ApiError> {
     let tweet_collection: Collection<Tweet> = db.collection("tweets");
     let user_collection: Collection<User> = db.collection("users");
@@ -346,6 +411,17 @@ pub async fn get_tweet(
         .await
         .map_err(|_| internal_error("Database error fetching tweet"))?
         .ok_or_else(|| not_found("Tweet not found"))?;
+
+    let viewer = resolve_viewer(&headers, &user_collection).await?;
+    let viewer_id = viewer.as_ref().and_then(|user| user.id);
+    let allow_list = build_private_allow_list(&db, viewer_id).await?;
+
+    if matches!(tweet.visibility, TweetVisibility::Private) && !allow_list.contains(&tweet.owner_id)
+    {
+        return Err(forbidden(
+            "This tweet is only visible to intimate followers",
+        ));
+    }
 
     let mut hydrated =
         hydrate_tweets_with_references(vec![tweet], &tweet_collection, &user_collection).await?;
@@ -372,9 +448,16 @@ pub async fn enrich_tweets_with_references(
     ),
     tag = "tweets"
 )]
-pub async fn get_tweets(State(db): State<Database>) -> Result<Json<TweetListResponse>, ApiError> {
+pub async fn get_tweets(
+    State(db): State<Database>,
+    headers: HeaderMap,
+) -> Result<Json<TweetListResponse>, ApiError> {
     let tweet_collection: Collection<Tweet> = db.collection("tweets");
     let user_collection: Collection<User> = db.collection("users");
+
+    let viewer = resolve_viewer(&headers, &user_collection).await?;
+    let viewer_id = viewer.as_ref().and_then(|user| user.id);
+    let allow_list = build_private_allow_list(&db, viewer_id).await?;
 
     let cursor = tweet_collection
         .find(doc! {})
@@ -387,8 +470,16 @@ pub async fn get_tweets(State(db): State<Database>) -> Result<Json<TweetListResp
         .await
         .map_err(|_| internal_error("Database error collecting tweets"))?;
 
+    let visible: Vec<Tweet> = tweets
+        .into_iter()
+        .filter(|tweet| match tweet.visibility {
+            TweetVisibility::Public => true,
+            TweetVisibility::Private => allow_list.contains(&tweet.owner_id),
+        })
+        .collect();
+
     let tweets =
-        hydrate_tweets_with_references(tweets, &tweet_collection, &user_collection).await?;
+        hydrate_tweets_with_references(visible, &tweet_collection, &user_collection).await?;
     let total = tweets.len() as i64;
 
     Ok(Json(TweetListResponse { tweets, total }))
@@ -405,10 +496,26 @@ pub async fn get_tweets(State(db): State<Database>) -> Result<Json<TweetListResp
     tag = "tweets"
 )]
 pub async fn get_user_wall(
-    state: State<Database>,
-    path: Path<String>,
+    State(db): State<Database>,
+    Path(user_id): Path<String>,
+    headers: HeaderMap,
 ) -> Result<Json<TweetListResponse>, ApiError> {
-    let tweets = compose_wall(state, path).await?;
+    let user_collection: Collection<User> = db.collection("users");
+    let target_id = parse_object_id(&user_id, "user")?;
+
+    // Ensure target user exists
+    user_collection
+        .find_one(doc! {"_id": target_id})
+        .await
+        .map_err(|_| internal_error("Database error fetching user"))?
+        .ok_or_else(|| not_found("User not found"))?;
+
+    let viewer = resolve_viewer(&headers, &user_collection).await?;
+    let viewer_id = viewer.as_ref().and_then(|user| user.id);
+    let allow_list = build_private_allow_list(&db, viewer_id).await?;
+    let include_private = allow_list.contains(&target_id);
+
+    let tweets = compose_wall(&db, target_id, include_private).await?;
     let total = tweets.len() as i64;
 
     Ok(Json(TweetListResponse { tweets, total }))
@@ -474,6 +581,7 @@ pub async fn generate_fake_tweets(
             owner_id,
             content: content.to_string(),
             tweet_type: TweetType::Original,
+            visibility: TweetVisibility::Public,
             quoted_tweet_id: None,
             replied_to_tweet_id: None,
             root_tweet_id: Some(tweet_id),
@@ -551,6 +659,19 @@ pub async fn retweet_tweet(
         .map_err(|_| internal_error("Database error fetching original tweet"))?
         .ok_or_else(|| not_found("Original tweet not found"))?;
 
+    let allow_list = build_private_allow_list(&db, Some(owner_id)).await?;
+    if matches!(original_tweet.visibility, TweetVisibility::Private)
+        && !allow_list.contains(&original_tweet.owner_id)
+    {
+        return Err(forbidden(
+            "You must be an approved intimate follower to interact with this tweet",
+        ));
+    }
+
+    if matches!(original_tweet.visibility, TweetVisibility::Private) {
+        return Err(bad_request("Private tweets cannot be retweeted"));
+    }
+
     let now = mongodb::bson::DateTime::now();
     let retweet_id = ObjectId::new();
 
@@ -559,6 +680,7 @@ pub async fn retweet_tweet(
         owner_id,
         content: original_tweet.content.clone(),
         tweet_type: TweetType::Retweet,
+        visibility: original_tweet.visibility,
         quoted_tweet_id: Some(original_id),
         replied_to_tweet_id: None,
         root_tweet_id: Some(retweet_id),
@@ -636,27 +758,48 @@ pub async fn quote_tweet(
         .ok_or_else(|| not_found("User not found"))?;
 
     let quoted_id = parse_object_id(&tweet_id, "tweet")?;
-    let _quoted_tweet = collection
+    let quoted_tweet = collection
         .find_one(doc! {"_id": quoted_id})
         .await
         .map_err(|_| internal_error("Database error fetching quoted tweet"))?
         .ok_or_else(|| not_found("Original tweet not found"))?;
 
-    let now = mongodb::bson::DateTime::now();
     let owner_id = user
         .id
         .ok_or_else(|| internal_error("User record missing identifier"))?;
+
+    let allow_list = build_private_allow_list(&db, Some(owner_id)).await?;
+    if matches!(quoted_tweet.visibility, TweetVisibility::Private)
+        && !allow_list.contains(&quoted_tweet.owner_id)
+    {
+        return Err(forbidden(
+            "You must be an approved intimate follower to interact with this tweet",
+        ));
+    }
+
+    if matches!(quoted_tweet.visibility, TweetVisibility::Private) {
+        return Err(bad_request("Private tweets cannot be quoted"));
+    }
+
+    let now = mongodb::bson::DateTime::now();
     let username = user.username;
     let display_name = user.display_name;
     let avatar_url = user.avatar_url;
+
+    let CreateTweet {
+        content,
+        visibility,
+    } = payload;
+    let visibility = visibility.unwrap_or(TweetVisibility::Public);
 
     let quote_id = ObjectId::new();
 
     let quote = Tweet {
         id: Some(quote_id),
         owner_id,
-        content: payload.content,
+        content,
         tweet_type: TweetType::Quote,
+        visibility,
         quoted_tweet_id: Some(quoted_id),
         replied_to_tweet_id: None,
         root_tweet_id: Some(quote_id),
@@ -748,6 +891,24 @@ pub async fn reply_tweet(
     let display_name = user.display_name;
     let avatar_url = user.avatar_url;
 
+    let allow_list = build_private_allow_list(&db, Some(owner_id)).await?;
+    if matches!(replied_tweet.visibility, TweetVisibility::Private)
+        && !allow_list.contains(&replied_tweet.owner_id)
+    {
+        return Err(forbidden(
+            "You must be an approved intimate follower to interact with this tweet",
+        ));
+    }
+
+    let CreateTweet {
+        content,
+        visibility,
+    } = payload;
+    let mut resolved_visibility = visibility.unwrap_or(replied_tweet.visibility);
+    if matches!(replied_tweet.visibility, TweetVisibility::Private) {
+        resolved_visibility = TweetVisibility::Private;
+    }
+
     let reply_id = ObjectId::new();
     let root_id = replied_tweet
         .root_tweet_id
@@ -757,8 +918,9 @@ pub async fn reply_tweet(
     let reply = Tweet {
         id: Some(reply_id),
         owner_id,
-        content: payload.content,
+        content,
         tweet_type: TweetType::Reply,
+        visibility: resolved_visibility,
         quoted_tweet_id: None,
         replied_to_tweet_id: Some(replied_id),
         root_tweet_id: Some(root_id),
@@ -1015,16 +1177,9 @@ pub async fn get_thread(
     let tweet_collection: Collection<Tweet> = db.collection("tweets");
     let user_collection: Collection<User> = db.collection("users");
 
-    let auth_header = headers
-        .get("authorization")
-        .and_then(|h| h.to_str().ok())
-        .ok_or_else(|| json_error(StatusCode::UNAUTHORIZED, "Missing authorization header"))?;
-    let _supabase_id = extract_supabase_id_from_auth_header(auth_header).map_err(|err| {
-        json_error(
-            StatusCode::UNAUTHORIZED,
-            format!("Invalid authorization token: {err}"),
-        )
-    })?;
+    let viewer = resolve_viewer(&headers, &user_collection).await?;
+    let viewer_id = viewer.as_ref().and_then(|user| user.id);
+    let allow_list = build_private_allow_list(&db, viewer_id).await?;
 
     let tweet_id = parse_object_id(&id, "tweet")?;
 
@@ -1033,6 +1188,14 @@ pub async fn get_thread(
         .await
         .map_err(|_| internal_error("Database error fetching tweet"))?
         .ok_or_else(|| not_found("Tweet not found"))?;
+
+    if matches!(target_tweet.visibility, TweetVisibility::Private)
+        && !allow_list.contains(&target_tweet.owner_id)
+    {
+        return Err(forbidden(
+            "You must be an approved intimate follower to view this thread",
+        ));
+    }
 
     let target_id = target_tweet
         .id
@@ -1052,13 +1215,15 @@ pub async fn get_thread(
             None => break,
         };
         current = parent.clone();
-        parent_chain.push(parent);
+        let is_private_parent = matches!(current.visibility, TweetVisibility::Private)
+            && !allow_list.contains(&current.owner_id);
+        if is_private_parent {
+            break;
+        }
+        parent_chain.push(current.clone());
     }
     parent_chain.reverse();
-    let parent_ids: HashSet<ObjectId> = parent_chain
-        .iter()
-        .filter_map(|tweet| tweet.id)
-        .collect();
+    let parent_ids: HashSet<ObjectId> = parent_chain.iter().filter_map(|tweet| tweet.id).collect();
 
     // Collect all tweets in the same root thread
     let mut cursor = tweet_collection
@@ -1072,7 +1237,11 @@ pub async fn get_thread(
         .await
         .map_err(|_| internal_error("Database error iterating thread tweets"))?
     {
-        thread_tweets.push(tweet);
+        let is_private = matches!(tweet.visibility, TweetVisibility::Private)
+            && !allow_list.contains(&tweet.owner_id);
+        if !is_private {
+            thread_tweets.push(tweet);
+        }
     }
 
     // Gather all descendants (sub-tree) of the target tweet
