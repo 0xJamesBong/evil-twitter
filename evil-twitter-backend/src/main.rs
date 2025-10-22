@@ -11,13 +11,15 @@ mod middleware;
 mod models;
 mod routes;
 
-use routes::follow::{follow_user, get_following_list, unfollow_user};
+use routes::data_generation::{
+    clear_all_data, generate_fake_data, generate_fake_tweets, generate_fake_users,
+};
+use routes::follow::{follow_user, get_followers_list, get_following_list, unfollow_user};
 use routes::migration::{migrate_tweets_health, migrate_user_objectids, migrate_users_weapons};
 use routes::ping::ping_handler;
 use routes::tweet::{
-    attack_tweet, clear_all_data, create_tweet, generate_fake_tweets, get_thread, get_tweet,
-    get_tweets, get_user_wall, heal_tweet, like_tweet, migrate_users_dollar_rate, quote_tweet,
-    reply_tweet, retweet_tweet,
+    attack_tweet, create_tweet, get_thread, get_tweet, get_tweets, get_user_wall, heal_tweet,
+    like_tweet, migrate_users_dollar_rate, quote_tweet, reply_tweet, retweet_tweet,
 };
 use routes::user::{
     attack_dollar_rate, create_user, get_dollar_rate, get_user, get_users, improve_dollar_rate,
@@ -46,8 +48,10 @@ use routes::weapons::{buy_weapon, get_user_weapons, get_weapon_catalog_endpoint}
         routes::tweet::retweet_tweet,
         routes::tweet::quote_tweet,
         routes::tweet::reply_tweet,
-        routes::tweet::generate_fake_tweets,
-        routes::tweet::clear_all_data,
+        routes::data_generation::generate_fake_users,
+        routes::data_generation::generate_fake_tweets,
+        routes::data_generation::generate_fake_data,
+        routes::data_generation::clear_all_data,
         routes::tweet::migrate_users_dollar_rate,
         routes::migration::migrate_tweets_health,
         routes::migration::migrate_users_weapons,
@@ -56,6 +60,7 @@ use routes::weapons::{buy_weapon, get_user_weapons, get_weapon_catalog_endpoint}
         routes::follow::unfollow_user,
         routes::follow::get_follow_status,
         routes::follow::get_following_list,
+        routes::follow::get_followers_list,
         routes::weapons::buy_weapon,
         routes::weapons::get_user_weapons,
         routes::weapons::get_weapon_catalog_endpoint
@@ -85,6 +90,10 @@ use routes::weapons::{buy_weapon, get_user_weapons, get_weapon_catalog_endpoint}
             models::follow::FollowResponse,
             models::follow::FollowStats,
             routes::follow::FollowingListResponse,
+            routes::follow::FollowersListResponse,
+            routes::data_generation::DataGenerationResponse,
+            routes::data_generation::UserGenerationRequest,
+            routes::data_generation::TweetGenerationRequest,
             models::tool::Weapon,
             routes::tweet::HealTweetRequest,
             routes::tweet::AttackTweetRequest,
@@ -146,8 +155,10 @@ async fn main() -> anyhow::Result<()> {
         .route("/tweets/{id}/retweet", post(retweet_tweet))
         .route("/tweets/{id}/quote", post(quote_tweet))
         .route("/tweets/{id}/reply", post(reply_tweet))
-        .route("/tweets/fake", post(generate_fake_tweets))
-        .route("/admin/clear-all", post(clear_all_data))
+        .route("/data/users/generate", post(generate_fake_users))
+        .route("/data/tweets/generate", post(generate_fake_tweets))
+        .route("/data/generate", post(generate_fake_data))
+        .route("/data/clear", delete(clear_all_data))
         .route("/admin/migrate-health", post(migrate_tweets_health))
         .route("/admin/migrate-users-weapons", post(migrate_users_weapons))
         .route(
@@ -165,6 +176,7 @@ async fn main() -> anyhow::Result<()> {
             get(routes::follow::get_follow_status),
         )
         .route("/users/{user_id}/following", get(get_following_list))
+        .route("/users/{user_id}/followers", get(get_followers_list))
         .route("/weapons/catalog", get(get_weapon_catalog_endpoint))
         .route("/weapons/{user_id}/buy", post(buy_weapon))
         .route("/users/{user_id}/weapons", get(get_user_weapons))

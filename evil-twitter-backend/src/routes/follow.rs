@@ -479,3 +479,98 @@ pub async fn get_following_list(
 pub struct FollowingListResponse {
     pub following: Vec<User>,
 }
+
+/// Get list of users that follow a user
+#[utoipa::path(
+    get,
+    path = "/users/{user_id}/followers",
+    params(
+        ("user_id" = String, Path, description = "User ID to get followers list for")
+    ),
+    responses(
+        (status = 200, description = "Followers list retrieved", body = FollowersListResponse),
+        (status = 400, description = "Bad request"),
+        (status = 404, description = "User not found"),
+        (status = 500, description = "Internal server error")
+    ),
+    tag = "follows"
+)]
+pub async fn get_followers_list(
+    State(db): State<Database>,
+    Path(user_id): Path<String>,
+) -> Result<Json<FollowersListResponse>, ApiError> {
+    let follow_collection: Collection<Follow> = db.collection("follows");
+    let user_collection: Collection<User> = db.collection("users");
+
+    // Parse user ID
+    let user_object_id = ObjectId::parse_str(&user_id).map_err(|_| {
+        (
+            StatusCode::BAD_REQUEST,
+            Json(json!({"error": "Invalid user ID"})),
+        )
+    })?;
+
+    // Check if user exists
+    let _user = user_collection
+        .find_one(doc! {"_id": user_object_id})
+        .await
+        .map_err(|_| {
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(json!({"error": "Database error"})),
+            )
+        })?
+        .ok_or_else(|| {
+            (
+                StatusCode::NOT_FOUND,
+                Json(json!({"error": "User not found"})),
+            )
+        })?;
+
+    // Get followers relationships (where this user is being followed)
+    let mut cursor = follow_collection
+        .find(doc! {"following_id": user_object_id})
+        .await
+        .map_err(|_| {
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(json!({"error": "Database error"})),
+            )
+        })?;
+
+    let mut follower_ids = Vec::new();
+    while let Some(follow) = cursor.try_next().await.map_err(|_| {
+        (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(json!({"error": "Database error"})),
+        )
+    })? {
+        follower_ids.push(follow.follower_id);
+    }
+
+    // Get user details for each follower ID
+    let mut follower_users = Vec::new();
+    for follower_id in follower_ids {
+        if let Some(user) = user_collection
+            .find_one(doc! {"_id": follower_id})
+            .await
+            .map_err(|_| {
+                (
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    Json(json!({"error": "Database error"})),
+                )
+            })?
+        {
+            follower_users.push(user);
+        }
+    }
+
+    Ok(Json(FollowersListResponse {
+        followers: follower_users,
+    }))
+}
+
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, ToSchema)]
+pub struct FollowersListResponse {
+    pub followers: Vec<User>,
+}

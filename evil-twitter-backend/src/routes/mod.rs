@@ -1,3 +1,4 @@
+pub mod data_generation;
 pub mod follow;
 pub mod migration;
 pub mod ping;
