@@ -24,23 +24,32 @@ export function FollowLists({
     const fetchFollowing = useFollowStore((state) => state.fetchFollowing);
     const followUser = useFollowStore((state) => state.followUser);
     const unfollowUser = useFollowStore((state) => state.unfollowUser);
-    const followersEntry = useFollowStore((state) => state.getFollowers(userId));
-    const followingEntry = useFollowStore((state) => state.getFollowing(userId));
+    const followersEntry = useFollowStore((state) => state.followersCache[userId]);
+    const followingEntry = useFollowStore((state) => state.followingCache[userId]);
 
     useEffect(() => {
         if (!userId) return;
 
+        console.log('FollowLists useEffect:', {
+            userId,
+            currentUserId,
+            followersEntry: !!followersEntry,
+            followingEntry: !!followingEntry,
+            followersViewerId: followersEntry?.viewerId,
+            followingViewerId: followingEntry?.viewerId
+        });
+
         if (!followersEntry || followersEntry.viewerId !== (currentUserId ?? null)) {
+            console.log('Fetching followers for:', userId);
             fetchFollowers(userId, currentUserId);
         }
         if (!followingEntry || followingEntry.viewerId !== (currentUserId ?? null)) {
+            console.log('Fetching following for:', userId);
             fetchFollowing(userId, currentUserId);
         }
     }, [
         userId,
         currentUserId,
-        followersEntry,
-        followingEntry,
         fetchFollowers,
         fetchFollowing,
     ]);
@@ -49,12 +58,19 @@ export function FollowLists({
         targetUserId: string,
         currentlyFollowing: boolean
     ) => {
-        if (!currentUserId) return;
+        console.log('handleFollowToggle called:', { targetUserId, currentlyFollowing, currentUserId });
+
+        if (!currentUserId) {
+            console.log('No currentUserId, returning early');
+            return;
+        }
 
         try {
             if (currentlyFollowing) {
+                console.log('Unfollowing user:', targetUserId);
                 await unfollowUser(targetUserId, currentUserId);
             } else {
+                console.log('Following user:', targetUserId);
                 await followUser(targetUserId, currentUserId);
             }
 
@@ -71,6 +87,15 @@ export function FollowLists({
             !item.isViewer &&
             item.user._id.$oid !== currentUserId
         );
+
+        // Debug logging
+        console.log('FollowLists renderUserItem:', {
+            showFollowButtons,
+            currentUserId,
+            isViewer: item.isViewer,
+            userId: item.user._id.$oid,
+            canFollow
+        });
 
         return (
             <FollowListItem

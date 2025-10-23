@@ -8,7 +8,7 @@ import { useProfileStore } from '@/lib/stores/profileStore';
 import { useTweetsStore } from '@/lib/stores/tweetsStore';
 import { useWeaponsStore } from '@/lib/stores/weaponsStore';
 import { useRouter } from 'expo-router';
-import React, { useCallback, useEffect } from 'react';
+import React, { useEffect } from 'react';
 import { ActivityIndicator, Alert, FlatList, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { Card } from 'react-native-paper';
 
@@ -52,12 +52,8 @@ export function Profile({
     const displayUser = isOwnProfile ? currentBackendUser : profileUser;
     const displayUserId = isOwnProfile ? currentBackendUser?._id?.$oid : userId;
 
-    const followStatusEntry = useFollowStore(
-        useCallback(
-            (state) =>
-                displayUserId ? state.statusCache[displayUserId] : undefined,
-            [displayUserId]
-        )
+    const followStatusEntry = useFollowStore((state) =>
+        displayUserId ? state.statusCache[displayUserId] : undefined
     );
     const checkFollowStatus = useFollowStore((state) => state.checkFollowStatus);
     const followUser = useFollowStore((state) => state.followUser);

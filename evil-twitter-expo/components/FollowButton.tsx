@@ -8,6 +8,11 @@ interface FollowButtonProps {
 }
 
 export function FollowButton({ isFollowing, onToggle, compact = false }: FollowButtonProps) {
+  const handlePress = () => {
+    console.log('FollowButton pressed:', { isFollowing, onToggle: !!onToggle });
+    onToggle();
+  };
+
   return (
     <TouchableOpacity
       style={[
@@ -16,7 +21,7 @@ export function FollowButton({ isFollowing, onToggle, compact = false }: FollowB
         isFollowing && styles.following,
       ]}
       activeOpacity={0.8}
-      onPress={onToggle}
+      onPress={handlePress}
     >
       <Text style={[styles.label, isFollowing && styles.followingLabel]}>
         {isFollowing ? 'Following' : 'Follow'}
