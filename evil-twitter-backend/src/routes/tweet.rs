@@ -19,9 +19,9 @@ use crate::{
     middleware::wall::compose_wall,
     models::{
         tweet::{
-            CreateTweet, Tweet, TweetAttackAction, TweetAuthorSnapshot, TweetHealAction,
-            TweetHealthState, TweetMetrics, TweetType, TweetView, TweetViewerContext,
-            TweetViralitySnapshot,
+            CreateTweet, Tweet, TweetAttackAction, TweetAuthorSnapshot, TweetEnergyState,
+            TweetHealAction, TweetHealthState, TweetMetrics, TweetType, TweetView,
+            TweetViewerContext,
         },
         user::User,
     },
@@ -311,7 +311,7 @@ pub async fn create_tweet(
         },
         viewer_context: TweetViewerContext::default(),
         health: TweetHealthState::default(),
-        virality: TweetViralitySnapshot::default(),
+        virality: TweetEnergyState::default(),
     };
 
     collection
@@ -484,7 +484,7 @@ pub async fn generate_fake_tweets(
             author_snapshot: TweetAuthorSnapshot::default(),
             viewer_context: TweetViewerContext::default(),
             health: TweetHealthState::default(),
-            virality: TweetViralitySnapshot::default(),
+            virality: TweetEnergyState::default(),
         });
     }
 
@@ -573,7 +573,7 @@ pub async fn retweet_tweet(
         },
         viewer_context: TweetViewerContext::default(),
         health: TweetHealthState::default(),
-        virality: TweetViralitySnapshot::default(),
+        virality: TweetEnergyState::default(),
     };
 
     collection
@@ -671,7 +671,7 @@ pub async fn quote_tweet(
         },
         viewer_context: TweetViewerContext::default(),
         health: TweetHealthState::default(),
-        virality: TweetViralitySnapshot::default(),
+        virality: TweetEnergyState::default(),
     };
 
     collection
@@ -773,7 +773,7 @@ pub async fn reply_tweet(
         },
         viewer_context: TweetViewerContext::default(),
         health: TweetHealthState::default(),
-        virality: TweetViralitySnapshot::default(),
+        virality: TweetEnergyState::default(),
     };
 
     collection
@@ -1055,10 +1055,7 @@ pub async fn get_thread(
         parent_chain.push(parent);
     }
     parent_chain.reverse();
-    let parent_ids: HashSet<ObjectId> = parent_chain
-        .iter()
-        .filter_map(|tweet| tweet.id)
-        .collect();
+    let parent_ids: HashSet<ObjectId> = parent_chain.iter().filter_map(|tweet| tweet.id).collect();
 
     // Collect all tweets in the same root thread
     let mut cursor = tweet_collection
@@ -1137,4 +1134,68 @@ pub async fn get_thread(
         parents: parents_view,
         replies: replies_view,
     }))
+}
+
+// Energy tracking function
+pub async fn record_energy_change(
+    db: &Database,
+    tweet_id: ObjectId,
+    action_type: crate::models::tweet::EnergyActionType,
+    energy_change: f64,
+    user_id: ObjectId,
+    weapon_used: Option<String>,
+) -> Result<(), ApiError> {
+    let collection: Collection<Tweet> = db.collection("tweets");
+    let energy_history_collection: Collection<crate::models::tweet::TweetEnergyStateHistory> =
+        db.collection("tweet_energy_history");
+
+    let mut tweet = collection
+        .find_one(doc! {"_id": tweet_id})
+        .await
+        .map_err(|_| internal_error("Database error fetching tweet"))?
+        .ok_or_else(|| not_found("Tweet not found"))?;
+
+    let energy_before = tweet.virality.energy;
+    let energy_after = (energy_before + energy_change).max(0.0);
+
+    // Create history record
+    let history_record = crate::models::tweet::TweetEnergyStateHistory {
+        id: None,
+        tweet_id,
+        timestamp: mongodb::bson::DateTime::now(),
+        action_type,
+        energy_change,
+        energy_before,
+        energy_after,
+        user_id,
+        weapon_used,
+    };
+
+    // Update tweet energy state
+    match action_type.clone() {
+        crate::models::tweet::EnergyActionType::Attack => {
+            tweet.virality.energy_lost_from_attacks += energy_change.abs();
+        }
+        crate::models::tweet::EnergyActionType::Heal => {
+            tweet.virality.energy_gained_from_support += energy_change;
+        }
+    }
+
+    tweet.virality.update_energy();
+
+    // Save both
+    energy_history_collection
+        .insert_one(&history_record)
+        .await
+        .map_err(|_| internal_error("Failed to record energy history"))?;
+
+    collection
+        .update_one(
+            doc! {"_id": tweet_id},
+            doc! {"$set": {"virality": bson::to_bson(&tweet.virality).map_err(|_| internal_error("Serialization error"))?}}
+        )
+        .await
+        .map_err(|_| internal_error("Failed to update tweet energy"))?;
+
+    Ok(())
 }

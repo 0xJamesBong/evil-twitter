@@ -62,7 +62,7 @@ pub struct Tweet {
     pub health: TweetHealthState,
 
     #[serde(default)]
-    pub virality: TweetViralitySnapshot,
+    pub virality: TweetEnergyState,
 }
 
 /// Aggregated engagement data tracked for each tweet.
@@ -212,25 +212,93 @@ pub struct TweetHealthHistory {
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone, ToSchema)]
-pub struct TweetViralitySnapshot {
+pub struct TweetEnergyState {
     #[schema(example = "0.0")]
-    pub score: f64,
-
+    pub energy: f64, // E_t (dynamic)
     #[schema(example = "0.0")]
-    pub momentum: f64,
-
-    #[schema(example = "1.0")]
-    pub health_multiplier: f64,
+    pub kinetic_energy: f64, // K_t (dynamic) // ½mv²
+    #[schema(example = "0.0")]
+    pub potential_energy: f64, // U_t (dynamic) // mgy
+    #[schema(example = "0.0")]
+    pub energy_gained_from_support: f64, //
+    #[schema(example = "0.0")]
+    pub energy_lost_from_attacks: f64, // Δ
+    #[schema(example = "0.0")]
+    pub mass: f64, // m_t (dynamic)
+    #[schema(example = "0.0")]
+    pub velocity_initial: f64, // this will never change in the lifetime of a tweet
+    #[schema(example = "0.0")]
+    pub height_initial: f64, // y_0 (initial) - this will never change in the liftime of a tweet
+    #[schema(example = "2024-01-01T00:00:00Z")]
+    pub last_update_timestamp: DateTime,
 }
 
-impl Default for TweetViralitySnapshot {
+impl Default for TweetEnergyState {
     fn default() -> Self {
         Self {
-            score: 0.0,
-            momentum: 0.0,
-            health_multiplier: 1.0,
+            energy: 0.0,
+            kinetic_energy: 0.0,
+            potential_energy: 0.0,
+
+            energy_gained_from_support: 0.0,
+            energy_lost_from_attacks: 0.0,
+            mass: 0.0,
+            velocity_initial: 0.0,
+            height_initial: 0.0,
+            last_update_timestamp: DateTime::now(),
         }
     }
+}
+pub const GRAVITY: f64 = 9.81;
+impl TweetEnergyState {
+    pub fn calc_total_energy(&self) -> f64 {
+        // E = ½mv² + mgy - attacks + heals
+        self.kinetic_energy + self.potential_energy + self.energy_gained_from_support
+            - self.energy_lost_from_attacks
+    }
+    pub fn update_energy(&mut self) {
+        self.kinetic_energy = 0.5 * self.mass * self.velocity_initial.powi(2);
+        self.potential_energy = self.mass * self.height_initial * GRAVITY;
+        self.energy = self.kinetic_energy + self.potential_energy + self.energy_gained_from_support
+            - self.energy_lost_from_attacks;
+        self.last_update_timestamp = DateTime::now();
+    }
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone, ToSchema)]
+pub struct TweetEnergyStateHistory {
+    #[serde(rename = "_id", skip_serializing_if = "Option::is_none")]
+    #[schema(value_type = String, example = "507f1f77bcf86cd799439011")]
+    pub id: Option<ObjectId>,
+
+    #[schema(value_type=String, example = "507f1f77bcf86cd799439011")]
+    pub tweet_id: ObjectId,
+
+    #[schema(example = "2024-01-01T00:00:00Z")]
+    pub timestamp: DateTime,
+
+    pub action_type: EnergyActionType, // Just Attack or Heal
+
+    #[schema(example = "5.2")]
+    pub energy_change: f64, // Positive for heals, negative for attacks
+
+    #[schema(example = "100.0")]
+    pub energy_before: f64,
+
+    #[schema(example = "105.2")]
+    pub energy_after: f64,
+
+    #[schema(value_type = String, example = "507f1f77bcf86cd799439011")]
+    pub user_id: ObjectId, // Who did the action
+
+    #[serde(default)]
+    pub weapon_used: Option<String>, // Optional: what weapon/gadget was used
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone, ToSchema)]
+pub enum EnergyActionType {
+    Attack,
+    Heal,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone, ToSchema)]

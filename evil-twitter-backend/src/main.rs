@@ -84,7 +84,7 @@ use routes::weapons::{buy_weapon, get_user_weapons, get_weapon_catalog_endpoint}
             models::tweet::TweetMetrics,
             models::tweet::TweetAuthorSnapshot,
             models::tweet::TweetViewerContext,
-            models::tweet::TweetViralitySnapshot,
+            models::tweet::TweetEnergyState,
             models::follow::Follow,
             models::follow::FollowRequest,
             models::follow::FollowResponse,
