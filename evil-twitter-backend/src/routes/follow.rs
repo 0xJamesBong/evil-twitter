@@ -1,8 +1,9 @@
 use axum::{
     Json,
-    extract::{Path, State},
+    extract::{Path, Query, State},
     http::StatusCode,
 };
+use std::collections::{HashMap, HashSet};
 use futures::TryStreamExt;
 use mongodb::{
     Collection, Database,
@@ -403,6 +404,7 @@ pub async fn get_follow_status(
 pub async fn get_following_list(
     State(db): State<Database>,
     Path(user_id): Path<String>,
+    Query(params): Query<HashMap<String, String>>,
 ) -> Result<Json<FollowingListResponse>, ApiError> {
     let follow_collection: Collection<Follow> = db.collection("follows");
     let user_collection: Collection<User> = db.collection("users");
@@ -432,6 +434,35 @@ pub async fn get_following_list(
             )
         })?;
 
+    let viewer_id = if let Some(viewer) = params.get("viewer_id") {
+        let parsed = ObjectId::parse_str(viewer).map_err(|_| {
+            (
+                StatusCode::BAD_REQUEST,
+                Json(json!({"error": "Invalid viewer_id"})),
+            )
+        })?;
+
+        user_collection
+            .find_one(doc! {"_id": parsed})
+            .await
+            .map_err(|_| {
+                (
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    Json(json!({"error": "Database error"})),
+                )
+            })?
+            .ok_or_else(|| {
+                (
+                    StatusCode::NOT_FOUND,
+                    Json(json!({"error": "Viewer not found"})),
+                )
+            })?;
+
+        Some(parsed)
+    } else {
+        None
+    };
+
     // Get following relationships
     let mut cursor = follow_collection
         .find(doc! {"follower_id": user_object_id})
@@ -453,31 +484,88 @@ pub async fn get_following_list(
         following_ids.push(follow.following_id);
     }
 
-    // Get user details for each following ID
-    let mut following_users = Vec::new();
-    for following_id in following_ids {
-        if let Some(user) = user_collection
-            .find_one(doc! {"_id": following_id})
+    if following_ids.is_empty() {
+        return Ok(Json(FollowingListResponse { following: Vec::new() }));
+    }
+
+    let mut viewer_follow_set: HashSet<ObjectId> = HashSet::new();
+    if let Some(ref viewer_id) = viewer_id {
+        let mut viewer_cursor = follow_collection
+            .find(doc! {
+                "follower_id": viewer_id.clone(),
+                "following_id": {"$in": &following_ids}
+            })
             .await
             .map_err(|_| {
                 (
                     StatusCode::INTERNAL_SERVER_ERROR,
                     Json(json!({"error": "Database error"})),
                 )
-            })?
-        {
-            following_users.push(user);
+            })?;
+
+        while let Some(follow) = viewer_cursor.try_next().await.map_err(|_| {
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(json!({"error": "Database error"})),
+            )
+        })? {
+            viewer_follow_set.insert(follow.following_id);
+        }
+    }
+
+    let mut user_cursor = user_collection
+        .find(doc! {"_id": {"$in": &following_ids}})
+        .await
+        .map_err(|_| {
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(json!({"error": "Database error"})),
+            )
+        })?;
+
+    let mut user_map: HashMap<ObjectId, User> = HashMap::new();
+    while let Some(user) = user_cursor.try_next().await.map_err(|_| {
+        (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(json!({"error": "Database error"})),
+        )
+    })? {
+        if let Some(id) = user.id {
+            user_map.insert(id, user);
+        }
+    }
+
+    let mut following_entries: Vec<FollowListEntry> = Vec::new();
+    for following_id in following_ids {
+        if let Some(user) = user_map.get(&following_id) {
+            let is_viewer = matches!(viewer_id, Some(ref viewer) if viewer == &following_id);
+            let is_followed = viewer_follow_set.contains(&following_id);
+
+            following_entries.push(FollowListEntry {
+                user: user.clone(),
+                is_followed_by_viewer: is_followed,
+                is_viewer,
+            });
         }
     }
 
     Ok(Json(FollowingListResponse {
-        following: following_users,
+        following: following_entries,
     }))
 }
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize, ToSchema)]
+pub struct FollowListEntry {
+    pub user: User,
+    #[serde(default)]
+    pub is_followed_by_viewer: bool,
+    #[serde(default)]
+    pub is_viewer: bool,
+}
+
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, ToSchema)]
 pub struct FollowingListResponse {
-    pub following: Vec<User>,
+    pub following: Vec<FollowListEntry>,
 }
 
 /// Get list of users that follow a user
@@ -498,6 +586,7 @@ pub struct FollowingListResponse {
 pub async fn get_followers_list(
     State(db): State<Database>,
     Path(user_id): Path<String>,
+    Query(params): Query<HashMap<String, String>>,
 ) -> Result<Json<FollowersListResponse>, ApiError> {
     let follow_collection: Collection<Follow> = db.collection("follows");
     let user_collection: Collection<User> = db.collection("users");
@@ -527,6 +616,35 @@ pub async fn get_followers_list(
             )
         })?;
 
+    let viewer_id = if let Some(viewer) = params.get("viewer_id") {
+        let parsed = ObjectId::parse_str(viewer).map_err(|_| {
+            (
+                StatusCode::BAD_REQUEST,
+                Json(json!({"error": "Invalid viewer_id"})),
+            )
+        })?;
+
+        user_collection
+            .find_one(doc! {"_id": parsed})
+            .await
+            .map_err(|_| {
+                (
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    Json(json!({"error": "Database error"})),
+                )
+            })?
+            .ok_or_else(|| {
+                (
+                    StatusCode::NOT_FOUND,
+                    Json(json!({"error": "Viewer not found"})),
+                )
+            })?;
+
+        Some(parsed)
+    } else {
+        None
+    };
+
     // Get followers relationships (where this user is being followed)
     let mut cursor = follow_collection
         .find(doc! {"following_id": user_object_id})
@@ -548,29 +666,79 @@ pub async fn get_followers_list(
         follower_ids.push(follow.follower_id);
     }
 
-    // Get user details for each follower ID
-    let mut follower_users = Vec::new();
-    for follower_id in follower_ids {
-        if let Some(user) = user_collection
-            .find_one(doc! {"_id": follower_id})
+    if follower_ids.is_empty() {
+        return Ok(Json(FollowersListResponse {
+            followers: Vec::new(),
+        }));
+    }
+
+    let mut viewer_follow_set: HashSet<ObjectId> = HashSet::new();
+    if let Some(ref viewer_id) = viewer_id {
+        let mut viewer_cursor = follow_collection
+            .find(doc! {
+                "follower_id": viewer_id.clone(),
+                "following_id": {"$in": &follower_ids}
+            })
             .await
             .map_err(|_| {
                 (
                     StatusCode::INTERNAL_SERVER_ERROR,
                     Json(json!({"error": "Database error"})),
                 )
-            })?
-        {
-            follower_users.push(user);
+            })?;
+
+        while let Some(follow) = viewer_cursor.try_next().await.map_err(|_| {
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(json!({"error": "Database error"})),
+            )
+        })? {
+            viewer_follow_set.insert(follow.following_id);
+        }
+    }
+
+    let mut user_cursor = user_collection
+        .find(doc! {"_id": {"$in": &follower_ids}})
+        .await
+        .map_err(|_| {
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(json!({"error": "Database error"})),
+            )
+        })?;
+
+    let mut user_map: HashMap<ObjectId, User> = HashMap::new();
+    while let Some(user) = user_cursor.try_next().await.map_err(|_| {
+        (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(json!({"error": "Database error"})),
+        )
+    })? {
+        if let Some(id) = user.id {
+            user_map.insert(id, user);
+        }
+    }
+
+    let mut follower_entries: Vec<FollowListEntry> = Vec::new();
+    for follower_id in follower_ids {
+        if let Some(user) = user_map.get(&follower_id) {
+            let is_viewer = matches!(viewer_id, Some(ref viewer) if viewer == &follower_id);
+            let is_followed = viewer_follow_set.contains(&follower_id);
+
+            follower_entries.push(FollowListEntry {
+                user: user.clone(),
+                is_followed_by_viewer: is_followed,
+                is_viewer,
+            });
         }
     }
 
     Ok(Json(FollowersListResponse {
-        followers: follower_users,
+        followers: follower_entries,
     }))
 }
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize, ToSchema)]
 pub struct FollowersListResponse {
-    pub followers: Vec<User>,
+    pub followers: Vec<FollowListEntry>,
 }

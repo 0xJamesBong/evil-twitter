@@ -1,99 +1,116 @@
-import { useFollowStore } from '@/lib/stores/followStore';
+import { FollowListItem } from '@/components/FollowListItem';
+import { FollowListEntry, useFollowStore } from '@/lib/stores/followStore';
 import { useRouter } from 'expo-router';
 import React, { useEffect, useState } from 'react';
 import { ActivityIndicator, FlatList, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 
 interface FollowListsProps {
     userId: string;
-    currentUserId?: string; // Optional - if provided, shows follow buttons
-    showFollowButtons?: boolean; // Whether to show follow/unfollow buttons
-    onFollowToggle?: (targetUserId: string) => void; // Optional callback for follow actions
+    currentUserId?: string;
+    showFollowButtons?: boolean;
+    onFollowToggle?: (targetUserId: string) => void;
 }
 
 export function FollowLists({
     userId,
     currentUserId,
     showFollowButtons = false,
-    onFollowToggle
+    onFollowToggle,
 }: FollowListsProps) {
     const router = useRouter();
     const [activeTab, setActiveTab] = useState<'followers' | 'following'>('followers');
 
-    // Unified store
-    const {
-        followers,
-        followersLoading,
-        following,
-        followingLoading,
-        isFollowing,
-        followStatusLoading,
+    const fetchFollowers = useFollowStore((state) => state.fetchFollowers);
+    const fetchFollowing = useFollowStore((state) => state.fetchFollowing);
+    const followUser = useFollowStore((state) => state.followUser);
+    const unfollowUser = useFollowStore((state) => state.unfollowUser);
+    const followersEntry = useFollowStore((state) => state.followersCache[userId]);
+    const followingEntry = useFollowStore((state) => state.followingCache[userId]);
+
+    useEffect(() => {
+        if (!userId) return;
+
+        console.log('FollowLists useEffect:', {
+            userId,
+            currentUserId,
+            followersEntry: !!followersEntry,
+            followingEntry: !!followingEntry,
+            followersViewerId: followersEntry?.viewerId,
+            followingViewerId: followingEntry?.viewerId
+        });
+
+        if (!followersEntry || followersEntry.viewerId !== (currentUserId ?? null)) {
+            console.log('Fetching followers for:', userId);
+            fetchFollowers(userId, currentUserId);
+        }
+        if (!followingEntry || followingEntry.viewerId !== (currentUserId ?? null)) {
+            console.log('Fetching following for:', userId);
+            fetchFollowing(userId, currentUserId);
+        }
+    }, [
+        userId,
+        currentUserId,
         fetchFollowers,
         fetchFollowing,
-        followUser,
-        unfollowUser
-    } = useFollowStore();
+    ]);
 
-    // Fetch data when component mounts or userId changes
-    useEffect(() => {
-        if (userId) {
-            fetchFollowers(userId);
-            fetchFollowing(userId);
+    const handleFollowToggle = async (
+        targetUserId: string,
+        currentlyFollowing: boolean
+    ) => {
+        console.log('handleFollowToggle called:', { targetUserId, currentlyFollowing, currentUserId });
+
+        if (!currentUserId) {
+            console.log('No currentUserId, returning early');
+            return;
         }
-    }, [userId, fetchFollowers, fetchFollowing]);
-
-    const handleFollowToggle = async (targetUserId: string) => {
-        if (!currentUserId) return;
 
         try {
-            if (isFollowing) {
+            if (currentlyFollowing) {
+                console.log('Unfollowing user:', targetUserId);
                 await unfollowUser(targetUserId, currentUserId);
             } else {
+                console.log('Following user:', targetUserId);
                 await followUser(targetUserId, currentUserId);
             }
 
-            // Call the optional callback if provided
-            if (onFollowToggle) {
-                onFollowToggle(targetUserId);
-            }
+            onFollowToggle?.(targetUserId);
         } catch (error) {
             console.error('Follow action failed:', error);
         }
     };
 
-    const renderUserItem = ({ item }: { item: any }) => (
-        <TouchableOpacity
-            style={styles.userItem}
-            onPress={() => router.push(`/profile/${item._id.$oid}`)}
-        >
-            <View style={styles.userAvatar}>
-                <Text style={styles.userAvatarText}>
-                    {item.display_name?.charAt(0).toUpperCase() || item.username?.charAt(0).toUpperCase() || '😈'}
-                </Text>
-            </View>
-            <View style={styles.userInfo}>
-                <Text style={styles.userName}>{item.display_name || item.username || 'User'}</Text>
-                <Text style={styles.userUsername}>@{item.username || 'user'}</Text>
-                {item.bio && (
-                    <Text style={styles.userBio} numberOfLines={2}>{item.bio}</Text>
-                )}
-            </View>
-            {showFollowButtons && currentUserId && item._id.$oid !== currentUserId && (
-                <TouchableOpacity
-                    style={[styles.followButton, isFollowing && styles.followingButton]}
-                    onPress={() => handleFollowToggle(item._id.$oid)}
-                    disabled={followStatusLoading}
-                >
-                    {followStatusLoading ? (
-                        <ActivityIndicator size="small" color={isFollowing ? "#71767b" : "#fff"} />
-                    ) : (
-                        <Text style={[styles.followButtonText, isFollowing && styles.followingButtonText]}>
-                            {isFollowing ? 'Following' : 'Follow'}
-                        </Text>
-                    )}
-                </TouchableOpacity>
-            )}
-        </TouchableOpacity>
-    );
+    const renderUserItem = ({ item }: { item: FollowListEntry }) => {
+        const canFollow = Boolean(
+            showFollowButtons &&
+            currentUserId &&
+            !item.isViewer &&
+            item.user._id.$oid !== currentUserId
+        );
+
+        // Debug logging
+        console.log('FollowLists renderUserItem:', {
+            showFollowButtons,
+            currentUserId,
+            isViewer: item.isViewer,
+            userId: item.user._id.$oid,
+            canFollow
+        });
+
+        return (
+            <FollowListItem
+                user={item.user}
+                showBio
+                onPress={(user) => router.push(`/profile/${user._id.$oid}`)}
+                showFollowButton={canFollow}
+                isFollowed={item.isFollowedByViewer}
+
+                onToggleFollow={() =>
+                    handleFollowToggle(item.user._id.$oid, item.isFollowedByViewer)
+                }
+            />
+        );
+    };
 
     const renderEmptyState = (type: 'followers' | 'following') => (
         <View style={styles.emptyState}>
@@ -103,15 +120,16 @@ export function FollowLists({
             <Text style={styles.emptySubtext}>
                 {type === 'followers'
                     ? 'Start tweeting to get followers!'
-                    : 'Start following people to see them here!'
-                }
+                    : 'Start following people to see them here!'}
             </Text>
         </View>
     );
 
     const renderList = (type: 'followers' | 'following') => {
-        const data = type === 'followers' ? followers : following;
-        const loading = type === 'followers' ? followersLoading : followingLoading;
+        const entry = type === 'followers' ? followersEntry : followingEntry;
+        const data = entry?.data ?? [];
+        const loading = entry?.loading ?? false;
+        const error = entry?.error ?? null;
 
         if (loading) {
             return (
@@ -122,15 +140,23 @@ export function FollowLists({
             );
         }
 
-        if (data.length === 0) {
+        if (error) {
+            return (
+                <View style={styles.errorContainer}>
+                    <Text style={styles.errorText}>{error}</Text>
+                </View>
+            );
+        }
+
+        if (!data.length) {
             return renderEmptyState(type);
         }
 
         return (
             <FlatList
-                data={data.slice(0, 5)} // Show only first 5
+                data={data}
                 renderItem={renderUserItem}
-                keyExtractor={(item) => item._id.$oid}
+                keyExtractor={(item) => item.user._id.$oid}
                 scrollEnabled={false}
                 contentContainerStyle={styles.listContainer}
             />
@@ -141,14 +167,13 @@ export function FollowLists({
         <View style={styles.container}>
             <Text style={styles.sectionTitle}>👥 Followers & Following</Text>
 
-            {/* Tabs */}
             <View style={styles.tabsContainer}>
                 <TouchableOpacity
                     style={[styles.tab, activeTab === 'followers' && styles.activeTab]}
                     onPress={() => setActiveTab('followers')}
                 >
                     <Text style={[styles.tabText, activeTab === 'followers' && styles.activeTabText]}>
-                        Followers ({followers.length})
+                        Followers ({followersEntry?.data?.length ?? 0})
                     </Text>
                 </TouchableOpacity>
                 <TouchableOpacity
@@ -156,12 +181,11 @@ export function FollowLists({
                     onPress={() => setActiveTab('following')}
                 >
                     <Text style={[styles.tabText, activeTab === 'following' && styles.activeTabText]}>
-                        Following ({following.length})
+                        Following ({followingEntry?.data?.length ?? 0})
                     </Text>
                 </TouchableOpacity>
             </View>
 
-            {/* Content */}
             {activeTab === 'followers' ? renderList('followers') : renderList('following')}
         </View>
     );
@@ -198,76 +222,13 @@ const styles = StyleSheet.create({
     tabText: {
         fontSize: 14,
         color: '#71767b',
-        fontWeight: 'bold',
     },
     activeTabText: {
         color: '#fff',
+        fontWeight: 'bold',
     },
     listContainer: {
         gap: 12,
-    },
-    userItem: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        padding: 12,
-        backgroundColor: '#16181c',
-        borderRadius: 12,
-        borderWidth: 1,
-        borderColor: '#2f3336',
-    },
-    userAvatar: {
-        width: 40,
-        height: 40,
-        borderRadius: 20,
-        backgroundColor: '#536471',
-        justifyContent: 'center',
-        alignItems: 'center',
-        marginRight: 12,
-    },
-    userAvatarText: {
-        color: '#fff',
-        fontSize: 16,
-        fontWeight: 'bold',
-    },
-    userInfo: {
-        flex: 1,
-    },
-    userName: {
-        fontSize: 16,
-        fontWeight: 'bold',
-        color: '#fff',
-        marginBottom: 2,
-    },
-    userUsername: {
-        fontSize: 14,
-        color: '#71767b',
-        marginBottom: 4,
-    },
-    userBio: {
-        fontSize: 14,
-        color: '#e7e9ea',
-        lineHeight: 18,
-    },
-    followButton: {
-        backgroundColor: '#1d9bf0',
-        paddingVertical: 6,
-        paddingHorizontal: 12,
-        borderRadius: 16,
-        alignItems: 'center',
-        minWidth: 70,
-    },
-    followingButton: {
-        backgroundColor: 'transparent',
-        borderWidth: 1,
-        borderColor: '#71767b',
-    },
-    followButtonText: {
-        color: '#fff',
-        fontSize: 12,
-        fontWeight: 'bold',
-    },
-    followingButtonText: {
-        color: '#71767b',
     },
     loadingContainer: {
         flexDirection: 'row',
@@ -292,5 +253,13 @@ const styles = StyleSheet.create({
     emptySubtext: {
         fontSize: 14,
         color: '#71767b',
+    },
+    errorContainer: {
+        alignItems: 'center',
+        padding: 24,
+    },
+    errorText: {
+        color: '#f87171',
+        fontSize: 14,
     },
 });

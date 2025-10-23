@@ -27,7 +27,7 @@ interface BackendUserState {
 interface BackendUserActions {
   createUser: (user: User) => Promise<void>;
   fetchUser: (supabaseId: string) => Promise<void>;
-  syncWithSupabase: (supabaseUser: any) => Promise<void>;
+  // syncWithSupabase: (supabaseUser: any) => Promise<void>;
   clearUser: () => void;
 }
 

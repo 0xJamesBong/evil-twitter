@@ -1,270 +1,503 @@
 import { create } from "zustand";
 import { API_BASE_URL } from "../config/api";
 
-interface FollowUser {
-  _id: { $oid: string };
+export type ObjectIdString = string;
+
+export interface FollowUser {
+  _id: { $oid: ObjectIdString };
   supabase_id: string;
   username: string;
   display_name: string;
   email: string;
   avatar_url?: string;
   bio?: string;
-  created_at: { $date: { $numberLong: string } };
-  followers_count: number;
-  following_count: number;
+  created_at?: { $date: { $numberLong: string } };
+  followers_count?: number;
+  following_count?: number;
+}
+
+export interface FollowListEntry {
+  user: FollowUser;
+  isFollowedByViewer: boolean;
+  isViewer: boolean;
+}
+
+interface FollowStatusCacheEntry {
+  isFollowing: boolean;
+  loading: boolean;
+  error: string | null;
+  lastUpdated: number;
+}
+
+interface FollowListCacheEntry {
+  data: FollowListEntry[];
+  loading: boolean;
+  error: string | null;
+  lastUpdated: number;
+  viewerId: string | null;
 }
 
 interface FollowState {
-  // Followers data
-  followers: FollowUser[];
-  followersLoading: boolean;
-  followersError: string | null;
-
-  // Following data
-  following: FollowUser[];
-  followingLoading: boolean;
-  followingError: string | null;
-
-  // Follow status for current user viewing another user
-  isFollowing: boolean;
-  followStatusLoading: boolean;
-  followStatusError: string | null;
+  statusCache: Record<string, FollowStatusCacheEntry>;
+  followersCache: Record<string, FollowListCacheEntry>;
+  followingCache: Record<string, FollowListCacheEntry>;
 }
 
 interface FollowActions {
-  // Followers actions
-  fetchFollowers: (userId: string) => Promise<void>;
-  clearFollowers: () => void;
-  clearFollowersError: () => void;
+  getFollowStatus: (targetUserId: string) => FollowStatusCacheEntry | undefined;
+  checkFollowStatus: (targetUserId: string, viewerId: string) => Promise<void>;
+  followUser: (targetUserId: string, viewerId: string) => Promise<void>;
+  unfollowUser: (targetUserId: string, viewerId: string) => Promise<void>;
 
-  // Following actions
-  fetchFollowing: (userId: string) => Promise<void>;
-  clearFollowing: () => void;
-  clearFollowingError: () => void;
+  getFollowers: (userId: string) => FollowListCacheEntry | undefined;
+  fetchFollowers: (userId: string, viewerId?: string) => Promise<void>;
 
-  // Follow status actions
-  checkFollowStatus: (
-    targetUserId: string,
-    currentUserId: string
-  ) => Promise<void>;
-  followUser: (targetUserId: string, currentUserId: string) => Promise<void>;
-  unfollowUser: (targetUserId: string, currentUserId: string) => Promise<void>;
-  clearFollowStatus: () => void;
-  clearFollowStatusError: () => void;
+  getFollowing: (userId: string) => FollowListCacheEntry | undefined;
+  fetchFollowing: (userId: string, viewerId?: string) => Promise<void>;
+
+  clearCaches: () => void;
 }
+
+const buildUrl = (path: string, params: Record<string, string | undefined>) => {
+  const url = new URL(path, "http://localhost");
+  Object.entries(params).forEach(([key, value]) => {
+    if (value) url.searchParams.set(key, value);
+  });
+  return url.toString();
+};
+
+const normalizeEntry = (raw: any): FollowListEntry => {
+  const user = (raw?.user ?? {}) as FollowUser;
+  return {
+    user,
+    isFollowedByViewer: Boolean(raw?.is_followed_by_viewer),
+    isViewer: Boolean(raw?.is_viewer),
+  };
+};
+
+const now = () => Date.now();
+
+const updateListCache = (
+  cache: Record<string, FollowListCacheEntry>,
+  key: string,
+  userId: string,
+  isFollowed: boolean
+) => {
+  const entry = cache[key];
+  if (!entry) {
+    console.log(
+      "updateListCache: No entry found for key:",
+      key,
+      "- skipping update"
+    );
+    return cache;
+  }
+
+  console.log("updateListCache:", {
+    key,
+    userId,
+    isFollowed,
+    entryDataLength: entry.data.length,
+  });
+
+  const updatedData = entry.data.map((item) => {
+    if (item.user._id.$oid === userId) {
+      console.log(
+        "updateListCache: Updating user",
+        userId,
+        "to isFollowedByViewer:",
+        isFollowed
+      );
+      return { ...item, isFollowedByViewer: isFollowed };
+    }
+    return item;
+  });
+
+  return {
+    ...cache,
+    [key]: {
+      ...entry,
+      data: updatedData,
+    },
+  };
+};
 
 export const useFollowStore = create<FollowState & FollowActions>(
   (set, get) => ({
-    // State
-    followers: [],
-    followersLoading: false,
-    followersError: null,
-    following: [],
-    followingLoading: false,
-    followingError: null,
-    isFollowing: false,
-    followStatusLoading: false,
-    followStatusError: null,
+    statusCache: {},
+    followersCache: {},
+    followingCache: {},
 
-    // Followers actions
-    fetchFollowers: async (userId: string) => {
-      set({ followersLoading: true, followersError: null });
+    getFollowStatus: (targetUserId) => get().statusCache[targetUserId],
+
+    checkFollowStatus: async (targetUserId, viewerId) => {
+      set((state) => ({
+        statusCache: {
+          ...state.statusCache,
+          [targetUserId]: {
+            ...(state.statusCache[targetUserId] ?? {
+              isFollowing: false,
+              error: null,
+              lastUpdated: 0,
+            }),
+            loading: true,
+            error: null,
+          },
+        },
+      }));
+
       try {
-        console.log("Fetching followers for userId:", userId);
         const response = await fetch(
-          `${API_BASE_URL}/users/${userId}/followers`
+          `${API_BASE_URL}/users/${targetUserId}/follow-status?follower_id=${viewerId}`
         );
 
         if (!response.ok) {
-          const errorData = await response.json();
-          throw new Error(errorData.error || "Failed to fetch followers list");
+          const err = await response.json().catch(() => ({}));
+          throw new Error(err.error || "Failed to fetch follow status");
         }
 
         const data = await response.json();
-        console.log("Followers API response:", data);
-        set({
-          followers: data.followers || [],
-          followersLoading: false,
-          followersError: null,
-        });
-      } catch (error) {
-        console.error("Followers fetch error:", error);
-        set({
-          followersError:
-            error instanceof Error
-              ? error.message
-              : "Failed to fetch followers",
-          followersLoading: false,
-        });
-      }
-    },
 
-    clearFollowers: () => {
-      set({ followers: [], followersError: null });
-    },
-
-    clearFollowersError: () => {
-      set({ followersError: null });
-    },
-
-    // Following actions
-    fetchFollowing: async (userId: string) => {
-      set({ followingLoading: true, followingError: null });
-      try {
-        console.log("Fetching following for userId:", userId);
-        const response = await fetch(
-          `${API_BASE_URL}/users/${userId}/following`
-        );
-
-        if (!response.ok) {
-          const errorData = await response.json();
-          throw new Error(errorData.error || "Failed to fetch following list");
-        }
-
-        const data = await response.json();
-        console.log("Following API response:", data);
-        set({
-          following: data.following || [],
-          followingLoading: false,
-          followingError: null,
-        });
-      } catch (error) {
-        console.error("Following fetch error:", error);
-        set({
-          followingError:
-            error instanceof Error
-              ? error.message
-              : "Failed to fetch following",
-          followingLoading: false,
-        });
-      }
-    },
-
-    clearFollowing: () => {
-      set({ following: [], followingError: null });
-    },
-
-    clearFollowingError: () => {
-      set({ followingError: null });
-    },
-
-    // Follow status actions
-    checkFollowStatus: async (targetUserId: string, currentUserId: string) => {
-      set({ followStatusLoading: true, followStatusError: null });
-      try {
-        const response = await fetch(
-          `${API_BASE_URL}/users/${targetUserId}/follow-status?follower_id=${currentUserId}`,
-          {
-            method: "GET",
-            headers: {
-              "Content-Type": "application/json",
+        set((state) => ({
+          statusCache: {
+            ...state.statusCache,
+            [targetUserId]: {
+              isFollowing: Boolean(data.is_following),
+              loading: false,
+              error: null,
+              lastUpdated: now(),
             },
-          }
-        );
-
-        if (!response.ok) {
-          const errorData = await response.json();
-          throw new Error(errorData.error || "Failed to check follow status");
-        }
-
-        const data = await response.json();
-        set({
-          isFollowing: data.is_following || false,
-          followStatusLoading: false,
-          followStatusError: null,
-        });
+          },
+        }));
       } catch (error) {
-        console.error("Follow status check error:", error);
-        set({
-          followStatusError:
-            error instanceof Error
-              ? error.message
-              : "Failed to check follow status",
-          followStatusLoading: false,
-        });
+        const message =
+          error instanceof Error
+            ? error.message
+            : "Failed to fetch follow status";
+        set((state) => ({
+          statusCache: {
+            ...state.statusCache,
+            [targetUserId]: {
+              ...(state.statusCache[targetUserId] ?? {
+                isFollowing: false,
+                lastUpdated: 0,
+              }),
+              loading: false,
+              error: message,
+            },
+          },
+        }));
       }
     },
 
-    followUser: async (targetUserId: string, currentUserId: string) => {
-      // Optimistically update the state immediately
-      set({ isFollowing: true });
+    followUser: async (targetUserId, viewerId) => {
+      console.log("followUser called:", { targetUserId, viewerId });
+      console.log("Current cache keys:", {
+        followersKeys: Object.keys(get().followersCache),
+        followingKeys: Object.keys(get().followingCache),
+      });
+      const prev = get().statusCache[targetUserId];
+      set((state) => ({
+        statusCache: {
+          ...state.statusCache,
+          [targetUserId]: {
+            isFollowing: true,
+            loading: false,
+            error: null,
+            lastUpdated: now(),
+          },
+        },
+        // Update the profile user's followers list (if it exists)
+        ...(Object.keys(state.followersCache).length > 0 && {
+          followersCache: Object.fromEntries(
+            Object.entries(state.followersCache).map(([key, entry]) => [
+              key,
+              {
+                ...entry,
+                data: entry.data.map((item) =>
+                  item.user._id.$oid === targetUserId
+                    ? { ...item, isFollowedByViewer: true }
+                    : item
+                ),
+              },
+            ])
+          ),
+        }),
+        // Update the viewer's following list (if it exists)
+        ...(Object.keys(state.followingCache).length > 0 && {
+          followingCache: Object.fromEntries(
+            Object.entries(state.followingCache).map(([key, entry]) => [
+              key,
+              {
+                ...entry,
+                data: entry.data.map((item) =>
+                  item.user._id.$oid === targetUserId
+                    ? { ...item, isFollowedByViewer: true }
+                    : item
+                ),
+              },
+            ])
+          ),
+        }),
+      }));
 
       try {
         const response = await fetch(
           `${API_BASE_URL}/users/${targetUserId}/follow`,
           {
             method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-            },
-            body: JSON.stringify({
-              following_id: currentUserId,
-            }),
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ following_id: viewerId }),
           }
         );
 
         if (!response.ok) {
-          // Revert the optimistic update on error
-          set({ isFollowing: false });
-          const errorData = await response.json();
-          throw new Error(errorData.error || "Failed to follow user");
+          const err = await response.json().catch(() => ({}));
+          throw new Error(err.error || "Failed to follow user");
         }
-
-        // Confirm the state with server response
-        const data = await response.json();
-        set({ isFollowing: data.is_following || true });
       } catch (error) {
-        console.error("Follow user error:", error);
-        // State is already reverted above if needed
+        set((state) => ({
+          statusCache: {
+            ...state.statusCache,
+            [targetUserId]: prev ?? {
+              isFollowing: false,
+              loading: false,
+              error:
+                error instanceof Error
+                  ? error.message
+                  : "Failed to follow user",
+              lastUpdated: now(),
+            },
+          },
+        }));
         throw error;
       }
     },
 
-    unfollowUser: async (targetUserId: string, currentUserId: string) => {
-      // Optimistically update the state immediately
-      set({ isFollowing: false });
+    unfollowUser: async (targetUserId, viewerId) => {
+      const prev = get().statusCache[targetUserId];
+      set((state) => ({
+        statusCache: {
+          ...state.statusCache,
+          [targetUserId]: {
+            isFollowing: false,
+            loading: false,
+            error: null,
+            lastUpdated: now(),
+          },
+        },
+        // Update the profile user's followers list (if it exists)
+        ...(Object.keys(state.followersCache).length > 0 && {
+          followersCache: Object.fromEntries(
+            Object.entries(state.followersCache).map(([key, entry]) => [
+              key,
+              {
+                ...entry,
+                data: entry.data.map((item) =>
+                  item.user._id.$oid === targetUserId
+                    ? { ...item, isFollowedByViewer: false }
+                    : item
+                ),
+              },
+            ])
+          ),
+        }),
+        // Update the viewer's following list (if it exists)
+        ...(Object.keys(state.followingCache).length > 0 && {
+          followingCache: Object.fromEntries(
+            Object.entries(state.followingCache).map(([key, entry]) => [
+              key,
+              {
+                ...entry,
+                data: entry.data.map((item) =>
+                  item.user._id.$oid === targetUserId
+                    ? { ...item, isFollowedByViewer: false }
+                    : item
+                ),
+              },
+            ])
+          ),
+        }),
+      }));
 
       try {
         const response = await fetch(
           `${API_BASE_URL}/users/${targetUserId}/follow`,
           {
             method: "DELETE",
-            headers: {
-              "Content-Type": "application/json",
-            },
-            body: JSON.stringify({
-              following_id: currentUserId,
-            }),
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ following_id: viewerId }),
           }
         );
 
         if (!response.ok) {
-          // Revert the optimistic update on error
-          set({ isFollowing: true });
-          const errorData = await response.json();
-          throw new Error(errorData.error || "Failed to unfollow user");
+          const err = await response.json().catch(() => ({}));
+          throw new Error(err.error || "Failed to unfollow user");
         }
-
-        // Confirm the state with server response
-        const data = await response.json();
-        set({ isFollowing: data.is_following || false });
       } catch (error) {
-        console.error("Unfollow user error:", error);
-        // State is already reverted above if needed
+        set((state) => ({
+          statusCache: {
+            ...state.statusCache,
+            [targetUserId]: prev ?? {
+              isFollowing: true,
+              loading: false,
+              error:
+                error instanceof Error
+                  ? error.message
+                  : "Failed to unfollow user",
+              lastUpdated: now(),
+            },
+          },
+        }));
         throw error;
       }
     },
 
-    clearFollowStatus: () => {
-      set({
-        isFollowing: false,
-        followStatusError: null,
-        followStatusLoading: false,
-      });
+    getFollowers: (userId) => get().followersCache[userId],
+
+    fetchFollowers: async (userId, viewerId) => {
+      set((state) => ({
+        followersCache: {
+          ...state.followersCache,
+          [userId]: {
+            ...(state.followersCache[userId] ?? {
+              data: [],
+              error: null,
+              lastUpdated: 0,
+              viewerId: viewerId ?? null,
+            }),
+            loading: true,
+            error: null,
+          },
+        },
+      }));
+
+      try {
+        const response = await fetch(
+          buildUrl(`${API_BASE_URL}/users/${userId}/followers`, {
+            viewer_id: viewerId,
+          })
+        );
+
+        if (!response.ok) {
+          const err = await response.json().catch(() => ({}));
+          throw new Error(err.error || "Failed to fetch followers list");
+        }
+
+        const data = await response.json();
+        const entries = Array.isArray(data.followers)
+          ? data.followers.map(normalizeEntry)
+          : [];
+
+        set((state) => ({
+          followersCache: {
+            ...state.followersCache,
+            [userId]: {
+              data: entries,
+              loading: false,
+              error: null,
+              lastUpdated: now(),
+              viewerId: viewerId ?? null,
+            },
+          },
+        }));
+      } catch (error) {
+        const message =
+          error instanceof Error
+            ? error.message
+            : "Failed to fetch followers list";
+        set((state) => ({
+          followersCache: {
+            ...state.followersCache,
+            [userId]: {
+              ...(state.followersCache[userId] ?? {
+                data: [],
+                lastUpdated: 0,
+                viewerId: viewerId ?? null,
+              }),
+              loading: false,
+              error: message,
+            },
+          },
+        }));
+      }
     },
 
-    clearFollowStatusError: () => {
-      set({ followStatusError: null });
+    getFollowing: (userId) => get().followingCache[userId],
+
+    fetchFollowing: async (userId, viewerId) => {
+      set((state) => ({
+        followingCache: {
+          ...state.followingCache,
+          [userId]: {
+            ...(state.followingCache[userId] ?? {
+              data: [],
+              error: null,
+              lastUpdated: 0,
+              viewerId: viewerId ?? null,
+            }),
+            loading: true,
+            error: null,
+          },
+        },
+      }));
+
+      try {
+        const response = await fetch(
+          buildUrl(`${API_BASE_URL}/users/${userId}/following`, {
+            viewer_id: viewerId,
+          })
+        );
+
+        if (!response.ok) {
+          const err = await response.json().catch(() => ({}));
+          throw new Error(err.error || "Failed to fetch following list");
+        }
+
+        const data = await response.json();
+        const entries = Array.isArray(data.following)
+          ? data.following.map(normalizeEntry)
+          : [];
+
+        set((state) => ({
+          followingCache: {
+            ...state.followingCache,
+            [userId]: {
+              data: entries,
+              loading: false,
+              error: null,
+              lastUpdated: now(),
+              viewerId: viewerId ?? null,
+            },
+          },
+        }));
+      } catch (error) {
+        const message =
+          error instanceof Error
+            ? error.message
+            : "Failed to fetch following list";
+        set((state) => ({
+          followingCache: {
+            ...state.followingCache,
+            [userId]: {
+              ...(state.followingCache[userId] ?? {
+                data: [],
+                lastUpdated: 0,
+                viewerId: viewerId ?? null,
+              }),
+              loading: false,
+              error: message,
+            },
+          },
+        }));
+      }
     },
+
+    clearCaches: () =>
+      set({
+        statusCache: {},
+        followersCache: {},
+        followingCache: {},
+      }),
   })
 );
