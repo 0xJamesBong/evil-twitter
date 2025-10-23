@@ -10,6 +10,7 @@ use utoipa_swagger_ui::SwaggerUi;
 mod middleware;
 mod models;
 mod routes;
+mod utils;
 
 use routes::data_generation::{
     clear_all_data, generate_fake_data, generate_fake_tweets, generate_fake_users,

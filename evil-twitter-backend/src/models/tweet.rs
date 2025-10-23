@@ -2,6 +2,8 @@ use mongodb::bson::{DateTime, oid::ObjectId};
 use serde::{Deserialize, Serialize};
 use utoipa::ToSchema;
 
+use crate::models::tool::Weapon;
+
 /// Core tweet variants supported by the platform.
 #[derive(Debug, Serialize, Deserialize, Clone, Copy, PartialEq, Eq, ToSchema)]
 pub enum TweetType {
@@ -59,10 +61,7 @@ pub struct Tweet {
     pub viewer_context: TweetViewerContext,
 
     #[serde(default)]
-    pub health: TweetHealthState,
-
-    #[serde(default)]
-    pub virality: TweetEnergyState,
+    pub energy_state: TweetEnergyState,
 }
 
 /// Aggregated engagement data tracked for each tweet.
@@ -180,17 +179,17 @@ pub struct TweetHealthState {
     pub history: TweetHealthHistory,
 }
 
-impl TweetHealthState {
-    pub fn record_heal(&mut self, action: TweetHealAction) {
-        self.current = (self.current + action.amount).clamp(0, self.max);
-        self.history.heal_history.push(action);
-    }
+// impl TweetHealthState {
+//     pub fn record_heal(&mut self, action: TweetHealAction) {
+//         self.current = (self.current + action.amount).clamp(0, self.max);
+//         self.history.heal_history.push(action);
+//     }
 
-    pub fn record_attack(&mut self, action: TweetAttackAction) {
-        self.current = (self.current - action.amount).clamp(0, self.max);
-        self.history.attack_history.push(action);
-    }
-}
+//     pub fn record_attack(&mut self, action: TweetAttackAction) {
+//         self.current = (self.current - action.amount).clamp(0, self.max);
+//         self.history.attack_history.push(action);
+//     }
+// }
 
 impl Default for TweetHealthState {
     fn default() -> Self {
@@ -202,14 +201,14 @@ impl Default for TweetHealthState {
     }
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone, Default, ToSchema)]
-pub struct TweetHealthHistory {
-    #[serde(default)]
-    pub heal_history: Vec<TweetHealAction>,
+// #[derive(Debug, Serialize, Deserialize, Clone, Default, ToSchema)]
+// pub struct TweetHealthHistory {
+//     #[serde(default)]
+//     pub heal_history: Vec<TweetHealAction>,
 
-    #[serde(default)]
-    pub attack_history: Vec<TweetAttackAction>,
-}
+//     #[serde(default)]
+//     pub attack_history: Vec<TweetAttackAction>,
+// }
 
 #[derive(Debug, Serialize, Deserialize, Clone, ToSchema)]
 pub struct TweetEnergyState {
@@ -231,6 +230,8 @@ pub struct TweetEnergyState {
     pub height_initial: f64, // y_0 (initial) - this will never change in the liftime of a tweet
     #[schema(example = "2024-01-01T00:00:00Z")]
     pub last_update_timestamp: DateTime,
+    #[serde(default)]
+    pub history: TweetEnergyStateHistory,
 }
 
 impl Default for TweetEnergyState {
@@ -246,6 +247,7 @@ impl Default for TweetEnergyState {
             velocity_initial: 0.0,
             height_initial: 0.0,
             last_update_timestamp: DateTime::now(),
+            history: TweetEnergyStateHistory::default(),
         }
     }
 }
@@ -256,66 +258,85 @@ impl TweetEnergyState {
         self.kinetic_energy + self.potential_energy + self.energy_gained_from_support
             - self.energy_lost_from_attacks
     }
-    pub fn update_energy(&mut self) {
+    fn update_energy(&mut self) {
         self.kinetic_energy = 0.5 * self.mass * self.velocity_initial.powi(2);
         self.potential_energy = self.mass * self.height_initial * GRAVITY;
         self.energy = self.kinetic_energy + self.potential_energy + self.energy_gained_from_support
             - self.energy_lost_from_attacks;
         self.last_update_timestamp = DateTime::now();
     }
+
+    pub fn record_support(&mut self, action: SupportAction) {
+        self.energy_gained_from_support += action.amount;
+        self.history.support_history.push(action);
+        self.update_energy();
+    }
+
+    pub fn record_attack(&mut self, action: AttackAction) {
+        self.energy_lost_from_attacks += action.amount;
+        self.history.attack_history.push(action);
+        self.update_energy();
+    }
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone, ToSchema)]
 pub struct TweetEnergyStateHistory {
-    #[serde(rename = "_id", skip_serializing_if = "Option::is_none")]
-    #[schema(value_type = String, example = "507f1f77bcf86cd799439011")]
-    pub id: Option<ObjectId>,
-
-    #[schema(value_type=String, example = "507f1f77bcf86cd799439011")]
-    pub tweet_id: ObjectId,
-
-    #[schema(example = "2024-01-01T00:00:00Z")]
-    pub timestamp: DateTime,
-
-    pub action_type: EnergyActionType, // Just Attack or Heal
-
-    #[schema(example = "5.2")]
-    pub energy_change: f64, // Positive for heals, negative for attacks
-
-    #[schema(example = "100.0")]
-    pub energy_before: f64,
-
-    #[schema(example = "105.2")]
-    pub energy_after: f64,
-
-    #[schema(value_type = String, example = "507f1f77bcf86cd799439011")]
-    pub user_id: ObjectId, // Who did the action
-
     #[serde(default)]
-    pub weapon_used: Option<String>, // Optional: what weapon/gadget was used
+    pub support_history: Vec<SupportAction>,
+    #[serde(default)]
+    pub attack_history: Vec<AttackAction>,
+}
+
+impl Default for TweetEnergyStateHistory {
+    fn default() -> Self {
+        Self {
+            support_history: Vec::new(),
+            attack_history: Vec::new(),
+        }
+    }
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone, ToSchema)]
 pub enum EnergyActionType {
     Attack,
-    Heal,
+    Support,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone, ToSchema)]
-pub struct TweetHealAction {
+pub struct SupportAction {
     pub timestamp: DateTime,
-    pub amount: i32,
-    pub health_before: i32,
-    pub health_after: i32,
+    pub amount: f64, // Energy amount
+    #[schema(value_type = String, example = "507f1f77bcf86cd799439011")]
+    pub user_id: ObjectId, // Who did the action
+    #[serde(default)]
+    pub weapon_used: Option<String>, // Optional: what weapon/gadget was used
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone, ToSchema)]
-pub struct TweetAttackAction {
+pub struct AttackAction {
     pub timestamp: DateTime,
-    pub amount: i32,
-    pub health_before: i32,
-    pub health_after: i32,
+    pub amount: f64, // Energy amount
+    #[schema(value_type = String, example = "507f1f77bcf86cd799439011")]
+    pub user_id: ObjectId, // Who did the action
+    #[serde(default)]
+    pub weapon_used: Option<String>, // Optional: what weapon/gadget was used
 }
+
+// #[derive(Debug, Serialize, Deserialize, Clone, ToSchema)]
+// pub struct TweetHealAction {
+//     pub timestamp: DateTime,
+//     pub amount: i32,
+//     pub health_before: i32,
+//     pub health_after: i32,
+// }
+
+// #[derive(Debug, Serialize, Deserialize, Clone, ToSchema)]
+// pub struct TweetAttackAction {
+//     pub timestamp: DateTime,
+//     pub amount: i32,
+//     pub health_before: i32,
+//     pub health_after: i32,
+// }
 
 #[derive(Debug, Deserialize, ToSchema)]
 pub struct CreateTweet {
@@ -386,4 +407,68 @@ impl Tweet {
     pub fn thread_root_id(&self) -> Option<ObjectId> {
         self.root_tweet_id.or(self.id)
     }
+
+    pub fn attack_tweet(&mut self, attacker_user_id: ObjectId, weapon_used: Option<String>) {
+        // For now, use a default attack amount
+        // TODO: Implement weapon system to get actual attack values
+        let attack_amount = if weapon_used.is_some() {
+            10.0 // Higher damage with weapon
+        } else {
+            1.0 // Basic attack without weapon
+        };
+
+        let action = AttackAction {
+            timestamp: mongodb::bson::DateTime::now(),
+            amount: attack_amount,
+            user_id: attacker_user_id,
+            weapon_used,
+        };
+
+        // Update energy state
+        self.energy_state.record_attack(action);
+    }
+
+    // pub async fn record_energy_change(
+    //     &mut self,
+    //     db: &mongodb::Database,
+    //     action_type: EnergyActionType,
+    //     energy_change: f64,
+    //     user_id: ObjectId,
+    //     weapon_used: Option<String>,
+    // ) -> Result<(), Box<dyn std::error::Error>> {
+    //     // Update tweet energy state and record the action
+    //     match action_type.clone() {
+    //         EnergyActionType::Attack => {
+    //             let attack_action = AttackAction {
+    //                 timestamp: mongodb::bson::DateTime::now(),
+    //                 amount: energy_change.abs(), // Store as positive value
+    //                 user_id,
+    //                 weapon_used,
+    //             };
+    //             self.energy.record_attack(attack_action);
+    //         }
+    //         EnergyActionType::Support => {
+    //             let support_action = SupportAction {
+    //                 timestamp: mongodb::bson::DateTime::now(),
+    //                 amount: energy_change, // Store as positive value
+    //                 user_id,
+    //                 weapon_used,
+    //             };
+    //             self.energy.record_heal(support_action);
+    //         }
+    //     }
+
+    //     self.energy.update_energy();
+
+    //     // Save to database
+    //     let collection: mongodb::Collection<Tweet> = db.collection("tweets");
+    //     collection
+    //         .update_one(
+    //             mongodb::bson::doc! {"_id": self.id},
+    //             mongodb::bson::doc! {"$set": {"energy": mongodb::bson::to_bson(&self.energy)?}},
+    //         )
+    //         .await?;
+
+    //     Ok(())
+    // }
 }
