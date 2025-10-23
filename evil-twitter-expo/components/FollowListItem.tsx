@@ -1,6 +1,7 @@
 import React from 'react';
 import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 
+import { FollowButton } from '@/components/FollowButton';
 import { FollowUser } from '@/lib/stores/followStore';
 
 interface FollowListItemProps {
@@ -8,7 +9,6 @@ interface FollowListItemProps {
   onPress?: (user: FollowUser) => void;
   showFollowButton?: boolean;
   isFollowed?: boolean;
-  followBusy?: boolean;
   onToggleFollow?: () => void;
   rightContent?: React.ReactNode;
   showBio?: boolean;
@@ -19,18 +19,12 @@ export function FollowListItem({
   onPress,
   showFollowButton = false,
   isFollowed = false,
-  followBusy = false,
   onToggleFollow,
   rightContent,
   showBio = true,
 }: FollowListItemProps) {
   const handlePress = () => {
     onPress?.(user);
-  };
-
-  const handleToggleFollow = () => {
-    if (followBusy) return;
-    onToggleFollow?.();
   };
 
   const initials =
@@ -63,17 +57,11 @@ export function FollowListItem({
       {rightContent ? (
         <View style={styles.rightContent}>{rightContent}</View>
       ) : showFollowButton && onToggleFollow ? (
-        <TouchableOpacity
-          style={[styles.followButton, isFollowed && styles.followingButton, followBusy && styles.followButtonDisabled]}
-          onPress={handleToggleFollow}
-          disabled={followBusy}
-        >
-          <Text
-            style={[styles.followButtonText, isFollowed && styles.followingButtonText]}
-          >
-            {isFollowed ? (followBusy ? 'Updating…' : 'Following') : followBusy ? 'Following…' : 'Follow'}
-          </Text>
-        </TouchableOpacity>
+        <FollowButton
+          isFollowing={isFollowed ?? false}
+          onToggle={onToggleFollow}
+          compact
+        />
       ) : null}
     </TouchableOpacity>
   );
@@ -126,28 +114,6 @@ const styles = StyleSheet.create({
     marginLeft: 12,
     flexDirection: 'row',
     alignItems: 'center',
-  },
-  followButton: {
-    backgroundColor: '#1d9bf0',
-    paddingVertical: 6,
-    paddingHorizontal: 16,
-    borderRadius: 20,
-  },
-  followButtonDisabled: {
-    opacity: 0.6,
-  },
-  followButtonText: {
-    color: '#fff',
-    fontSize: 13,
-    fontWeight: 'bold',
-  },
-  followingButton: {
-    backgroundColor: 'transparent',
-    borderWidth: 1,
-    borderColor: '#71767b',
-  },
-  followingButtonText: {
-    color: '#71767b',
   },
 });
 

@@ -1,3 +1,4 @@
+import { FollowButton } from '@/components/FollowButton';
 import { FollowLists } from '@/components/FollowLists';
 import { TweetCard } from '@/components/TweetCard';
 import { useAuthStore } from '@/lib/stores/authStore';
@@ -7,7 +8,7 @@ import { useProfileStore } from '@/lib/stores/profileStore';
 import { useTweetsStore } from '@/lib/stores/tweetsStore';
 import { useWeaponsStore } from '@/lib/stores/weaponsStore';
 import { useRouter } from 'expo-router';
-import React, { useEffect } from 'react';
+import React, { useCallback, useEffect } from 'react';
 import { ActivityIndicator, Alert, FlatList, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { Card } from 'react-native-paper';
 
@@ -43,17 +44,6 @@ export function Profile({
         clearProfile
     } = useProfileStore();
 
-    // Follow functionality
-    const {
-        isFollowing,
-        followStatusLoading,
-        followActionLoading,
-        followUser,
-        unfollowUser,
-        checkFollowStatus,
-        clearFollowStatus
-    } = useFollowStore();
-
     // Tweets and weapons
     const { userTweets, fetchUserTweets, loading: tweetsLoading } = useTweetsStore();
     const { weapons, fetchUserWeapons } = useWeaponsStore();
@@ -61,6 +51,18 @@ export function Profile({
     // Determine which user we're displaying
     const displayUser = isOwnProfile ? currentBackendUser : profileUser;
     const displayUserId = isOwnProfile ? currentBackendUser?._id?.$oid : userId;
+
+    const followStatusEntry = useFollowStore(
+        useCallback(
+            (state) =>
+                displayUserId ? state.statusCache[displayUserId] : undefined,
+            [displayUserId]
+        )
+    );
+    const checkFollowStatus = useFollowStore((state) => state.checkFollowStatus);
+    const followUser = useFollowStore((state) => state.followUser);
+    const unfollowUser = useFollowStore((state) => state.unfollowUser);
+    const isFollowing = followStatusEntry?.isFollowing ?? false;
 
     // Fetch profile data for other users
     useEffect(() => {
@@ -87,15 +89,25 @@ export function Profile({
         }
     }, [displayUserId, fetchUserWeapons, fetchUserTweets]);
 
-    // Check follow status when viewing another user
+    // Ensure follow status is available when viewing other profiles
     useEffect(() => {
-        if (!isOwnProfile && currentBackendUser?._id?.$oid && userId && currentBackendUser._id.$oid !== userId) {
-            checkFollowStatus(userId, currentBackendUser._id.$oid);
-        } else if (isOwnProfile) {
-            // Clear follow status when viewing own profile
-            clearFollowStatus();
+        const viewerId = currentBackendUser?._id?.$oid;
+        if (
+            !isOwnProfile &&
+            displayUserId &&
+            viewerId &&
+            viewerId !== displayUserId &&
+            !followStatusEntry
+        ) {
+            checkFollowStatus(displayUserId, viewerId);
         }
-    }, [isOwnProfile, currentBackendUser, userId, checkFollowStatus, clearFollowStatus]);
+    }, [
+        isOwnProfile,
+        displayUserId,
+        currentBackendUser?._id?.$oid,
+        followStatusEntry,
+        checkFollowStatus,
+    ]);
 
     const handleSyncWithSupabase = async () => {
         if (authUser) {
@@ -110,16 +122,15 @@ export function Profile({
     };
 
     const handleFollowToggle = async () => {
-        if (!userId || !currentBackendUser?._id?.$oid) return;
+        if (!displayUserId || !currentBackendUser?._id?.$oid) return;
 
         try {
             if (isFollowing) {
-                await unfollowUser(userId, currentBackendUser._id.$oid);
+                await unfollowUser(displayUserId, currentBackendUser._id.$oid);
             } else {
-                await followUser(userId, currentBackendUser._id.$oid);
+                await followUser(displayUserId, currentBackendUser._id.$oid);
             }
 
-            // Refresh profile data to get updated follower counts
             if (!isOwnProfile && userId) {
                 await fetchProfile(userId);
             }
@@ -128,11 +139,6 @@ export function Profile({
             Alert.alert('Error', 'Failed to update follow status');
         }
     };
-
-    const followButtonBusy = Boolean(
-        followStatusLoading ||
-        (displayUserId ? followActionLoading[displayUserId] : false)
-    );
 
     const formatDate = (dateInput: any) => {
         try {
@@ -330,26 +336,10 @@ export function Profile({
                         {/* Follow Button for other users */}
                         {!isOwnProfile && currentBackendUser?._id?.$oid && userId && currentBackendUser._id.$oid !== userId && (
                             <View style={styles.followButtonContainer}>
-                                <TouchableOpacity
-                                    style={[
-                                        styles.followButton,
-                                        isFollowing && styles.followingButton,
-                                        followButtonBusy && styles.followButtonDisabled
-                                    ]}
-                                    onPress={handleFollowToggle}
-                                    disabled={followButtonBusy}
-                                >
-                                    {followButtonBusy ? (
-                                        <ActivityIndicator size="small" color={isFollowing ? "#71767b" : "#fff"} />
-                                    ) : (
-                                        <Text style={[
-                                            styles.followButtonText,
-                                            isFollowing && styles.followingButtonText
-                                        ]}>
-                                            {isFollowing ? 'Following' : 'Follow'}
-                                        </Text>
-                                    )}
-                                </TouchableOpacity>
+                                <FollowButton
+                                    isFollowing={isFollowing}
+                                    onToggle={handleFollowToggle}
+                                />
                             </View>
                         )}
                     </View>
@@ -821,30 +811,6 @@ const styles = StyleSheet.create({
         position: 'absolute',
         top: 16,
         right: 16,
-    },
-    followButton: {
-        backgroundColor: '#1d9bf0',
-        paddingVertical: 8,
-        paddingHorizontal: 16,
-        borderRadius: 20,
-        alignItems: 'center',
-        minWidth: 80,
-    },
-    followingButton: {
-        backgroundColor: 'transparent',
-        borderWidth: 1,
-        borderColor: '#71767b',
-    },
-    followButtonText: {
-        color: '#fff',
-        fontSize: 14,
-        fontWeight: 'bold',
-    },
-    followingButtonText: {
-        color: '#71767b',
-    },
-    followButtonDisabled: {
-        opacity: 0.6,
     },
     syncButtonTop: {
         backgroundColor: '#1d9bf0',
