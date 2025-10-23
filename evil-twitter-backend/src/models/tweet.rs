@@ -166,50 +166,6 @@ impl Default for TweetViewerContext {
     }
 }
 
-/// Health and heal history for the tweet. Future-proofed for battle mechanics.
-#[derive(Debug, Serialize, Deserialize, Clone, ToSchema)]
-pub struct TweetHealthState {
-    #[schema(example = "100")]
-    pub current: i32,
-
-    #[schema(example = "100")]
-    pub max: i32,
-
-    #[serde(default)]
-    pub history: TweetHealthHistory,
-}
-
-// impl TweetHealthState {
-//     pub fn record_heal(&mut self, action: TweetHealAction) {
-//         self.current = (self.current + action.amount).clamp(0, self.max);
-//         self.history.heal_history.push(action);
-//     }
-
-//     pub fn record_attack(&mut self, action: TweetAttackAction) {
-//         self.current = (self.current - action.amount).clamp(0, self.max);
-//         self.history.attack_history.push(action);
-//     }
-// }
-
-impl Default for TweetHealthState {
-    fn default() -> Self {
-        Self {
-            current: 100,
-            max: 100,
-            history: TweetHealthHistory::default(),
-        }
-    }
-}
-
-// #[derive(Debug, Serialize, Deserialize, Clone, Default, ToSchema)]
-// pub struct TweetHealthHistory {
-//     #[serde(default)]
-//     pub heal_history: Vec<TweetHealAction>,
-
-//     #[serde(default)]
-//     pub attack_history: Vec<TweetAttackAction>,
-// }
-
 #[derive(Debug, Serialize, Deserialize, Clone, ToSchema)]
 pub struct TweetEnergyState {
     #[schema(example = "0.0")]
@@ -426,6 +382,23 @@ impl Tweet {
 
         // Update energy state
         self.energy_state.record_attack(action);
+    }
+
+    pub fn support_tweet(&mut self, supporter_user_id: ObjectId, weapon_used: Option<String>) {
+        // For now, use a default attack amount
+        // TODO: Implement weapon system to get actual attack values
+        let support_amount = if weapon_used.is_some() {
+            10.0 // Higher damage with weapon
+        } else {
+            1.0 // Basic attack without weapon
+        };
+        let action = SupportAction {
+            timestamp: mongodb::bson::DateTime::now(),
+            amount: support_amount,
+            user_id: supporter_user_id,
+            weapon_used,
+        };
+        self.energy_state.record_support(action);
     }
 
     // pub async fn record_energy_change(

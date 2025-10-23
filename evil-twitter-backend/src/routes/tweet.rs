@@ -875,65 +875,41 @@ pub async fn migrate_users_dollar_rate(
     ),
     tag = "tweets"
 )]
-pub async fn heal_tweet(
+pub async fn support_tweet(
     State(db): State<Database>,
     Path(id): Path<String>,
     headers: HeaderMap,
     Json(payload): Json<HealTweetRequest>,
 ) -> Result<(StatusCode, Json<Value>), ApiError> {
     let collection: Collection<Tweet> = db.collection("tweets");
+    // Get the attacker's user ID using the utility function
+    let supporter_user_id = crate::utils::auth::get_authenticated_user_id(&db, &headers).await?;
+
     let tweet_id = parse_object_id(&id, "tweet")?;
-    let heal_amount = payload.amount.max(0);
-
-    // Get the healer's user ID using the utility function
-    let _healer_user_id = crate::utils::auth::get_authenticated_user_id(&db, &headers).await?;
-
     let mut tweet = collection
         .find_one(doc! {"_id": tweet_id})
         .await
         .map_err(|_| internal_error("Database error fetching tweet"))?
         .ok_or_else(|| not_found("Tweet not found"))?;
 
-    let health_before = tweet.health.current;
-    let new_health = (health_before + heal_amount).min(tweet.health.max);
+    let energy_before = tweet.energy_state.energy;
+    tweet.support_tweet(supporter_user_id, payload.weapon_id);
+    let energy_after = tweet.energy_state.energy;
+    let damage = energy_before - energy_after;
 
-    let action = TweetHealAction {
-        timestamp: mongodb::bson::DateTime::now(),
-        amount: heal_amount,
-        health_before,
-        health_after: new_health,
-    };
-
-    // Update health directly since record_heal is commented out
-    tweet.health.current = new_health;
-    tweet.health.history.heal_history.push(action.clone());
-
-    collection
-        .update_one(
-            doc! {"_id": tweet_id},
-            doc! {
-                "$set": {
-                    "health.current": tweet.health.current,
-                    "health.max": tweet.health.max,
-                },
-                "$push": {"health.history.heal_history": {
-                    "timestamp": action.timestamp,
-                    "amount": action.amount,
-                    "health_before": action.health_before,
-                    "health_after": action.health_after,
-                }}
-            },
-        )
-        .await
-        .map_err(|_| internal_error("Failed to update tweet health"))?;
+    collection.update_one(doc!{"_id": tweet_id},
+        doc!{"$set": {"energy_state": mongodb::bson::to_bson(&tweet.energy_state).map_err(|_| internal_error("Serialization error"))?}}
+    ).await
+    .map_err(|_| internal_error("Failed to update tweet energy after support"))?;
 
     Ok((
         StatusCode::OK,
         Json(json!({
-            "message": "Tweet healed successfully",
-            "health_before": health_before,
-            "health_after": tweet.health.current,
-            "amount": heal_amount
+            "message": "Tweet supported successfully",
+            "energy_before": energy_before,
+            "energy_after": energy_after,
+            "energy": tweet.energy_state.energy,
+            "damage": damage,
         })),
     ))
 }
@@ -959,6 +935,12 @@ pub async fn attack_tweet(
     // Get the attacker's user ID using the utility function
     let attacker_user_id = crate::utils::auth::get_authenticated_user_id(&db, &headers).await?;
 
+    let weapon = weapon_collection
+        .find_one(doc! {"_id": payload.weapon_id})
+        .await
+        .map_err(|_| internal_error("Database error fetching weapon"))?
+        .ok_or_else(|| not_found("Weapon not found"))?;
+
     let tweet_id = parse_object_id(&id, "tweet")?;
     let mut tweet = collection
         .find_one(doc! {"_id": tweet_id})
@@ -966,8 +948,9 @@ pub async fn attack_tweet(
         .map_err(|_| internal_error("Database error fetching tweet"))?
         .ok_or_else(|| not_found("Tweet not found"))?;
     let energy_before = tweet.energy_state.energy;
-    tweet.attack_tweet(attacker_user_id, None);
+    tweet.attack_tweet(attacker_user_id, payload.weapon_id);
     let energy_after = tweet.energy_state.energy;
+    let damage = energy_before - energy_after;
 
     collection
         .update_one(
@@ -986,7 +969,7 @@ pub async fn attack_tweet(
             "energy_before": energy_before,
             "energy_after": energy_after,
             "energy": tweet.energy_state.energy,
-            "energy_lost_from_attacks": tweet.energy_state.energy_lost_from_attacks
+            "damage": damage,
         })),
     ))
 }

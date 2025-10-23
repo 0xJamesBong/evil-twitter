@@ -19,8 +19,8 @@ use routes::follow::{follow_user, get_followers_list, get_following_list, unfoll
 use routes::migration::{migrate_tweets_health, migrate_user_objectids, migrate_users_weapons};
 use routes::ping::ping_handler;
 use routes::tweet::{
-    attack_tweet, create_tweet, get_thread, get_tweet, get_tweets, get_user_wall, heal_tweet,
-    like_tweet, migrate_users_dollar_rate, quote_tweet, reply_tweet, retweet_tweet,
+    attack_tweet, create_tweet, get_thread, get_tweet, get_tweets, get_user_wall, like_tweet,
+    migrate_users_dollar_rate, quote_tweet, reply_tweet, retweet_tweet, support_tweet,
 };
 use routes::user::{
     attack_dollar_rate, create_user, get_dollar_rate, get_user, get_users, improve_dollar_rate,
@@ -151,7 +151,7 @@ async fn main() -> anyhow::Result<()> {
         .route("/tweets/{id}", get(get_tweet))
         .route("/tweets/{id}/thread", get(get_thread))
         .route("/tweets/{id}/like", post(like_tweet))
-        .route("/tweets/{id}/heal", post(heal_tweet))
+        .route("/tweets/{id}/heal", post(support_tweet))
         .route("/tweets/{id}/attack", post(attack_tweet))
         .route("/tweets/{id}/retweet", post(retweet_tweet))
         .route("/tweets/{id}/quote", post(quote_tweet))
