@@ -128,24 +128,26 @@ export const api = {
     return response.json();
   },
 
-  // Health/Actions
-  async attackTweet(tweetId: string, amount: number) {
+  // Combat actions
+  async attackTweet(tweetId: string, toolId: string) {
+    const headers = await getAuthHeaders();
     const response = await fetch(`${API_BASE_URL}/tweets/${tweetId}/attack`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ amount }),
+      headers,
+      body: JSON.stringify({ tool_id: toolId }),
     });
     if (!response.ok) throw new Error("Failed to attack tweet");
     return response.json();
   },
 
-  async healTweet(tweetId: string, amount: number) {
-    const response = await fetch(`${API_BASE_URL}/tweets/${tweetId}/heal`, {
+  async supportTweet(tweetId: string, toolId: string) {
+    const headers = await getAuthHeaders();
+    const response = await fetch(`${API_BASE_URL}/tweets/${tweetId}/support`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ amount }),
+      headers,
+      body: JSON.stringify({ tool_id: toolId }),
     });
-    if (!response.ok) throw new Error("Failed to heal tweet");
+    if (!response.ok) throw new Error("Failed to support tweet");
     return response.json();
   },
 

@@ -1,13 +1,18 @@
 import { create } from "zustand";
 import { api } from "../services/api";
 
+export type ToolType = "Weapon" | "Support";
+export type ToolTarget = "Tweet" | "User";
+
 export interface Weapon {
   _id: { $oid: string };
   owner_id: string;
   name: string;
   description: string;
-  image_url: string; // Emoji
-  damage: number;
+  image_url: string;
+  tool_type: ToolType;
+  tool_target: ToolTarget;
+  impact: number;
   health: number;
   max_health: number;
   degrade_per_use: number;

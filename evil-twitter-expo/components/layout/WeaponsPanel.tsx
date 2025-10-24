@@ -9,8 +9,8 @@ interface WeaponsPanelProps {
 export const WeaponsPanel: React.FC<WeaponsPanelProps> = ({ userId, maxDisplay }) => {
     // Mock data for weapons
     const weapons = [
-        { id: '1', name: "Rowling's Snare", emoji: '🔫', health: 100, damage: 50 },
-        { id: '2', name: "Sauron's Ring", emoji: '💍', health: 100, damage: 100 },
+        { id: '1', name: "Rowling's Snare", emoji: '🔫', durability: '90/100', impact: 50 },
+        { id: '2', name: "Sauron's Ring", emoji: '💍', durability: '75/100', impact: 100 },
     ];
 
     return (
@@ -21,7 +21,7 @@ export const WeaponsPanel: React.FC<WeaponsPanelProps> = ({ userId, maxDisplay }
                     <Text style={styles.emoji}>{weapon.emoji}</Text>
                     <View style={styles.details}>
                         <Text style={styles.name}>{weapon.name}</Text>
-                        <Text style={styles.stats}>Health: {weapon.health} Damage: {weapon.damage}</Text>
+                        <Text style={styles.stats}>Impact: {weapon.impact} | Durability: {weapon.durability}</Text>
                     </View>
                 </View>
             ))}

@@ -1,5 +1,6 @@
 import { useBackendUserStore } from '@/lib/stores/backendUserStore';
 import { Tweet, useTweetsStore } from '@/lib/stores/tweetsStore';
+import { Weapon } from '@/lib/stores/weaponsStore';
 import { router } from 'expo-router';
 import React, { useState } from 'react';
 import {
@@ -32,13 +33,13 @@ export function TweetComponent({
     const {
         retweetTweet,
         attackTweet,
-        healTweet,
+        supportTweet,
         openQuoteModal,
         openReplyModal
     } = useTweetsStore();
 
     const [showWeaponModal, setShowWeaponModal] = useState(false);
-    const [weaponActionType, setWeaponActionType] = useState<'attack' | 'heal'>('attack');
+    const [weaponActionType, setWeaponActionType] = useState<'attack' | 'support'>('attack');
 
     const formatTime = (dateString: string) => {
         const date = new Date(dateString);
@@ -50,10 +51,13 @@ export function TweetComponent({
         return date.toLocaleDateString();
     };
 
-    const getHealthColor = (health: number, maxHealth: number) => {
-        const percentage = health / maxHealth;
-        if (percentage > 0.7) return '#4CAF50';
-        if (percentage > 0.3) return '#FF9800';
+    const getEnergyColor = (energy: number) => {
+        if (energy >= 0) {
+            if (energy > 500) return '#4CAF50';
+            if (energy > 250) return '#8BC34A';
+            if (energy > 100) return '#CDDC39';
+            return '#FFC107';
+        }
         return '#F44336';
     };
 
@@ -81,22 +85,21 @@ export function TweetComponent({
         setShowWeaponModal(true);
     };
 
-    const handleHeal = () => {
-        setWeaponActionType('heal');
+    const handleSupport = () => {
+        setWeaponActionType('support');
         setShowWeaponModal(true);
     };
 
-    const handleWeaponSelect = async (weaponId: string, damage: number, health: number) => {
+    const handleWeaponSelect = async (weaponId: string, _weapon: Weapon) => {
         setShowWeaponModal(false);
-        const actionAmount = weaponActionType === 'attack' ? damage : health;
         const result = weaponActionType === 'attack'
-            ? await attackTweet(tweet._id.$oid, actionAmount)
-            : await healTweet(tweet._id.$oid, actionAmount);
+            ? await attackTweet(tweet._id.$oid, weaponId)
+            : await supportTweet(tweet._id.$oid, weaponId);
 
         if (result.success) {
-            Alert.alert('Success', `Tweet ${weaponActionType}ed!`);
+            Alert.alert('Success', `Tweet ${weaponActionType === 'attack' ? 'attacked' : 'supported'}!`);
         } else {
-            Alert.alert('Error', result.error || `Failed to ${weaponActionType} tweet`);
+            Alert.alert('Error', result.error || `Failed to ${weaponActionType === 'attack' ? 'attack' : 'support'} tweet`);
         }
     };
 
@@ -229,22 +232,33 @@ export function TweetComponent({
                         </View>
                     )}
 
-                    {/* Health Bar */}
-                    <View style={styles.healthContainer}>
-                        <View style={styles.healthBar}>
-                            <View
-                                style={[
-                                    styles.healthFill,
-                                    {
-                                        width: `${(tweet.health.current / tweet.max_health) * 100}%`,
-                                        backgroundColor: getHealthColor(tweet.health.current, tweet.max_health)
-                                    }
-                                ]}
-                            />
-                        </View>
-                        <Text style={styles.healthText}>
-                            {tweet.health.current}/{tweet.max_health} HP
+                    {/* Energy Overview */}
+                    <View style={styles.energyContainer}>
+                        <Text style={styles.energyLabel}>Energy</Text>
+                        <Text
+                            style={[
+                                styles.energyValue,
+                                { color: getEnergyColor(tweet.energy_state.energy) },
+                            ]}
+                        >
+                            {tweet.energy_state.energy.toFixed(1)} J
                         </Text>
+                        <View style={styles.energyBreakdownRow}>
+                            <Text style={styles.energyBreakdownText}>
+                                Kinetic: {tweet.energy_state.kinetic_energy.toFixed(1)} J
+                            </Text>
+                            <Text style={styles.energyBreakdownText}>
+                                Potential: {tweet.energy_state.potential_energy.toFixed(1)} J
+                            </Text>
+                        </View>
+                        <View style={styles.energyBreakdownRow}>
+                            <Text style={styles.energySupportText}>
+                                Support +{tweet.energy_state.energy_gained_from_support.toFixed(1)} J
+                            </Text>
+                            <Text style={styles.energyAttackText}>
+                                Damage -{tweet.energy_state.energy_lost_from_attacks.toFixed(1)} J
+                            </Text>
+                        </View>
                     </View>
 
                     {/* Actions */}
@@ -306,11 +320,11 @@ export function TweetComponent({
                                 style={styles.actionButton}
                                 onPress={(e) => {
                                     e.stopPropagation();
-                                    handleHeal();
+                                    handleSupport();
                                 }}
                             >
-                                <Text style={styles.actionIcon}>💚</Text>
-                                <Text style={styles.actionText}>Heal</Text>
+                                <Text style={styles.actionIcon}>✨</Text>
+                                <Text style={styles.actionText}>Support</Text>
                             </TouchableOpacity>
                         </View>
                     )}
@@ -471,27 +485,41 @@ const styles = StyleSheet.create({
         fontSize: 14,
         lineHeight: 18,
     },
-    healthContainer: {
-        flexDirection: 'row',
-        alignItems: 'center',
+    energyContainer: {
         marginBottom: 12,
+        backgroundColor: '#11161c',
+        borderRadius: 8,
+        borderWidth: 1,
+        borderColor: '#2f3336',
+        padding: 12,
+        gap: 6,
     },
-    healthBar: {
-        flex: 1,
-        height: 8,
-        backgroundColor: '#2f3336',
-        borderRadius: 4,
-        marginRight: 8,
-        overflow: 'hidden',
-    },
-    healthFill: {
-        height: '100%',
-        borderRadius: 4,
-    },
-    healthText: {
+    energyLabel: {
         color: '#71767b',
         fontSize: 12,
-        fontWeight: '500',
+        textTransform: 'uppercase',
+        letterSpacing: 1,
+    },
+    energyValue: {
+        color: '#fff',
+        fontSize: 18,
+        fontWeight: 'bold',
+    },
+    energyBreakdownRow: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+    },
+    energyBreakdownText: {
+        color: '#9aa0a6',
+        fontSize: 12,
+    },
+    energySupportText: {
+        color: '#81c995',
+        fontSize: 12,
+    },
+    energyAttackText: {
+        color: '#f28b82',
+        fontSize: 12,
     },
     actions: {
         flexDirection: 'row',

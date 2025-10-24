@@ -72,13 +72,10 @@ export default function ShopScreen() {
                 <Text style={styles.weaponDescription}>{item.description}</Text>
 
                 <View style={styles.weaponStats}>
-                    <Text style={styles.statText}>Health: {item.max_health}</Text>
-                    {item.attack_power > 0 && (
-                        <Text style={styles.statText}>Attack: {item.attack_power}</Text>
-                    )}
-                    {item.heal_power > 0 && (
-                        <Text style={styles.statText}>Heal: {item.heal_power}</Text>
-                    )}
+                    <Text style={styles.statText}>Type: {item.tool_type}</Text>
+                    <Text style={styles.statText}>Impact: {item.impact}</Text>
+                    <Text style={styles.statText}>Durability: {item.health}/{item.max_health}</Text>
+                    <Text style={styles.statText}>Degrade/use: {item.degrade_per_use}</Text>
                 </View>
 
                 <View style={styles.weaponFooter}>
@@ -111,7 +108,7 @@ export default function ShopScreen() {
     return (
         <View style={styles.content}>
             <Text style={styles.description}>
-                Select from our arsenal of powerful weapons, defensive gear, healing items, and utility gadgets.
+                Select from our arsenal of offensive weapons, defensive gear, support tools, and utility gadgets.
                 Each item has unique stats and abilities to enhance your Twitter battles.
             </Text>
 

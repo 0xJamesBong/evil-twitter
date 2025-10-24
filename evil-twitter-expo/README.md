@@ -5,7 +5,7 @@ A React Native Expo app that replicates the full functionality of the evil-twitt
 ## Features
 
 - **Tweets**: Create, view, retweet, quote, and reply to tweets
-- **Weapons System**: Buy weapons from the shop and use them to attack/heal tweets
+- **Weapons System**: Buy tools from the shop and use them to attack/support tweets
 - **User Profiles**: View user stats, weapons, and profile information
 - **Real-time Updates**: Zustand state management for reactive UI
 - **Dark Theme**: Beautiful dark theme optimized for mobile
@@ -85,15 +85,15 @@ lib/
 - Timeline of all tweets
 - Compose new tweets
 - Tweet interactions (like, retweet, quote, reply)
-- Health bars for tweets
-- Weapon attack/heal functionality
+- Energy readouts for tweets
+- Weapon attack/support functionality
 
 ### 🛒 Shop Screen
 
 - Weapon catalog with categories
 - Rarity-based color coding
-- Purchase weapons with user's money
-- Filter by category (All, Weapon, Defensive, Healing, Utility)
+- Purchase tools with user's money
+- Filter by category (All, Weapon, Support, Utility, etc.)
 
 ### 👤 Profile Screen
 
@@ -104,10 +104,10 @@ lib/
 
 ### ⚔️ Weapons System
 
-- 30+ predefined weapons in catalog
+- 30+ predefined tools in catalog
 - Different categories and rarities
-- Attack and heal capabilities
-- Health degradation on use
+- Attack and support capabilities
+- Durability degradation on use
 
 ## Emoji Icons
 
@@ -120,7 +120,7 @@ All icons are implemented using emojis instead of icon libraries:
 - 🔍 Search
 - ⚙️ Settings
 - ⚔️ Attack
-- 💚 Heal
+- ✨ Support
 - 💬 Reply
 - 🔄 Retweet
 - ❤️ Like
@@ -143,7 +143,7 @@ Connects to the same backend as the Next.js frontend:
 - Tweet CRUD operations
 - User management
 - Weapon catalog and purchases
-- Attack/heal functionality
+- Attack/support functionality
 
 ## Development
 

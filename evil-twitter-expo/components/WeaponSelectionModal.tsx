@@ -1,4 +1,4 @@
-import { useWeaponsStore } from '@/lib/stores/weaponsStore';
+import { useWeaponsStore, Weapon } from '@/lib/stores/weaponsStore';
 import React, { useState } from 'react';
 import {
     FlatList,
@@ -12,8 +12,8 @@ import {
 interface WeaponSelectionModalProps {
     visible: boolean;
     onClose: () => void;
-    onSelectWeapon: (weaponId: string, damage: number, health: number) => void;
-    actionType: 'attack' | 'heal';
+    onSelectWeapon: (weaponId: string, weapon: Weapon) => void;
+    actionType: 'attack' | 'support';
 }
 
 export function WeaponSelectionModal({
@@ -25,9 +25,15 @@ export function WeaponSelectionModal({
     const { weapons, loading } = useWeaponsStore();
     const [selectedWeapon, setSelectedWeapon] = useState<string | null>(null);
 
-    const handleSelectWeapon = (weaponId: string, damage: number, health: number) => {
-        setSelectedWeapon(weaponId);
-        onSelectWeapon(weaponId, damage, health);
+    const filteredWeapons = weapons.filter((weapon) =>
+        actionType === 'attack'
+            ? weapon.tool_type === 'Weapon'
+            : weapon.tool_type === 'Support'
+    );
+
+    const handleSelectWeapon = (weapon: Weapon) => {
+        setSelectedWeapon(weapon._id.$oid);
+        onSelectWeapon(weapon._id.$oid, weapon);
         onClose();
     };
 
@@ -37,7 +43,7 @@ export function WeaponSelectionModal({
                 styles.weaponItem,
                 selectedWeapon === item._id.$oid && styles.selectedWeapon,
             ]}
-            onPress={() => handleSelectWeapon(item._id.$oid, item.damage, item.health)}
+            onPress={() => handleSelectWeapon(item)}
         >
             <View style={styles.weaponInfo}>
                 <Text style={styles.weaponEmoji}>{item.image_url}</Text>
@@ -46,9 +52,14 @@ export function WeaponSelectionModal({
                     <Text style={styles.weaponDescription}>{item.description}</Text>
                     <View style={styles.weaponStats}>
                         <Text style={styles.statText}>
-                            {actionType === 'attack' ? 'Damage' : 'Heal'}: {actionType === 'attack' ? item.damage : item.health}
+                            Impact: {item.impact}
                         </Text>
-                        <Text style={styles.statText}>Health: {item.health}/{item.max_health}</Text>
+                        <Text style={styles.statText}>
+                            Durability: {item.health}/{item.max_health}
+                        </Text>
+                        <Text style={styles.statText}>
+                            Degrade/use: {item.degrade_per_use}
+                        </Text>
                     </View>
                 </View>
             </View>
@@ -66,7 +77,7 @@ export function WeaponSelectionModal({
                 <View style={styles.modalContainer}>
                     <View style={styles.header}>
                         <Text style={styles.title}>
-                            Select Weapon to {actionType === 'attack' ? 'Attack' : 'Heal'}
+                            Select Tool to {actionType === 'attack' ? 'Attack' : 'Support'}
                         </Text>
                         <TouchableOpacity onPress={onClose} style={styles.closeButton}>
                             <Text style={styles.closeText}>✕</Text>
@@ -77,16 +88,16 @@ export function WeaponSelectionModal({
                         <View style={styles.loadingContainer}>
                             <Text style={styles.loadingText}>Loading weapons...</Text>
                         </View>
-                    ) : weapons.length === 0 ? (
+                    ) : filteredWeapons.length === 0 ? (
                         <View style={styles.emptyContainer}>
-                            <Text style={styles.emptyText}>No weapons available</Text>
+                            <Text style={styles.emptyText}>No tools available</Text>
                             <Text style={styles.emptySubtext}>
-                                Visit the shop to buy weapons first
+                                Visit the shop to purchase more {actionType === 'attack' ? 'weapons' : 'support tools'}.
                             </Text>
                         </View>
                     ) : (
                         <FlatList
-                            data={weapons}
+                            data={filteredWeapons}
                             keyExtractor={(item) => item._id.$oid}
                             renderItem={renderWeapon}
                             style={styles.weaponList}
