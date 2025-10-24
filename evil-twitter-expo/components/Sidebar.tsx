@@ -1,11 +1,20 @@
+import { AuthModal } from '@/components/AuthModal';
+import { SignInButton } from '@/components/SignInButton';
 import { useAuthStore } from '@/lib/stores/authStore';
+import { useBackendUserStore } from '@/lib/stores/backendUserStore';
 import { useRouter } from 'expo-router';
-import React from 'react';
-import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import React, { useState } from 'react';
+import { Platform, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 
-export function Sidebar() {
+interface SidebarProps {
+    compact?: boolean;
+}
+
+export function Sidebar({ compact = false }: SidebarProps) {
     const router = useRouter();
-    const { user, isAuthenticated } = useAuthStore();
+    const { isAuthenticated, user, logout } = useAuthStore();
+    const { user: backendUser } = useBackendUserStore();
+    const [showAuthModal, setShowAuthModal] = useState(false);
 
     const navigation = [
         { name: 'Home', icon: '🏠', route: '/(tabs)' },
@@ -17,185 +26,265 @@ export function Sidebar() {
         { name: 'Shop', icon: '🛒', route: '/(tabs)/shop' },
     ];
 
+    const handleLogout = async () => {
+        try {
+            await logout();
+        } catch (error) {
+            console.error('Logout error:', error);
+        }
+    };
+
+    const handleAuthSuccess = () => {
+        setShowAuthModal(false);
+    };
+
     return (
-        <View style={styles.container}>
-            {/* Logo */}
-            <View style={styles.logoSection}>
-                <TouchableOpacity style={styles.logoButton}>
-                    <Text style={styles.logo}>😈</Text>
+        <View style={[styles.sidebarContainer, compact && styles.sidebarContainerCompact]}>
+            <View>
+                <TouchableOpacity onPress={() => router.push('/(tabs)' as any)}>
+                    <Text style={[styles.logo, compact && styles.logoCompact]}>ET</Text>
+                    {!compact ? (
+                        <Text style={styles.logoSubtitle}>Evil Twitter</Text>
+                    ) : null}
                 </TouchableOpacity>
+
+                <View style={styles.navList}>
+                    {navigation.map((item) => (
+                        <TouchableOpacity
+                            key={item.name}
+                            style={styles.navItem}
+                            onPress={() => router.push(item.route as any)}
+                        >
+                            <Text style={styles.navIcon}>{item.icon}</Text>
+                            {!compact ? <Text style={styles.navLabel}>{item.name}</Text> : null}
+                        </TouchableOpacity>
+                    ))}
+                </View>
             </View>
 
-            {/* Navigation */}
-            <View style={styles.navigation}>
-                {navigation.map((item) => (
-                    <TouchableOpacity
-                        key={item.name}
-                        style={styles.navItem}
-                        onPress={() => item.route ? router.push(item.route as any) : null}
-                    >
-                        <Text style={styles.navIcon}>{item.icon}</Text>
-                        <Text style={styles.navText}>{item.name}</Text>
-                    </TouchableOpacity>
-                ))}
-            </View>
-
-            {/* Tweet Button */}
-            <View style={styles.tweetSection}>
-                <TouchableOpacity style={styles.tweetButton}>
-                    <Text style={styles.tweetButtonText}>Tweet</Text>
+            <View style={styles.sidebarFooter}>
+                <TouchableOpacity style={styles.tweetButton} activeOpacity={0.8}>
+                    <Text style={styles.tweetButtonText}>{compact ? '✍️' : 'Tweet'}</Text>
                 </TouchableOpacity>
-            </View>
 
-            {/* User Profile - Bottom */}
-            <View style={styles.userSection}>
-                {isAuthenticated && user ? (
-                    <TouchableOpacity style={styles.userProfile}>
-                        <View style={styles.userAvatar}>
-                            <Text style={styles.avatarText}>
-                                {user.user_metadata?.display_name?.charAt(0).toUpperCase() || '😈'}
-                            </Text>
-                        </View>
-                        <View style={styles.userInfo}>
-                            <Text style={styles.userName}>
-                                {user.user_metadata?.display_name || user.email}
-                            </Text>
-                            <Text style={styles.userHandle}>
-                                @{user.user_metadata?.username || 'user'}
-                            </Text>
-                        </View>
-                        <Text style={styles.moreIcon}>⋯</Text>
-                    </TouchableOpacity>
+                {isAuthenticated && backendUser ? (
+                    <View style={styles.profileCard}>
+                        <TouchableOpacity
+                            style={styles.profileLink}
+                            onPress={() => router.push('/(tabs)/profile' as any)}
+                        >
+                            <View style={styles.profileAvatar}>
+                                <Text style={styles.profileAvatarText}>
+                                    {backendUser.display_name?.charAt(0).toUpperCase() || '😈'}
+                                </Text>
+                            </View>
+                            {!compact ? (
+                                <View style={styles.profileMeta}>
+                                    <Text style={styles.profileName}>
+                                        {backendUser.display_name || 'User'}
+                                    </Text>
+                                    <Text style={styles.profileHandle}>
+                                        @{backendUser.username || 'user'}
+                                    </Text>
+                                </View>
+                            ) : null}
+                        </TouchableOpacity>
+                        {!compact ? (
+                            <TouchableOpacity onPress={handleLogout} style={styles.logoutButton}>
+                                <Text style={styles.logoutText}>Logout</Text>
+                            </TouchableOpacity>
+                        ) : (
+                            <TouchableOpacity onPress={handleLogout} style={styles.logoutButtonCompact}>
+                                <Text style={styles.logoutIcon}>🚪</Text>
+                            </TouchableOpacity>
+                        )}
+                    </View>
                 ) : (
-                    <View style={styles.loginPrompt}>
-                        <Text style={styles.loginText}>
-                            Please log in to access all features
-                        </Text>
+                    <View style={styles.authSection}>
+                        {!compact ? (
+                            <SignInButton
+                                style={styles.loginButton}
+                                textStyle={styles.loginText}
+                                text="Sign In"
+                                onAuthSuccess={handleAuthSuccess}
+                            />
+                        ) : (
+                            <TouchableOpacity
+                                style={styles.loginButtonCompact}
+                                onPress={() => setShowAuthModal(true)}
+                            >
+                                <Text style={styles.loginIcon}>🔑</Text>
+                            </TouchableOpacity>
+                        )}
                     </View>
                 )}
+
+                <AuthModal
+                    isOpen={showAuthModal}
+                    onClose={() => setShowAuthModal(false)}
+                    onAuthSuccess={handleAuthSuccess}
+                />
             </View>
         </View>
     );
 }
 
 const styles = StyleSheet.create({
-    container: {
+    sidebarContainer: {
         flex: 1,
-        flexDirection: 'column',
-        height: '100%',
+        borderRadius: 24,
+        paddingHorizontal: 20,
+        paddingVertical: 24,
+        backgroundColor: 'rgba(255,255,255,0.03)',
+        borderWidth: 1,
+        borderColor: 'rgba(255,255,255,0.08)',
+        justifyContent: 'space-between',
+        minHeight: Platform.OS === 'web' ? '100vh' as any : undefined,
+    },
+    sidebarContainerCompact: {
         paddingHorizontal: 12,
-        paddingVertical: 8,
-    },
-    logoSection: {
-        paddingVertical: 12,
-        paddingHorizontal: 4,
-        marginBottom: 8,
-    },
-    logoButton: {
-        width: 50,
-        height: 50,
-        borderRadius: 25,
-        justifyContent: 'center',
-        alignItems: 'center',
     },
     logo: {
-        fontSize: 28,
+        fontSize: 24,
+        fontWeight: '800',
+        color: '#fff',
     },
-    navigation: {
-        flex: 1,
-        paddingVertical: 8,
+    logoCompact: {
+        textAlign: 'center',
+    },
+    logoSubtitle: {
+        fontSize: 16,
+        color: '#9ca3af',
+        marginTop: 4,
+        marginBottom: 24,
+    },
+    navList: {
+        gap: 12,
     },
     navItem: {
         flexDirection: 'row',
         alignItems: 'center',
         paddingVertical: 12,
-        paddingHorizontal: 16,
-        borderRadius: 25,
-        marginVertical: 2,
-        minHeight: 50,
+        paddingHorizontal: 12,
+        borderRadius: 999,
+        gap: 16,
     },
     navIcon: {
-        fontSize: 26,
-        marginRight: 20,
-        width: 26,
-        textAlign: 'center',
+        fontSize: 22,
     },
-    navText: {
-        fontSize: 20,
+    navLabel: {
+        fontSize: 18,
         color: '#fff',
-        fontWeight: '400',
+        fontWeight: '600',
     },
-    tweetSection: {
-        paddingVertical: 8,
-        paddingHorizontal: 4,
+    sidebarFooter: {
+        gap: 20,
     },
     tweetButton: {
         backgroundColor: '#1d9bf0',
-        paddingVertical: 16,
-        paddingHorizontal: 32,
-        borderRadius: 25,
+        borderRadius: 999,
+        paddingVertical: 14,
         alignItems: 'center',
-        minHeight: 50,
-        justifyContent: 'center',
     },
     tweetButtonText: {
+        fontSize: 18,
+        fontWeight: '700',
         color: '#fff',
-        fontSize: 17,
-        fontWeight: 'bold',
     },
-    userSection: {
-        paddingVertical: 8,
-        paddingHorizontal: 4,
-        marginTop: 'auto',
-    },
-    userProfile: {
+    profileCard: {
         flexDirection: 'row',
         alignItems: 'center',
         paddingVertical: 12,
         paddingHorizontal: 12,
-        borderRadius: 25,
-        minHeight: 60,
+        borderRadius: 16,
+        backgroundColor: 'rgba(255,255,255,0.04)',
+        borderWidth: 1,
+        borderColor: 'rgba(255,255,255,0.08)',
+        gap: 12,
     },
-    userAvatar: {
-        width: 40,
-        height: 40,
-        borderRadius: 20,
-        backgroundColor: '#536471',
+    profileAvatar: {
+        width: 44,
+        height: 44,
+        borderRadius: 22,
+        backgroundColor: '#334155',
+        alignItems: 'center',
         justifyContent: 'center',
-        alignItems: 'center',
-        marginRight: 12,
     },
-    avatarText: {
+    profileAvatarText: {
         color: '#fff',
-        fontSize: 18,
-        fontWeight: 'bold',
+        fontWeight: '700',
     },
-    userInfo: {
+    profileMeta: {
         flex: 1,
-        minWidth: 0,
     },
-    userName: {
-        fontSize: 15,
-        fontWeight: 'bold',
+    profileName: {
         color: '#fff',
-        marginBottom: 2,
+        fontWeight: '700',
+        fontSize: 16,
     },
-    userHandle: {
-        fontSize: 15,
-        color: '#71767b',
+    profileHandle: {
+        color: '#9ca3af',
+        marginTop: 2,
     },
-    moreIcon: {
-        color: '#71767b',
-        fontSize: 20,
-        marginLeft: 8,
+    profileMenu: {
+        color: '#9ca3af',
+        fontSize: 18,
     },
-    loginPrompt: {
+    profileLink: {
+        flexDirection: 'row',
         alignItems: 'center',
-        paddingVertical: 16,
+        flex: 1,
+        gap: 12,
+    },
+    logoutButton: {
+        backgroundColor: '#ef4444',
+        paddingVertical: 8,
+        paddingHorizontal: 12,
+        borderRadius: 8,
+    },
+    logoutText: {
+        color: '#fff',
+        fontSize: 12,
+        fontWeight: '600',
+    },
+    logoutButtonCompact: {
+        backgroundColor: '#ef4444',
+        paddingVertical: 8,
+        paddingHorizontal: 8,
+        borderRadius: 8,
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
+    logoutIcon: {
+        fontSize: 16,
+    },
+    authSection: {
+        alignItems: 'center',
+    },
+    loginButton: {
+        backgroundColor: '#1d9bf0',
+        paddingVertical: 12,
+        paddingHorizontal: 24,
+        borderRadius: 24,
+        alignItems: 'center',
+        justifyContent: 'center',
+        width: '100%',
     },
     loginText: {
-        color: '#71767b',
-        fontSize: 15,
-        textAlign: 'center',
+        color: '#fff',
+        fontSize: 16,
+        fontWeight: 'bold',
+    },
+    loginButtonCompact: {
+        backgroundColor: '#1d9bf0',
+        paddingVertical: 12,
+        paddingHorizontal: 12,
+        borderRadius: 24,
+        alignItems: 'center',
+        justifyContent: 'center',
+        width: '100%',
+    },
+    loginIcon: {
+        fontSize: 18,
     },
 });
