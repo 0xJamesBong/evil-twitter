@@ -32,14 +32,30 @@ pub trait UseOnTweet {
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone, ToSchema)]
-pub struct Weapon {
+pub enum ToolType {
+    Weapon,
+    Defence,
+    Support,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone, ToSchema)]
+pub enum ToolTarget {
+    Tweet,
+    User,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone, ToSchema)]
+pub struct Tool {
     #[serde(rename = "_id", skip_serializing_if = "Option::is_none")]
     #[schema(value_type = String, example = "507f1f77bcf86cd799439011")]
     pub id: Option<ObjectId>,
 
     #[schema(value_type = String, example = "507f1f77bcf86cd799439011")]
     pub owner_id: String,
-
+    #[schema(example = "Weapon")]
+    pub tool_type: ToolType,
+    #[schema(example = "Tweet")]
+    pub tool_target: ToolTarget,
     pub name: String,
     pub description: String,
     pub image_url: String,
@@ -49,7 +65,7 @@ pub struct Weapon {
     pub degrade_per_use: i32,
 }
 
-impl HaveLifetime for Weapon {
+impl HaveLifetime for Tool {
     fn health(&self) -> i32 {
         self.health
     }
@@ -63,7 +79,7 @@ impl HaveLifetime for Weapon {
     }
 }
 
-impl UseOnTweet for Weapon {
+impl UseOnTweet for Tool {
     fn use_on_tweet(&mut self, tweet: &mut Tweet) {
         if self.is_broken() {
             println!("Weapon is broken, and cannot be used");
@@ -94,7 +110,7 @@ impl UseOnTweet for Weapon {
     }
 }
 
-impl Weapon {
+impl Tool {
     pub fn builder(owner_id: impl Into<String>) -> WeaponBuilder {
         WeaponBuilder {
             owner_id: owner_id.into(),
@@ -141,8 +157,8 @@ impl WeaponBuilder {
         self
     }
 
-    pub fn build(self) -> Weapon {
-        Weapon {
+    pub fn build(self) -> Tool {
+        Tool {
             id: None,
             owner_id: self.owner_id,
             name: self.name.unwrap(),

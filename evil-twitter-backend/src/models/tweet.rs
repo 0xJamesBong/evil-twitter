@@ -2,7 +2,7 @@ use mongodb::bson::{DateTime, oid::ObjectId};
 use serde::{Deserialize, Serialize};
 use utoipa::ToSchema;
 
-use crate::models::tool::Weapon;
+use crate::models::tool::Tool;
 
 /// Core tweet variants supported by the platform.
 #[derive(Debug, Serialize, Deserialize, Clone, Copy, PartialEq, Eq, ToSchema)]
@@ -265,7 +265,7 @@ pub struct SupportAction {
     #[schema(value_type = String, example = "507f1f77bcf86cd799439011")]
     pub user_id: ObjectId, // Who did the action
     #[serde(default)]
-    pub weapon_used: Option<String>, // Optional: what weapon/gadget was used
+    pub weapon: Option<Tool>, // Optional: what weapon/gadget was used
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone, ToSchema)]
@@ -275,7 +275,7 @@ pub struct AttackAction {
     #[schema(value_type = String, example = "507f1f77bcf86cd799439011")]
     pub user_id: ObjectId, // Who did the action
     #[serde(default)]
-    pub weapon_used: Option<String>, // Optional: what weapon/gadget was used
+    pub weapon: Option<Tool>, // Optional: what weapon/gadget was used
 }
 
 // #[derive(Debug, Serialize, Deserialize, Clone, ToSchema)]
@@ -364,11 +364,12 @@ impl Tweet {
         self.root_tweet_id.or(self.id)
     }
 
-    pub fn attack_tweet(&mut self, attacker_user_id: ObjectId, weapon_used: Option<String>) {
+    pub fn attack_tweet(&mut self, attacker_user_id: ObjectId, weapon: Option<Tool>) {
         // For now, use a default attack amount
+
         // TODO: Implement weapon system to get actual attack values
-        let attack_amount = if weapon_used.is_some() {
-            10.0 // Higher damage with weapon
+        let attack_amount = if weapon.is_some() {
+            weapon.clone().unwrap().damage as f64
         } else {
             1.0 // Basic attack without weapon
         };
@@ -377,26 +378,26 @@ impl Tweet {
             timestamp: mongodb::bson::DateTime::now(),
             amount: attack_amount,
             user_id: attacker_user_id,
-            weapon_used,
+            weapon: weapon.clone(),
         };
 
         // Update energy state
         self.energy_state.record_attack(action);
     }
 
-    pub fn support_tweet(&mut self, supporter_user_id: ObjectId, weapon_used: Option<String>) {
+    pub fn support_tweet(&mut self, supporter_user_id: ObjectId, weapon: Option<Tool>) {
         // For now, use a default attack amount
         // TODO: Implement weapon system to get actual attack values
-        let support_amount = if weapon_used.is_some() {
-            10.0 // Higher damage with weapon
+        let support_amount = if weapon.is_some() {
+            weapon.clone().unwrap().damage as f64
         } else {
-            1.0 // Basic attack without weapon
+            0.0 // Basic attack without weapon
         };
         let action = SupportAction {
             timestamp: mongodb::bson::DateTime::now(),
             amount: support_amount,
             user_id: supporter_user_id,
-            weapon_used,
+            weapon: weapon.clone(),
         };
         self.energy_state.record_support(action);
     }

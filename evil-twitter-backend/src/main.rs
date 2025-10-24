@@ -95,7 +95,7 @@ use routes::weapons::{buy_weapon, get_user_weapons, get_weapon_catalog_endpoint}
             routes::data_generation::DataGenerationResponse,
             routes::data_generation::UserGenerationRequest,
             routes::data_generation::TweetGenerationRequest,
-            models::tool::Weapon,
+            models::tool::Tool,
             routes::tweet::HealTweetRequest,
             routes::tweet::AttackTweetRequest,
             routes::tweet::TweetListResponse,

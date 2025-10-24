@@ -18,6 +18,7 @@ use utoipa::ToSchema;
 use crate::{
     middleware::wall::compose_wall,
     models::{
+        tool::Tool,
         tweet::{
             AttackAction, CreateTweet, Tweet, TweetAttackAction, TweetAuthorSnapshot,
             TweetEnergyState, TweetHealAction, TweetHealthState, TweetMetrics, TweetType,
@@ -261,7 +262,7 @@ pub async fn create_tweet(
     headers: HeaderMap,
     Json(payload): Json<CreateTweet>,
 ) -> Result<(StatusCode, Json<TweetView>), ApiError> {
-    let collection: Collection<Tweet> = db.collection("tweets");
+    let tweet_collection: Collection<Tweet> = db.collection("tweets");
     let user_collection: Collection<User> = db.collection("users");
 
     let auth_header = headers
@@ -285,6 +286,7 @@ pub async fn create_tweet(
     let owner_id = user
         .id
         .ok_or_else(|| internal_error("User record missing identifier"))?;
+
     let username = user.username;
     let display_name = user.display_name;
     let avatar_url = user.avatar_url;
@@ -314,7 +316,7 @@ pub async fn create_tweet(
         energy_state: TweetEnergyState::default(),
     };
 
-    collection
+    tweet_collection
         .insert_one(&tweet)
         .await
         .map_err(|_| internal_error("Failed to create tweet"))?;
@@ -881,12 +883,12 @@ pub async fn support_tweet(
     headers: HeaderMap,
     Json(payload): Json<HealTweetRequest>,
 ) -> Result<(StatusCode, Json<Value>), ApiError> {
-    let collection: Collection<Tweet> = db.collection("tweets");
+    let tweet_collection: Collection<Tweet> = db.collection("tweets");
     // Get the attacker's user ID using the utility function
     let supporter_user_id = crate::utils::auth::get_authenticated_user_id(&db, &headers).await?;
 
     let tweet_id = parse_object_id(&id, "tweet")?;
-    let mut tweet = collection
+    let mut tweet = tweet_collection
         .find_one(doc! {"_id": tweet_id})
         .await
         .map_err(|_| internal_error("Database error fetching tweet"))?
@@ -897,7 +899,7 @@ pub async fn support_tweet(
     let energy_after = tweet.energy_state.energy;
     let damage = energy_before - energy_after;
 
-    collection.update_one(doc!{"_id": tweet_id},
+    tweet_collection.update_one(doc!{"_id": tweet_id},
         doc!{"$set": {"energy_state": mongodb::bson::to_bson(&tweet.energy_state).map_err(|_| internal_error("Serialization error"))?}}
     ).await
     .map_err(|_| internal_error("Failed to update tweet energy after support"))?;
@@ -931,28 +933,29 @@ pub async fn attack_tweet(
     headers: HeaderMap,
     Json(payload): Json<AttackTweetRequest>,
 ) -> Result<(StatusCode, Json<Value>), ApiError> {
-    let collection: Collection<Tweet> = db.collection("tweets");
+    let tweet_collection: Collection<Tweet> = db.collection("tweets");
+    let tool_collection: Collection<Tool> = db.collection("tools");
     // Get the attacker's user ID using the utility function
     let attacker_user_id = crate::utils::auth::get_authenticated_user_id(&db, &headers).await?;
 
-    let weapon = weapon_collection
+    let weapon = tool_collection
         .find_one(doc! {"_id": payload.weapon_id})
         .await
         .map_err(|_| internal_error("Database error fetching weapon"))?
         .ok_or_else(|| not_found("Weapon not found"))?;
 
     let tweet_id = parse_object_id(&id, "tweet")?;
-    let mut tweet = collection
+    let mut tweet = tweet_collection
         .find_one(doc! {"_id": tweet_id})
         .await
         .map_err(|_| internal_error("Database error fetching tweet"))?
         .ok_or_else(|| not_found("Tweet not found"))?;
     let energy_before = tweet.energy_state.energy;
-    tweet.attack_tweet(attacker_user_id, payload.weapon_id);
+    tweet.attack_tweet(attacker_user_id, Some(weapon));
     let energy_after = tweet.energy_state.energy;
     let damage = energy_before - energy_after;
 
-    collection
+    tweet_collection
         .update_one(
             doc! {"_id": tweet_id},
             doc! {

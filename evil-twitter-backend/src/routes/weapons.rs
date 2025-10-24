@@ -1,4 +1,4 @@
-use crate::models::{tool::Weapon, user::User, weapon_catalog};
+use crate::models::{tool::Tool, user::User, weapon_catalog};
 use mongodb::{
     Collection,
     bson::{doc, oid::ObjectId},
@@ -43,7 +43,7 @@ pub async fn get_weapon_catalog_endpoint() -> Json<Vec<weapon_catalog::WeaponCat
     ),
     request_body = BuyWeaponRequest,
     responses(
-        (status = 201, description = "Weapon purchased successfully", body = Weapon),
+        (status = 201, description = "Weapon purchased successfully", body = Tool),
         (status = 400, description = "Invalid catalog ID or user ID"),
         (status = 404, description = "Weapon not found in catalog")
     ),
@@ -53,8 +53,8 @@ pub async fn buy_weapon(
     State(db): State<Database>,
     Path(user_id): Path<String>,
     Json(payload): Json<BuyWeaponRequest>,
-) -> Result<(StatusCode, Json<Weapon>), (StatusCode, Json<serde_json::Value>)> {
-    let collection: Collection<Weapon> = db.collection("weapons");
+) -> Result<(StatusCode, Json<Tool>), (StatusCode, Json<serde_json::Value>)> {
+    let collection: Collection<Tool> = db.collection("weapons");
     let user_collection: Collection<crate::models::user::User> = db.collection("users");
 
     let user_oid = ObjectId::parse_str(&user_id).map_err(|_| {
@@ -73,7 +73,7 @@ pub async fn buy_weapon(
     })?;
 
     // Create weapon instance from catalog
-    let weapon = Weapon {
+    let weapon = Tool {
         id: Some(ObjectId::new()),
         owner_id: user_id.clone(),
         name: catalog_item.name,
@@ -90,10 +90,10 @@ pub async fn buy_weapon(
 
 pub async fn give_user_weapon(
     users: &Collection<User>,
-    weapons: &Collection<Weapon>,
+    weapons: &Collection<Tool>,
     user_id: &ObjectId,
-    weapon: Weapon,
-) -> Result<(StatusCode, Json<Weapon>), (StatusCode, Json<serde_json::Value>)> {
+    weapon: Tool,
+) -> Result<(StatusCode, Json<Tool>), (StatusCode, Json<serde_json::Value>)> {
     // insert weapon into the weapon collection
     let mut weapon = weapon;
     weapon.owner_id = user_id.to_hex(); // or user.supabase_id
@@ -132,7 +132,7 @@ pub async fn give_user_weapon(
         ("user_id" = String, Path, description = "User ID")
     ),
     responses(
-        (status = 200, description = "User weapons retrieved successfully", body = Vec<Weapon>),
+        (status = 200, description = "User weapons retrieved successfully", body = Vec<Tool>),
         (status = 400, description = "Invalid user ID"),
         (status = 404, description = "User not found")
     ),
@@ -141,8 +141,8 @@ pub async fn give_user_weapon(
 pub async fn get_user_weapons(
     State(db): State<Database>,
     Path(user_id): Path<String>,
-) -> Result<Json<Vec<Weapon>>, (StatusCode, Json<serde_json::Value>)> {
-    let collection: Collection<Weapon> = db.collection("weapons");
+) -> Result<Json<Vec<Tool>>, (StatusCode, Json<serde_json::Value>)> {
+    let collection: Collection<Tool> = db.collection("weapons");
 
     let user_oid = ObjectId::parse_str(&user_id).map_err(|_| {
         (
@@ -162,7 +162,7 @@ pub async fn get_user_weapons(
             )
         })?;
 
-    let weapons: Vec<Weapon> = cursor.try_collect().await.map_err(|_| {
+    let weapons: Vec<Tool> = cursor.try_collect().await.map_err(|_| {
         (
             StatusCode::INTERNAL_SERVER_ERROR,
             Json(serde_json::json!({"error": "Failed to collect weapons"})),
