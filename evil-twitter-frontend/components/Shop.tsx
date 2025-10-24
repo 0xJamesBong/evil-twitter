@@ -15,9 +15,11 @@ import {
 } from '@mui/material';
 import { useBackendUserStore } from '../lib/stores/backendUserStore';
 import { useShopStore } from '../lib/stores/shopStore';
+import { useWeaponsStore } from '../lib/stores/weaponsStore';
 
 export function Shop() {
     const { user } = useBackendUserStore();
+    const fetchUserWeapons = useWeaponsStore((state) => state.fetchUserWeapons);
     const {
         catalog,
         loading,
@@ -47,6 +49,7 @@ export function Shop() {
         const result = await buyWeapon(user._id.$oid, catalogId);
 
         if (result.success) {
+            await fetchUserWeapons(user._id.$oid);
             alert('Weapon purchased successfully! Check your arsenal.');
         }
     };
@@ -78,11 +81,11 @@ export function Shop() {
     return (
         <Box>
             <Typography variant="h4" sx={{ mb: 3, fontWeight: 700 }}>
-                Weapon Shop
+                Tool Shop
             </Typography>
 
             <Typography variant="body1" color="text.secondary" sx={{ mb: 4 }}>
-                Select from our arsenal of powerful weapons, defensive gear, healing items, and utility gadgets.
+                Select from our arsenal of offensive weapons, defensive gear, support tools, and utility gadgets.
                 Each item has unique stats and abilities to enhance your Twitter battles.
             </Typography>
 
@@ -173,18 +176,17 @@ export function Shop() {
                             {/* Stats */}
                             <Box sx={{ mb: 2 }}>
                                 <Typography variant="caption" display="block" sx={{ mb: 0.5 }}>
-                                    <strong>Health:</strong> {item.max_health}
+                                    <strong>Type:</strong> {item.tool_type}
                                 </Typography>
-                                {item.attack_power > 0 && (
-                                    <Typography variant="caption" display="block" sx={{ mb: 0.5 }}>
-                                        <strong>Attack:</strong> {item.attack_power}
-                                    </Typography>
-                                )}
-                                {item.heal_power > 0 && (
-                                    <Typography variant="caption" display="block" sx={{ mb: 0.5 }}>
-                                        <strong>Heal:</strong> {item.heal_power}
-                                    </Typography>
-                                )}
+                                <Typography variant="caption" display="block" sx={{ mb: 0.5 }}>
+                                    <strong>Impact:</strong> {item.impact}
+                                </Typography>
+                                <Typography variant="caption" display="block" sx={{ mb: 0.5 }}>
+                                    <strong>Durability:</strong> {item.max_health}
+                                </Typography>
+                                <Typography variant="caption" display="block">
+                                    <strong>Degrade/use:</strong> {item.degrade_per_use}
+                                </Typography>
                             </Box>
 
                             {/* Price & Buy Button */}
@@ -221,4 +223,3 @@ export function Shop() {
         </Box>
     );
 }
-

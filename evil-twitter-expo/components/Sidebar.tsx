@@ -14,7 +14,7 @@ export function Sidebar() {
         // { name: 'Messages', icon: '✉️', route: '/(tabs)/messages' },
         // { name: 'Bookmarks', icon: '🔖', route: '/(tabs)/bookmarks' },
         { name: 'Profile', icon: '👤', route: '/(tabs)/profile' },
-        // { name: 'Shop', icon: '🛒', route: '/(tabs)/shop' },
+        { name: 'Shop', icon: '🛒', route: '/(tabs)/shop' },
     ];
 
     return (
