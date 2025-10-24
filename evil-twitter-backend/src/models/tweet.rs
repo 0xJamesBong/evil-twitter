@@ -210,7 +210,7 @@ impl Default for TweetEnergyState {
 pub const GRAVITY: f64 = 9.81;
 impl TweetEnergyState {
     pub fn calc_total_energy(&self) -> f64 {
-        // E = ½mv² + mgy - attacks + heals
+        // E = ½mv² + mgy - attacks + support
         self.kinetic_energy + self.potential_energy + self.energy_gained_from_support
             - self.energy_lost_from_attacks
     }
@@ -407,14 +407,6 @@ impl Tweet {
     //         }
     //         EnergyActionType::Support => {
     //             let support_action = SupportAction {
-    //                 timestamp: mongodb::bson::DateTime::now(),
-    //                 amount: energy_change, // Store as positive value
-    //                 user_id,
-    //                 weapon_used,
-    //             };
-    //             self.energy.record_heal(support_action);
-    //         }
-    //     }
 
     //     self.energy.update_energy();
 

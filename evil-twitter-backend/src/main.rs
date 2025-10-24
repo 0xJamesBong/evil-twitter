@@ -17,7 +17,7 @@ use routes::data_generation::{
     clear_all_data, generate_fake_data, generate_fake_tweets, generate_fake_users,
 };
 use routes::follow::{follow_user, get_followers_list, get_following_list, unfollow_user};
-use routes::migration::{migrate_tweets_health, migrate_user_objectids, migrate_users_weapons};
+use routes::migration::{migrate_user_objectids, migrate_users_weapons};
 use routes::ping::ping_handler;
 use routes::tweet::{
     attack_tweet, create_tweet, get_thread, get_tweet, get_tweets, get_user_wall, like_tweet,
@@ -55,7 +55,6 @@ use routes::weapons::{buy_weapon, get_user_weapons, get_weapon_catalog_endpoint}
         routes::data_generation::generate_fake_data,
         routes::data_generation::clear_all_data,
         routes::tweet::migrate_users_dollar_rate,
-        routes::migration::migrate_tweets_health,
         routes::migration::migrate_users_weapons,
         routes::migration::migrate_user_objectids,
         routes::follow::follow_user,
@@ -149,7 +148,7 @@ async fn main() -> anyhow::Result<()> {
         .route("/tweets/{id}", get(get_tweet))
         .route("/tweets/{id}/thread", get(get_thread))
         .route("/tweets/{id}/like", post(like_tweet))
-        .route("/tweets/{id}/heal", post(support_tweet))
+        .route("/tweets/{id}/support", post(support_tweet))
         .route("/tweets/{id}/attack", post(attack_tweet))
         .route("/tweets/{id}/retweet", post(retweet_tweet))
         .route("/tweets/{id}/quote", post(quote_tweet))
@@ -158,7 +157,6 @@ async fn main() -> anyhow::Result<()> {
         .route("/data/tweets/generate", post(generate_fake_tweets))
         .route("/data/generate", post(generate_fake_data))
         .route("/data/clear", delete(clear_all_data))
-        .route("/admin/migrate-health", post(migrate_tweets_health))
         .route("/admin/migrate-users-weapons", post(migrate_users_weapons))
         .route(
             "/admin/migrate-user-objectids",

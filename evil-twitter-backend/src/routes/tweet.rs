@@ -819,32 +819,6 @@ pub async fn clear_all_data(
     Ok((StatusCode::OK, ok_message("All tweets cleared")))
 }
 
-pub async fn migrate_health(
-    State(db): State<Database>,
-) -> Result<(StatusCode, Json<Value>), ApiError> {
-    let tweet_collection: Collection<Tweet> = db.collection("tweets");
-
-    tweet_collection
-        .update_many(
-            doc! {},
-            doc! {
-                "$set": {
-                    "health.current": 100,
-                    "health.max": 100,
-                    "health.history.heal_history": [],
-                    "health.history.attack_history": [],
-                }
-            },
-        )
-        .await
-        .map_err(|_| internal_error("Failed to migrate tweet health states"))?;
-
-    Ok((
-        StatusCode::OK,
-        ok_message("Tweet health migration completed"),
-    ))
-}
-
 #[utoipa::path(
     post,
     path = "/admin/migrate-users-dollar-rate",
@@ -869,11 +843,11 @@ pub async fn migrate_users_dollar_rate(
 
 #[utoipa::path(
     post,
-    path = "/tweets/{id}/heal",
+    path = "/tweets/{id}/support",
     params(("id" = String, Path, description = "Tweet ID")),
     request_body = SupportTweetRequest,
     responses(
-        (status = 200, description = "Tweet healed successfully"),
+        (status = 200, description = "Tweet supported successfully"),
         (status = 404, description = "Tweet not found")
     ),
     tag = "tweets"

@@ -2,8 +2,6 @@ use mongodb::bson::oid::ObjectId;
 use serde::{Deserialize, Serialize};
 use utoipa::ToSchema;
 
-use crate::models::tweet::{Tweet, TweetAttackAction};
-
 #[derive(Debug, Serialize, Deserialize, Clone, ToSchema)]
 pub enum ToolType {
     Weapon,

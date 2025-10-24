@@ -47,7 +47,7 @@ impl ActionEngine {
             // );
         }
 
-        // 1️⃣ Compute base effect power (damage/heal)
+        // 1️⃣ Compute base effect power (damage/support)
         let impact = if tool.is_some() {
             tool.as_ref().unwrap().impact as f64
         } else {
