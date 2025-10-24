@@ -222,14 +222,14 @@ impl TweetEnergyState {
         self.last_update_timestamp = DateTime::now();
     }
 
-    pub fn record_support(&mut self, action: SupportAction) {
-        self.energy_gained_from_support += action.amount;
+    pub fn record_support(&mut self, action: TweetSupportAction) {
+        self.energy_gained_from_support += action.impact;
         self.history.support_history.push(action);
         self.update_energy();
     }
 
-    pub fn record_attack(&mut self, action: AttackAction) {
-        self.energy_lost_from_attacks += action.amount;
+    pub fn record_attack(&mut self, action: TweetAttackAction) {
+        self.energy_lost_from_attacks += action.impact;
         self.history.attack_history.push(action);
         self.update_energy();
     }
@@ -238,9 +238,9 @@ impl TweetEnergyState {
 #[derive(Debug, Serialize, Deserialize, Clone, ToSchema)]
 pub struct TweetEnergyStateHistory {
     #[serde(default)]
-    pub support_history: Vec<SupportAction>,
+    pub support_history: Vec<TweetSupportAction>,
     #[serde(default)]
-    pub attack_history: Vec<AttackAction>,
+    pub attack_history: Vec<TweetAttackAction>,
 }
 
 impl Default for TweetEnergyStateHistory {
@@ -259,40 +259,24 @@ pub enum EnergyActionType {
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone, ToSchema)]
-pub struct SupportAction {
+pub struct TweetSupportAction {
     pub timestamp: DateTime,
-    pub amount: f64, // Energy amount
+    pub impact: f64, // Energy amount
     #[schema(value_type = String, example = "507f1f77bcf86cd799439011")]
     pub user_id: ObjectId, // Who did the action
     #[serde(default)]
-    pub weapon: Option<Tool>, // Optional: what weapon/gadget was used
+    pub tool: Option<Tool>, // Optional: what weapon/gadget was used
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone, ToSchema)]
-pub struct AttackAction {
+pub struct TweetAttackAction {
     pub timestamp: DateTime,
-    pub amount: f64, // Energy amount
+    pub impact: f64, // Energy amount
     #[schema(value_type = String, example = "507f1f77bcf86cd799439011")]
     pub user_id: ObjectId, // Who did the action
     #[serde(default)]
-    pub weapon: Option<Tool>, // Optional: what weapon/gadget was used
+    pub tool: Option<Tool>, // Optional: what weapon/gadget was used
 }
-
-// #[derive(Debug, Serialize, Deserialize, Clone, ToSchema)]
-// pub struct TweetHealAction {
-//     pub timestamp: DateTime,
-//     pub amount: i32,
-//     pub health_before: i32,
-//     pub health_after: i32,
-// }
-
-// #[derive(Debug, Serialize, Deserialize, Clone, ToSchema)]
-// pub struct TweetAttackAction {
-//     pub timestamp: DateTime,
-//     pub amount: i32,
-//     pub health_before: i32,
-//     pub health_after: i32,
-// }
 
 #[derive(Debug, Deserialize, ToSchema)]
 pub struct CreateTweet {
@@ -364,43 +348,43 @@ impl Tweet {
         self.root_tweet_id.or(self.id)
     }
 
-    pub fn attack_tweet(&mut self, attacker_user_id: ObjectId, weapon: Option<Tool>) {
-        // For now, use a default attack amount
+    // pub fn attack_tweet(&mut self, attacker_user_id: ObjectId, weapon: Option<Tool>) {
+    //     // For now, use a default attack amount
 
-        // TODO: Implement weapon system to get actual attack values
-        let attack_amount = if weapon.is_some() {
-            weapon.clone().unwrap().damage as f64
-        } else {
-            1.0 // Basic attack without weapon
-        };
+    //     // TODO: Implement weapon system to get actual attack values
+    //     let attack_amount = if weapon.is_some() {
+    //         weapon.clone().unwrap().damage as f64
+    //     } else {
+    //         1.0 // Basic attack without weapon
+    //     };
 
-        let action = AttackAction {
-            timestamp: mongodb::bson::DateTime::now(),
-            amount: attack_amount,
-            user_id: attacker_user_id,
-            weapon: weapon.clone(),
-        };
+    //     let action = AttackAction {
+    //         timestamp: mongodb::bson::DateTime::now(),
+    //         amount: attack_amount,
+    //         user_id: attacker_user_id,
+    //         weapon: weapon.clone(),
+    //     };
 
-        // Update energy state
-        self.energy_state.record_attack(action);
-    }
+    //     // Update energy state
+    //     self.energy_state.record_attack(action);
+    // }
 
-    pub fn support_tweet(&mut self, supporter_user_id: ObjectId, weapon: Option<Tool>) {
-        // For now, use a default attack amount
-        // TODO: Implement weapon system to get actual attack values
-        let support_amount = if weapon.is_some() {
-            weapon.clone().unwrap().damage as f64
-        } else {
-            0.0 // Basic attack without weapon
-        };
-        let action = SupportAction {
-            timestamp: mongodb::bson::DateTime::now(),
-            amount: support_amount,
-            user_id: supporter_user_id,
-            weapon: weapon.clone(),
-        };
-        self.energy_state.record_support(action);
-    }
+    // pub fn support_tweet(&mut self, supporter_user_id: ObjectId, weapon: Option<Tool>) {
+    //     // For now, use a default attack amount
+    //     // TODO: Implement weapon system to get actual attack values
+    //     let support_amount = if weapon.is_some() {
+    //         weapon.clone().unwrap().damage as f64
+    //     } else {
+    //         0.0 // Basic attack without weapon
+    //     };
+    //     let action = SupportAction {
+    //         timestamp: mongodb::bson::DateTime::now(),
+    //         amount: support_amount,
+    //         user_id: supporter_user_id,
+    //         weapon: weapon.clone(),
+    //     };
+    //     self.energy_state.record_support(action);
+    // }
 
     // pub async fn record_energy_change(
     //     &mut self,

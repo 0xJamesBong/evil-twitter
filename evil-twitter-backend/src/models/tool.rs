@@ -4,6 +4,19 @@ use utoipa::ToSchema;
 
 use crate::models::tweet::{Tweet, TweetAttackAction};
 
+#[derive(Debug, Serialize, Deserialize, Clone, ToSchema)]
+pub enum ToolType {
+    Weapon,
+    Support,
+    // Defence,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone, ToSchema)]
+pub enum ToolTarget {
+    Tweet,
+    User,
+}
+
 pub trait HaveLifetime {
     fn health(&self) -> i32;
     fn max_health(&self) -> i32 {
@@ -26,24 +39,6 @@ pub trait HaveLifetime {
     }
 }
 
-/// Trait representing something that can act on a Tweet
-pub trait UseOnTweet {
-    fn use_on_tweet(&mut self, tweet: &mut Tweet);
-}
-
-#[derive(Debug, Serialize, Deserialize, Clone, ToSchema)]
-pub enum ToolType {
-    Weapon,
-    Defence,
-    Support,
-}
-
-#[derive(Debug, Serialize, Deserialize, Clone, ToSchema)]
-pub enum ToolTarget {
-    Tweet,
-    User,
-}
-
 #[derive(Debug, Serialize, Deserialize, Clone, ToSchema)]
 pub struct Tool {
     #[serde(rename = "_id", skip_serializing_if = "Option::is_none")]
@@ -52,17 +47,16 @@ pub struct Tool {
 
     #[schema(value_type = String, example = "507f1f77bcf86cd799439011")]
     pub owner_id: String,
-    #[schema(example = "Weapon")]
+
     pub tool_type: ToolType,
-    #[schema(example = "Tweet")]
     pub tool_target: ToolTarget,
-    pub name: String,
-    pub description: String,
-    pub image_url: String,
-    pub damage: i32,
-    pub health: i32,
-    pub max_health: i32,
-    pub degrade_per_use: i32,
+    pub name: String,         // Name of the tool
+    pub description: String,  // Description of the tool
+    pub image_url: String,    // Image URL of the tool
+    pub impact: i32,          // Damage or support amount
+    pub health: i32,          // Health of the tool
+    pub max_health: i32,      // Max health of the tool
+    pub degrade_per_use: i32, // Amount to degrade the tool per use
 }
 
 impl HaveLifetime for Tool {
@@ -79,81 +73,76 @@ impl HaveLifetime for Tool {
     }
 }
 
-impl UseOnTweet for Tool {
-    fn use_on_tweet(&mut self, tweet: &mut Tweet) {
-        if self.is_broken() {
-            println!("Weapon is broken, and cannot be used");
-            return;
-        }
-        let damage = self.damage;
-        let health_before = tweet.health.current;
-        let health_after = health_before.saturating_sub(damage);
-
-        tweet.health.current = health_after;
-
-        // Record the attack in history of the tweet
-        let attack = TweetAttackAction {
-            timestamp: mongodb::bson::DateTime::now(),
-            amount: damage,
-            health_before,
-            health_after,
-        };
-        tweet.health.history.attack_history.push(attack);
-
-        // Degrade the weapon
-        self.degrade(damage);
-
-        println!(
-            "{} attacked tweet {:?}, health: {} → {}",
-            self.name, tweet.id, health_before, health_after
-        );
-    }
-}
-
 impl Tool {
-    pub fn builder(owner_id: impl Into<String>) -> WeaponBuilder {
-        WeaponBuilder {
-            owner_id: owner_id.into(),
-            name: None,
-            description: None,
-            image_url: None,
-            damage: None,
-            health: 10000,
-            max_health: 10000,
-            degrade_per_use: 1,
-        }
+    pub fn builder(owner_id: impl Into<String>) -> ToolBuilder {
+        ToolBuilder::new(owner_id)
+    }
+    pub fn degrade(&mut self, amount: i32) {
+        HaveLifetime::degrade(self, amount);
     }
 }
 
-pub struct WeaponBuilder {
+pub struct ToolBuilder {
     owner_id: String,
     name: Option<String>,
     description: Option<String>,
     image_url: Option<String>,
-    damage: Option<i32>,
+    impact: Option<i32>,
     health: i32,
     max_health: i32,
     degrade_per_use: i32,
+    tool_type: Option<ToolType>,
+    tool_target: Option<ToolTarget>,
 }
 
-impl WeaponBuilder {
+impl ToolBuilder {
+    pub fn new(owner_id: impl Into<String>) -> Self {
+        Self {
+            owner_id: owner_id.into(),
+            name: None,
+            description: None,
+            image_url: None,
+            impact: None,
+            health: 10_000,
+            max_health: 10_000,
+            degrade_per_use: 1,
+            tool_type: None,
+            tool_target: None,
+        }
+    }
+
     pub fn name(mut self, name: impl Into<String>) -> Self {
         self.name = Some(name.into());
         self
     }
 
-    pub fn description(mut self, description: impl Into<String>) -> Self {
-        self.description = Some(description.into());
+    pub fn description(mut self, desc: impl Into<String>) -> Self {
+        self.description = Some(desc.into());
         self
     }
 
-    pub fn image_url(mut self, image_url: impl Into<String>) -> Self {
-        self.image_url = Some(image_url.into());
+    pub fn image_url(mut self, url: impl Into<String>) -> Self {
+        self.image_url = Some(url.into());
         self
     }
 
-    pub fn damage(mut self, damage: i32) -> Self {
-        self.damage = Some(damage);
+    pub fn impact(mut self, impact: i32) -> Self {
+        self.impact = Some(impact);
+        self
+    }
+
+    pub fn degrade_per_use(mut self, amount: i32) -> Self {
+        self.degrade_per_use = amount;
+        self
+    }
+
+    pub fn tool_type(mut self, tool_type: ToolType) -> Self {
+        self.tool_type = Some(tool_type);
+        self
+    }
+
+    pub fn tool_target(mut self, tool_target: ToolTarget) -> Self {
+        self.tool_target = Some(tool_target);
         self
     }
 
@@ -161,10 +150,12 @@ impl WeaponBuilder {
         Tool {
             id: None,
             owner_id: self.owner_id,
-            name: self.name.unwrap(),
-            description: self.description.unwrap(),
-            image_url: self.image_url.unwrap(),
-            damage: self.damage.unwrap(),
+            tool_type: self.tool_type.expect("Tool type missing"),
+            tool_target: self.tool_target.expect("Tool target missing"),
+            name: self.name.expect("Tool name missing"),
+            description: self.description.expect("Tool description missing"),
+            image_url: self.image_url.expect("Tool image URL missing"),
+            impact: self.impact.expect("Tool impact missing"),
             health: self.health,
             max_health: self.max_health,
             degrade_per_use: self.degrade_per_use,

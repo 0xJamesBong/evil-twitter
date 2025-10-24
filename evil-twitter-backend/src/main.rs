@@ -7,6 +7,7 @@ use utoipa::OpenApi;
 use utoipa_axum::router::OpenApiRouter;
 use utoipa_swagger_ui::SwaggerUi;
 
+mod actions;
 mod middleware;
 mod models;
 mod routes;
@@ -44,7 +45,7 @@ use routes::weapons::{buy_weapon, get_user_weapons, get_weapon_catalog_endpoint}
         routes::tweet::get_thread,
         routes::tweet::get_user_wall,
         routes::tweet::like_tweet,
-        routes::tweet::heal_tweet,
+        routes::tweet::support_tweet,
         routes::tweet::attack_tweet,
         routes::tweet::retweet_tweet,
         routes::tweet::quote_tweet,
@@ -78,9 +79,6 @@ use routes::weapons::{buy_weapon, get_user_weapons, get_weapon_catalog_endpoint}
             models::tweet::CreateTweet,
             models::tweet::CreateReply,
             models::tweet::CreateQuote,
-            models::tweet::TweetHealthHistory,
-            models::tweet::TweetHealthState,
-            models::tweet::TweetHealAction,
             models::tweet::TweetAttackAction,
             models::tweet::TweetMetrics,
             models::tweet::TweetAuthorSnapshot,
@@ -96,7 +94,7 @@ use routes::weapons::{buy_weapon, get_user_weapons, get_weapon_catalog_endpoint}
             routes::data_generation::UserGenerationRequest,
             routes::data_generation::TweetGenerationRequest,
             models::tool::Tool,
-            routes::tweet::HealTweetRequest,
+            routes::tweet::SupportTweetRequest,
             routes::tweet::AttackTweetRequest,
             routes::tweet::TweetListResponse,
             routes::tweet::TweetThreadResponse,

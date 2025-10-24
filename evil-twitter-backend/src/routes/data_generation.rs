@@ -290,7 +290,7 @@ pub async fn generate_fake_tweets(
                     avatar_url: None,
                 },
                 viewer_context: crate::models::tweet::TweetViewerContext::default(),
-                health: crate::models::tweet::TweetHealthState::default(),
+
                 energy_state: crate::models::tweet::TweetEnergyState::default(),
             };
 
@@ -642,7 +642,7 @@ pub async fn generate_fake_data(
                     avatar_url: None,
                 },
                 viewer_context: crate::models::tweet::TweetViewerContext::default(),
-                health: crate::models::tweet::TweetHealthState::default(),
+
                 energy_state: crate::models::tweet::TweetEnergyState::default(),
             };
 

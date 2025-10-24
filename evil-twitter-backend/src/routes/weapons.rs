@@ -1,4 +1,8 @@
-use crate::models::{tool::Tool, user::User, weapon_catalog};
+use crate::models::{
+    tool::{Tool, ToolBuilder, ToolTarget, ToolType},
+    user::User,
+    weapon_catalog,
+};
 use mongodb::{
     Collection,
     bson::{doc, oid::ObjectId},
@@ -73,17 +77,26 @@ pub async fn buy_weapon(
     })?;
 
     // Create weapon instance from catalog
-    let weapon = Tool {
-        id: Some(ObjectId::new()),
-        owner_id: user_id.clone(),
-        name: catalog_item.name,
-        description: catalog_item.description,
-        image_url: catalog_item.emoji,
-        damage: catalog_item.attack_power,
-        health: catalog_item.max_health,
-        max_health: catalog_item.max_health,
-        degrade_per_use: 1,
-    };
+    // let weapon = ToolBuilder {
+    //     id: Some(ObjectId::new()),
+    //     owner_id: user_id.clone(),
+    //     name: catalog_item.name,
+    //     description: catalog_item.description,
+    //     image_url: catalog_item.emoji,
+    //     impact: catalog_item.attack_power,
+    //     health: catalog_item.max_health,
+    //     max_health: catalog_item.max_health,
+    //     degrade_per_use: 1,
+    // };
+    let weapon = ToolBuilder::new(user_id.clone())
+        .name(catalog_item.name)
+        .description(catalog_item.description)
+        .image_url(catalog_item.emoji)
+        .impact(catalog_item.impact)
+        .degrade_per_use(catalog_item.degrade_per_use)
+        .tool_type(ToolType::Weapon)
+        .tool_target(ToolTarget::Tweet)
+        .build();
 
     give_user_weapon(&user_collection, &collection, &user_oid, weapon.clone()).await
 }

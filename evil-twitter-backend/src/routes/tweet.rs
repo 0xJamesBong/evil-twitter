@@ -15,18 +15,20 @@ use serde::Serialize;
 use serde_json::{Value, json};
 use utoipa::ToSchema;
 
+use crate::utils::auth::get_authenticated_user;
 use crate::{
     middleware::wall::compose_wall,
     models::{
         tool::Tool,
         tweet::{
-            AttackAction, CreateTweet, Tweet, TweetAttackAction, TweetAuthorSnapshot,
-            TweetEnergyState, TweetHealAction, TweetHealthState, TweetMetrics, TweetType,
+            CreateTweet, Tweet, TweetAuthorSnapshot, TweetEnergyState, TweetMetrics, TweetType,
             TweetView, TweetViewerContext,
         },
         user::User,
     },
 };
+
+use crate::actions::engine::{ActionEngine, ActionType};
 
 type ApiError = (StatusCode, Json<Value>);
 type ApiResult<T> = Result<T, ApiError>;
@@ -65,15 +67,15 @@ pub struct TweetThreadResponse {
 }
 
 #[derive(Debug, serde::Deserialize, ToSchema)]
-pub struct HealTweetRequest {
+pub struct SupportTweetRequest {
     #[schema(value_type = String, example = "507f1f77bcf86cd799439011")]
-    pub weapon_id: Option<String>,
+    pub tool_id: Option<String>,
 }
 
 #[derive(Debug, serde::Deserialize, ToSchema)]
 pub struct AttackTweetRequest {
     #[schema(value_type = String, example = "507f1f77bcf86cd799439011")]
-    pub weapon_id: Option<String>,
+    pub tool_id: Option<String>,
 }
 
 fn extract_supabase_id_from_auth_header(auth_header: &str) -> Result<String, String> {
@@ -485,7 +487,6 @@ pub async fn generate_fake_tweets(
             metrics: TweetMetrics::default(),
             author_snapshot: TweetAuthorSnapshot::default(),
             viewer_context: TweetViewerContext::default(),
-            health: TweetHealthState::default(),
             energy_state: TweetEnergyState::default(),
         });
     }
@@ -574,7 +575,7 @@ pub async fn retweet_tweet(
             avatar_url,
         },
         viewer_context: TweetViewerContext::default(),
-        health: TweetHealthState::default(),
+
         energy_state: TweetEnergyState::default(),
     };
 
@@ -672,7 +673,7 @@ pub async fn quote_tweet(
             avatar_url,
         },
         viewer_context: TweetViewerContext::default(),
-        health: TweetHealthState::default(),
+
         energy_state: TweetEnergyState::default(),
     };
 
@@ -774,7 +775,7 @@ pub async fn reply_tweet(
             avatar_url,
         },
         viewer_context: TweetViewerContext::default(),
-        health: TweetHealthState::default(),
+
         energy_state: TweetEnergyState::default(),
     };
 
@@ -870,7 +871,7 @@ pub async fn migrate_users_dollar_rate(
     post,
     path = "/tweets/{id}/heal",
     params(("id" = String, Path, description = "Tweet ID")),
-    request_body = HealTweetRequest,
+    request_body = SupportTweetRequest,
     responses(
         (status = 200, description = "Tweet healed successfully"),
         (status = 404, description = "Tweet not found")
@@ -881,13 +882,22 @@ pub async fn support_tweet(
     State(db): State<Database>,
     Path(id): Path<String>,
     headers: HeaderMap,
-    Json(payload): Json<HealTweetRequest>,
+    Json(payload): Json<SupportTweetRequest>,
 ) -> Result<(StatusCode, Json<Value>), ApiError> {
     let tweet_collection: Collection<Tweet> = db.collection("tweets");
-    // Get the attacker's user ID using the utility function
-    let supporter_user_id = crate::utils::auth::get_authenticated_user_id(&db, &headers).await?;
+    let tool_collection: Collection<Tool> = db.collection("tools");
 
+    // Get the attacker's user ID using the utility function
+
+    let supporter = get_authenticated_user(&db, &headers).await?;
     let tweet_id = parse_object_id(&id, "tweet")?;
+
+    let support_tool = tool_collection
+        .find_one(doc! {"_id": payload.tool_id})
+        .await
+        .map_err(|_| internal_error("Database error fetching support tool"))?
+        .ok_or_else(|| not_found("Support tool not found"))?;
+
     let mut tweet = tweet_collection
         .find_one(doc! {"_id": tweet_id})
         .await
@@ -895,9 +905,14 @@ pub async fn support_tweet(
         .ok_or_else(|| not_found("Tweet not found"))?;
 
     let energy_before = tweet.energy_state.energy;
-    tweet.support_tweet(supporter_user_id, payload.weapon_id);
+    ActionEngine::act_on_tweet(
+        &supporter,
+        &mut tweet,
+        Some(&mut support_tool.clone()),
+        ActionType::Support,
+    );
     let energy_after = tweet.energy_state.energy;
-    let damage = energy_before - energy_after;
+    let support = energy_after - energy_before;
 
     tweet_collection.update_one(doc!{"_id": tweet_id},
         doc!{"$set": {"energy_state": mongodb::bson::to_bson(&tweet.energy_state).map_err(|_| internal_error("Serialization error"))?}}
@@ -911,7 +926,7 @@ pub async fn support_tweet(
             "energy_before": energy_before,
             "energy_after": energy_after,
             "energy": tweet.energy_state.energy,
-            "damage": damage,
+            "support": support,
         })),
     ))
 }
@@ -936,10 +951,10 @@ pub async fn attack_tweet(
     let tweet_collection: Collection<Tweet> = db.collection("tweets");
     let tool_collection: Collection<Tool> = db.collection("tools");
     // Get the attacker's user ID using the utility function
-    let attacker_user_id = crate::utils::auth::get_authenticated_user_id(&db, &headers).await?;
+    let attacker = crate::utils::auth::get_authenticated_user(&db, &headers).await?;
 
     let weapon = tool_collection
-        .find_one(doc! {"_id": payload.weapon_id})
+        .find_one(doc! {"_id": payload.tool_id})
         .await
         .map_err(|_| internal_error("Database error fetching weapon"))?
         .ok_or_else(|| not_found("Weapon not found"))?;
@@ -951,7 +966,13 @@ pub async fn attack_tweet(
         .map_err(|_| internal_error("Database error fetching tweet"))?
         .ok_or_else(|| not_found("Tweet not found"))?;
     let energy_before = tweet.energy_state.energy;
-    tweet.attack_tweet(attacker_user_id, Some(weapon));
+
+    ActionEngine::act_on_tweet(
+        &attacker,
+        &mut tweet,
+        Some(&mut weapon.clone()),
+        ActionType::Attack,
+    );
     let energy_after = tweet.energy_state.energy;
     let damage = energy_before - energy_after;
 
@@ -976,59 +997,6 @@ pub async fn attack_tweet(
         })),
     ))
 }
-
-// pub async fn attack_tweet(
-//     State(db): State<Database>,
-//     Path(id): Path<String>,
-//     Json(payload): Json<AttackTweetRequest>,
-// ) -> Result<(StatusCode, Json<Value>), ApiError> {
-//     let collection: Collection<Tweet> = db.collection("tweets");
-//     let tweet_id = parse_object_id(&id, "tweet")?;
-//     let attack_amount = payload.amount.max(0);
-
-//     let mut tweet = collection
-//         .find_one(doc! {"_id": tweet_id})
-//         .await
-//         .map_err(|_| internal_error("Database error fetching tweet"))?
-//         .ok_or_else(|| not_found("Tweet not found"))?;
-
-//     let health_before = tweet.health.current;
-//     let new_health = (health_before - attack_amount).max(0);
-
-//     let action = TweetAttackAction {
-//         timestamp: mongodb::bson::DateTime::now(),
-//         amount: attack_amount,
-//         health_before,
-//         health_after: new_health,
-//     };
-//     tweet.health.record_attack(action.clone());
-
-//     collection
-//         .update_one(
-//             doc! {"_id": tweet_id},
-//             doc! {
-//                 "$set": {"health.current": tweet.health.current},
-//                 "$push": {"health.history.attack_history": {
-//                     "timestamp": action.timestamp,
-//                     "amount": action.amount,
-//                     "health_before": action.health_before,
-//                     "health_after": action.health_after,
-//                 }}
-//             },
-//         )
-//         .await
-//         .map_err(|_| internal_error("Failed to update tweet health after attack"))?;
-
-//     Ok((
-//         StatusCode::OK,
-//         Json(json!({
-//             "message": "Tweet attacked successfully",
-//             "health_before": health_before,
-//             "health_after": tweet.health.current,
-//             "amount": attack_amount
-//         })),
-//     ))
-// }
 
 #[utoipa::path(
     get,
