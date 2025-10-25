@@ -290,8 +290,8 @@ pub async fn generate_fake_tweets(
                     avatar_url: None,
                 },
                 viewer_context: crate::models::tweet::TweetViewerContext::default(),
-                health: crate::models::tweet::TweetHealthState::default(),
-                virality: crate::models::tweet::TweetViralitySnapshot::default(),
+
+                energy_state: crate::models::tweet::TweetEnergyState::default(),
             };
 
             match tweet_collection.insert_one(&tweet).await {
@@ -642,8 +642,8 @@ pub async fn generate_fake_data(
                     avatar_url: None,
                 },
                 viewer_context: crate::models::tweet::TweetViewerContext::default(),
-                health: crate::models::tweet::TweetHealthState::default(),
-                virality: crate::models::tweet::TweetViralitySnapshot::default(),
+
+                energy_state: crate::models::tweet::TweetEnergyState::default(),
             };
 
             match tweet_collection.insert_one(&tweet).await {

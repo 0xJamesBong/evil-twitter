@@ -1,13 +1,18 @@
 import { create } from "zustand";
-import { api } from "../services/api";
+import { API_BASE_URL } from "../config/api";
+
+export type ToolType = "Weapon" | "Support";
+export type ToolTarget = "Tweet" | "User";
 
 export interface Weapon {
   _id: { $oid: string };
   owner_id: string;
   name: string;
   description: string;
-  image_url: string; // Emoji
-  damage: number;
+  image_url: string;
+  tool_type: ToolType;
+  tool_target: ToolTarget;
+  impact: number;
   health: number;
   max_health: number;
   degrade_per_use: number;
@@ -32,7 +37,9 @@ export const useWeaponsStore = create<WeaponsState>((set, get) => ({
     set({ loading: true, error: null });
 
     try {
-      const weapons = await api.getUserWeapons(userId);
+      const response = await fetch(`${API_BASE_URL}/users/${userId}/weapons`);
+      if (!response.ok) throw new Error("Failed to fetch user weapons");
+      const weapons = await response.json();
       set({ weapons, loading: false });
     } catch (error) {
       const errorMessage =

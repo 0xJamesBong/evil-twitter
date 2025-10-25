@@ -42,8 +42,12 @@ export function WeaponsPanel({ userId, maxDisplay = 5 }: WeaponsPanelProps) {
                                     {weapon.description}
                                 </Text>
                                 <View style={styles.weaponStats}>
-                                    <Text style={styles.statText}>Health: {weapon.health}/{weapon.max_health}</Text>
-                                    <Text style={styles.statText}>Damage: {weapon.damage}</Text>
+                                    <Text style={styles.statText}>
+                                        Type: {weapon.tool_type === 'Weapon' ? 'Attack' : 'Support'}
+                                    </Text>
+                                    <Text style={styles.statText}>Impact: {weapon.impact}</Text>
+                                    <Text style={styles.statText}>Durability: {weapon.health}/{weapon.max_health}</Text>
+                                    <Text style={styles.statText}>Degrade/use: {weapon.degrade_per_use}</Text>
                                 </View>
                             </View>
                         </View>

@@ -15,17 +15,20 @@ use serde::Serialize;
 use serde_json::{Value, json};
 use utoipa::ToSchema;
 
+use crate::utils::auth::get_authenticated_user;
 use crate::{
     middleware::wall::compose_wall,
     models::{
+        tool::Tool,
         tweet::{
-            CreateTweet, Tweet, TweetAttackAction, TweetAuthorSnapshot, TweetHealAction,
-            TweetHealthState, TweetMetrics, TweetType, TweetView, TweetViewerContext,
-            TweetViralitySnapshot,
+            CreateTweet, Tweet, TweetAuthorSnapshot, TweetEnergyState, TweetMetrics, TweetType,
+            TweetView, TweetViewerContext,
         },
         user::User,
     },
 };
+
+use crate::actions::engine::{ActionEngine, ActionType};
 
 type ApiError = (StatusCode, Json<Value>);
 type ApiResult<T> = Result<T, ApiError>;
@@ -64,15 +67,15 @@ pub struct TweetThreadResponse {
 }
 
 #[derive(Debug, serde::Deserialize, ToSchema)]
-pub struct HealTweetRequest {
-    #[schema(example = "10", minimum = 1, maximum = 100)]
-    pub amount: i32,
+pub struct SupportTweetRequest {
+    #[schema(value_type = String, example = "507f1f77bcf86cd799439011")]
+    pub tool_id: Option<String>,
 }
 
 #[derive(Debug, serde::Deserialize, ToSchema)]
 pub struct AttackTweetRequest {
-    #[schema(example = "15", minimum = 1, maximum = 100)]
-    pub amount: i32,
+    #[schema(value_type = String, example = "507f1f77bcf86cd799439011")]
+    pub tool_id: Option<String>,
 }
 
 fn extract_supabase_id_from_auth_header(auth_header: &str) -> Result<String, String> {
@@ -261,7 +264,7 @@ pub async fn create_tweet(
     headers: HeaderMap,
     Json(payload): Json<CreateTweet>,
 ) -> Result<(StatusCode, Json<TweetView>), ApiError> {
-    let collection: Collection<Tweet> = db.collection("tweets");
+    let tweet_collection: Collection<Tweet> = db.collection("tweets");
     let user_collection: Collection<User> = db.collection("users");
 
     let auth_header = headers
@@ -285,6 +288,7 @@ pub async fn create_tweet(
     let owner_id = user
         .id
         .ok_or_else(|| internal_error("User record missing identifier"))?;
+
     let username = user.username;
     let display_name = user.display_name;
     let avatar_url = user.avatar_url;
@@ -310,11 +314,11 @@ pub async fn create_tweet(
             avatar_url,
         },
         viewer_context: TweetViewerContext::default(),
-        health: TweetHealthState::default(),
-        virality: TweetViralitySnapshot::default(),
+
+        energy_state: TweetEnergyState::default(),
     };
 
-    collection
+    tweet_collection
         .insert_one(&tweet)
         .await
         .map_err(|_| internal_error("Failed to create tweet"))?;
@@ -483,8 +487,7 @@ pub async fn generate_fake_tweets(
             metrics: TweetMetrics::default(),
             author_snapshot: TweetAuthorSnapshot::default(),
             viewer_context: TweetViewerContext::default(),
-            health: TweetHealthState::default(),
-            virality: TweetViralitySnapshot::default(),
+            energy_state: TweetEnergyState::default(),
         });
     }
 
@@ -572,8 +575,8 @@ pub async fn retweet_tweet(
             avatar_url,
         },
         viewer_context: TweetViewerContext::default(),
-        health: TweetHealthState::default(),
-        virality: TweetViralitySnapshot::default(),
+
+        energy_state: TweetEnergyState::default(),
     };
 
     collection
@@ -670,8 +673,8 @@ pub async fn quote_tweet(
             avatar_url,
         },
         viewer_context: TweetViewerContext::default(),
-        health: TweetHealthState::default(),
-        virality: TweetViralitySnapshot::default(),
+
+        energy_state: TweetEnergyState::default(),
     };
 
     collection
@@ -772,8 +775,8 @@ pub async fn reply_tweet(
             avatar_url,
         },
         viewer_context: TweetViewerContext::default(),
-        health: TweetHealthState::default(),
-        virality: TweetViralitySnapshot::default(),
+
+        energy_state: TweetEnergyState::default(),
     };
 
     collection
@@ -816,32 +819,6 @@ pub async fn clear_all_data(
     Ok((StatusCode::OK, ok_message("All tweets cleared")))
 }
 
-pub async fn migrate_health(
-    State(db): State<Database>,
-) -> Result<(StatusCode, Json<Value>), ApiError> {
-    let tweet_collection: Collection<Tweet> = db.collection("tweets");
-
-    tweet_collection
-        .update_many(
-            doc! {},
-            doc! {
-                "$set": {
-                    "health.current": 100,
-                    "health.max": 100,
-                    "health.history.heal_history": [],
-                    "health.history.attack_history": [],
-                }
-            },
-        )
-        .await
-        .map_err(|_| internal_error("Failed to migrate tweet health states"))?;
-
-    Ok((
-        StatusCode::OK,
-        ok_message("Tweet health migration completed"),
-    ))
-}
-
 #[utoipa::path(
     post,
     path = "/admin/migrate-users-dollar-rate",
@@ -866,67 +843,64 @@ pub async fn migrate_users_dollar_rate(
 
 #[utoipa::path(
     post,
-    path = "/tweets/{id}/heal",
+    path = "/tweets/{id}/support",
     params(("id" = String, Path, description = "Tweet ID")),
-    request_body = HealTweetRequest,
+    request_body = SupportTweetRequest,
     responses(
-        (status = 200, description = "Tweet healed successfully"),
+        (status = 200, description = "Tweet supported successfully"),
         (status = 404, description = "Tweet not found")
     ),
     tag = "tweets"
 )]
-pub async fn heal_tweet(
+pub async fn support_tweet(
     State(db): State<Database>,
     Path(id): Path<String>,
-    Json(payload): Json<HealTweetRequest>,
+    headers: HeaderMap,
+    Json(payload): Json<SupportTweetRequest>,
 ) -> Result<(StatusCode, Json<Value>), ApiError> {
-    let collection: Collection<Tweet> = db.collection("tweets");
-    let tweet_id = parse_object_id(&id, "tweet")?;
-    let heal_amount = payload.amount.max(0);
+    let tweet_collection: Collection<Tweet> = db.collection("tweets");
+    let tool_collection: Collection<Tool> = db.collection("tools");
 
-    let mut tweet = collection
+    // Get the attacker's user ID using the utility function
+
+    let supporter = get_authenticated_user(&db, &headers).await?;
+    let tweet_id = parse_object_id(&id, "tweet")?;
+
+    let support_tool = tool_collection
+        .find_one(doc! {"_id": payload.tool_id})
+        .await
+        .map_err(|_| internal_error("Database error fetching support tool"))?
+        .ok_or_else(|| not_found("Support tool not found"))?;
+
+    let mut tweet = tweet_collection
         .find_one(doc! {"_id": tweet_id})
         .await
         .map_err(|_| internal_error("Database error fetching tweet"))?
         .ok_or_else(|| not_found("Tweet not found"))?;
 
-    let health_before = tweet.health.current;
-    let new_health = (health_before + heal_amount).min(tweet.health.max);
+    let energy_before = tweet.energy_state.energy;
+    ActionEngine::act_on_tweet(
+        &supporter,
+        &mut tweet,
+        Some(&mut support_tool.clone()),
+        ActionType::Support,
+    );
+    let energy_after = tweet.energy_state.energy;
+    let support = energy_after - energy_before;
 
-    let action = TweetHealAction {
-        timestamp: mongodb::bson::DateTime::now(),
-        amount: heal_amount,
-        health_before,
-        health_after: new_health,
-    };
-    tweet.health.record_heal(action.clone());
-
-    collection
-        .update_one(
-            doc! {"_id": tweet_id},
-            doc! {
-                "$set": {
-                    "health.current": tweet.health.current,
-                    "health.max": tweet.health.max,
-                },
-                "$push": {"health.history.heal_history": {
-                    "timestamp": action.timestamp,
-                    "amount": action.amount,
-                    "health_before": action.health_before,
-                    "health_after": action.health_after,
-                }}
-            },
-        )
-        .await
-        .map_err(|_| internal_error("Failed to update tweet health"))?;
+    tweet_collection.update_one(doc!{"_id": tweet_id},
+        doc!{"$set": {"energy_state": mongodb::bson::to_bson(&tweet.energy_state).map_err(|_| internal_error("Serialization error"))?}}
+    ).await
+    .map_err(|_| internal_error("Failed to update tweet energy after support"))?;
 
     Ok((
         StatusCode::OK,
         Json(json!({
-            "message": "Tweet healed successfully",
-            "health_before": health_before,
-            "health_after": tweet.health.current,
-            "amount": heal_amount
+            "message": "Tweet supported successfully",
+            "energy_before": energy_before,
+            "energy_after": energy_after,
+            "energy": tweet.energy_state.energy,
+            "support": support,
         })),
     ))
 }
@@ -945,52 +919,55 @@ pub async fn heal_tweet(
 pub async fn attack_tweet(
     State(db): State<Database>,
     Path(id): Path<String>,
+    headers: HeaderMap,
     Json(payload): Json<AttackTweetRequest>,
 ) -> Result<(StatusCode, Json<Value>), ApiError> {
-    let collection: Collection<Tweet> = db.collection("tweets");
-    let tweet_id = parse_object_id(&id, "tweet")?;
-    let attack_amount = payload.amount.max(0);
+    let tweet_collection: Collection<Tweet> = db.collection("tweets");
+    let tool_collection: Collection<Tool> = db.collection("tools");
+    // Get the attacker's user ID using the utility function
+    let attacker = crate::utils::auth::get_authenticated_user(&db, &headers).await?;
 
-    let mut tweet = collection
+    let weapon = tool_collection
+        .find_one(doc! {"_id": payload.tool_id})
+        .await
+        .map_err(|_| internal_error("Database error fetching weapon"))?
+        .ok_or_else(|| not_found("Weapon not found"))?;
+
+    let tweet_id = parse_object_id(&id, "tweet")?;
+    let mut tweet = tweet_collection
         .find_one(doc! {"_id": tweet_id})
         .await
         .map_err(|_| internal_error("Database error fetching tweet"))?
         .ok_or_else(|| not_found("Tweet not found"))?;
+    let energy_before = tweet.energy_state.energy;
 
-    let health_before = tweet.health.current;
-    let new_health = (health_before - attack_amount).max(0);
+    ActionEngine::act_on_tweet(
+        &attacker,
+        &mut tweet,
+        Some(&mut weapon.clone()),
+        ActionType::Attack,
+    );
+    let energy_after = tweet.energy_state.energy;
+    let damage = energy_before - energy_after;
 
-    let action = TweetAttackAction {
-        timestamp: mongodb::bson::DateTime::now(),
-        amount: attack_amount,
-        health_before,
-        health_after: new_health,
-    };
-    tweet.health.record_attack(action.clone());
-
-    collection
+    tweet_collection
         .update_one(
             doc! {"_id": tweet_id},
             doc! {
-                "$set": {"health.current": tweet.health.current},
-                "$push": {"health.history.attack_history": {
-                    "timestamp": action.timestamp,
-                    "amount": action.amount,
-                    "health_before": action.health_before,
-                    "health_after": action.health_after,
-                }}
+                "$set": {"energy_state": mongodb::bson::to_bson(&tweet.energy_state).map_err(|_| internal_error("Serialization error"))?}
             },
         )
         .await
-        .map_err(|_| internal_error("Failed to update tweet health after attack"))?;
+        .map_err(|_| internal_error("Failed to update tweet energy after attack"))?;
 
     Ok((
         StatusCode::OK,
         Json(json!({
             "message": "Tweet attacked successfully",
-            "health_before": health_before,
-            "health_after": tweet.health.current,
-            "amount": attack_amount
+            "energy_before": energy_before,
+            "energy_after": energy_after,
+            "energy": tweet.energy_state.energy,
+            "damage": damage,
         })),
     ))
 }
@@ -1055,10 +1032,7 @@ pub async fn get_thread(
         parent_chain.push(parent);
     }
     parent_chain.reverse();
-    let parent_ids: HashSet<ObjectId> = parent_chain
-        .iter()
-        .filter_map(|tweet| tweet.id)
-        .collect();
+    let parent_ids: HashSet<ObjectId> = parent_chain.iter().filter_map(|tweet| tweet.id).collect();
 
     // Collect all tweets in the same root thread
     let mut cursor = tweet_collection

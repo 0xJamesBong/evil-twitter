@@ -7,19 +7,21 @@ use utoipa::OpenApi;
 use utoipa_axum::router::OpenApiRouter;
 use utoipa_swagger_ui::SwaggerUi;
 
+mod actions;
 mod middleware;
 mod models;
 mod routes;
+mod utils;
 
 use routes::data_generation::{
     clear_all_data, generate_fake_data, generate_fake_tweets, generate_fake_users,
 };
 use routes::follow::{follow_user, get_followers_list, get_following_list, unfollow_user};
-use routes::migration::{migrate_tweets_health, migrate_user_objectids, migrate_users_weapons};
+use routes::migration::{migrate_user_objectids, migrate_users_weapons};
 use routes::ping::ping_handler;
 use routes::tweet::{
-    attack_tweet, create_tweet, get_thread, get_tweet, get_tweets, get_user_wall, heal_tweet,
-    like_tweet, migrate_users_dollar_rate, quote_tweet, reply_tweet, retweet_tweet,
+    attack_tweet, create_tweet, get_thread, get_tweet, get_tweets, get_user_wall, like_tweet,
+    migrate_users_dollar_rate, quote_tweet, reply_tweet, retweet_tweet, support_tweet,
 };
 use routes::user::{
     attack_dollar_rate, create_user, get_dollar_rate, get_user, get_users, improve_dollar_rate,
@@ -43,7 +45,7 @@ use routes::weapons::{buy_weapon, get_user_weapons, get_weapon_catalog_endpoint}
         routes::tweet::get_thread,
         routes::tweet::get_user_wall,
         routes::tweet::like_tweet,
-        routes::tweet::heal_tweet,
+        routes::tweet::support_tweet,
         routes::tweet::attack_tweet,
         routes::tweet::retweet_tweet,
         routes::tweet::quote_tweet,
@@ -53,7 +55,6 @@ use routes::weapons::{buy_weapon, get_user_weapons, get_weapon_catalog_endpoint}
         routes::data_generation::generate_fake_data,
         routes::data_generation::clear_all_data,
         routes::tweet::migrate_users_dollar_rate,
-        routes::migration::migrate_tweets_health,
         routes::migration::migrate_users_weapons,
         routes::migration::migrate_user_objectids,
         routes::follow::follow_user,
@@ -77,14 +78,11 @@ use routes::weapons::{buy_weapon, get_user_weapons, get_weapon_catalog_endpoint}
             models::tweet::CreateTweet,
             models::tweet::CreateReply,
             models::tweet::CreateQuote,
-            models::tweet::TweetHealthHistory,
-            models::tweet::TweetHealthState,
-            models::tweet::TweetHealAction,
             models::tweet::TweetAttackAction,
             models::tweet::TweetMetrics,
             models::tweet::TweetAuthorSnapshot,
             models::tweet::TweetViewerContext,
-            models::tweet::TweetViralitySnapshot,
+            models::tweet::TweetEnergyState,
             models::follow::Follow,
             models::follow::FollowRequest,
             models::follow::FollowResponse,
@@ -94,8 +92,8 @@ use routes::weapons::{buy_weapon, get_user_weapons, get_weapon_catalog_endpoint}
             routes::data_generation::DataGenerationResponse,
             routes::data_generation::UserGenerationRequest,
             routes::data_generation::TweetGenerationRequest,
-            models::tool::Weapon,
-            routes::tweet::HealTweetRequest,
+            models::tool::Tool,
+            routes::tweet::SupportTweetRequest,
             routes::tweet::AttackTweetRequest,
             routes::tweet::TweetListResponse,
             routes::tweet::TweetThreadResponse,
@@ -150,7 +148,7 @@ async fn main() -> anyhow::Result<()> {
         .route("/tweets/{id}", get(get_tweet))
         .route("/tweets/{id}/thread", get(get_thread))
         .route("/tweets/{id}/like", post(like_tweet))
-        .route("/tweets/{id}/heal", post(heal_tweet))
+        .route("/tweets/{id}/support", post(support_tweet))
         .route("/tweets/{id}/attack", post(attack_tweet))
         .route("/tweets/{id}/retweet", post(retweet_tweet))
         .route("/tweets/{id}/quote", post(quote_tweet))
@@ -159,7 +157,6 @@ async fn main() -> anyhow::Result<()> {
         .route("/data/tweets/generate", post(generate_fake_tweets))
         .route("/data/generate", post(generate_fake_data))
         .route("/data/clear", delete(clear_all_data))
-        .route("/admin/migrate-health", post(migrate_tweets_health))
         .route("/admin/migrate-users-weapons", post(migrate_users_weapons))
         .route(
             "/admin/migrate-user-objectids",

@@ -31,22 +31,37 @@ export interface TweetViewerContext {
   is_quoted: boolean;
 }
 
-export interface TweetHealthAction {
+export interface ToolSnapshot {
+  _id?: ObjectIdRef;
+  name?: string;
+  image_url?: string;
+  impact?: number;
+  tool_type?: string;
+}
+
+export interface TweetEnergyAction {
   timestamp: string;
-  amount: number;
-  health_before: number;
-  health_after: number;
+  impact: number;
+  user_id: ObjectIdRef;
+  tool?: ToolSnapshot | null;
 }
 
-export interface TweetHealthHistory {
-  heal_history: TweetHealthAction[];
-  attack_history: TweetHealthAction[];
+export interface TweetEnergyStateHistory {
+  support_history: TweetEnergyAction[];
+  attack_history: TweetEnergyAction[];
 }
 
-export interface TweetHealthState {
-  current: number;
-  max: number;
-  history: TweetHealthHistory;
+export interface TweetEnergyState {
+  energy: number;
+  kinetic_energy: number;
+  potential_energy: number;
+  energy_gained_from_support: number;
+  energy_lost_from_attacks: number;
+  mass: number;
+  velocity_initial: number;
+  height_initial: number;
+  last_update_timestamp: string;
+  history: TweetEnergyStateHistory;
 }
 
 export interface TweetViralitySnapshot {
@@ -70,7 +85,7 @@ export interface Tweet {
   author_snapshot: TweetAuthorSnapshot;
   author?: TweetAuthor;
   viewer_context: TweetViewerContext;
-  health: TweetHealthState;
+  energy_state: TweetEnergyState;
   virality: TweetViralitySnapshot;
   quoted_tweet?: Tweet;
   replied_to_tweet?: Tweet;
@@ -81,7 +96,6 @@ export interface Tweet {
   retweets_count: number;
   replies_count: number;
   quote_count: number;
-  max_health: number;
 }
 
 export interface ThreadApiResponse {
@@ -161,13 +175,35 @@ function normalizeTweet(raw: any): Tweet {
     impressions: base.metrics?.impressions ?? 0,
   };
 
-  const rawHistory = base.health?.history ?? {};
-  const health: TweetHealthState = {
-    current: base.health?.current ?? base.health ?? 100,
-    max: base.health?.max ?? base.max_health ?? 100,
+  const rawEnergy = base.energy_state ?? {};
+  const energy_state: TweetEnergyState = {
+    energy: rawEnergy.energy ?? 0,
+    kinetic_energy: rawEnergy.kinetic_energy ?? 0,
+    potential_energy: rawEnergy.potential_energy ?? 0,
+    energy_gained_from_support: rawEnergy.energy_gained_from_support ?? 0,
+    energy_lost_from_attacks: rawEnergy.energy_lost_from_attacks ?? 0,
+    mass: rawEnergy.mass ?? 0,
+    velocity_initial: rawEnergy.velocity_initial ?? 0,
+    height_initial: rawEnergy.height_initial ?? 0,
+    last_update_timestamp:
+      rawEnergy.last_update_timestamp ?? new Date().toISOString(),
     history: {
-      heal_history: rawHistory.heal_history ?? [],
-      attack_history: rawHistory.attack_history ?? [],
+      support_history: (rawEnergy.history?.support_history ?? []).map(
+        (entry: any) => ({
+          timestamp: entry.timestamp ?? new Date().toISOString(),
+          impact: entry.impact ?? 0,
+          user_id: entry.user_id ?? { $oid: "" },
+          tool: entry.tool ?? null,
+        })
+      ),
+      attack_history: (rawEnergy.history?.attack_history ?? []).map(
+        (entry: any) => ({
+          timestamp: entry.timestamp ?? new Date().toISOString(),
+          impact: entry.impact ?? 0,
+          user_id: entry.user_id ?? { $oid: "" },
+          tool: entry.tool ?? null,
+        })
+      ),
     },
   };
 
@@ -210,7 +246,7 @@ function normalizeTweet(raw: any): Tweet {
     author_snapshot,
     author,
     viewer_context,
-    health,
+    energy_state,
     virality,
     quoted_tweet: base.quoted_tweet
       ? normalizeTweet(base.quoted_tweet)
@@ -225,7 +261,6 @@ function normalizeTweet(raw: any): Tweet {
     retweets_count: metrics.retweets,
     replies_count: metrics.replies,
     quote_count: metrics.quotes,
-    max_health: health.max,
   };
 
   return normalized;
@@ -274,11 +309,11 @@ interface TweetsState {
   ) => Promise<{ success: boolean; error?: string }>;
   attackTweet: (
     tweetId: string,
-    amount: number
+    toolId: string
   ) => Promise<{ success: boolean; error?: string }>;
-  healTweet: (
+  supportTweet: (
     tweetId: string,
-    amount: number
+    toolId: string
   ) => Promise<{ success: boolean; error?: string }>;
   updateTweet: (tweetId: string, updater: (tweet: Tweet) => Tweet) => void;
   clearError: () => void;
@@ -546,22 +581,24 @@ export const useTweetsStore = create<TweetsState>((set, get) => ({
     }
   },
 
-  attackTweet: async (tweetId: string, amount: number) => {
+  attackTweet: async (tweetId: string, toolId: string) => {
     try {
+      const headers = await getAuthHeaders();
       const response = await fetch(`${API_BASE_URL}/tweets/${tweetId}/attack`, {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ amount }),
+        headers,
+        body: JSON.stringify({ tool_id: toolId }),
       });
       const data = await parseJson<any>(response);
 
       get().updateTweet(tweetId, (tweet) => ({
         ...tweet,
-        health: {
-          ...tweet.health,
-          current: data.health_after ?? tweet.health.current,
+        energy_state: {
+          ...tweet.energy_state,
+          energy: data.energy_after ?? tweet.energy_state.energy,
+          energy_lost_from_attacks:
+            tweet.energy_state.energy_lost_from_attacks + (data.damage ?? 0),
+          last_update_timestamp: new Date().toISOString(),
         },
       }));
 
@@ -574,29 +611,34 @@ export const useTweetsStore = create<TweetsState>((set, get) => ({
     }
   },
 
-  healTweet: async (tweetId: string, amount: number) => {
+  supportTweet: async (tweetId: string, toolId: string) => {
     try {
-      const response = await fetch(`${API_BASE_URL}/tweets/${tweetId}/heal`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ amount }),
-      });
+      const headers = await getAuthHeaders();
+      const response = await fetch(
+        `${API_BASE_URL}/tweets/${tweetId}/support`,
+        {
+          method: "POST",
+          headers,
+          body: JSON.stringify({ tool_id: toolId }),
+        }
+      );
       const data = await parseJson<any>(response);
 
       get().updateTweet(tweetId, (tweet) => ({
         ...tweet,
-        health: {
-          ...tweet.health,
-          current: data.health_after ?? tweet.health.current,
+        energy_state: {
+          ...tweet.energy_state,
+          energy: data.energy_after ?? tweet.energy_state.energy,
+          energy_gained_from_support:
+            tweet.energy_state.energy_gained_from_support + (data.support ?? 0),
+          last_update_timestamp: new Date().toISOString(),
         },
       }));
 
       return { success: true };
     } catch (error) {
       const message =
-        error instanceof Error ? error.message : "Failed to heal tweet";
+        error instanceof Error ? error.message : "Failed to support tweet";
       set({ error: message });
       return { success: false, error: message };
     }

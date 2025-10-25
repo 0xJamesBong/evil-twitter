@@ -1,15 +1,21 @@
 import { create } from "zustand";
 import { API_BASE_URL } from "../services/api";
 
+export type ToolType = "Weapon" | "Support";
+export type ToolTarget = "Tweet" | "User";
+
 export interface WeaponCatalogItem {
   id: string;
   name: string;
   emoji: string;
   description: string;
-  category: string;
+  image_url: string;
+  tool_type: ToolType;
+  tool_target: ToolTarget;
+  impact: number;
+  health: number;
   max_health: number;
-  attack_power: number;
-  heal_power: number;
+  degrade_per_use: number;
   price: number;
   rarity: string;
 }
@@ -98,13 +104,15 @@ export const useShopStore = create<ShopState>((set, get) => ({
     const { catalog, selectedCategory } = get();
     return selectedCategory === "all"
       ? catalog
-      : catalog.filter((item) => item.category === selectedCategory);
+      : catalog.filter(
+          (item) => item.tool_type.toLowerCase() === selectedCategory
+        );
   },
 
   getCategories: () => {
     const { catalog } = get();
     const categories = Array.from(
-      new Set(catalog.map((item) => item.category))
+      new Set(catalog.map((item) => item.tool_type.toLowerCase()))
     );
     return ["all", ...categories];
   },

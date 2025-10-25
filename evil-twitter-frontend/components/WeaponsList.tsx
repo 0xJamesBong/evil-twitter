@@ -5,7 +5,6 @@ import {
     Box,
     Card,
     CardContent,
-    CardMedia,
     Typography,
     LinearProgress,
     Grid,
@@ -21,7 +20,7 @@ interface WeaponsListProps {
 }
 
 function WeaponCard({ weapon }: { weapon: Weapon }) {
-    const healthPercentage = (weapon.health / weapon.max_health) * 100;
+    const healthPercentage = (weapon.health / Math.max(weapon.max_health, 1)) * 100;
     const isBroken = weapon.health <= 0;
 
     return (
@@ -141,10 +140,10 @@ function WeaponCard({ weapon }: { weapon: Weapon }) {
                 >
                     <Box>
                         <Typography variant="caption" color="text.secondary">
-                            Damage
+                            Impact
                         </Typography>
                         <Typography variant="body1" fontWeight={700}>
-                            ⚔️ {weapon.damage}
+                            ⚡️ {weapon.impact}
                         </Typography>
                     </Box>
                     <Box>
@@ -153,6 +152,14 @@ function WeaponCard({ weapon }: { weapon: Weapon }) {
                         </Typography>
                         <Typography variant="body1" fontWeight={700}>
                             -{weapon.degrade_per_use}
+                        </Typography>
+                    </Box>
+                    <Box>
+                        <Typography variant="caption" color="text.secondary">
+                            Type
+                        </Typography>
+                        <Typography variant="body1" fontWeight={700}>
+                            {weapon.tool_type}
                         </Typography>
                     </Box>
                 </Box>
@@ -225,4 +232,3 @@ export function WeaponsList({ userId, weapons: providedWeapons }: WeaponsListPro
         </Box>
     );
 }
-

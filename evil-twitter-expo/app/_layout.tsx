@@ -1,13 +1,11 @@
-import { AuthModal } from "@/components/AuthModal";
 import { ReplyModal } from "@/components/ReplyModal";
-import { SignInButton } from "@/components/SignInButton";
-import { API_BASE_URL } from "@/lib/services/api";
+import { Sidebar } from "@/components/Sidebar";
+import { API_BASE_URL } from "@/lib/config/api";
 import { useAuthStore } from "@/lib/stores/authStore";
-import { useBackendUserStore } from "@/lib/stores/backendUserStore";
 import { DarkTheme, DefaultTheme, ThemeProvider } from "@react-navigation/native";
-import { Stack, useRouter } from "expo-router";
+import { Stack } from "expo-router";
 import { StatusBar } from "expo-status-bar";
-import { useEffect, useState } from "react";
+import { useEffect } from "react";
 import { Platform, SafeAreaView, StyleSheet, Text, TouchableOpacity, useColorScheme, useWindowDimensions, View } from "react-native";
 import { MD3DarkTheme, MD3LightTheme, PaperProvider } from "react-native-paper";
 
@@ -17,17 +15,32 @@ export const unstable_settings = {
 
 export default function RootLayout() {
   const colorScheme = useColorScheme();
-  const { initialize } = useAuthStore();
   const { width } = useWindowDimensions();
   const isWeb = Platform.OS === "web";
   const showRightSidebar = width >= 1200;
   const isCompactSidebar = width < 1024;
   const isStackedLayout = width < 768;
 
-  console.log("API_BASE_URL: ", API_BASE_URL);
+  // Initialize authentication
+  const { initialize, user, isAuthenticated, initialized, isLoading } = useAuthStore();
+
   useEffect(() => {
+    console.log("Initializing authentication...");
     initialize();
   }, [initialize]);
+
+  // Debug auth state
+  useEffect(() => {
+    console.log("Auth State Debug:", {
+      initialized,
+      isAuthenticated,
+      isLoading,
+      hasUser: !!user,
+      userId: user?.id
+    });
+  }, [initialized, isAuthenticated, isLoading, user]);
+
+  console.log("API_BASE_URL: ", API_BASE_URL);
 
   const navTheme = colorScheme === "dark" ? DarkTheme : DefaultTheme;
   const paperTheme = colorScheme === "dark" ? MD3DarkTheme : MD3LightTheme;
@@ -133,125 +146,6 @@ const styles = StyleSheet.create({
   },
 });
 
-// Sidebar Component
-function Sidebar({ compact }: { compact: boolean }) {
-  const router = useRouter();
-  const { isAuthenticated, user, logout } = useAuthStore();
-  const { user: backendUser } = useBackendUserStore();
-  const [showAuthModal, setShowAuthModal] = useState(false);
-
-  const navigation = [
-    { name: 'Home', icon: '🏠', route: '/(tabs)' },
-    // { name: 'Explore', icon: '🔍', route: '/(tabs)/explore' },
-    // { name: 'Notifications', icon: '🔔', route: '/(tabs)/notifications' },
-    // { name: 'Messages', icon: '✉️', route: '/(tabs)/messages' },
-    // { name: 'Bookmarks', icon: '🔖', route: '/(tabs)/bookmarks' },
-    { name: 'Profile', icon: '👤', route: '/(tabs)/profile' },
-    // { name: 'Shop', icon: '🛒', route: '/(tabs)/shop' },
-  ];
-
-  const handleLogout = async () => {
-    try {
-      await logout();
-    } catch (error) {
-      console.error('Logout error:', error);
-    }
-  };
-
-  const handleAuthSuccess = () => {
-    setShowAuthModal(false);
-  };
-
-  return (
-    <View style={[sidebarStyles.sidebarContainer, compact && sidebarStyles.sidebarContainerCompact]}>
-      <View>
-        <TouchableOpacity onPress={() => router.push('/(tabs)' as any)}>
-          <Text style={[sidebarStyles.logo, compact && sidebarStyles.logoCompact]}>ET</Text>
-          {!compact ? (
-            <Text style={sidebarStyles.logoSubtitle}>Evil Twitter</Text>
-          ) : null}
-        </TouchableOpacity>
-
-        <View style={sidebarStyles.navList}>
-          {navigation.map((item) => (
-            <TouchableOpacity
-              key={item.name}
-              style={sidebarStyles.navItem}
-              onPress={() => router.push(item.route as any)}
-            >
-              <Text style={sidebarStyles.navIcon}>{item.icon}</Text>
-              {!compact ? <Text style={sidebarStyles.navLabel}>{item.name}</Text> : null}
-            </TouchableOpacity>
-          ))}
-        </View>
-      </View>
-
-      <View style={sidebarStyles.sidebarFooter}>
-        <TouchableOpacity style={sidebarStyles.tweetButton} activeOpacity={0.8}>
-          <Text style={sidebarStyles.tweetButtonText}>{compact ? '✍️' : 'Tweet'}</Text>
-        </TouchableOpacity>
-
-        {isAuthenticated && backendUser ? (
-          <View style={sidebarStyles.profileCard}>
-            <TouchableOpacity
-              style={sidebarStyles.profileLink}
-              onPress={() => router.push('/(tabs)/profile' as any)}
-            >
-              <View style={sidebarStyles.profileAvatar}>
-                <Text style={sidebarStyles.profileAvatarText}>
-                  {backendUser.display_name?.charAt(0).toUpperCase() || '😈'}
-                </Text>
-              </View>
-              {!compact ? (
-                <View style={sidebarStyles.profileMeta}>
-                  <Text style={sidebarStyles.profileName}>
-                    {backendUser.display_name || 'User'}
-                  </Text>
-                  <Text style={sidebarStyles.profileHandle}>
-                    @{backendUser.username || 'user'}
-                  </Text>
-                </View>
-              ) : null}
-            </TouchableOpacity>
-            {!compact ? (
-              <TouchableOpacity onPress={handleLogout} style={sidebarStyles.logoutButton}>
-                <Text style={sidebarStyles.logoutText}>Logout</Text>
-              </TouchableOpacity>
-            ) : (
-              <TouchableOpacity onPress={handleLogout} style={sidebarStyles.logoutButtonCompact}>
-                <Text style={sidebarStyles.logoutIcon}>🚪</Text>
-              </TouchableOpacity>
-            )}
-          </View>
-        ) : (
-          <View style={sidebarStyles.authSection}>
-            {!compact ? (
-              <SignInButton
-                style={sidebarStyles.loginButton}
-                textStyle={sidebarStyles.loginText}
-                text="Sign In"
-                onAuthSuccess={handleAuthSuccess}
-              />
-            ) : (
-              <TouchableOpacity
-                style={sidebarStyles.loginButtonCompact}
-                onPress={() => setShowAuthModal(true)}
-              >
-                <Text style={sidebarStyles.loginIcon}>🔑</Text>
-              </TouchableOpacity>
-            )}
-          </View>
-        )}
-
-        <AuthModal
-          isOpen={showAuthModal}
-          onClose={() => setShowAuthModal(false)}
-          onAuthSuccess={handleAuthSuccess}
-        />
-      </View>
-    </View>
-  );
-}
 
 // RightSidebar Component
 function RightSidebar() {
@@ -300,166 +194,6 @@ function RightSidebar() {
   );
 }
 
-// Sidebar Styles
-const sidebarStyles = StyleSheet.create({
-  sidebarContainer: {
-    flex: 1,
-    borderRadius: 24,
-    paddingHorizontal: 20,
-    paddingVertical: 24,
-    backgroundColor: 'rgba(255,255,255,0.03)',
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.08)',
-    justifyContent: 'space-between',
-    minHeight: Platform.OS === 'web' ? '100vh' as any : undefined,
-  },
-  sidebarContainerCompact: {
-    paddingHorizontal: 12,
-  },
-  logo: {
-    fontSize: 24,
-    fontWeight: '800',
-    color: '#fff',
-  },
-  logoCompact: {
-    textAlign: 'center',
-  },
-  logoSubtitle: {
-    fontSize: 16,
-    color: '#9ca3af',
-    marginTop: 4,
-    marginBottom: 24,
-  },
-  navList: {
-    gap: 12,
-  },
-  navItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: 12,
-    paddingHorizontal: 12,
-    borderRadius: 999,
-    gap: 16,
-  },
-  navIcon: {
-    fontSize: 22,
-  },
-  navLabel: {
-    fontSize: 18,
-    color: '#fff',
-    fontWeight: '600',
-  },
-  sidebarFooter: {
-    gap: 20,
-  },
-  tweetButton: {
-    backgroundColor: '#1d9bf0',
-    borderRadius: 999,
-    paddingVertical: 14,
-    alignItems: 'center',
-  },
-  tweetButtonText: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: '#fff',
-  },
-  profileCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: 12,
-    paddingHorizontal: 12,
-    borderRadius: 16,
-    backgroundColor: 'rgba(255,255,255,0.04)',
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.08)',
-    gap: 12,
-  },
-  profileAvatar: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: '#334155',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  profileAvatarText: {
-    color: '#fff',
-    fontWeight: '700',
-  },
-  profileMeta: {
-    flex: 1,
-  },
-  profileName: {
-    color: '#fff',
-    fontWeight: '700',
-    fontSize: 16,
-  },
-  profileHandle: {
-    color: '#9ca3af',
-    marginTop: 2,
-  },
-  profileMenu: {
-    color: '#9ca3af',
-    fontSize: 18,
-  },
-  profileLink: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    flex: 1,
-    gap: 12,
-  },
-  logoutButton: {
-    backgroundColor: '#ef4444',
-    paddingVertical: 8,
-    paddingHorizontal: 12,
-    borderRadius: 8,
-  },
-  logoutText: {
-    color: '#fff',
-    fontSize: 12,
-    fontWeight: '600',
-  },
-  logoutButtonCompact: {
-    backgroundColor: '#ef4444',
-    paddingVertical: 8,
-    paddingHorizontal: 8,
-    borderRadius: 8,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  logoutIcon: {
-    fontSize: 16,
-  },
-  authSection: {
-    alignItems: 'center',
-  },
-  loginButton: {
-    backgroundColor: '#1d9bf0',
-    paddingVertical: 12,
-    paddingHorizontal: 24,
-    borderRadius: 24,
-    alignItems: 'center',
-    justifyContent: 'center',
-    width: '100%',
-  },
-  loginText: {
-    color: '#fff',
-    fontSize: 16,
-    fontWeight: 'bold',
-  },
-  loginButtonCompact: {
-    backgroundColor: '#1d9bf0',
-    paddingVertical: 12,
-    paddingHorizontal: 12,
-    borderRadius: 24,
-    alignItems: 'center',
-    justifyContent: 'center',
-    width: '100%',
-  },
-  loginIcon: {
-    fontSize: 18,
-  },
-});
 
 // RightSidebar Styles
 const rightSidebarStyles = StyleSheet.create({

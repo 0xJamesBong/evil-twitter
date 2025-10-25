@@ -8,7 +8,7 @@ import { useProfileStore } from '@/lib/stores/profileStore';
 import { useTweetsStore } from '@/lib/stores/tweetsStore';
 import { useWeaponsStore } from '@/lib/stores/weaponsStore';
 import { useRouter } from 'expo-router';
-import React, { useEffect } from 'react';
+import React, { useCallback, useEffect } from 'react';
 import { ActivityIndicator, Alert, FlatList, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { Card } from 'react-native-paper';
 
@@ -52,12 +52,17 @@ export function Profile({
     const displayUser = isOwnProfile ? currentBackendUser : profileUser;
     const displayUserId = isOwnProfile ? currentBackendUser?._id?.$oid : userId;
 
-    const followStatusEntry = useFollowStore((state) =>
-        displayUserId ? state.statusCache[displayUserId] : undefined
+    const followStatusEntry = useFollowStore(
+        useCallback(
+            (state) =>
+                displayUserId ? state.statusCache[displayUserId] : undefined,
+            [displayUserId]
+        )
     );
     const checkFollowStatus = useFollowStore((state) => state.checkFollowStatus);
     const followUser = useFollowStore((state) => state.followUser);
     const unfollowUser = useFollowStore((state) => state.unfollowUser);
+    const adjustFollowersCount = useProfileStore((state) => state.adjustFollowersCount);
     const isFollowing = followStatusEntry?.isFollowing ?? false;
 
     // Fetch profile data for other users
@@ -118,19 +123,24 @@ export function Profile({
     };
 
     const handleFollowToggle = async () => {
-        if (!displayUserId || !currentBackendUser?._id?.$oid) return;
+        const viewerId = currentBackendUser?._id?.$oid;
+        if (!displayUserId || !viewerId) return;
+
+        const delta = isFollowing ? -1 : 1;
+        if (!isOwnProfile) {
+            adjustFollowersCount(delta);
+        }
 
         try {
             if (isFollowing) {
-                await unfollowUser(displayUserId, currentBackendUser._id.$oid);
+                await unfollowUser(displayUserId, viewerId);
             } else {
-                await followUser(displayUserId, currentBackendUser._id.$oid);
-            }
-
-            if (!isOwnProfile && userId) {
-                await fetchProfile(userId);
+                await followUser(displayUserId, viewerId);
             }
         } catch (error) {
+            if (!isOwnProfile) {
+                adjustFollowersCount(-delta);
+            }
             console.error('Follow action failed:', error);
             Alert.alert('Error', 'Failed to update follow status');
         }
@@ -171,8 +181,8 @@ export function Profile({
                     <Text style={styles.weaponName}>{item.name}</Text>
                     <Text style={styles.weaponDescription}>{item.description}</Text>
                     <View style={styles.weaponStats}>
-                        <Text style={styles.statText}>Health: {item.health}/{item.max_health}</Text>
-                        <Text style={styles.statText}>Damage: {item.damage}</Text>
+                        <Text style={styles.statText}>Impact: {item.impact}</Text>
+                        <Text style={styles.statText}>Durability: {item.health}/{item.max_health}</Text>
                     </View>
                 </View>
             </Card.Content>

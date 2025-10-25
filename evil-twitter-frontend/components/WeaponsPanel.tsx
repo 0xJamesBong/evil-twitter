@@ -19,7 +19,7 @@ interface WeaponsPanelProps {
 }
 
 function CompactWeaponCard({ weapon }: { weapon: Weapon }) {
-    const healthPercentage = (weapon.health / weapon.max_health) * 100;
+    const healthPercentage = (weapon.health / Math.max(weapon.max_health, 1)) * 100;
     const isBroken = weapon.health <= 0;
 
     return (
@@ -75,12 +75,18 @@ function CompactWeaponCard({ weapon }: { weapon: Weapon }) {
                 </Box>
 
                 {/* Stats */}
-                <Box sx={{ display: "flex", gap: 2, mb: 0.5 }}>
+                <Box sx={{ display: "flex", gap: 2, mb: 0.5, flexWrap: "wrap" }}>
                     <Typography variant="caption" color="text.secondary">
-                        ⚔️ {weapon.damage}
+                        🧰 {weapon.tool_type}
+                    </Typography>
+                    <Typography variant="caption" color="text.secondary">
+                        ⚡️ Impact: {weapon.impact}
                     </Typography>
                     <Typography variant="caption" color="text.secondary">
                         💚 {weapon.health}/{weapon.max_health}
+                    </Typography>
+                    <Typography variant="caption" color="text.secondary">
+                        🔧 Degrade: -{weapon.degrade_per_use}
                     </Typography>
                 </Box>
 
@@ -143,16 +149,16 @@ export function WeaponsPanel({ userId, maxDisplay = 3 }: WeaponsPanelProps) {
                     No Weapons Yet
                 </Typography>
                 <Typography variant="caption" color="text.secondary" paragraph>
-                    Mint your first weapon to start your arsenal!
+                    Visit the shop to build your arsenal of weapons and support tools.
                 </Typography>
                 <Button
                     component={Link}
-                    href="/weapons"
+                    href="/shop"
                     variant="contained"
                     size="small"
                     sx={{ borderRadius: "9999px" }}
                 >
-                    Mint Weapon
+                    Open Shop
                 </Button>
             </Paper>
         );
@@ -183,7 +189,7 @@ export function WeaponsPanel({ userId, maxDisplay = 3 }: WeaponsPanelProps) {
             {hasMore && (
                 <Button
                     component={Link}
-                    href="/weapons"
+                    href="/shop"
                     fullWidth
                     variant="text"
                     size="small"
@@ -195,15 +201,14 @@ export function WeaponsPanel({ userId, maxDisplay = 3 }: WeaponsPanelProps) {
 
             <Button
                 component={Link}
-                href="/weapons"
+                href="/shop"
                 fullWidth
                 variant="outlined"
                 size="small"
                 sx={{ mt: 1, borderRadius: "9999px" }}
             >
-                Mint New Weapon
+                Visit Tool Shop
             </Button>
         </Paper>
     );
 }
-
