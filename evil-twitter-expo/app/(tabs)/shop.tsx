@@ -54,6 +54,15 @@ export default function ShopScreen() {
     const categories = getCategories();
     const filteredCatalog = getFilteredCatalog();
 
+    console.log("Shop Debug:", {
+        catalogLength: catalog.length,
+        filteredCatalogLength: filteredCatalog.length,
+        selectedCategory,
+        categories,
+        loading,
+        error
+    });
+
     const renderWeapon = ({ item }: { item: any }) => (
         <Card style={[styles.weaponCard, { borderColor: getRarityColor(item.rarity) }]}>
             <Card.Content>
@@ -136,14 +145,23 @@ export default function ShopScreen() {
             </ScrollView>
 
             {/* Weapons Grid */}
-            <FlatList
-                data={filteredCatalog}
-                renderItem={renderWeapon}
-                keyExtractor={(item) => item.id}
-                numColumns={2}
-                scrollEnabled={false}
-                contentContainerStyle={styles.weaponsGrid}
-            />
+            {filteredCatalog.length > 0 ? (
+                <FlatList
+                    data={filteredCatalog}
+                    renderItem={renderWeapon}
+                    keyExtractor={(item) => item.id}
+                    numColumns={2}
+                    scrollEnabled={true}
+                    contentContainerStyle={styles.weaponsGrid}
+                    showsVerticalScrollIndicator={false}
+                />
+            ) : (
+                <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', paddingVertical: 40 }}>
+                    <Text style={{ color: '#888', fontSize: 16, textAlign: 'center' }}>
+                        {catalog.length === 0 ? "No weapons available" : "No weapons in this category"}
+                    </Text>
+                </View>
+            )}
         </View>
     );
 }
@@ -236,5 +254,16 @@ const styles = StyleSheet.create({
         fontSize: 18,
         fontWeight: 'bold',
         color: '#1DA1F2',
+    },
+    emptyContainer: {
+        flex: 1,
+        justifyContent: 'center',
+        alignItems: 'center',
+        paddingVertical: 40,
+    },
+    emptyText: {
+        color: '#888',
+        fontSize: 16,
+        textAlign: 'center',
     },
 });

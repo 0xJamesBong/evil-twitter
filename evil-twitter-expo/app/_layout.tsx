@@ -1,9 +1,11 @@
 import { ReplyModal } from "@/components/ReplyModal";
 import { Sidebar } from "@/components/Sidebar";
 import { API_BASE_URL } from "@/lib/config/api";
+import { useAuthStore } from "@/lib/stores/authStore";
 import { DarkTheme, DefaultTheme, ThemeProvider } from "@react-navigation/native";
 import { Stack } from "expo-router";
 import { StatusBar } from "expo-status-bar";
+import { useEffect } from "react";
 import { Platform, SafeAreaView, StyleSheet, Text, TouchableOpacity, useColorScheme, useWindowDimensions, View } from "react-native";
 import { MD3DarkTheme, MD3LightTheme, PaperProvider } from "react-native-paper";
 
@@ -18,6 +20,25 @@ export default function RootLayout() {
   const showRightSidebar = width >= 1200;
   const isCompactSidebar = width < 1024;
   const isStackedLayout = width < 768;
+
+  // Initialize authentication
+  const { initialize, user, isAuthenticated, initialized, isLoading } = useAuthStore();
+
+  useEffect(() => {
+    console.log("Initializing authentication...");
+    initialize();
+  }, [initialize]);
+
+  // Debug auth state
+  useEffect(() => {
+    console.log("Auth State Debug:", {
+      initialized,
+      isAuthenticated,
+      isLoading,
+      hasUser: !!user,
+      userId: user?.id
+    });
+  }, [initialized, isAuthenticated, isLoading, user]);
 
   console.log("API_BASE_URL: ", API_BASE_URL);
 
