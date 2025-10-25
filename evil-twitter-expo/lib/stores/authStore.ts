@@ -1,8 +1,8 @@
+import { Session, User as SupabaseUser } from "@supabase/supabase-js";
 import { create } from "zustand";
+import { API_BASE_URL } from "../config/api";
 import { supabase } from "../supabase";
-import { User as SupabaseUser, Session } from "@supabase/supabase-js";
 import { useBackendUserStore } from "./backendUserStore";
-import { API_BASE_URL } from "../services/api";
 
 export type User = SupabaseUser;
 

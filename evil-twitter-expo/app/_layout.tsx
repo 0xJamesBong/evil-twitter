@@ -1,6 +1,6 @@
 import { ReplyModal } from "@/components/ReplyModal";
 import { Sidebar } from "@/components/Sidebar";
-import { API_BASE_URL } from "@/lib/services/api";
+import { API_BASE_URL } from "@/lib/config/api";
 import { DarkTheme, DefaultTheme, ThemeProvider } from "@react-navigation/native";
 import { Stack } from "expo-router";
 import { StatusBar } from "expo-status-bar";

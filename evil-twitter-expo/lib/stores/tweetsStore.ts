@@ -185,20 +185,25 @@ function normalizeTweet(raw: any): Tweet {
     mass: rawEnergy.mass ?? 0,
     velocity_initial: rawEnergy.velocity_initial ?? 0,
     height_initial: rawEnergy.height_initial ?? 0,
-    last_update_timestamp: rawEnergy.last_update_timestamp ?? new Date().toISOString(),
+    last_update_timestamp:
+      rawEnergy.last_update_timestamp ?? new Date().toISOString(),
     history: {
-      support_history: (rawEnergy.history?.support_history ?? []).map((entry: any) => ({
-        timestamp: entry.timestamp ?? new Date().toISOString(),
-        impact: entry.impact ?? 0,
-        user_id: entry.user_id ?? { $oid: '' },
-        tool: entry.tool ?? null,
-      })),
-      attack_history: (rawEnergy.history?.attack_history ?? []).map((entry: any) => ({
-        timestamp: entry.timestamp ?? new Date().toISOString(),
-        impact: entry.impact ?? 0,
-        user_id: entry.user_id ?? { $oid: '' },
-        tool: entry.tool ?? null,
-      })),
+      support_history: (rawEnergy.history?.support_history ?? []).map(
+        (entry: any) => ({
+          timestamp: entry.timestamp ?? new Date().toISOString(),
+          impact: entry.impact ?? 0,
+          user_id: entry.user_id ?? { $oid: "" },
+          tool: entry.tool ?? null,
+        })
+      ),
+      attack_history: (rawEnergy.history?.attack_history ?? []).map(
+        (entry: any) => ({
+          timestamp: entry.timestamp ?? new Date().toISOString(),
+          impact: entry.impact ?? 0,
+          user_id: entry.user_id ?? { $oid: "" },
+          tool: entry.tool ?? null,
+        })
+      ),
     },
   };
 
@@ -609,11 +614,14 @@ export const useTweetsStore = create<TweetsState>((set, get) => ({
   supportTweet: async (tweetId: string, toolId: string) => {
     try {
       const headers = await getAuthHeaders();
-      const response = await fetch(`${API_BASE_URL}/tweets/${tweetId}/support`, {
-        method: "POST",
-        headers,
-        body: JSON.stringify({ tool_id: toolId }),
-      });
+      const response = await fetch(
+        `${API_BASE_URL}/tweets/${tweetId}/support`,
+        {
+          method: "POST",
+          headers,
+          body: JSON.stringify({ tool_id: toolId }),
+        }
+      );
       const data = await parseJson<any>(response);
 
       get().updateTweet(tweetId, (tweet) => ({
