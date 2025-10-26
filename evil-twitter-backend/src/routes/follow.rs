@@ -3,13 +3,13 @@ use axum::{
     extract::{Path, Query, State},
     http::StatusCode,
 };
-use std::collections::{HashMap, HashSet};
 use futures::TryStreamExt;
 use mongodb::{
     Collection, Database,
     bson::{doc, oid::ObjectId},
 };
 use serde_json::{Value, json};
+use std::collections::{HashMap, HashSet};
 use utoipa::ToSchema;
 
 use crate::models::follow::{Follow, FollowRequest, FollowResponse, FollowStats};
@@ -485,7 +485,9 @@ pub async fn get_following_list(
     }
 
     if following_ids.is_empty() {
-        return Ok(Json(FollowingListResponse { following: Vec::new() }));
+        return Ok(Json(FollowingListResponse {
+            following: Vec::new(),
+        }));
     }
 
     let mut viewer_follow_set: HashSet<ObjectId> = HashSet::new();

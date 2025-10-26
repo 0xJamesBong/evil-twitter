@@ -1,5 +1,7 @@
 use axum::routing::{delete, get, post};
 use dotenvy::dotenv;
+use tower::ServiceBuilder;
+use tower::limit::GlobalConcurrencyLimitLayer;
 use tower_http::cors::CorsLayer;
 
 use mongodb::Client;
@@ -15,6 +17,11 @@ mod utils;
 
 use routes::data_generation::{
     clear_all_data, generate_fake_data, generate_fake_tweets, generate_fake_users,
+};
+use routes::economy::{
+    adjust_user_balance, cancel_listing, create_asset, create_listing, create_shop_item,
+    get_user_assets, get_user_balances, list_marketplace_listings, list_shop_items,
+    purchase_listing, purchase_shop_item,
 };
 use routes::follow::{follow_user, get_followers_list, get_following_list, unfollow_user};
 use routes::migration::{migrate_user_objectids, migrate_users_weapons};
@@ -64,7 +71,18 @@ use routes::weapons::{buy_weapon, get_user_weapons, get_weapon_catalog_endpoint}
         routes::follow::get_followers_list,
         routes::weapons::buy_weapon,
         routes::weapons::get_user_weapons,
-        routes::weapons::get_weapon_catalog_endpoint
+        routes::weapons::get_weapon_catalog_endpoint,
+        routes::economy::get_user_balances,
+        routes::economy::adjust_user_balance,
+        routes::economy::create_asset,
+        routes::economy::get_user_assets,
+        routes::economy::create_shop_item,
+        routes::economy::list_shop_items,
+        routes::economy::purchase_shop_item,
+        routes::economy::create_listing,
+        routes::economy::list_marketplace_listings,
+        routes::economy::purchase_listing,
+        routes::economy::cancel_listing
     ),
     components(
         schemas(
@@ -99,7 +117,24 @@ use routes::weapons::{buy_weapon, get_user_weapons, get_weapon_catalog_endpoint}
             routes::tweet::TweetThreadResponse,
             routes::weapons::BuyWeaponRequest,
             models::weapon_catalog::WeaponCatalogItem,
-            routes::migration::MigrationResponse
+            routes::migration::MigrationResponse,
+            models::token::TokenBalance,
+            models::token::TokenLedgerEntry,
+            models::token::LedgerEntryType,
+            models::asset::Asset,
+            models::asset::AssetType,
+            models::asset::AssetStatus,
+            models::shop::ShopItem,
+            models::shop::ShopPurchaseReceipt,
+            models::marketplace::AssetListing,
+            models::marketplace::ListingStatus,
+            models::marketplace::TradeReceipt,
+            routes::economy::AdjustBalanceRequest,
+            routes::economy::CreateAssetRequest,
+            routes::economy::CreateShopItemRequest,
+            routes::economy::PurchaseShopItemRequest,
+            routes::economy::CreateListingRequest,
+            routes::economy::PurchaseListingRequest
         )
     ),
     tags(
@@ -108,6 +143,7 @@ use routes::weapons::{buy_weapon, get_user_weapons, get_weapon_catalog_endpoint}
         (name = "tweets", description = "Tweet management endpoints"),
         (name = "follows", description = "Follow management endpoints"),
         (name = "weapons", description = "Weapon management endpoints"),
+        (name = "economy", description = "Token, asset, and marketplace endpoints"),
         (name = "auth", description = "Authentication endpoints"),
         (name = "admin", description = "Administrative endpoints")
     ),
@@ -177,6 +213,33 @@ async fn main() -> anyhow::Result<()> {
         .route("/weapons/catalog", get(get_weapon_catalog_endpoint))
         .route("/weapons/{user_id}/buy", post(buy_weapon))
         .route("/users/{user_id}/weapons", get(get_user_weapons))
+        .route("/economy/users/{user_id}/balances", get(get_user_balances))
+        .route(
+            "/economy/users/{user_id}/balances/adjust",
+            post(adjust_user_balance),
+        )
+        .route("/economy/assets", post(create_asset))
+        .route("/economy/users/{user_id}/assets", get(get_user_assets))
+        .route(
+            "/economy/shop/items",
+            post(create_shop_item).get(list_shop_items),
+        )
+        .route(
+            "/economy/shop/items/{item_id}/purchase",
+            post(purchase_shop_item),
+        )
+        .route(
+            "/economy/marketplace/listings",
+            post(create_listing).get(list_marketplace_listings),
+        )
+        .route(
+            "/economy/marketplace/listings/{listing_id}",
+            delete(cancel_listing),
+        )
+        .route(
+            "/economy/marketplace/listings/{listing_id}/buy",
+            post(purchase_listing),
+        )
         .split_for_parts();
 
     let app = app
@@ -197,7 +260,11 @@ async fn main() -> anyhow::Result<()> {
     println!("Evil Twitter API listening on http://{}", addr);
     println!("Swagger UI available at http://{}/doc", addr);
 
-    axum::serve(listener, app.into_make_service()).await?;
+    let service = ServiceBuilder::new()
+        .layer(GlobalConcurrencyLimitLayer::new(200))
+        .service(app.into_make_service());
+
+    axum::serve(listener, service).await?;
 
     Ok(())
 }

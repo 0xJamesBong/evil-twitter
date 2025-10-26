@@ -1,4 +1,8 @@
+pub mod asset;
 pub mod follow;
+pub mod marketplace;
+pub mod shop;
+pub mod token;
 pub mod tool;
 pub mod tweet;
 pub mod user;

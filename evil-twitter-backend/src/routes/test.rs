@@ -1,9 +1,5 @@
-use axum::{
-    extract::State,
-    http::StatusCode,
-    Json,
-};
-use mongodb::{bson::doc, Collection, Database};
+use axum::{Json, extract::State, http::StatusCode};
+use mongodb::{Collection, Database, bson::doc};
 use utoipa::ToSchema;
 
 use crate::models::user::User;
@@ -27,7 +23,7 @@ pub async fn test_db_connection(
     State(db): State<Database>,
 ) -> Result<Json<TestResponse>, (StatusCode, Json<serde_json::Value>)> {
     let collection: Collection<User> = db.collection("users");
-    
+
     match collection.count_documents(doc! {}).await {
         Ok(count) => Ok(Json(TestResponse {
             message: format!("Database connected successfully. Users count: {}", count),

@@ -1,5 +1,6 @@
 import { create } from "zustand";
 import { API_BASE_URL } from "../config/api";
+import { getAuthHeaders } from "../utils/authHeaders";
 
 type ObjectIdRef = { $oid: string };
 
@@ -114,24 +115,6 @@ interface TweetListResponse {
   tweets: any[];
   total: number;
 }
-
-const getAuthHeaders = async (
-  includeJson: boolean = true
-): Promise<Record<string, string>> => {
-  const { supabase } = await import("../supabase");
-  const {
-    data: { session },
-  } = await supabase.auth.getSession();
-
-  const headers: Record<string, string> = {};
-  if (includeJson) {
-    headers["Content-Type"] = "application/json";
-  }
-  if (session?.access_token) {
-    headers["Authorization"] = `Bearer ${session.access_token}`;
-  }
-  return headers;
-};
 
 const flattenTweetPayload = (raw: any) => {
   if (raw && typeof raw === "object" && "tweet" in raw && raw.tweet) {

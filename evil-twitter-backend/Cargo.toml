@@ -20,7 +20,7 @@ rust_decimal_macros = "1.36.0"
 derive_builder = "0.20.2"
 dotenvy = "0.15.7"
 anyhow = "1.0.91"
-tower = "0.5.1"
+tower = { version = "0.5.1", features = ["limit"] }
 tower-http = { version = "0.6.1", features = ["trace", "cors", "timeout", "compression-gzip", "catch-panic"] }
 serde_json = "1"
 serde_bytes = "0.11"

@@ -1,269 +1,617 @@
-import React, { useEffect } from 'react';
-import { StyleSheet, View, FlatList, ScrollView } from 'react-native';
-import { Card, Text, Button, Chip, ActivityIndicator } from 'react-native-paper';
-import { useBackendUserStore } from '@/lib/stores/backendUserStore';
-import { useShopStore } from '@/lib/stores/shopStore';
+import React, { useEffect, useMemo, useState } from "react";
+import {
+  StyleSheet,
+  View,
+  ScrollView,
+  RefreshControl,
+} from "react-native";
+import {
+  ActivityIndicator,
+  Button,
+  Card,
+  Chip,
+  Dialog,
+  HelperText,
+  Portal,
+  Text,
+  TextInput,
+  Divider,
+} from "react-native-paper";
+import { useBackendUserStore } from "@/lib/stores/backendUserStore";
+import {
+  ShopItem,
+  UserAsset,
+  MarketplaceListing,
+  useEconomyStore,
+} from "@/lib/stores/economyStore";
+
+const formatNumber = (value: number): string =>
+  new Intl.NumberFormat().format(value);
+
+const canListAsset = (asset: UserAsset): boolean =>
+  asset.tradeable &&
+  !asset.isLocked &&
+  asset.status?.toLowerCase() === "active";
+
+const isListingActive = (listing: MarketplaceListing): boolean =>
+  listing.status?.toLowerCase() === "active";
 
 export default function ShopScreen() {
-    const { user } = useBackendUserStore();
-    const {
-        catalog,
-        loading,
-        error,
-        buying,
-        selectedCategory,
-        fetchCatalog,
-        buyWeapon,
-        setSelectedCategory,
-        clearError,
-        getFilteredCatalog,
-        getCategories,
-    } = useShopStore();
+  const { user } = useBackendUserStore();
+  const userId = user?._id?.$oid ?? "";
+  const [initialised, setInitialised] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
+  const [listModal, setListModal] = useState<{
+    visible: boolean;
+    asset: UserAsset | null;
+    price: string;
+    feeBps: string;
+    token: string;
+    error: string | null;
+  }>({
+    visible: false,
+    asset: null,
+    price: "",
+    feeBps: "250",
+    token: "EVL",
+    error: null,
+  });
 
-    useEffect(() => {
-        if (catalog.length === 0) {
-            fetchCatalog();
-        }
-    }, [catalog.length, fetchCatalog]);
+  const {
+    balances,
+    assets,
+    shopItems,
+    listings,
+    loading,
+    actionState,
+    error,
+    marketplaceError,
+    selectedToken,
+    setSelectedToken,
+    refreshAll,
+    buyShopItem,
+    listAsset,
+    purchaseListing,
+    cancelListing,
+    clearErrors,
+  } = useEconomyStore();
 
-    const handleBuyWeapon = async (catalogId: string) => {
-        if (!user?._id?.$oid) {
-            return;
-        }
+  useEffect(() => {
+    if (selectedToken && !listModal.visible) {
+      setListModal((prev) => ({
+        ...prev,
+        token: selectedToken,
+      }));
+    }
+  }, [selectedToken, listModal.visible]);
 
-        const result = await buyWeapon(user._id.$oid, catalogId);
+  useEffect(() => {
+    if (userId && !initialised) {
+      setInitialised(true);
+      refreshAll(userId);
+    }
+  }, [userId, initialised, refreshAll]);
 
-        if (result.success) {
-            // Show success message
-        }
-    };
+  const handleRefresh = async () => {
+    if (!userId) return;
+    setRefreshing(true);
+    await refreshAll(userId);
+    setRefreshing(false);
+  };
 
-    const getRarityColor = (rarity: string) => {
-        switch (rarity) {
-            case 'legendary':
-                return '#FFD700';
-            case 'rare':
-                return '#9370DB';
-            case 'uncommon':
-                return '#4169E1';
-            default:
-                return '#808080';
-        }
-    };
+  const handleBuyShopItem = async (itemId: string) => {
+    if (!userId) return;
+    await buyShopItem(userId, itemId);
+  };
 
-    const categories = getCategories();
-    const filteredCatalog = getFilteredCatalog();
+  const openListModal = (asset: UserAsset) => {
+    setListModal({
+      visible: true,
+      asset,
+      price: "",
+      feeBps: "250",
+      token: selectedToken,
+      error: null,
+    });
+  };
 
-    console.log("Shop Debug:", {
-        catalogLength: catalog.length,
-        filteredCatalogLength: filteredCatalog.length,
-        selectedCategory,
-        categories,
-        loading,
-        error
+  const closeListModal = () =>
+    setListModal({
+      visible: false,
+      asset: null,
+      price: "",
+      feeBps: "250",
+      token: selectedToken,
+      error: null,
     });
 
-    const renderWeapon = ({ item }: { item: any }) => (
-        <Card style={[styles.weaponCard, { borderColor: getRarityColor(item.rarity) }]}>
-            <Card.Content>
-                <View style={styles.weaponHeader}>
-                    <Text style={styles.weaponEmoji}>{item.emoji}</Text>
-                    <Chip
-                        mode="outlined"
-                        textStyle={{ color: getRarityColor(item.rarity), fontSize: 10 }}
-                        style={{ borderColor: getRarityColor(item.rarity) }}
-                    >
-                        {item.rarity.toUpperCase()}
-                    </Chip>
-                </View>
-
-                <Text style={styles.weaponName}>{item.name}</Text>
-                <Text style={styles.weaponDescription}>{item.description}</Text>
-
-                <View style={styles.weaponStats}>
-                    <Text style={styles.statText}>Type: {item.tool_type}</Text>
-                    <Text style={styles.statText}>Impact: {item.impact}</Text>
-                    <Text style={styles.statText}>Durability: {item.health}/{item.max_health}</Text>
-                    <Text style={styles.statText}>Degrade/use: {item.degrade_per_use}</Text>
-                </View>
-
-                <View style={styles.weaponFooter}>
-                    <Text style={styles.price}>${item.price}</Text>
-                    <Button
-                        mode="contained"
-                        onPress={() => handleBuyWeapon(item.id)}
-                        disabled={buying === item.id || !user}
-                        loading={buying === item.id}
-                        compact
-                    >
-                        Buy
-                    </Button>
-                </View>
-            </Card.Content>
-        </Card>
-    );
-
-    if (loading) {
-        return (
-            <View style={styles.content}>
-                <View style={styles.loadingContainer}>
-                    <ActivityIndicator size="large" />
-                    <Text style={styles.loadingText}>Loading weapons...</Text>
-                </View>
-            </View>
-        );
+  const handleSubmitListing = async () => {
+    if (!listModal.asset || !userId) {
+      return;
     }
 
-    return (
-        <View style={styles.content}>
-            <Text style={styles.description}>
-                Select from our arsenal of offensive weapons, defensive gear, support tools, and utility gadgets.
-                Each item has unique stats and abilities to enhance your Twitter battles.
-            </Text>
+    const parsedPrice = Number(listModal.price);
+    if (Number.isNaN(parsedPrice) || parsedPrice <= 0) {
+      setListModal((prev) => ({
+        ...prev,
+        error: "Enter a valid price greater than zero.",
+      }));
+      return;
+    }
 
-            {error && (
-                <Card style={styles.errorCard}>
-                    <Card.Content>
-                        <Text style={styles.errorText}>{error}</Text>
-                        <Button onPress={clearError}>Dismiss</Button>
-                    </Card.Content>
-                </Card>
-            )}
+    const parsedFee = Number(listModal.feeBps || "250");
+    if (Number.isNaN(parsedFee) || parsedFee < 0) {
+      setListModal((prev) => ({
+        ...prev,
+        error: "Fee must be zero or a positive number.",
+      }));
+      return;
+    }
 
-            {/* Category Tabs */}
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.categoryScroll}>
-                {categories.map((cat) => (
+    const result = await listAsset({
+      assetId: listModal.asset.id,
+      priceToken: listModal.token,
+      priceAmount: parsedPrice,
+      feeBps: parsedFee,
+      userId,
+    });
+
+    if (!result.success) {
+      setListModal((prev) => ({
+        ...prev,
+        error: result.error ?? "Unable to create listing.",
+      }));
+      return;
+    }
+
+    closeListModal();
+  };
+
+  const handlePurchaseListing = async (listingId: string) => {
+    if (!userId) return;
+    await purchaseListing(listingId, userId);
+  };
+
+  const handleCancelListing = async (listingId: string) => {
+    if (!userId) return;
+    await cancelListing(listingId, userId);
+  };
+
+  const activeShopItems = useMemo(
+    () => shopItems.filter((item) => item.isActive),
+    [shopItems]
+  );
+
+  return (
+    <View style={styles.container}>
+      <ScrollView
+        contentContainerStyle={styles.scrollContent}
+        refreshControl={
+          <RefreshControl refreshing={refreshing} onRefresh={handleRefresh} />
+        }
+      >
+        <View style={styles.section}>
+          <View style={styles.sectionHeader}>
+            <Text style={styles.sectionTitle}>Vault</Text>
+            <Button
+              compact
+              mode="outlined"
+              onPress={handleRefresh}
+              icon="refresh"
+              disabled={!userId}
+            >
+              Refresh
+            </Button>
+          </View>
+          {loading.balances ? (
+            <View style={styles.centered}>
+              <ActivityIndicator />
+              <Text style={styles.muted}>Loading balances...</Text>
+            </View>
+          ) : balances.length > 0 ? (
+            <Card style={styles.card}>
+              <Card.Content>
+                <View style={styles.balanceRow}>
+                  {balances.map((balance) => (
                     <Chip
-                        key={cat}
-                        selected={selectedCategory === cat}
-                        onPress={() => setSelectedCategory(cat)}
-                        style={styles.categoryChip}
+                      key={balance.id}
+                      mode="outlined"
+                      selected={selectedToken === balance.tokenSymbol}
+                      style={styles.balanceChip}
+                      onPress={() => setSelectedToken(balance.tokenSymbol)}
                     >
-                        {cat.charAt(0).toUpperCase() + cat.slice(1)}
+                      {balance.tokenSymbol} • {formatNumber(balance.available)}
+                      {balance.locked > 0
+                        ? ` (locked ${formatNumber(balance.locked)})`
+                        : ""}
                     </Chip>
-                ))}
-            </ScrollView>
-
-            {/* Weapons Grid */}
-            {filteredCatalog.length > 0 ? (
-                <FlatList
-                    data={filteredCatalog}
-                    renderItem={renderWeapon}
-                    keyExtractor={(item) => item.id}
-                    numColumns={2}
-                    scrollEnabled={true}
-                    contentContainerStyle={styles.weaponsGrid}
-                    showsVerticalScrollIndicator={false}
-                />
-            ) : (
-                <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', paddingVertical: 40 }}>
-                    <Text style={{ color: '#888', fontSize: 16, textAlign: 'center' }}>
-                        {catalog.length === 0 ? "No weapons available" : "No weapons in this category"}
-                    </Text>
+                  ))}
                 </View>
-            )}
+              </Card.Content>
+            </Card>
+          ) : (
+            <Text style={styles.muted}>
+              No balances found yet. Complete missions or trade to earn tokens.
+            </Text>
+          )}
         </View>
-    );
+
+        {error && (
+          <Card style={[styles.card, styles.errorCard]}>
+            <Card.Content style={styles.cardRow}>
+              <Text style={styles.errorText}>{error}</Text>
+              <Button mode="text" onPress={clearErrors}>
+                Dismiss
+              </Button>
+            </Card.Content>
+          </Card>
+        )}
+
+        <View style={styles.section}>
+          <View style={styles.sectionHeader}>
+            <Text style={styles.sectionTitle}>Infernal Shop</Text>
+          </View>
+          {loading.shop ? (
+            <View style={styles.centered}>
+              <ActivityIndicator />
+              <Text style={styles.muted}>Summoning catalog...</Text>
+            </View>
+          ) : activeShopItems.length > 0 ? (
+            activeShopItems.map((item: ShopItem) => (
+              <Card key={item.id} style={styles.card}>
+                <Card.Title
+                  title={item.name}
+                  subtitle={
+                    item.remainingSupply != null
+                      ? `Supply: ${item.remainingSupply}${
+                          item.totalSupply != null
+                            ? ` / ${item.totalSupply}`
+                            : ""
+                        }`
+                      : undefined
+                  }
+                />
+                <Card.Content>
+                  {item.description ? (
+                    <Text style={styles.descriptionText}>
+                      {item.description}
+                    </Text>
+                  ) : null}
+                  <View style={styles.priceRow}>
+                    <Chip mode="outlined">
+                      {formatNumber(item.priceAmount)} {item.priceToken}
+                    </Chip>
+                  </View>
+                </Card.Content>
+                <Card.Actions>
+                  <Button
+                    mode="contained"
+                    onPress={() => handleBuyShopItem(item.id)}
+                    loading={actionState.purchasingItem === item.id}
+                    disabled={
+                      !userId || actionState.purchasingItem === item.id
+                    }
+                  >
+                    Buy
+                  </Button>
+                </Card.Actions>
+              </Card>
+            ))
+          ) : (
+            <Text style={styles.muted}>
+              The infernal shopkeeper has nothing on display right now.
+            </Text>
+          )}
+        </View>
+
+        <Divider style={styles.divider} />
+
+        <View style={styles.section}>
+          <View style={styles.sectionHeader}>
+            <Text style={styles.sectionTitle}>My Arsenal</Text>
+          </View>
+          {loading.assets ? (
+            <View style={styles.centered}>
+              <ActivityIndicator />
+              <Text style={styles.muted}>Loading your arsenal...</Text>
+            </View>
+          ) : assets.length > 0 ? (
+            assets.map((asset: UserAsset) => {
+              const status = asset.status?.toUpperCase() ?? "UNKNOWN";
+              const statusColor =
+                asset.status?.toLowerCase() === "listed"
+                  ? "#f39c12"
+                  : asset.isLocked
+                  ? "#c0392b"
+                  : "#2ecc71";
+              return (
+                <Card key={asset.id} style={styles.card}>
+                  <Card.Title
+                    title={asset.name}
+                    subtitle={`Type: ${asset.assetType}`}
+                    right={() => (
+                      <Chip
+                        mode="outlined"
+                        style={[styles.statusChip, { borderColor: statusColor }]}
+                        textStyle={{ color: statusColor }}
+                      >
+                        {status}
+                      </Chip>
+                    )}
+                  />
+                  <Card.Content>
+                    {asset.description ? (
+                      <Text style={styles.descriptionText}>
+                        {asset.description}
+                      </Text>
+                    ) : null}
+                    {asset.attributes ? (
+                      <Text style={styles.attributesText}>
+                        Attributes:{" "}
+                        {JSON.stringify(asset.attributes, null, 2).slice(0, 120)}
+                      </Text>
+                    ) : null}
+                  </Card.Content>
+                  <Card.Actions>
+                    <Button
+                      mode="outlined"
+                      onPress={() => openListModal(asset)}
+                      disabled={!canListAsset(asset) || !userId}
+                    >
+                      List for Sale
+                    </Button>
+                  </Card.Actions>
+                </Card>
+              );
+            })
+          ) : (
+            <Text style={styles.muted}>
+              You have no assets yet. Acquire tools or rewards from the shop or
+              marketplace.
+            </Text>
+          )}
+        </View>
+
+        <Divider style={styles.divider} />
+
+        <View style={styles.section}>
+          <View style={styles.sectionHeader}>
+            <Text style={styles.sectionTitle}>Marketplace</Text>
+          </View>
+          {marketplaceError ? (
+            <Card style={[styles.card, styles.errorCard]}>
+              <Card.Content style={styles.cardRow}>
+                <Text style={styles.errorText}>{marketplaceError}</Text>
+                <Button mode="text" onPress={clearErrors}>
+                  Dismiss
+                </Button>
+              </Card.Content>
+            </Card>
+          ) : null}
+
+          {loading.listings ? (
+            <View style={styles.centered}>
+              <ActivityIndicator />
+              <Text style={styles.muted}>Syncing the dark bazaar...</Text>
+            </View>
+          ) : listings.length > 0 ? (
+            listings.map((listing: MarketplaceListing) => {
+              const sellerOwns = listing.sellerId === userId;
+              const active = isListingActive(listing);
+              return (
+                <Card key={listing.id} style={styles.card}>
+                  <Card.Title
+                    title={`${formatNumber(listing.priceAmount)} ${
+                      listing.priceToken
+                    }`}
+                    subtitle={`Fee: ${(listing.feeBps / 100).toFixed(2)}%`}
+                    right={() => (
+                      <Chip
+                        mode="outlined"
+                        style={styles.marketChip}
+                        textStyle={{
+                          color: active ? "#2ecc71" : "#bdc3c7",
+                        }}
+                      >
+                        {listing.status?.toUpperCase()}
+                      </Chip>
+                    )}
+                  />
+                  <Card.Content>
+                    <Text style={styles.descriptionText}>
+                      Asset: {listing.assetId}
+                    </Text>
+                    <Text style={styles.muted}>
+                      Seller: {listing.sellerId}
+                    </Text>
+                    {listing.buyerId ? (
+                      <Text style={styles.muted}>
+                        Buyer: {listing.buyerId}
+                      </Text>
+                    ) : null}
+                  </Card.Content>
+                  <Card.Actions>
+                    {sellerOwns ? (
+                      <Button
+                        mode="outlined"
+                        onPress={() => handleCancelListing(listing.id)}
+                        disabled={
+                          !active ||
+                          actionState.cancellingListing === listing.id
+                        }
+                        loading={actionState.cancellingListing === listing.id}
+                      >
+                        Cancel
+                      </Button>
+                    ) : (
+                      <Button
+                        mode="contained"
+                        onPress={() => handlePurchaseListing(listing.id)}
+                        disabled={
+                          !active ||
+                          !userId ||
+                          actionState.purchasingListing === listing.id
+                        }
+                        loading={actionState.purchasingListing === listing.id}
+                      >
+                        Buy
+                      </Button>
+                    )}
+                  </Card.Actions>
+                </Card>
+              );
+            })
+          ) : (
+            <Text style={styles.muted}>
+              No active listings yet. Stake your claim by listing a prized
+              possession.
+            </Text>
+          )}
+        </View>
+      </ScrollView>
+
+      <Portal>
+        <Dialog visible={listModal.visible} onDismiss={closeListModal}>
+          <Dialog.Title>
+            {listModal.asset ? `List ${listModal.asset.name}` : "List Asset"}
+          </Dialog.Title>
+          <Dialog.Content>
+            <TextInput
+              label="Price"
+              value={listModal.price}
+              onChangeText={(price) =>
+                setListModal((prev) => ({ ...prev, price }))
+              }
+              keyboardType="numeric"
+              style={styles.input}
+            />
+            <TextInput
+              label="Fee (bps)"
+              value={listModal.feeBps}
+              onChangeText={(feeBps) =>
+                setListModal((prev) => ({ ...prev, feeBps }))
+              }
+              keyboardType="numeric"
+              style={styles.input}
+            />
+            <View style={styles.balanceRow}>
+              {balances.map((balance) => (
+                <Chip
+                  key={`dialog-${balance.id}`}
+                  selected={listModal.token === balance.tokenSymbol}
+                  onPress={() =>
+                    setListModal((prev) => ({
+                      ...prev,
+                      token: balance.tokenSymbol,
+                    }))
+                  }
+                  style={styles.balanceChip}
+                >
+                  {balance.tokenSymbol}
+                </Chip>
+              ))}
+            </View>
+            {listModal.error ? (
+              <HelperText type="error" visible>
+                {listModal.error}
+              </HelperText>
+            ) : null}
+          </Dialog.Content>
+          <Dialog.Actions>
+            <Button onPress={closeListModal}>Cancel</Button>
+            <Button
+              onPress={handleSubmitListing}
+              mode="contained"
+              loading={actionState.listingAsset}
+              disabled={actionState.listingAsset}
+            >
+              List
+            </Button>
+          </Dialog.Actions>
+        </Dialog>
+      </Portal>
+    </View>
+  );
 }
 
 const styles = StyleSheet.create({
-    content: {
-        padding: 16,
-        maxWidth: 600,
-        width: '100%',
-        alignSelf: 'center',
-    },
-    // Mobile layout styles (kept for compatibility)
-    container: {
-        flex: 1,
-        backgroundColor: '#000',
-    },
-    loadingContainer: {
-        flex: 1,
-        justifyContent: 'center',
-        alignItems: 'center',
-    },
-    loadingText: {
-        marginTop: 16,
-        color: '#fff',
-    },
-    description: {
-        color: '#888',
-        fontSize: 16,
-        marginBottom: 24,
-        lineHeight: 22,
-    },
-    errorCard: {
-        backgroundColor: '#ff4444',
-        marginBottom: 16,
-    },
-    errorText: {
-        color: '#fff',
-        marginBottom: 8,
-    },
-    categoryScroll: {
-        marginBottom: 16,
-    },
-    categoryChip: {
-        marginRight: 8,
-    },
-    weaponsGrid: {
-        paddingBottom: 100,
-    },
-    weaponCard: {
-        flex: 1,
-        margin: 8,
-        backgroundColor: '#1a1a1a',
-        borderWidth: 2,
-    },
-    weaponHeader: {
-        flexDirection: 'row',
-        justifyContent: 'space-between',
-        alignItems: 'center',
-        marginBottom: 8,
-    },
-    weaponEmoji: {
-        fontSize: 48,
-    },
-    weaponName: {
-        fontSize: 18,
-        fontWeight: 'bold',
-        color: '#fff',
-        marginBottom: 8,
-    },
-    weaponDescription: {
-        color: '#888',
-        fontSize: 14,
-        marginBottom: 12,
-        lineHeight: 20,
-    },
-    weaponStats: {
-        marginBottom: 16,
-    },
-    statText: {
-        color: '#ccc',
-        fontSize: 12,
-        marginBottom: 2,
-    },
-    weaponFooter: {
-        flexDirection: 'row',
-        justifyContent: 'space-between',
-        alignItems: 'center',
-    },
-    price: {
-        fontSize: 18,
-        fontWeight: 'bold',
-        color: '#1DA1F2',
-    },
-    emptyContainer: {
-        flex: 1,
-        justifyContent: 'center',
-        alignItems: 'center',
-        paddingVertical: 40,
-    },
-    emptyText: {
-        color: '#888',
-        fontSize: 16,
-        textAlign: 'center',
-    },
+  container: {
+    flex: 1,
+  },
+  scrollContent: {
+    padding: 16,
+    gap: 24,
+    paddingBottom: 64,
+  },
+  section: {
+    gap: 16,
+  },
+  sectionHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+  },
+  sectionTitle: {
+    fontSize: 20,
+    fontWeight: "600",
+  },
+  card: {
+    borderRadius: 12,
+    backgroundColor: "#1a1a1a",
+  },
+  cardRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+  },
+  balanceRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 8,
+  },
+  balanceChip: {
+    backgroundColor: "transparent",
+  },
+  statusChip: {
+    marginRight: 16,
+  },
+  marketChip: {
+    marginRight: 16,
+  },
+  priceRow: {
+    flexDirection: "row",
+    gap: 12,
+    marginTop: 12,
+  },
+  divider: {
+    marginVertical: 8,
+    backgroundColor: "#333",
+  },
+  centered: {
+    alignItems: "center",
+    gap: 8,
+  },
+  muted: {
+    color: "#888",
+  },
+  descriptionText: {
+    color: "#ddd",
+    lineHeight: 20,
+  },
+  attributesText: {
+    color: "#aaa",
+    marginTop: 8,
+    fontSize: 12,
+  },
+  errorCard: {
+    backgroundColor: "#4d1f1f",
+  },
+  errorText: {
+    color: "#ffb3b3",
+    flex: 1,
+  },
+  input: {
+    marginBottom: 12,
+  },
 });
+

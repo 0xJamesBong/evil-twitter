@@ -1,42 +1,42 @@
+use crate::models::tool::{ToolTarget, ToolType};
 use serde::{Deserialize, Serialize};
 use utoipa::ToSchema;
-use crate::models::tool::{ToolType, ToolTarget};
 
 #[derive(Debug, Serialize, Deserialize, Clone, ToSchema)]
 pub struct WeaponCatalogItem {
     #[schema(example = "sword_of_truth")]
     pub id: String,
-    
+
     #[schema(example = "Sword of Truth")]
     pub name: String,
-    
+
     #[schema(example = "⚔️")]
     pub emoji: String,
-    
+
     #[schema(example = "A legendary blade that cuts through lies and misinformation")]
     pub description: String,
-    
+
     #[schema(example = "https://example.com/sword.png")]
     pub image_url: String,
-    
+
     pub tool_type: ToolType,
     pub tool_target: ToolTarget,
-    
+
     #[schema(example = 25)]
     pub impact: i32,
-    
+
     #[schema(example = 100)]
     pub health: i32,
-    
+
     #[schema(example = 100)]
     pub max_health: i32,
-    
+
     #[schema(example = 1)]
     pub degrade_per_use: i32,
-    
+
     #[schema(example = 1000)]
     pub price: i32,
-    
+
     #[schema(example = "rare")]
     pub rarity: String,
 }
@@ -120,7 +120,7 @@ pub fn get_weapon_catalog() -> Vec<WeaponCatalogItem> {
             price: 1800,
             rarity: "rare".to_string(),
         },
-        
+
         // SHIELDS/DEFENSE
         WeaponCatalogItem {
             id: "echo_chamber_shield".to_string(),
@@ -152,7 +152,7 @@ pub fn get_weapon_catalog() -> Vec<WeaponCatalogItem> {
             price: 900,
             rarity: "uncommon".to_string(),
         },
-        
+
         // HEALING/SUPPORT
         WeaponCatalogItem {
             id: "wholesome_wand".to_string(),
@@ -199,7 +199,7 @@ pub fn get_weapon_catalog() -> Vec<WeaponCatalogItem> {
             price: 600,
             rarity: "common".to_string(),
         },
-        
+
         // GADGETS/UTILITY
         WeaponCatalogItem {
             id: "viral_amplifier".to_string(),
@@ -282,4 +282,3 @@ pub fn get_weapon_catalog() -> Vec<WeaponCatalogItem> {
 pub fn get_weapon_by_id(id: &str) -> Option<WeaponCatalogItem> {
     get_weapon_catalog().into_iter().find(|w| w.id == id)
 }
-
