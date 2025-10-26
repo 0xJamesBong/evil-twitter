@@ -53,11 +53,28 @@ export interface MarketplaceListing {
   filledAt?: string | null;
 }
 
+export interface WeaponCatalogItem {
+  id: string;
+  name: string;
+  emoji: string;
+  description: string;
+  imageUrl: string;
+  toolType: string;
+  toolTarget: string;
+  impact: number;
+  health: number;
+  maxHealth: number;
+  degradePerUse: number;
+  price: number;
+  rarity: string;
+}
+
 interface LoadingState {
   balances: boolean;
   assets: boolean;
   shop: boolean;
   listings: boolean;
+  catalog: boolean;
 }
 
 interface ActionState {
@@ -65,6 +82,7 @@ interface ActionState {
   listingAsset?: boolean;
   purchasingListing?: string | null;
   cancellingListing?: string | null;
+  buyingWeapon?: string | null;
 }
 
 interface EconomyState {
@@ -72,6 +90,7 @@ interface EconomyState {
   assets: UserAsset[];
   shopItems: ShopItem[];
   listings: MarketplaceListing[];
+  weaponCatalog: WeaponCatalogItem[];
   loading: LoadingState;
   actionState: ActionState;
   error: string | null;
@@ -84,8 +103,13 @@ interface EconomyActions {
   fetchAssets: (userId: string) => Promise<void>;
   fetchShopItems: () => Promise<void>;
   fetchListings: () => Promise<void>;
+  fetchWeaponCatalog: () => Promise<void>;
   refreshAll: (userId: string) => Promise<void>;
   buyShopItem: (userId: string, itemId: string) => Promise<boolean>;
+  buyWeapon: (
+    userId: string,
+    catalogId: string
+  ) => Promise<{ success: boolean; error?: string }>;
   listAsset: (params: {
     assetId: string;
     priceToken: string;
@@ -123,6 +147,22 @@ const normalizeShopItem = (raw: any): ShopItem => {
     isActive: Boolean(raw?.is_active ?? false),
   };
 };
+
+const normalizeWeaponCatalogItem = (raw: any): WeaponCatalogItem => ({
+  id: raw?.id ?? String(raw?._id ?? ""),
+  name: raw?.name ?? "Unnamed Weapon",
+  emoji: raw?.emoji ?? "🔧",
+  description: raw?.description ?? "",
+  imageUrl: raw?.image_url ?? "",
+  toolType: raw?.tool_type ?? "weapon",
+  toolTarget: raw?.tool_target ?? "tweet",
+  impact: Number(raw?.impact ?? 0),
+  health: Number(raw?.health ?? 0),
+  maxHealth: Number(raw?.max_health ?? 0),
+  degradePerUse: Number(raw?.degrade_per_use ?? 1),
+  price: Number(raw?.price ?? 0),
+  rarity: raw?.rarity ?? "common",
+});
 
 const normalizeAsset = (raw: any): UserAsset => {
   const id = parseMongoId(raw?._id) ?? String(raw?.id ?? "");
@@ -175,11 +215,13 @@ export const useEconomyStore = create<EconomyStore>((set, get) => ({
   assets: [],
   shopItems: [],
   listings: [],
+  weaponCatalog: [],
   loading: {
     balances: false,
     assets: false,
     shop: false,
     listings: false,
+    catalog: false,
   },
   actionState: {},
   error: null,
@@ -331,10 +373,40 @@ export const useEconomyStore = create<EconomyStore>((set, get) => ({
       console.error("fetchListings failed", error);
       set((state) => ({
         loading: { ...state.loading, listings: false },
-        marketplaceError:
+      marketplaceError:
           error instanceof Error
             ? error.message
             : "Failed to load marketplace listings",
+      }));
+    }
+  },
+
+  fetchWeaponCatalog: async () => {
+    set((state) => ({
+      loading: { ...state.loading, catalog: true },
+      error: null,
+    }));
+    try {
+      const response = await fetch(`${API_BASE_URL}/weapons/catalog`);
+      if (!response.ok) {
+        throw new Error(`Catalog request failed (${response.status})`);
+      }
+      const data = await response.json();
+      const catalog: WeaponCatalogItem[] = Array.isArray(data)
+        ? data.map(normalizeWeaponCatalogItem)
+        : [];
+      set((state) => ({
+        weaponCatalog: catalog,
+        loading: { ...state.loading, catalog: false },
+      }));
+    } catch (error) {
+      console.error("fetchWeaponCatalog failed", error);
+      set((state) => ({
+        loading: { ...state.loading, catalog: false },
+        error:
+          error instanceof Error
+            ? error.message
+            : "Failed to load weapon catalog",
       }));
     }
   },
@@ -345,6 +417,7 @@ export const useEconomyStore = create<EconomyStore>((set, get) => ({
       get().fetchAssets(userId),
       get().fetchShopItems(),
       get().fetchListings(),
+      get().fetchWeaponCatalog(),
     ]);
   },
 
@@ -395,6 +468,68 @@ export const useEconomyStore = create<EconomyStore>((set, get) => ({
           error instanceof Error ? error.message : "Unable to purchase item",
       }));
       return false;
+    }
+  },
+
+  buyWeapon: async (userId: string, catalogId: string) => {
+    if (!userId) {
+      return {
+        success: false,
+        error: "You must be logged in to purchase weapons.",
+      };
+    }
+
+    set((state) => ({
+      actionState: { ...state.actionState, buyingWeapon: catalogId },
+      error: null,
+    }));
+
+    try {
+      const headers = await getAuthHeaders();
+      const response = await fetch(
+        `${API_BASE_URL}/weapons/${userId}/buy`,
+        {
+          method: "POST",
+          headers,
+          body: JSON.stringify({ catalog_id: catalogId }),
+        }
+      );
+
+      if (!response.ok) {
+        const payload = await response.json().catch(() => ({}));
+        const message =
+          (payload && payload.error) ||
+          `Unable to purchase weapon (${response.status})`;
+        throw new Error(message);
+      }
+
+      await Promise.all([
+        get().fetchBalances(userId),
+        get().fetchAssets(userId),
+      ]);
+
+      set((state) => ({
+        actionState: { ...state.actionState, buyingWeapon: null },
+      }));
+
+      return { success: true };
+    } catch (error) {
+      console.error("buyWeapon failed", error);
+      set((state) => ({
+        actionState: { ...state.actionState, buyingWeapon: null },
+        error:
+          error instanceof Error
+            ? error.message
+            : "Unable to purchase weapon",
+      }));
+
+      return {
+        success: false,
+        error:
+          error instanceof Error
+            ? error.message
+            : "Unable to purchase weapon",
+      };
     }
   },
 

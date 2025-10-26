@@ -22,6 +22,7 @@ import {
   ShopItem,
   UserAsset,
   MarketplaceListing,
+  WeaponCatalogItem,
   useEconomyStore,
 } from "@/lib/stores/economyStore";
 
@@ -35,6 +36,21 @@ const canListAsset = (asset: UserAsset): boolean =>
 
 const isListingActive = (listing: MarketplaceListing): boolean =>
   listing.status?.toLowerCase() === "active";
+
+const getRarityColor = (rarity: string) => {
+  switch (rarity.toLowerCase()) {
+    case "legendary":
+      return "#f1c40f";
+    case "epic":
+      return "#9b59b6";
+    case "rare":
+      return "#3498db";
+    case "uncommon":
+      return "#2ecc71";
+    default:
+      return "#7f8c8d";
+  }
+};
 
 export default function ShopScreen() {
   const { user } = useBackendUserStore();
@@ -62,6 +78,7 @@ export default function ShopScreen() {
     assets,
     shopItems,
     listings,
+    weaponCatalog,
     loading,
     actionState,
     error,
@@ -70,10 +87,12 @@ export default function ShopScreen() {
     setSelectedToken,
     refreshAll,
     buyShopItem,
+    buyWeapon,
     listAsset,
     purchaseListing,
     cancelListing,
     clearErrors,
+    fetchWeaponCatalog,
   } = useEconomyStore();
 
   useEffect(() => {
@@ -84,6 +103,10 @@ export default function ShopScreen() {
       }));
     }
   }, [selectedToken, listModal.visible]);
+
+  useEffect(() => {
+    fetchWeaponCatalog();
+  }, [fetchWeaponCatalog]);
 
   useEffect(() => {
     if (userId && !initialised) {
@@ -102,6 +125,11 @@ export default function ShopScreen() {
   const handleBuyShopItem = async (itemId: string) => {
     if (!userId) return;
     await buyShopItem(userId, itemId);
+  };
+
+  const handleBuyWeapon = async (catalogId: string) => {
+    if (!userId) return;
+    await buyWeapon(userId, catalogId);
   };
 
   const openListModal = (asset: UserAsset) => {
@@ -182,6 +210,58 @@ export default function ShopScreen() {
     [shopItems]
   );
 
+  const renderWeaponCard = (item: WeaponCatalogItem) => {
+    const rarityColor = getRarityColor(item.rarity);
+    return (
+      <Card
+        key={item.id}
+        style={[styles.weaponCard, { borderColor: rarityColor }]}
+      >
+        <Card.Content>
+          <View style={styles.weaponHeader}>
+            <Text style={styles.weaponEmoji}>{item.emoji}</Text>
+            <Chip
+              mode="outlined"
+              textStyle={{ color: rarityColor, fontSize: 10 }}
+              style={{ borderColor: rarityColor }}
+            >
+              {item.rarity.toUpperCase()}
+            </Chip>
+          </View>
+          <Text style={styles.weaponName}>{item.name}</Text>
+          <Text style={styles.weaponDescription}>{item.description}</Text>
+
+          <View style={styles.weaponStats}>
+            <Text style={styles.statText}>Impact: {item.impact}</Text>
+            <Text style={styles.statText}>
+              Durability: {item.health}/{item.maxHealth}
+            </Text>
+            <Text style={styles.statText}>
+              Degrade/use: {item.degradePerUse}
+            </Text>
+          </View>
+
+          <View style={styles.weaponFooter}>
+            <Chip mode="outlined">
+              {formatNumber(item.price)} USDC
+            </Chip>
+            <Button
+              mode="contained"
+              onPress={() => handleBuyWeapon(item.id)}
+              disabled={
+                !userId || actionState.buyingWeapon === item.id
+              }
+              loading={actionState.buyingWeapon === item.id}
+              compact
+            >
+              Arm Up
+            </Button>
+          </View>
+        </Card.Content>
+      </Card>
+    );
+  };
+
   return (
     <View style={styles.container}>
       <ScrollView
@@ -246,6 +326,26 @@ export default function ShopScreen() {
             </Card.Content>
           </Card>
         )}
+
+        <View style={styles.section}>
+          <View style={styles.sectionHeader}>
+            <Text style={styles.sectionTitle}>Weapon Catalog</Text>
+          </View>
+          {loading.catalog ? (
+            <View style={styles.centered}>
+              <ActivityIndicator />
+              <Text style={styles.muted}>Sharpening legendary blades...</Text>
+            </View>
+          ) : weaponCatalog.length > 0 ? (
+            <View style={styles.weaponGrid}>
+              {weaponCatalog.map(renderWeaponCard)}
+            </View>
+          ) : (
+            <Text style={styles.muted}>
+              The armory is empty. Check back later for new stock.
+            </Text>
+          )}
+        </View>
 
         <View style={styles.section}>
           <View style={styles.sectionHeader}>
@@ -572,6 +672,52 @@ const styles = StyleSheet.create({
   balanceChip: {
     backgroundColor: "transparent",
   },
+  weaponGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 16,
+  },
+  weaponCard: {
+    flexBasis: "48%",
+    backgroundColor: "#141414",
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: "#2d2d2d",
+    minWidth: 160,
+  },
+  weaponHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 8,
+  },
+  weaponEmoji: {
+    fontSize: 36,
+  },
+  weaponName: {
+    fontSize: 18,
+    fontWeight: "600",
+    marginBottom: 6,
+  },
+  weaponDescription: {
+    color: "#bbb",
+    fontSize: 14,
+    lineHeight: 18,
+    marginBottom: 12,
+  },
+  weaponStats: {
+    gap: 4,
+    marginBottom: 16,
+  },
+  statText: {
+    color: "#aaa",
+    fontSize: 12,
+  },
+  weaponFooter: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+  },
   statusChip: {
     marginRight: 16,
   },
@@ -614,4 +760,3 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
 });
-

@@ -1,23 +1,27 @@
-use crate::models::{
-    tool::{Tool, ToolBuilder, ToolTarget, ToolType},
-    user::User,
-    weapon_catalog,
+use crate::{
+    models::{
+        asset::{Asset, AssetType},
+        token::TokenBalance,
+        tool::{Tool, ToolBuilder, ToolTarget, ToolType},
+        user::User,
+        weapon_catalog,
+    },
+    routes::economy::{AdjustBalanceRequest, apply_balance_change, maybe_bootstrap_balances},
 };
-use mongodb::{
-    Collection,
-    bson::{doc, oid::ObjectId},
-};
-
 use axum::{
     Json,
     extract::{Path, State},
     http::StatusCode,
 };
 use futures::TryStreamExt;
-use mongodb::Database;
+use mongodb::{
+    bson::{DateTime, doc, oid::ObjectId},
+    Collection, Database,
+};
 use utoipa::ToSchema;
 
-use serde::{Deserialize, Serialize};
+use serde::Deserialize;
+use serde_json::json;
 
 #[derive(Debug, Deserialize, ToSchema)]
 pub struct BuyWeaponRequest {
@@ -60,6 +64,8 @@ pub async fn buy_weapon(
 ) -> Result<(StatusCode, Json<Tool>), (StatusCode, Json<serde_json::Value>)> {
     let collection: Collection<Tool> = db.collection("weapons");
     let user_collection: Collection<crate::models::user::User> = db.collection("users");
+    let assets_collection: Collection<Asset> = db.collection("assets");
+    let balances_collection: Collection<TokenBalance> = db.collection("token_balances");
 
     let user_oid = ObjectId::parse_str(&user_id).map_err(|_| {
         (
@@ -76,29 +82,62 @@ pub async fn buy_weapon(
         )
     })?;
 
+    maybe_bootstrap_balances(&balances_collection, &user_id)
+        .await
+        .map_err(|err| err)?;
+
+    if catalog_item.price > 0 {
+        apply_balance_change(
+            &db,
+            &user_id,
+            &AdjustBalanceRequest {
+                token_symbol: "USDC".to_string(),
+                available_delta: -(catalog_item.price as i64),
+                locked_delta: Some(0),
+                reference_type: Some("weapon_purchase".to_string()),
+                reference_id: Some(payload.catalog_id.clone()),
+                notes: Some(format!("Bought {}", catalog_item.name)),
+            },
+        )
+        .await?;
+    }
+
     // Create weapon instance from catalog
-    // let weapon = ToolBuilder {
-    //     id: Some(ObjectId::new()),
-    //     owner_id: user_id.clone(),
-    //     name: catalog_item.name,
-    //     description: catalog_item.description,
-    //     image_url: catalog_item.emoji,
-    //     impact: catalog_item.attack_power,
-    //     health: catalog_item.max_health,
-    //     max_health: catalog_item.max_health,
-    //     degrade_per_use: 1,
-    // };
+    let weapon_name = catalog_item.name.clone();
+    let weapon_description = catalog_item.description.clone();
+    let weapon_emoji = catalog_item.emoji.clone();
+    let weapon_image_url = catalog_item.image_url.clone();
     let weapon = ToolBuilder::new(user_id.clone())
-        .name(catalog_item.name)
-        .description(catalog_item.description)
-        .image_url(catalog_item.emoji)
+        .name(weapon_name.clone())
+        .description(weapon_description.clone())
+        .image_url(weapon_image_url.clone())
         .impact(catalog_item.impact)
         .degrade_per_use(catalog_item.degrade_per_use)
         .tool_type(ToolType::Weapon)
         .tool_target(ToolTarget::Tweet)
         .build();
 
-    give_user_weapon(&user_collection, &collection, &user_oid, weapon.clone()).await
+    let (status, Json(weapon)) =
+        give_user_weapon(&user_collection, &collection, &user_oid, weapon.clone()).await?;
+
+    let mut asset = Asset::new(user_id.clone(), AssetType::Tool, weapon_name);
+    asset.description = Some(weapon_description);
+    asset.media_url = Some(weapon_image_url);
+    asset.attributes = Some(json!({
+        "emoji": weapon_emoji,
+        "impact": catalog_item.impact,
+        "health": catalog_item.health,
+        "max_health": catalog_item.max_health,
+        "degrade_per_use": catalog_item.degrade_per_use,
+        "weapon_id": weapon.id.as_ref().map(|id| id.to_hex())
+    }));
+    asset.tradeable = true;
+    asset.created_at = DateTime::now();
+    asset.updated_at = asset.created_at;
+
+    let _ = assets_collection.insert_one(&asset).await;
+
+    Ok((status, Json(weapon)))
 }
 
 pub async fn give_user_weapon(

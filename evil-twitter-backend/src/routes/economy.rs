@@ -132,7 +132,7 @@ pub async fn adjust_user_balance(
     Ok(Json(balance))
 }
 
-async fn apply_balance_change(
+pub(crate) async fn apply_balance_change(
     db: &Database,
     user_id: &str,
     request: &AdjustBalanceRequest,
@@ -1227,7 +1227,7 @@ pub async fn cancel_listing(
 
 // Helpers ---------------------------------------------------------------------
 
-async fn maybe_bootstrap_balances(
+pub(crate) async fn maybe_bootstrap_balances(
     collection: &Collection<TokenBalance>,
     user_id: &str,
 ) -> Result<(), (StatusCode, Json<serde_json::Value>)> {
@@ -1302,7 +1302,7 @@ async fn maybe_bootstrap_shop_items(
     Ok(())
 }
 
-fn default_balance(user_id: &str, token: &str, amount: i64) -> TokenBalance {
+pub(crate) fn default_balance(user_id: &str, token: &str, amount: i64) -> TokenBalance {
     let now = DateTime::now();
     TokenBalance {
         id: None,
