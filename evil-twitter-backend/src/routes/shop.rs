@@ -1,8 +1,9 @@
 use crate::models::{
-    assets::catalogItem::{CatalogItem, get_catalog, get_catalog_item_by_id},
-    tool::{Tool, ToolBuilder, ToolTarget, ToolType},
+    assets::{
+        asset::{Asset, AssetBuilder},
+        catalogItem::{CatalogItem, get_catalog, get_catalog_item_by_id},
+    },
     user::User,
-    weapon_catalog,
 };
 use mongodb::{
     Collection,
@@ -18,7 +19,7 @@ use futures::TryStreamExt;
 use mongodb::Database;
 use utoipa::ToSchema;
 
-use serde::{Deserialize, Serialize};
+use serde::Deserialize;
 
 #[derive(Debug, Deserialize, ToSchema)]
 pub struct BuyItemRequest {
@@ -26,16 +27,16 @@ pub struct BuyItemRequest {
     pub catalog_id: String,
 }
 
-/// Get the weapon catalog
+/// Get the item catalog
 #[utoipa::path(
     get,
     path = "/shop/catalog",
     responses(
-        (status = 200, description = "Catalog retrieved successfully", body = Vec<weapon_catalog::WeaponCatalogItem>)
+        (status = 200, description = "Catalog retrieved successfully", body = Vec<CatalogItem>)
     ),
     tag = "items"
 )]
-pub async fn get_weapon_catalog_endpoint() -> Json<Vec<CatalogItem>> {
+pub async fn get_catalog_endpoint() -> Json<Vec<CatalogItem>> {
     Json(get_catalog())
 }
 
@@ -48,7 +49,7 @@ pub async fn get_weapon_catalog_endpoint() -> Json<Vec<CatalogItem>> {
     ),
     request_body = BuyItemRequest,
     responses(
-        (status = 201, description = "Item purchased successfully", body = Item),
+        (status = 201, description = "Item purchased successfully", body = Asset),
         (status = 400, description = "Invalid catalog ID or user ID"),
         (status = 404, description = "Item not found in catalog")
     ),
@@ -58,8 +59,8 @@ pub async fn buy_item(
     State(db): State<Database>,
     Path(user_id): Path<String>,
     Json(payload): Json<BuyItemRequest>,
-) -> Result<(StatusCode, Json<Tool>), (StatusCode, Json<serde_json::Value>)> {
-    let collection: Collection<Tool> = db.collection("items");
+) -> Result<(StatusCode, Json<Asset>), (StatusCode, Json<serde_json::Value>)> {
+    let collection: Collection<Asset> = db.collection("assets");
     let user_collection: Collection<crate::models::user::User> = db.collection("users");
 
     let user_oid = ObjectId::parse_str(&user_id).map_err(|_| {
@@ -69,7 +70,7 @@ pub async fn buy_item(
         )
     })?;
 
-    // Get the weapon from catalog
+    // Get the item from catalog
     let catalog_item = get_catalog_item_by_id(&payload.catalog_id).ok_or_else(|| {
         (
             StatusCode::NOT_FOUND,
@@ -77,6 +78,11 @@ pub async fn buy_item(
         )
     })?;
 
+    // Validate the purchase can proceed
+    // TODO: Check if user has enough money/tokens
+    // TODO: Check any other purchase restrictions
+
+    // Build the asset from the catalog item
     let asset = AssetBuilder::new(user_id.clone())
         .item(catalog_item.item.unwrap())
         .build();
@@ -88,11 +94,10 @@ pub async fn give_user_asset(
     users: &Collection<User>,
     assets: &Collection<Asset>,
     user_id: &ObjectId,
-    asset: Asset,
+    mut asset: Asset,
 ) -> Result<(StatusCode, Json<Asset>), (StatusCode, Json<serde_json::Value>)> {
     // insert asset into the asset collection
-    let mut asset = asset;
-    asset.owner_id = user_id.to_hex(); // or user.supabase_id
+    asset.owner_id = *user_id; // Set the owner to the user_id
     let insert_result = assets.insert_one(&asset).await.map_err(|_| {
         (
             StatusCode::INTERNAL_SERVER_ERROR,
@@ -100,7 +105,7 @@ pub async fn give_user_asset(
         )
     })?;
 
-    // add weapon id to user's list
+    // add asset id to user's list
     if let Some(inserted_id) = insert_result.inserted_id.as_object_id() {
         asset.id = Some(inserted_id);
         users
@@ -112,7 +117,7 @@ pub async fn give_user_asset(
             .map_err(|_| {
                 (
                     StatusCode::INTERNAL_SERVER_ERROR,
-                    Json(serde_json::json!({"error": "Failed to update user weapon list"})),
+                    Json(serde_json::json!({"error": "Failed to update user asset list"})),
                 )
             })?;
     }
@@ -120,7 +125,7 @@ pub async fn give_user_asset(
     Ok((StatusCode::CREATED, Json(asset)))
 }
 
-/// Get all weapons for a user
+/// Get all assets for a user
 #[utoipa::path(
     get,
     path = "/users/{user_id}/assets",
@@ -137,8 +142,8 @@ pub async fn give_user_asset(
 pub async fn get_user_assets(
     State(db): State<Database>,
     Path(user_id): Path<String>,
-) -> Result<Json<Vec<Tool>>, (StatusCode, Json<serde_json::Value>)> {
-    let collection: Collection<Tool> = db.collection("assets");
+) -> Result<Json<Vec<Asset>>, (StatusCode, Json<serde_json::Value>)> {
+    let collection: Collection<Asset> = db.collection("assets");
     let user_oid = ObjectId::parse_str(&user_id).map_err(|_| {
         (
             StatusCode::BAD_REQUEST,
@@ -148,7 +153,7 @@ pub async fn get_user_assets(
 
     // Find all items owned by this user
     let cursor = collection
-        .find(doc! { "owner_id": user_oid.to_hex() })
+        .find(doc! { "owner_id": user_oid })
         .await
         .map_err(|_| {
             (

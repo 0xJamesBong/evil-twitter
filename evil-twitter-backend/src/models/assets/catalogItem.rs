@@ -1,13 +1,16 @@
 use crate::models::assets::enums::{Item, ItemTypeMetadata, ToolMetadata};
+use crate::models::tool::{ToolTarget, ToolType};
 
 use serde::{Deserialize, Serialize};
+use utoipa::ToSchema;
 
 // This is for describing the basic items you can buy from the shop - to be
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, Serialize, Deserialize, Clone, ToSchema)]
 pub struct CatalogItem {
     pub catalog_id: String,
     pub item: Option<Item>,
+    pub price: i32,
 }
 
 pub fn get_catalog() -> Vec<CatalogItem> {
@@ -28,6 +31,7 @@ pub fn get_catalog() -> Vec<CatalogItem> {
                     tool_target: ToolTarget::Tweet,
                 })),
             }),
+            price: 1500,
         },
         CatalogItem {
             catalog_id: "ban_hammer".to_string(),
@@ -46,6 +50,7 @@ pub fn get_catalog() -> Vec<CatalogItem> {
                     tool_target: ToolTarget::Tweet,
                 })),
             }),
+            price: 2000,
         },
         CatalogItem {
             catalog_id: "ratio_rifle".to_string(),
@@ -63,6 +68,7 @@ pub fn get_catalog() -> Vec<CatalogItem> {
                     tool_target: ToolTarget::Tweet,
                 })),
             }),
+            price: 1200,
         },
         CatalogItem {
             catalog_id: "sarcasm_saber".to_string(),
@@ -80,6 +86,7 @@ pub fn get_catalog() -> Vec<CatalogItem> {
                     tool_target: ToolTarget::Tweet,
                 })),
             }),
+            price: 800,
         },
         CatalogItem {
             catalog_id: "cancel_cannon".to_string(),
@@ -96,6 +103,7 @@ pub fn get_catalog() -> Vec<CatalogItem> {
                     tool_target: ToolTarget::Tweet,
                 })),
             }),
+            price: 1800,
         },
         // SHIELDS/DEFENSE
         CatalogItem {
@@ -114,6 +122,7 @@ pub fn get_catalog() -> Vec<CatalogItem> {
                     tool_target: ToolTarget::Tweet,
                 })),
             }),
+            price: 1000,
         },
         CatalogItem {
             catalog_id: "block_button".to_string(),
@@ -130,6 +139,7 @@ pub fn get_catalog() -> Vec<CatalogItem> {
                     tool_target: ToolTarget::Tweet,
                 })),
             }),
+            price: 900,
         },
         // HEALING/SUPPORT
         CatalogItem {
@@ -148,6 +158,7 @@ pub fn get_catalog() -> Vec<CatalogItem> {
                     tool_target: ToolTarget::Tweet,
                 })),
             }),
+            price: 500,
         },
         // GADGETS/UTILITY
         CatalogItem {
@@ -166,6 +177,7 @@ pub fn get_catalog() -> Vec<CatalogItem> {
                     tool_target: ToolTarget::Tweet,
                 })),
             }),
+            price: 2500,
         },
         CatalogItem {
             catalog_id: "algorithm_manipulator".to_string(),
@@ -182,6 +194,7 @@ pub fn get_catalog() -> Vec<CatalogItem> {
                     tool_target: ToolTarget::Tweet,
                 })),
             }),
+            price: 3000,
         },
         CatalogItem {
             catalog_id: "engagement_bait".to_string(),
@@ -198,6 +211,7 @@ pub fn get_catalog() -> Vec<CatalogItem> {
                     tool_target: ToolTarget::Tweet,
                 })),
             }),
+            price: 700,
         },
         CatalogItem {
             catalog_id: "mute_button".to_string(),
@@ -215,6 +229,7 @@ pub fn get_catalog() -> Vec<CatalogItem> {
                     tool_target: ToolTarget::Tweet,
                 })),
             }),
+            price: 400,
         },
         CatalogItem {
             catalog_id: "quote_tweet_sniper".to_string(),
@@ -232,6 +247,7 @@ pub fn get_catalog() -> Vec<CatalogItem> {
                     tool_target: ToolTarget::Tweet,
                 })),
             }),
+            price: 1400,
         },
     ]
 }

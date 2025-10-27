@@ -19,10 +19,10 @@ use routes::data_generation::{
 use routes::follow::{follow_user, get_followers_list, get_following_list, unfollow_user};
 use routes::migration::{migrate_user_objectids, migrate_users_weapons};
 use routes::ping::ping_handler;
-use routes::shop::{buy_weapon, get_user_weapons, get_weapon_catalog_endpoint};
+use routes::shop::{buy_item, get_catalog_endpoint, get_user_assets};
 use routes::tweet::{
     attack_tweet, create_tweet, get_thread, get_tweet, get_tweets, get_user_wall, like_tweet,
-    migrate_users_dollar_rate, quote_tweet, reply_tweet, retweet_tweet, support_tweet,
+    quote_tweet, reply_tweet, retweet_tweet, support_tweet,
 };
 use routes::user::{
     attack_dollar_rate, create_user, get_dollar_rate, get_user, get_users, improve_dollar_rate,
@@ -62,9 +62,9 @@ use routes::user::{
         routes::follow::get_follow_status,
         routes::follow::get_following_list,
         routes::follow::get_followers_list,
-        routes::weapons::buy_weapon,
-        routes::weapons::get_user_weapons,
-        routes::weapons::get_weapon_catalog_endpoint
+        routes::shop::buy_item,
+        routes::shop::get_catalog_endpoint,
+        routes::shop::get_user_assets
     ),
     components(
         schemas(
@@ -98,7 +98,16 @@ use routes::user::{
             routes::tweet::TweetListResponse,
             routes::tweet::TweetThreadResponse,
             routes::shop::BuyItemRequest,
-            models::weapon_catalog::WeaponCatalogItem,
+            models::assets::asset::Asset,
+            models::assets::catalogItem::CatalogItem,
+            models::assets::enums::Item,
+            models::assets::enums::ItemTypeMetadata,
+            models::assets::enums::ToolMetadata,
+            models::assets::enums::CollectibleMetadata,
+            models::assets::enums::CosmeticMetadata,
+            models::assets::enums::BadgeMetadata,
+            models::assets::enums::MembershipMetadata,
+            models::assets::enums::RaffleboxMetadata,
             routes::migration::MigrationResponse
         )
     ),
@@ -162,10 +171,6 @@ async fn main() -> anyhow::Result<()> {
             "/admin/migrate-user-objectids",
             post(migrate_user_objectids),
         )
-        .route(
-            "/admin/migrate-users-dollar-rate",
-            post(migrate_users_dollar_rate),
-        )
         .route("/users/{user_id}/follow", post(follow_user))
         .route("/users/{user_id}/follow", delete(unfollow_user))
         .route(
@@ -174,9 +179,9 @@ async fn main() -> anyhow::Result<()> {
         )
         .route("/users/{user_id}/following", get(get_following_list))
         .route("/users/{user_id}/followers", get(get_followers_list))
-        .route("/weapons/catalog", get(get_weapon_catalog_endpoint))
-        .route("/weapons/{user_id}/buy", post(buy_weapon))
-        .route("/users/{user_id}/weapons", get(get_user_weapons))
+        .route("/shop/catalog", get(get_catalog_endpoint))
+        .route("/shop/{user_id}/buy", post(buy_item))
+        .route("/users/{user_id}/assets", get(get_user_assets))
         .split_for_parts();
 
     let app = app

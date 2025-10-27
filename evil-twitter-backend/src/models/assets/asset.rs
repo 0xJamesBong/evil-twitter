@@ -4,6 +4,21 @@ use crate::models::assets::enums::{
 };
 use crate::models::tool::{ToolTarget, ToolType};
 use mongodb::bson::oid::ObjectId;
+use serde::{Deserialize, Serialize};
+use utoipa::ToSchema;
+
+#[derive(Debug, Serialize, Deserialize, Clone, ToSchema)]
+pub struct Asset {
+    #[serde(rename = "_id", skip_serializing_if = "Option::is_none")]
+    #[schema(value_type = String, example = "507f1f77bcf86cd799439011")]
+    pub id: Option<ObjectId>,
+
+    #[schema(value_type = String, example = "507f1f77bcf86cd799439011")]
+    pub owner_id: ObjectId,
+
+    pub tradeable: bool,
+    pub item: Option<Item>,
+}
 
 pub struct AssetBuilder {
     id: Option<ObjectId>,
@@ -25,11 +40,16 @@ impl AssetBuilder {
 
     pub fn build(self) -> Asset {
         Asset {
-            id: ObjectId::new(),
+            id: Some(ObjectId::new()),
             owner_id: ObjectId::parse_str(&self.owner_id).expect("Invalid owner ID"),
-            tradeable: true,
+            tradeable: self.tradeable,
             item: self.item,
         }
+    }
+
+    pub fn tradeable(mut self, tradeable: bool) -> Self {
+        self.tradeable = tradeable;
+        self
     }
 
     // Item builder
@@ -139,7 +159,7 @@ impl AssetBuilder {
             image_url: image_url.into(),
             item_type_metadata: Some(ItemTypeMetadata::Membership(MembershipMetadata {
                 level: level.into(),
-                privileges: vec![],
+                privileges: privileges.into(),
             })),
         });
         self
