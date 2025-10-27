@@ -5,12 +5,6 @@ use utoipa::ToSchema;
 use crate::models::tool::{ToolTarget, ToolType};
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
-pub enum AssetType {
-    Token(TokenType),
-    Item,
-}
-
-#[derive(Debug, Serialize, Deserialize, Clone)]
 pub enum TokenType {
     Dooler,
     Usdc,
@@ -20,9 +14,6 @@ pub enum TokenType {
 
 #[derive(Debug, Serialize, Deserialize, Clone, ToSchema)]
 pub struct Item {
-    #[serde(rename = "_id", skip_serializing_if = "Option::is_none")]
-    #[schema(value_type = String, example = "507f1f77bcf86cd799439011")]
-    pub id: Option<ObjectId>,
     pub name: String,
     pub description: String,
     pub image_url: String,

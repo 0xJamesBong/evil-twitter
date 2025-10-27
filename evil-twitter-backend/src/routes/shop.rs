@@ -1,4 +1,5 @@
 use crate::models::{
+    assets::catalogItem::{CatalogItem, get_catalog, get_catalog_item_by_id},
     tool::{Tool, ToolBuilder, ToolTarget, ToolType},
     user::User,
     weapon_catalog,
@@ -28,37 +29,37 @@ pub struct BuyItemRequest {
 /// Get the weapon catalog
 #[utoipa::path(
     get,
-    path = "/weapons/catalog",
+    path = "/shop/catalog",
     responses(
-        (status = 200, description = "Weapon catalog retrieved successfully", body = Vec<weapon_catalog::WeaponCatalogItem>)
+        (status = 200, description = "Catalog retrieved successfully", body = Vec<weapon_catalog::WeaponCatalogItem>)
     ),
-    tag = "weapons"
+    tag = "items"
 )]
-pub async fn get_weapon_catalog_endpoint() -> Json<Vec<weapon_catalog::WeaponCatalogItem>> {
-    Json(weapon_catalog::get_weapon_catalog())
+pub async fn get_weapon_catalog_endpoint() -> Json<Vec<CatalogItem>> {
+    Json(get_catalog())
 }
 
-/// Buy a weapon from the catalog
+/// Buy a Item from the catalog
 #[utoipa::path(
     post,
-    path = "/weapons/{user_id}/buy",
+    path = "/shop/{user_id}/buy",
     params(
         ("user_id" = String, Path, description = "User ID")
     ),
     request_body = BuyItemRequest,
     responses(
-        (status = 201, description = "Weapon purchased successfully", body = Tool),
+        (status = 201, description = "Item purchased successfully", body = Item),
         (status = 400, description = "Invalid catalog ID or user ID"),
-        (status = 404, description = "Weapon not found in catalog")
+        (status = 404, description = "Item not found in catalog")
     ),
-    tag = "weapons"
+    tag = "items"
 )]
-pub async fn buy_weapon(
+pub async fn buy_item(
     State(db): State<Database>,
     Path(user_id): Path<String>,
     Json(payload): Json<BuyItemRequest>,
 ) -> Result<(StatusCode, Json<Tool>), (StatusCode, Json<serde_json::Value>)> {
-    let collection: Collection<Tool> = db.collection("weapons");
+    let collection: Collection<Tool> = db.collection("items");
     let user_collection: Collection<crate::models::user::User> = db.collection("users");
 
     let user_oid = ObjectId::parse_str(&user_id).map_err(|_| {
@@ -69,61 +70,43 @@ pub async fn buy_weapon(
     })?;
 
     // Get the weapon from catalog
-    let catalog_item = weapon_catalog::get_weapon_by_id(&payload.catalog_id).ok_or_else(|| {
+    let catalog_item = get_catalog_item_by_id(&payload.catalog_id).ok_or_else(|| {
         (
             StatusCode::NOT_FOUND,
-            Json(serde_json::json!({"error": "Weapon not found in catalog"})),
+            Json(serde_json::json!({"error": "Item not found in catalog"})),
         )
     })?;
 
-    // Create weapon instance from catalog
-    // let weapon = ToolBuilder {
-    //     id: Some(ObjectId::new()),
-    //     owner_id: user_id.clone(),
-    //     name: catalog_item.name,
-    //     description: catalog_item.description,
-    //     image_url: catalog_item.emoji,
-    //     impact: catalog_item.attack_power,
-    //     health: catalog_item.max_health,
-    //     max_health: catalog_item.max_health,
-    //     degrade_per_use: 1,
-    // };
-    let weapon = ToolBuilder::new(user_id.clone())
-        .name(catalog_item.name)
-        .description(catalog_item.description)
-        .image_url(catalog_item.emoji)
-        .impact(catalog_item.impact)
-        .degrade_per_use(catalog_item.degrade_per_use)
-        .tool_type(ToolType::Weapon)
-        .tool_target(ToolTarget::Tweet)
+    let asset = AssetBuilder::new(user_id.clone())
+        .item(catalog_item.item.unwrap())
         .build();
 
-    give_user_weapon(&user_collection, &collection, &user_oid, weapon.clone()).await
+    give_user_asset(&user_collection, &collection, &user_oid, asset.clone()).await
 }
 
-pub async fn give_user_weapon(
+pub async fn give_user_asset(
     users: &Collection<User>,
-    weapons: &Collection<Tool>,
+    assets: &Collection<Asset>,
     user_id: &ObjectId,
-    weapon: Tool,
-) -> Result<(StatusCode, Json<Tool>), (StatusCode, Json<serde_json::Value>)> {
-    // insert weapon into the weapon collection
-    let mut weapon = weapon;
-    weapon.owner_id = user_id.to_hex(); // or user.supabase_id
-    let insert_result = weapons.insert_one(&weapon).await.map_err(|_| {
+    asset: Asset,
+) -> Result<(StatusCode, Json<Asset>), (StatusCode, Json<serde_json::Value>)> {
+    // insert asset into the asset collection
+    let mut asset = asset;
+    asset.owner_id = user_id.to_hex(); // or user.supabase_id
+    let insert_result = assets.insert_one(&asset).await.map_err(|_| {
         (
             StatusCode::INTERNAL_SERVER_ERROR,
-            Json(serde_json::json!({"error": "Failed to create weapon"})),
+            Json(serde_json::json!({"error": "Failed to create item"})),
         )
     })?;
 
     // add weapon id to user's list
     if let Some(inserted_id) = insert_result.inserted_id.as_object_id() {
-        weapon.id = Some(inserted_id);
+        asset.id = Some(inserted_id);
         users
             .update_one(
                 doc! { "_id": user_id },
-                doc! { "$push": { "weapon_ids": inserted_id } },
+                doc! { "$push": { "asset_ids": inserted_id } },
             )
             .await
             .map_err(|_| {
@@ -134,29 +117,28 @@ pub async fn give_user_weapon(
             })?;
     }
 
-    Ok((StatusCode::CREATED, Json(weapon)))
+    Ok((StatusCode::CREATED, Json(asset)))
 }
 
 /// Get all weapons for a user
 #[utoipa::path(
     get,
-    path = "/users/{user_id}/weapons",
+    path = "/users/{user_id}/assets",
     params(
         ("user_id" = String, Path, description = "User ID")
     ),
     responses(
-        (status = 200, description = "User weapons retrieved successfully", body = Vec<Tool>),
+        (status = 200, description = "User assets retrieved successfully", body = Vec<Asset>),
         (status = 400, description = "Invalid user ID"),
         (status = 404, description = "User not found")
     ),
-    tag = "weapons"
+    tag = "items"
 )]
-pub async fn get_user_weapons(
+pub async fn get_user_assets(
     State(db): State<Database>,
     Path(user_id): Path<String>,
 ) -> Result<Json<Vec<Tool>>, (StatusCode, Json<serde_json::Value>)> {
-    let collection: Collection<Tool> = db.collection("weapons");
-
+    let collection: Collection<Tool> = db.collection("assets");
     let user_oid = ObjectId::parse_str(&user_id).map_err(|_| {
         (
             StatusCode::BAD_REQUEST,
@@ -164,23 +146,23 @@ pub async fn get_user_weapons(
         )
     })?;
 
-    // Find all weapons owned by this user
+    // Find all items owned by this user
     let cursor = collection
         .find(doc! { "owner_id": user_oid.to_hex() })
         .await
         .map_err(|_| {
             (
                 StatusCode::INTERNAL_SERVER_ERROR,
-                Json(serde_json::json!({"error": "Failed to fetch weapons"})),
+                Json(serde_json::json!({"error": "Failed to fetch assets"})),
             )
         })?;
 
-    let weapons: Vec<Tool> = cursor.try_collect().await.map_err(|_| {
+    let assets: Vec<Asset> = cursor.try_collect().await.map_err(|_| {
         (
             StatusCode::INTERNAL_SERVER_ERROR,
-            Json(serde_json::json!({"error": "Failed to collect weapons"})),
+            Json(serde_json::json!({"error": "Failed to collect assets"})),
         )
     })?;
 
-    Ok(Json(weapons))
+    Ok(Json(assets))
 }
