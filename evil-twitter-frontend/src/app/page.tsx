@@ -5,7 +5,7 @@ import Navbar from '../../components/Navbar';
 import { Sidebar } from '../../components/Sidebar';
 import { Timeline } from '../../components/Timeline';
 import { RightSidebar } from '../../components/RightSidebar';
-import { WeaponsPanel } from '../../components/WeaponsPanel';
+import { AssetsPanel } from '../../components/AssetsPanel';
 import { useAuthStore } from '../../lib/stores/authStore';
 import { useBackendUserStore } from '../../lib/stores/backendUserStore';
 import { TestPing } from '../../components/TestPing';
@@ -44,9 +44,9 @@ export default function HomePage() {
           <Timeline />
         </div>
 
-        {/* Right Sidebar - Weapons */}
+        {/* Right Sidebar - Assets */}
         <div className="w-80 fixed right-0 top-16 h-full border-l border-gray-800 overflow-y-auto p-4">
-          <WeaponsPanel userId={user?._id?.$oid} />
+          <AssetsPanel userId={user?._id?.$oid} />
         </div>
       </div>
     </div>

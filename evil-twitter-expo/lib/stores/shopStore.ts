@@ -3,19 +3,24 @@ import { ToolTarget, ToolType } from "./weaponsStore";
 import { API_BASE_URL } from "../config/api";
 
 export interface WeaponCatalogItem {
-  id: string;
-  name: string;
-  emoji: string;
-  description: string;
-  image_url: string;
-  tool_type: ToolType;
-  tool_target: ToolTarget;
-  impact: number;
-  health: number;
-  max_health: number;
-  degrade_per_use: number;
+  catalog_id: string;
+  item?: {
+    name: string;
+    description: string;
+    image_url: string;
+    item_type_metadata?: {
+      type: string;
+      data: {
+        impact: number;
+        health: number;
+        max_health: number;
+        degrade_per_use: number;
+        tool_type: ToolType;
+        tool_target: ToolTarget;
+      };
+    };
+  };
   price: number;
-  rarity: string;
 }
 
 interface ShopState {
@@ -48,8 +53,8 @@ export const useShopStore = create<ShopState>((set, get) => ({
     set({ loading: true, error: null });
 
     try {
-      console.log("Fetching weapon catalog from backend...");
-      const response = await fetch(`${API_BASE_URL}/weapons/catalog`);
+      console.log("Fetching shop catalog from backend...");
+      const response = await fetch(`${API_BASE_URL}/shop/catalog`);
 
       if (!response.ok) {
         throw new Error(`HTTP ${response.status}: ${response.statusText}`);
@@ -70,7 +75,7 @@ export const useShopStore = create<ShopState>((set, get) => ({
     set({ buying: catalogId, error: null });
 
     try {
-      const response = await fetch(`${API_BASE_URL}/weapons/${userId}/buy`, {
+      const response = await fetch(`${API_BASE_URL}/shop/${userId}/buy`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -86,7 +91,7 @@ export const useShopStore = create<ShopState>((set, get) => ({
       return { success: true };
     } catch (err) {
       const errorMessage =
-        err instanceof Error ? err.message : "Failed to purchase weapon";
+        err instanceof Error ? err.message : "Failed to purchase item";
       set({ error: errorMessage, buying: null });
       return { success: false, error: errorMessage };
     }
@@ -104,15 +109,23 @@ export const useShopStore = create<ShopState>((set, get) => ({
     const { catalog, selectedCategory } = get();
     return selectedCategory === "all"
       ? catalog
-      : catalog.filter(
-          (item) => item.tool_type.toLowerCase() === selectedCategory
-        );
+      : catalog.filter((item) => {
+          const toolType =
+            item.item?.item_type_metadata?.data?.tool_type?.toLowerCase();
+          return toolType === selectedCategory;
+        });
   },
 
   getCategories: () => {
     const { catalog } = get();
     const categories = Array.from(
-      new Set(catalog.map((item) => item.tool_type.toLowerCase()))
+      new Set(
+        catalog
+          .map((item) =>
+            item.item?.item_type_metadata?.data?.tool_type?.toLowerCase()
+          )
+          .filter((cat): cat is string => cat !== undefined)
+      )
     );
     return ["all", ...categories];
   },

@@ -68,13 +68,13 @@ export default function ShopScreen() {
             <Card.Content>
                 <View style={styles.weaponHeader}>
                     <Text style={styles.weaponEmoji}>{item.emoji}</Text>
-                    <Chip
+                    {/* <Chip
                         mode="outlined"
                         textStyle={{ color: getRarityColor(item.rarity), fontSize: 10 }}
                         style={{ borderColor: getRarityColor(item.rarity) }}
                     >
                         {item.rarity.toUpperCase()}
-                    </Chip>
+                    </Chip> */}
                 </View>
 
                 <Text style={styles.weaponName}>{item.name}</Text>

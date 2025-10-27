@@ -3,7 +3,7 @@
 import { Box, Container, Tabs, Tab } from "@mui/material";
 import { useState } from "react";
 import { Shop } from "../../../components/Shop";
-import { WeaponsList } from "../../../components/WeaponsList";
+import { AssetsList } from "../../../components/AssetsList";
 import Navbar from "../../../components/Navbar";
 import { useBackendUserStore } from "../../../lib/stores/backendUserStore";
 
@@ -22,7 +22,7 @@ export default function ShopPage() {
                         aria-label="shop tabs"
                     >
                         <Tab label="Shop" />
-                        <Tab label="My Arsenal" />
+                        <Tab label="My Assets" />
                     </Tabs>
                 </Box>
 
@@ -30,7 +30,7 @@ export default function ShopPage() {
 
                 {activeTab === 1 && (
                     <Box>
-                        <WeaponsList userId={user?._id?.$oid} />
+                        <AssetsList userId={user?._id?.$oid} />
                     </Box>
                 )}
             </Container>

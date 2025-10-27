@@ -11,16 +11,19 @@ import {
     Button,
 } from "@mui/material";
 import Link from "next/link";
-import { useWeaponsStore, Weapon } from "../lib/stores/weaponsStore";
+import { useAssetsStore, Asset } from "../lib/stores/assetsStore";
 
-interface WeaponsPanelProps {
+interface AssetsPanelProps {
     userId?: string;
     maxDisplay?: number;
 }
 
-function CompactWeaponCard({ weapon }: { weapon: Weapon }) {
-    const healthPercentage = (weapon.health / Math.max(weapon.max_health, 1)) * 100;
-    const isBroken = weapon.health <= 0;
+function CompactAssetCard({ asset }: { asset: Asset }) {
+    const metadata = asset.item?.item_type_metadata?.data;
+    if (!metadata) return null;
+
+    const healthPercentage = (metadata.health / Math.max(metadata.max_health, 1)) * 100;
+    const isBroken = metadata.health <= 0;
 
     return (
         <Box
@@ -40,7 +43,7 @@ function CompactWeaponCard({ weapon }: { weapon: Weapon }) {
                 },
             }}
         >
-            {/* Emoji Icon */}
+            {/* Icon */}
             <Box
                 sx={{
                     fontSize: "2.5rem",
@@ -54,10 +57,10 @@ function CompactWeaponCard({ weapon }: { weapon: Weapon }) {
                     flexShrink: 0,
                 }}
             >
-                {weapon.image_url}
+                {asset.item?.image_url}
             </Box>
 
-            {/* Weapon Info */}
+            {/* Asset Info */}
             <Box sx={{ flexGrow: 1, minWidth: 0 }}>
                 <Box sx={{ display: "flex", alignItems: "center", gap: 1, mb: 0.5 }}>
                     <Typography
@@ -69,7 +72,7 @@ function CompactWeaponCard({ weapon }: { weapon: Weapon }) {
                             whiteSpace: "nowrap",
                         }}
                     >
-                        {weapon.name}
+                        {asset.item?.name}
                     </Typography>
                     {isBroken && <Chip label="BROKEN" size="small" color="error" />}
                 </Box>
@@ -77,16 +80,16 @@ function CompactWeaponCard({ weapon }: { weapon: Weapon }) {
                 {/* Stats */}
                 <Box sx={{ display: "flex", gap: 2, mb: 0.5, flexWrap: "wrap" }}>
                     <Typography variant="caption" color="text.secondary">
-                        🧰 {weapon.tool_type}
+                        🧰 {metadata.tool_type}
                     </Typography>
                     <Typography variant="caption" color="text.secondary">
-                        ⚡️ Impact: {weapon.impact}
+                        ⚡️ Impact: {metadata.impact}
                     </Typography>
                     <Typography variant="caption" color="text.secondary">
-                        💚 {weapon.health}/{weapon.max_health}
+                        💚 {metadata.health}/{metadata.max_health}
                     </Typography>
                     <Typography variant="caption" color="text.secondary">
-                        🔧 Degrade: -{weapon.degrade_per_use}
+                        🔧 Degrade: -{metadata.degrade_per_use}
                     </Typography>
                 </Box>
 
@@ -113,29 +116,29 @@ function CompactWeaponCard({ weapon }: { weapon: Weapon }) {
     );
 }
 
-export function WeaponsPanel({ userId, maxDisplay = 3 }: WeaponsPanelProps) {
-    const { weapons, fetchUserWeapons, isLoading } = useWeaponsStore();
+export function AssetsPanel({ userId, maxDisplay = 3 }: AssetsPanelProps) {
+    const { assets, fetchUserAssets, isLoading } = useAssetsStore();
 
     useEffect(() => {
         if (userId) {
-            fetchUserWeapons(userId);
+            fetchUserAssets(userId);
         }
-    }, [userId, fetchUserWeapons]);
+    }, [userId, fetchUserAssets]);
 
-    const displayWeapons = weapons.slice(0, maxDisplay);
-    const hasMore = weapons.length > maxDisplay;
+    const displayAssets = assets.slice(0, maxDisplay);
+    const hasMore = assets.length > maxDisplay;
 
-    if (isLoading && weapons.length === 0) {
+    if (isLoading && assets.length === 0) {
         return (
             <Paper variant="outlined" sx={{ p: 2 }}>
                 <Typography variant="body2" color="text.secondary" textAlign="center">
-                    Loading weapons...
+                    Loading assets...
                 </Typography>
             </Paper>
         );
     }
 
-    if (weapons.length === 0) {
+    if (assets.length === 0) {
         return (
             <Paper
                 variant="outlined"
@@ -146,10 +149,10 @@ export function WeaponsPanel({ userId, maxDisplay = 3 }: WeaponsPanelProps) {
                 }}
             >
                 <Typography variant="body2" fontWeight={600} gutterBottom>
-                    No Weapons Yet
+                    No Assets Yet
                 </Typography>
                 <Typography variant="caption" color="text.secondary" paragraph>
-                    Visit the shop to build your arsenal of weapons and support tools.
+                    Visit the shop to build your collection of tools and items.
                 </Typography>
                 <Button
                     component={Link}
@@ -175,14 +178,14 @@ export function WeaponsPanel({ userId, maxDisplay = 3 }: WeaponsPanelProps) {
                 }}
             >
                 <Typography variant="h6" fontWeight={700}>
-                    🗡️ Arsenal
+                    📦 Your Assets
                 </Typography>
-                <Chip label={weapons.length} size="small" color="primary" />
+                <Chip label={assets.length} size="small" color="primary" />
             </Box>
 
             <Stack spacing={1}>
-                {displayWeapons.map((weapon) => (
-                    <CompactWeaponCard key={weapon._id.$oid} weapon={weapon} />
+                {displayAssets.map((asset, index) => (
+                    <CompactAssetCard key={asset.id?.$oid || index} asset={asset} />
                 ))}
             </Stack>
 
@@ -195,7 +198,7 @@ export function WeaponsPanel({ userId, maxDisplay = 3 }: WeaponsPanelProps) {
                     size="small"
                     sx={{ mt: 1 }}
                 >
-                    View All ({weapons.length})
+                    View All ({assets.length})
                 </Button>
             )}
 
@@ -207,7 +210,7 @@ export function WeaponsPanel({ userId, maxDisplay = 3 }: WeaponsPanelProps) {
                 size="small"
                 sx={{ mt: 1, borderRadius: "9999px" }}
             >
-                Visit Tool Shop
+                Visit Item Shop
             </Button>
         </Paper>
     );
