@@ -20,7 +20,7 @@ use utoipa::ToSchema;
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Deserialize, ToSchema)]
-pub struct BuyWeaponRequest {
+pub struct BuyItemRequest {
     #[schema(example = "sword_of_truth")]
     pub catalog_id: String,
 }
@@ -45,7 +45,7 @@ pub async fn get_weapon_catalog_endpoint() -> Json<Vec<weapon_catalog::WeaponCat
     params(
         ("user_id" = String, Path, description = "User ID")
     ),
-    request_body = BuyWeaponRequest,
+    request_body = BuyItemRequest,
     responses(
         (status = 201, description = "Weapon purchased successfully", body = Tool),
         (status = 400, description = "Invalid catalog ID or user ID"),
@@ -56,7 +56,7 @@ pub async fn get_weapon_catalog_endpoint() -> Json<Vec<weapon_catalog::WeaponCat
 pub async fn buy_weapon(
     State(db): State<Database>,
     Path(user_id): Path<String>,
-    Json(payload): Json<BuyWeaponRequest>,
+    Json(payload): Json<BuyItemRequest>,
 ) -> Result<(StatusCode, Json<Tool>), (StatusCode, Json<serde_json::Value>)> {
     let collection: Collection<Tool> = db.collection("weapons");
     let user_collection: Collection<crate::models::user::User> = db.collection("users");

@@ -19,6 +19,7 @@ use routes::data_generation::{
 use routes::follow::{follow_user, get_followers_list, get_following_list, unfollow_user};
 use routes::migration::{migrate_user_objectids, migrate_users_weapons};
 use routes::ping::ping_handler;
+use routes::shop::{buy_weapon, get_user_weapons, get_weapon_catalog_endpoint};
 use routes::tweet::{
     attack_tweet, create_tweet, get_thread, get_tweet, get_tweets, get_user_wall, like_tweet,
     migrate_users_dollar_rate, quote_tweet, reply_tweet, retweet_tweet, support_tweet,
@@ -26,7 +27,6 @@ use routes::tweet::{
 use routes::user::{
     attack_dollar_rate, create_user, get_dollar_rate, get_user, get_users, improve_dollar_rate,
 };
-use routes::weapons::{buy_weapon, get_user_weapons, get_weapon_catalog_endpoint};
 
 /// API documentation
 #[derive(OpenApi)]
@@ -97,7 +97,7 @@ use routes::weapons::{buy_weapon, get_user_weapons, get_weapon_catalog_endpoint}
             routes::tweet::AttackTweetRequest,
             routes::tweet::TweetListResponse,
             routes::tweet::TweetThreadResponse,
-            routes::weapons::BuyWeaponRequest,
+            routes::shop::BuyItemRequest,
             models::weapon_catalog::WeaponCatalogItem,
             routes::migration::MigrationResponse
         )
