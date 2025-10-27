@@ -16,15 +16,12 @@ pub struct Asset {
     #[schema(value_type = String, example = "507f1f77bcf86cd799439011")]
     pub owner_id: ObjectId,
 
-    pub tradeable: bool,
     pub item: Option<Item>,
 }
 
 pub struct AssetBuilder {
     id: Option<ObjectId>,
     owner_id: String,
-
-    tradeable: bool,
     item: Option<Item>,
 }
 
@@ -33,7 +30,6 @@ impl AssetBuilder {
         Self {
             id: None,
             owner_id: owner_id.into(),
-            tradeable: true,
             item: None,
         }
     }
@@ -42,14 +38,8 @@ impl AssetBuilder {
         Asset {
             id: Some(ObjectId::new()),
             owner_id: ObjectId::parse_str(&self.owner_id).expect("Invalid owner ID"),
-            tradeable: self.tradeable,
             item: self.item,
         }
-    }
-
-    pub fn tradeable(mut self, tradeable: bool) -> Self {
-        self.tradeable = tradeable;
-        self
     }
 
     // Item builder

@@ -6,6 +6,9 @@ use utoipa::ToSchema;
 
 // This is for describing the basic items you can buy from the shop - to be
 
+// The canonical price is in USDC - and we will display it assuming it's 6 digits.
+// So 1000 is actually 1000/1000000 = 0.001 USDC
+
 #[derive(Debug, Serialize, Deserialize, Clone, ToSchema)]
 pub struct CatalogItem {
     pub catalog_id: String,
@@ -31,7 +34,7 @@ pub fn get_catalog() -> Vec<CatalogItem> {
                     tool_target: ToolTarget::Tweet,
                 })),
             }),
-            price: 1500,
+            price: 1000,
         },
         CatalogItem {
             catalog_id: "ban_hammer".to_string(),
