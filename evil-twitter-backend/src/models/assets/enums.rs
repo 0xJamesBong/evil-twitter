@@ -3,14 +3,6 @@ use utoipa::ToSchema;
 
 use crate::models::tool::{ToolTarget, ToolType};
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
-pub enum TokenType {
-    Dooler,
-    Usdc,
-    Sol,
-    Bling,
-}
-
 #[derive(Debug, Serialize, Deserialize, Clone, ToSchema)]
 pub struct Item {
     pub name: String,

@@ -7,7 +7,7 @@ pub struct TokenLedgerEntry {
     pub id: ObjectId,
     pub user_id: ObjectId,
     pub token: TokenType,
-    pub delta: i64,
-    pub reason: String,
+    pub delta: i64,     // +100 (add), -50 (subtract)
+    pub reason: String, // "Purchased 100 DOOLER", "Bought
     pub timestamp: chrono::DateTime<chrono::Utc>,
 }
