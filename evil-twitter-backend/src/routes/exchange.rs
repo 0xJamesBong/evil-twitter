@@ -5,6 +5,7 @@ use utoipa::ToSchema;
 
 use crate::models::tokens::{
     enums::TokenType,
+    exchange::exchange,
     token_pricing::{PriceEntry, Prices},
 };
 
@@ -107,8 +108,6 @@ pub async fn post_exchange(
     State(_db): State<Database>,
     Json(req): Json<ExchangeRequest>,
 ) -> Result<Json<ExchangeResponse>, (StatusCode, Json<serde_json::Value>)> {
-    let prices = Prices::new();
-
     // Validate request
     if req.amount <= 0 {
         return Err((
@@ -124,20 +123,8 @@ pub async fn post_exchange(
         ));
     }
 
-    // Calculate exchange
-    let output = if req.from_token == TokenType::Usdc {
-        // Converting USDC to another token
-        prices.usdc_to_token(req.to_token.clone(), req.amount)
-    } else if req.to_token == TokenType::Usdc {
-        // Converting token to USDC
-        prices.token_to_usdc(req.from_token.clone(), req.amount)
-    } else {
-        // Converting between two non-USDC tokens via USDC intermediary
-        // Step 1: Convert from_token to USDC
-        let usdc_value = prices.token_to_usdc(req.from_token.clone(), req.amount);
-        // Step 2: Convert USDC to to_token
-        prices.usdc_to_token(req.to_token.clone(), usdc_value)
-    };
+    // Calculate exchange using centralized exchange function
+    let output = exchange(req.from_token.clone(), req.to_token.clone(), req.amount);
 
     let rate_used = if req.amount > 0 {
         output as f64 / req.amount as f64

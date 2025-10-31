@@ -159,15 +159,24 @@ export default function ExchangeScreen() {
                             <Card style={styles.resultCard}>
                                 <Card.Content>
                                     <View style={styles.resultRow}>
-                                        <Text style={styles.resultLabel}>You will receive:</Text>
+                                        <Text style={styles.resultLabel}>
+                                            You will receive:
+                                        </Text>
                                         <Text style={styles.resultAmount}>
-                                            {formatAmount(calculatedOutput)}
+                                            {formatAmount(calculatedOutput)}{" "}
+                                            {toToken.toUpperCase()}
                                         </Text>
                                     </View>
                                     {rate !== null && (
                                         <View style={styles.resultRow}>
-                                            <Text style={styles.rateLabel}>Exchange Rate:</Text>
-                                            <Text style={styles.rateValue}>{formatRate(rate)}</Text>
+                                            <Text style={styles.rateLabel}>
+                                                Exchange Rate:
+                                            </Text>
+                                            <Text style={styles.rateValue}>
+                                                {formatRate(rate)}{" "}
+                                                {toToken.toUpperCase()} /{" "}
+                                                {fromToken.toUpperCase()}
+                                            </Text>
                                         </View>
                                     )}
                                 </Card.Content>
