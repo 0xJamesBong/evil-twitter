@@ -16,6 +16,7 @@ mod utils;
 use routes::data_generation::{
     clear_all_data, generate_fake_data, generate_fake_tweets, generate_fake_users,
 };
+use routes::exchange::{get_prices, post_exchange};
 use routes::follow::{follow_user, get_followers_list, get_following_list, unfollow_user};
 use routes::migration::{migrate_user_objectids, migrate_users_weapons};
 use routes::ping::ping_handler;
@@ -64,7 +65,9 @@ use routes::user::{
         routes::follow::get_followers_list,
         routes::shop::buy_item,
         routes::shop::get_catalog_endpoint,
-        routes::shop::get_user_assets
+        routes::shop::get_user_assets,
+        routes::exchange::get_prices,
+        routes::exchange::post_exchange
     ),
     components(
         schemas(
@@ -98,6 +101,11 @@ use routes::user::{
             routes::tweet::TweetListResponse,
             routes::tweet::TweetThreadResponse,
             routes::shop::BuyItemRequest,
+            routes::exchange::ExchangeRequest,
+            routes::exchange::ExchangeResponse,
+            routes::exchange::PricesResponse,
+            routes::exchange::PriceEntrySchema,
+            routes::exchange::PriceRatioSchema,
             models::assets::asset::Asset,
             models::assets::catalogItem::CatalogItem,
             models::assets::enums::Item,
@@ -118,7 +126,8 @@ use routes::user::{
         (name = "follows", description = "Follow management endpoints"),
         (name = "weapons", description = "Weapon management endpoints"),
         (name = "auth", description = "Authentication endpoints"),
-        (name = "admin", description = "Administrative endpoints")
+        (name = "admin", description = "Administrative endpoints"),
+        (name = "exchange", description = "Token exchange endpoints")
     ),
     info(
         title = "Evil Twitter API",
@@ -182,6 +191,8 @@ async fn main() -> anyhow::Result<()> {
         .route("/shop/catalog", get(get_catalog_endpoint))
         .route("/shop/{user_id}/buy", post(buy_item))
         .route("/users/{user_id}/assets", get(get_user_assets))
+        .route("/exchange/prices", get(get_prices))
+        .route("/exchange", post(post_exchange))
         .split_for_parts();
 
     let app = app

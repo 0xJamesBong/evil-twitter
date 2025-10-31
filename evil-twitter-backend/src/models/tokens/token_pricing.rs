@@ -1,3 +1,5 @@
+use crate::models::tokens::enums::TokenType;
+
 #[derive(Debug, Clone, Copy)]
 pub struct PriceRatio {
     pub token_units: i64,

@@ -1,4 +1,4 @@
-use crate::models::assets::enums::TokenType;
+use crate::models::tokens::enums::TokenType;
 use mongodb::bson::oid::ObjectId;
 use serde::{Deserialize, Serialize};
 
