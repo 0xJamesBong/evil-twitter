@@ -1,4 +1,5 @@
 use dotenvy::dotenv;
+use futures::TryStreamExt;
 use mongodb::bson::{Document, doc};
 use mongodb::{Client, Collection};
 use std::env;
@@ -24,7 +25,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut created_count = 0;
 
     while let Some(user) = cursor.try_next().await? {
-        let user_id = user.get_object_id("_id").ok_or("User missing _id")?;
+        let user_id = user.get_object_id("_id")?;
 
         // Check if user already has BLING balance
         let bling_filter = doc! {

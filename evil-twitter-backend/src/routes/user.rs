@@ -128,7 +128,7 @@ pub async fn create_user(
         })?;
 
     if existing_balance.is_none() {
-        // Insert new balance
+        // Insert new balance with 10k BLING
         token_balance_collection
             .insert_one(&bling_balance)
             .await
@@ -139,7 +139,7 @@ pub async fn create_user(
                 )
             })?;
     } else {
-        // Update existing balance to ensure it's at least 10k
+        // Update existing balance to ensure it's at least 10k (don't reduce if they have more)
         token_balance_collection
             .update_one(
                 doc! {
@@ -151,6 +151,7 @@ pub async fn create_user(
                                 Json(serde_json::json!({"error": "Serialization error"})),
                             )
                         })?,
+                    "amount": { "$lt": initial_bling }
                 },
                 doc! {
                     "$set": {
@@ -185,7 +186,7 @@ pub async fn get_user_balances(
     State(db): State<Database>,
     Path(id): Path<String>,
 ) -> Result<Json<serde_json::Value>, (StatusCode, Json<serde_json::Value>)> {
-    use crate::models::tokens::{enums::TokenType, token_balance::TokenBalance};
+    use crate::models::tokens::token_balance::TokenBalance;
 
     let user_object_id = ObjectId::parse_str(&id).map_err(|_| {
         (
