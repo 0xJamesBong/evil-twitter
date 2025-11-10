@@ -24,6 +24,7 @@ export function Sidebar({ compact = false }: SidebarProps) {
         // { name: 'Bookmarks', icon: '🔖', route: '/(tabs)/bookmarks' },
         { name: 'Profile', icon: '👤', route: '/(tabs)/profile' },
         { name: 'Shop', icon: '🛒', route: '/(tabs)/shop' },
+        { name: 'Exchange', icon: '💱', route: '/(tabs)/exchange' },
     ];
 
     const handleLogout = async () => {

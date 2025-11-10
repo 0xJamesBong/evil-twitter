@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { WeaponsPanel } from './WeaponsPanel';
+import { AssetsPanel } from './AssetsPanel';
 import { useBackendUserStore } from '../lib/stores/backendUserStore';
 
 interface TrendingTopic {
@@ -79,10 +79,10 @@ export function RightSidebar() {
                 />
             </div>
 
-            {/* Weapons Arsenal */}
+            {/* Your Assets */}
             {user && (
                 <div className="mt-4">
-                    <WeaponsPanel userId={user._id?.$oid} maxDisplay={2} />
+                    <AssetsPanel userId={user._id?.$oid} maxDisplay={2} />
                 </div>
             )}
 

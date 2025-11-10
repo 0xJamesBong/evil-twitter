@@ -22,12 +22,17 @@ interface BackendUserState {
   user: BackendUser | null;
   isLoading: boolean;
   error: string | null;
+  // Token balances (for any user being viewed)
+  balances: { [key: string]: number } | null;
+  loadingBalances: boolean;
 }
 
 interface BackendUserActions {
   createUser: (user: User) => Promise<void>;
   fetchUser: (supabaseId: string) => Promise<void>;
   fetchUserById: (userId: string) => Promise<void>;
+  fetchBalances: (userId: string) => Promise<void>;
+  adjustFollowersCount: (delta: number) => void;
   syncWithSupabase: (supabaseUser: any) => Promise<void>;
   clearUser: () => void;
 }
@@ -38,6 +43,8 @@ export const useBackendUserStore = create<
   user: null,
   isLoading: false,
   error: null,
+  balances: null,
+  loadingBalances: false,
   createUser: async (user: User) => {
     set({ isLoading: true, error: null });
     try {
@@ -173,7 +180,35 @@ export const useBackendUserStore = create<
     }
   },
 
+  fetchBalances: async (userId: string) => {
+    set({ loadingBalances: true });
+    try {
+      const response = await fetch(`${API_BASE_URL}/users/${userId}/balances`);
+      if (response.ok) {
+        const data = await response.json();
+        set({ balances: data.balances || {}, loadingBalances: false });
+      } else {
+        set({ loadingBalances: false });
+      }
+    } catch (error) {
+      console.error("Failed to fetch balances:", error);
+      set({ loadingBalances: false });
+    }
+  },
+
+  adjustFollowersCount: (delta: number) => {
+    const state = get();
+    if (state.user) {
+      set({
+        user: {
+          ...state.user,
+          followers_count: state.user.followers_count + delta,
+        },
+      });
+    }
+  },
+
   clearUser: () => {
-    set({ user: null, error: null });
+    set({ user: null, error: null, balances: null });
   },
 }));

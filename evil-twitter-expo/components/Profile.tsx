@@ -4,7 +4,6 @@ import { TweetCard } from '@/components/TweetCard';
 import { useAuthStore } from '@/lib/stores/authStore';
 import { useBackendUserStore } from '@/lib/stores/backendUserStore';
 import { useFollowStore } from '@/lib/stores/followStore';
-import { useProfileStore } from '@/lib/stores/profileStore';
 import { useTweetsStore } from '@/lib/stores/tweetsStore';
 import { useWeaponsStore } from '@/lib/stores/weaponsStore';
 import { useRouter } from 'expo-router';
@@ -33,23 +32,28 @@ export function Profile({
 
     // Auth and current user
     const { user: authUser, isAuthenticated } = useAuthStore();
-    const { user: currentBackendUser, fetchUser: fetchCurrentUser, syncWithSupabase } = useBackendUserStore();
-
-    // Profile data (for viewing other users)
     const {
-        profileUser,
+        user: currentBackendUser,
+        fetchUser: fetchCurrentUser,
+        syncWithSupabase,
+        fetchUserById,
         isLoading: profileLoading,
         error: profileError,
-        fetchProfile,
-        clearProfile
-    } = useProfileStore();
+        balances,
+        fetchBalances,
+        loadingBalances,
+        adjustFollowersCount
+    } = useBackendUserStore();
 
     // Tweets and weapons
     const { userTweets, fetchUserTweets, loading: tweetsLoading } = useTweetsStore();
     const { weapons, fetchUserWeapons } = useWeaponsStore();
 
+    // For viewing other users, fetch and store separately to avoid overwriting currentBackendUser
+    const [viewedUser, setViewedUser] = React.useState<typeof currentBackendUser>(null);
+
     // Determine which user we're displaying
-    const displayUser = isOwnProfile ? currentBackendUser : profileUser;
+    const displayUser = isOwnProfile ? currentBackendUser : viewedUser;
     const displayUserId = isOwnProfile ? currentBackendUser?._id?.$oid : userId;
 
     const followStatusEntry = useFollowStore(
@@ -62,18 +66,36 @@ export function Profile({
     const checkFollowStatus = useFollowStore((state) => state.checkFollowStatus);
     const followUser = useFollowStore((state) => state.followUser);
     const unfollowUser = useFollowStore((state) => state.unfollowUser);
-    const adjustFollowersCount = useProfileStore((state) => state.adjustFollowersCount);
     const isFollowing = followStatusEntry?.isFollowing ?? false;
 
     // Fetch profile data for other users
     useEffect(() => {
         if (!isOwnProfile && userId) {
-            fetchProfile(userId);
-            return () => {
-                clearProfile();
+            // Fetch user directly without using the store's fetchUserById to avoid overwriting currentBackendUser
+            const fetchViewedUser = async () => {
+                try {
+                    const { API_BASE_URL } = await import('@/lib/config/api');
+                    const response = await fetch(`${API_BASE_URL}/users/${userId}`);
+                    if (response.ok) {
+                        const user = await response.json();
+                        setViewedUser(user);
+                    }
+                } catch (error) {
+                    console.error('Failed to fetch viewed user:', error);
+                }
             };
+            fetchViewedUser();
+        } else {
+            setViewedUser(null);
         }
-    }, [userId, fetchProfile, clearProfile, isOwnProfile]);
+    }, [userId, isOwnProfile]);
+
+    // Fetch token balances (for both own profile and other profiles)
+    useEffect(() => {
+        if (displayUserId) {
+            fetchBalances(displayUserId);
+        }
+    }, [displayUserId, fetchBalances]);
 
     // Ensure current user is loaded for follow functionality
     useEffect(() => {
@@ -127,7 +149,14 @@ export function Profile({
         if (!displayUserId || !viewerId) return;
 
         const delta = isFollowing ? -1 : 1;
-        if (!isOwnProfile) {
+        if (!isOwnProfile && viewedUser) {
+            // Optimistically update viewed user's follower count
+            setViewedUser({
+                ...viewedUser,
+                followers_count: viewedUser.followers_count + delta,
+            });
+        } else if (isOwnProfile) {
+            // Update current user in store
             adjustFollowersCount(delta);
         }
 
@@ -138,7 +167,13 @@ export function Profile({
                 await followUser(displayUserId, viewerId);
             }
         } catch (error) {
-            if (!isOwnProfile) {
+            // Rollback on error
+            if (!isOwnProfile && viewedUser) {
+                setViewedUser({
+                    ...viewedUser,
+                    followers_count: viewedUser.followers_count - delta,
+                });
+            } else if (isOwnProfile) {
                 adjustFollowersCount(-delta);
             }
             console.error('Follow action failed:', error);
@@ -255,7 +290,20 @@ export function Profile({
                 </View>
                 <View style={styles.errorContainer}>
                     <Text style={styles.errorText}>{profileError}</Text>
-                    <TouchableOpacity style={styles.retryButton} onPress={() => userId && fetchProfile(userId)}>
+                    <TouchableOpacity style={styles.retryButton} onPress={async () => {
+                        if (userId) {
+                            try {
+                                const { API_BASE_URL } = await import('@/lib/config/api');
+                                const response = await fetch(`${API_BASE_URL}/users/${userId}`);
+                                if (response.ok) {
+                                    const user = await response.json();
+                                    setViewedUser(user);
+                                }
+                            } catch (error) {
+                                console.error('Failed to fetch viewed user:', error);
+                            }
+                        }
+                    }}>
                         <Text style={styles.retryButtonText}>Retry</Text>
                     </TouchableOpacity>
                 </View>
@@ -372,6 +420,43 @@ export function Profile({
                         <Text style={[styles.statLabel, styles.dollarRateText]}>Dollar Rate</Text>
                     </View>
                 </View>
+
+                {/* Token Balances */}
+                {balances && (
+                    <View style={styles.balancesContainer}>
+                        <Text style={styles.sectionTitle}>💰 Token Balances</Text>
+                        <View style={styles.balancesGrid}>
+                            <View style={[styles.balanceItem, styles.blingItem]}>
+                                <Text style={styles.balanceEmoji}>💎</Text>
+                                <Text style={styles.balanceAmount}>
+                                    {balances['Bling']?.toLocaleString() || '0'}
+                                </Text>
+                                <Text style={styles.balanceLabel}>BLING</Text>
+                            </View>
+                            <View style={styles.balanceItem}>
+                                <Text style={styles.balanceEmoji}>💵</Text>
+                                <Text style={styles.balanceAmount}>
+                                    {balances['Dooler']?.toLocaleString() || '0'}
+                                </Text>
+                                <Text style={styles.balanceLabel}>DOOLER</Text>
+                            </View>
+                            <View style={styles.balanceItem}>
+                                <Text style={styles.balanceEmoji}>💲</Text>
+                                <Text style={styles.balanceAmount}>
+                                    {balances['Usdc']?.toLocaleString() || '0'}
+                                </Text>
+                                <Text style={styles.balanceLabel}>USDC</Text>
+                            </View>
+                            <View style={styles.balanceItem}>
+                                <Text style={styles.balanceEmoji}>◎</Text>
+                                <Text style={styles.balanceAmount}>
+                                    {balances['Sol']?.toLocaleString() || '0'}
+                                </Text>
+                                <Text style={styles.balanceLabel}>SOL</Text>
+                            </View>
+                        </View>
+                    </View>
+                )}
 
                 {/* Followers/Following Section */}
                 {displayUserId && (
@@ -761,6 +846,47 @@ const styles = StyleSheet.create({
     statText: {
         fontSize: 12,
         color: '#e7e9ea',
+    },
+    balancesContainer: {
+        padding: 16,
+        backgroundColor: '#1a1a1a',
+        marginHorizontal: 16,
+        marginTop: 16,
+        borderRadius: 12,
+    },
+    balancesGrid: {
+        flexDirection: 'row',
+        flexWrap: 'wrap',
+        gap: 12,
+        marginTop: 12,
+    },
+    balanceItem: {
+        flex: 1,
+        minWidth: '45%',
+        backgroundColor: '#2a2a2a',
+        padding: 16,
+        borderRadius: 8,
+        alignItems: 'center',
+    },
+    blingItem: {
+        backgroundColor: '#3a2a4a',
+        borderWidth: 2,
+        borderColor: '#9d4edd',
+    },
+    balanceEmoji: {
+        fontSize: 24,
+        marginBottom: 8,
+    },
+    balanceAmount: {
+        fontSize: 20,
+        fontWeight: 'bold',
+        color: '#fff',
+        marginBottom: 4,
+    },
+    balanceLabel: {
+        fontSize: 12,
+        color: '#71767b',
+        textTransform: 'uppercase',
     },
     emptyWeapons: {
         alignItems: 'center',

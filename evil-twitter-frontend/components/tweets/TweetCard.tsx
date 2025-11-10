@@ -25,7 +25,7 @@ import {
     ChatBubbleOutline,
     Share,
     MoreHoriz,
-    Healing,
+    ThumbDown,
     LocalHospital,
     FlashOn,
     Close as CloseIcon,
@@ -43,6 +43,7 @@ interface Tweet {
     replied_to_tweet_id?: { $oid: string } | null;
     created_at: { $date: { $numberLong: string } };
     likes_count: number;
+    smacks_count?: number;
     retweets_count: number;
     replies_count: number;
     is_liked: boolean;
@@ -97,16 +98,14 @@ export function TweetCard({ tweet, onLike, onRetweet, onQuote, onReply }: TweetC
         closeReplyModal,
         setReplyContent,
         clearReplyData,
-        healTweet,
+        smackTweet,
         attackTweet
     } = useTweetsStore();
 
     const { user: currentUser } = useBackendUserStore();
 
-    // Heal and Attack state
-    const [showHealModal, setShowHealModal] = React.useState(false);
+    // Attack state
     const [showAttackModal, setShowAttackModal] = React.useState(false);
-    const [healAmount, setHealAmount] = React.useState(10);
     const [attackAmount, setAttackAmount] = React.useState(10);
 
     // Helper function to extract ID from MongoDB ObjectId format
@@ -166,22 +165,16 @@ export function TweetCard({ tweet, onLike, onRetweet, onQuote, onReply }: TweetC
         }
     };
 
-    const handleHeal = () => {
-        setShowHealModal(true);
+    const handleSmack = async () => {
+        const result = await smackTweet(getTweetId());
+        if (!result.success) {
+            console.error('Failed to smack tweet:', result.error);
+            alert(result.error || 'Failed to smack tweet. Make sure you have enough BLING tokens.');
+        }
     };
 
     const handleAttack = () => {
         setShowAttackModal(true);
-    };
-
-    const handleHealSubmit = async () => {
-        const result = await healTweet(getTweetId(), healAmount);
-        if (result.success) {
-            setShowHealModal(false);
-            setHealAmount(10);
-        } else {
-            console.error('Failed to heal tweet:', result.error);
-        }
     };
 
     const handleAttackSubmit = async () => {
@@ -421,16 +414,18 @@ export function TweetCard({ tweet, onLike, onRetweet, onQuote, onReply }: TweetC
                                     </IconButton>
                                 </Tooltip>
 
-                                {/* Heal */}
-                                <Tooltip title={tweet.health >= 100 ? "Full health" : "Heal"} arrow>
-                                    < span >
+                                {/* Smack */}
+                                <Tooltip title="Smack (costs 1 BLING)" arrow>
+                                    <span>
                                         <IconButton
                                             size="small"
-                                            color="success"
-                                            onClick={handleHeal}
-                                            disabled={tweet.health >= 100}
+                                            color="warning"
+                                            onClick={handleSmack}
                                         >
-                                            <Healing fontSize="small" />
+                                            <ThumbDown fontSize="small" />
+                                            <Typography variant="caption" sx={{ ml: 0.5 }}>
+                                                {tweet.smacks_count || 0}
+                                            </Typography>
                                         </IconButton>
                                     </span>
                                 </Tooltip>
@@ -585,48 +580,6 @@ export function TweetCard({ tweet, onLike, onRetweet, onQuote, onReply }: TweetC
                         disabled={!replyContent.trim()}
                     >
                         Reply
-                    </Button>
-                </DialogActions>
-            </Dialog >
-
-            {/* Heal Tweet Modal */}
-            < Dialog
-                open={showHealModal}
-                onClose={() => setShowHealModal(false)}
-                maxWidth="sm"
-                fullWidth
-            >
-                <DialogTitle>Heal Tweet</DialogTitle>
-                <DialogContent>
-                    <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-                        Current health: {tweet.health}/100
-                    </Typography>
-                    <TextField
-                        autoFocus
-                        fullWidth
-                        variant="outlined"
-                        label="Heal Amount"
-                        type="number"
-                        value={healAmount}
-                        onChange={(e) => setHealAmount(parseInt(e.target.value) || 0)}
-                        inputProps={{ min: 1, max: 100 }}
-                        sx={{ mt: 1 }}
-                    />
-                    <Typography variant="caption" color="text.secondary" sx={{ mt: 1, display: 'block' }}>
-                        Amount must be between 1 and 100
-                    </Typography>
-                </DialogContent>
-                <DialogActions>
-                    <Button onClick={() => setShowHealModal(false)}>
-                        Cancel
-                    </Button>
-                    <Button
-                        onClick={handleHealSubmit}
-                        variant="contained"
-                        color="success"
-                        disabled={healAmount < 1 || healAmount > 100 || tweet.health >= 100}
-                    >
-                        Heal Tweet
                     </Button>
                 </DialogActions>
             </Dialog >

@@ -12,16 +12,19 @@ import {
     Paper,
     Alert,
 } from "@mui/material";
-import { useWeaponsStore, Weapon } from "../lib/stores/weaponsStore";
+import { useAssetsStore, Asset } from "../lib/stores/assetsStore";
 
-interface WeaponsListProps {
+interface AssetsListProps {
     userId?: string;
-    weapons?: Weapon[];
+    assets?: Asset[];
 }
 
-function WeaponCard({ weapon }: { weapon: Weapon }) {
-    const healthPercentage = (weapon.health / Math.max(weapon.max_health, 1)) * 100;
-    const isBroken = weapon.health <= 0;
+function AssetCard({ asset }: { asset: Asset }) {
+    const metadata = asset.item?.item_type_metadata?.data;
+    if (!metadata) return null;
+
+    const healthPercentage = (metadata.health / Math.max(metadata.max_health, 1)) * 100;
+    const isBroken = metadata.health <= 0;
 
     return (
         <Card
@@ -69,13 +72,13 @@ function WeaponCard({ weapon }: { weapon: Weapon }) {
                     }}
                 />
                 <Box sx={{ position: "relative", zIndex: 1 }}>
-                    {weapon.image_url}
+                    {asset.item?.image_url}
                 </Box>
             </Box>
 
             <CardContent sx={{ flexGrow: 1 }}>
                 <Typography variant="h6" component="h3" gutterBottom fontWeight={700}>
-                    {weapon.name}
+                    {asset.item?.name}
                 </Typography>
 
                 <Typography
@@ -89,7 +92,7 @@ function WeaponCard({ weapon }: { weapon: Weapon }) {
                         overflow: "hidden",
                     }}
                 >
-                    {weapon.description}
+                    {asset.item?.description}
                 </Typography>
 
                 <Box sx={{ mt: 2 }}>
@@ -105,8 +108,8 @@ function WeaponCard({ weapon }: { weapon: Weapon }) {
                             Health
                         </Typography>
                         <Typography variant="body2" color="text.secondary">
-                            {weapon.health.toLocaleString()} /{" "}
-                            {weapon.max_health.toLocaleString()}
+                            {metadata.health.toLocaleString()} /{" "}
+                            {metadata.max_health.toLocaleString()}
                         </Typography>
                     </Box>
                     <LinearProgress
@@ -143,7 +146,7 @@ function WeaponCard({ weapon }: { weapon: Weapon }) {
                             Impact
                         </Typography>
                         <Typography variant="body1" fontWeight={700}>
-                            ⚡️ {weapon.impact}
+                            ⚡️ {metadata.impact}
                         </Typography>
                     </Box>
                     <Box>
@@ -151,7 +154,7 @@ function WeaponCard({ weapon }: { weapon: Weapon }) {
                             Degrade
                         </Typography>
                         <Typography variant="body1" fontWeight={700}>
-                            -{weapon.degrade_per_use}
+                            -{metadata.degrade_per_use}
                         </Typography>
                     </Box>
                     <Box>
@@ -159,7 +162,7 @@ function WeaponCard({ weapon }: { weapon: Weapon }) {
                             Type
                         </Typography>
                         <Typography variant="body1" fontWeight={700}>
-                            {weapon.tool_type}
+                            {metadata.tool_type}
                         </Typography>
                     </Box>
                 </Box>
@@ -168,22 +171,22 @@ function WeaponCard({ weapon }: { weapon: Weapon }) {
     );
 }
 
-export function WeaponsList({ userId, weapons: providedWeapons }: WeaponsListProps) {
-    const { weapons: storeWeapons, fetchUserWeapons, isLoading, error } = useWeaponsStore();
+export function AssetsList({ userId, assets: providedAssets }: AssetsListProps) {
+    const { assets: storeAssets, fetchUserAssets, isLoading, error } = useAssetsStore();
 
-    const weapons = providedWeapons || storeWeapons;
+    const assets = providedAssets || storeAssets;
 
     useEffect(() => {
-        if (userId && !providedWeapons) {
-            fetchUserWeapons(userId);
+        if (userId && !providedAssets) {
+            fetchUserAssets(userId);
         }
-    }, [userId, providedWeapons, fetchUserWeapons]);
+    }, [userId, providedAssets, fetchUserAssets]);
 
     if (isLoading) {
         return (
             <Box sx={{ p: 3, textAlign: "center" }}>
                 <Typography variant="body1" color="text.secondary">
-                    Loading weapons...
+                    Loading assets...
                 </Typography>
             </Box>
         );
@@ -197,7 +200,7 @@ export function WeaponsList({ userId, weapons: providedWeapons }: WeaponsListPro
         );
     }
 
-    if (!weapons || weapons.length === 0) {
+    if (!assets || assets.length === 0) {
         return (
             <Paper
                 variant="outlined"
@@ -208,10 +211,10 @@ export function WeaponsList({ userId, weapons: providedWeapons }: WeaponsListPro
                 }}
             >
                 <Typography variant="h6" gutterBottom>
-                    No Weapons Yet
+                    No Assets Yet
                 </Typography>
                 <Typography variant="body2" color="text.secondary">
-                    Mint your first weapon to start battling!
+                    Visit the shop to start building your collection!
                 </Typography>
             </Paper>
         );
@@ -220,12 +223,12 @@ export function WeaponsList({ userId, weapons: providedWeapons }: WeaponsListPro
     return (
         <Box sx={{ py: 2 }}>
             <Typography variant="h6" gutterBottom fontWeight={700} sx={{ px: 2 }}>
-                🗡️ Arsenal ({weapons.length})
+                📦 Your Assets ({assets.length})
             </Typography>
             <Grid container spacing={2} sx={{ px: 2 }}>
-                {weapons.map((weapon) => (
-                    <Grid size={{ xs: 12, sm: 6, md: 4 }} key={weapon._id.$oid}>
-                        <WeaponCard weapon={weapon} />
+                {assets.map((asset, index) => (
+                    <Grid size={{ xs: 12, sm: 6, md: 4 }} key={asset.id?.$oid || index}>
+                        <AssetCard asset={asset} />
                     </Grid>
                 ))}
             </Grid>

@@ -93,9 +93,143 @@ pub async fn create_user(
     })?;
 
     let mut created_user = user;
-    created_user.id = Some(result.inserted_id.as_object_id().unwrap());
+    let user_id = result.inserted_id.as_object_id().unwrap();
+    created_user.id = Some(user_id);
+
+    // Give new user 10k BLING tokens
+    use crate::models::tokens::{enums::TokenType, token_balance::TokenBalance};
+    let token_balance_collection: Collection<TokenBalance> = db.collection("token_balances");
+
+    let initial_bling = 10_000_i64;
+    let bling_balance = TokenBalance {
+        user_id,
+        token: TokenType::Bling,
+        amount: initial_bling,
+    };
+
+    // Check if balance already exists
+    let existing_balance = token_balance_collection
+        .find_one(doc! {
+            "user_id": user_id,
+            "token": mongodb::bson::to_bson(&TokenType::Bling)
+                .map_err(|_| {
+                    (
+                        StatusCode::INTERNAL_SERVER_ERROR,
+                        Json(serde_json::json!({"error": "Serialization error"})),
+                    )
+                })?,
+        })
+        .await
+        .map_err(|_| {
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(serde_json::json!({"error": "Database error checking balance"})),
+            )
+        })?;
+
+    if existing_balance.is_none() {
+        // Insert new balance with 10k BLING
+        token_balance_collection
+            .insert_one(&bling_balance)
+            .await
+            .map_err(|_| {
+                (
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    Json(serde_json::json!({"error": "Failed to initialize BLING balance"})),
+                )
+            })?;
+    } else {
+        // Update existing balance to ensure it's at least 10k (don't reduce if they have more)
+        token_balance_collection
+            .update_one(
+                doc! {
+                    "user_id": user_id,
+                    "token": mongodb::bson::to_bson(&TokenType::Bling)
+                        .map_err(|_| {
+                            (
+                                StatusCode::INTERNAL_SERVER_ERROR,
+                                Json(serde_json::json!({"error": "Serialization error"})),
+                            )
+                        })?,
+                    "amount": { "$lt": initial_bling }
+                },
+                doc! {
+                    "$set": {
+                        "amount": initial_bling
+                    }
+                },
+            )
+            .await
+            .map_err(|_| {
+                (
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    Json(serde_json::json!({"error": "Failed to update BLING balance"})),
+                )
+            })?;
+    }
 
     Ok((StatusCode::CREATED, Json(created_user)))
+}
+
+/// Get user token balances
+#[utoipa::path(
+    get,
+    path = "/users/{id}/balances",
+    params(("id" = String, Path, description = "User ID")),
+    responses(
+        (status = 200, description = "Token balances retrieved successfully"),
+        (status = 404, description = "User not found")
+    ),
+    tag = "users"
+)]
+pub async fn get_user_balances(
+    State(db): State<Database>,
+    Path(id): Path<String>,
+) -> Result<Json<serde_json::Value>, (StatusCode, Json<serde_json::Value>)> {
+    use crate::models::tokens::token_balance::TokenBalance;
+
+    let user_object_id = ObjectId::parse_str(&id).map_err(|_| {
+        (
+            StatusCode::BAD_REQUEST,
+            Json(serde_json::json!({"error": "Invalid user ID"})),
+        )
+    })?;
+
+    let token_balance_collection: Collection<TokenBalance> = db.collection("token_balances");
+
+    // Get all token balances for this user
+    let mut cursor = token_balance_collection
+        .find(doc! {"user_id": user_object_id})
+        .await
+        .map_err(|_| {
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(serde_json::json!({"error": "Database error"})),
+            )
+        })?;
+
+    let mut balances: std::collections::HashMap<String, i64> = std::collections::HashMap::new();
+
+    // Initialize all token types to 0
+    balances.insert("Dooler".to_string(), 0);
+    balances.insert("Usdc".to_string(), 0);
+    balances.insert("Bling".to_string(), 0);
+    balances.insert("Sol".to_string(), 0);
+
+    while let Some(balance) = cursor.try_next().await.map_err(|_| {
+        (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(serde_json::json!({"error": "Database error reading balances"})),
+        )
+    })? {
+        let token_name = format!("{:?}", balance.token);
+        balances.insert(token_name, balance.amount);
+    }
+
+    Ok(Json(serde_json::json!({
+        "user_id": id,
+        "balances": balances
+    })))
 }
 
 /// Get user by ID

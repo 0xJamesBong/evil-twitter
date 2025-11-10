@@ -10,6 +10,7 @@ export interface Tweet {
   replied_to_tweet_id?: { $oid: string } | null;
   created_at: { $date: { $numberLong: string } };
   likes_count: number;
+  smacks_count?: number;
   retweets_count: number;
   replies_count: number;
   is_liked: boolean;
@@ -66,9 +67,8 @@ export interface TweetsActions {
   generateFakeTweets: () => Promise<{ success: boolean; error?: string }>;
   likeTweet: (tweetId: string) => Promise<void>;
   unlikeTweet: (tweetId: string) => Promise<void>;
-  healTweet: (
-    tweetId: string,
-    amount: number
+  smackTweet: (
+    tweetId: string
   ) => Promise<{ success: boolean; error?: string }>;
   attackTweet: (
     tweetId: string,
@@ -132,7 +132,14 @@ export const useTweetsStore = create<TweetsState & TweetsActions>(
         }
 
         const data = await response.json();
-        const tweets = data.tweets || [];
+        const rawTweets = data.tweets || [];
+
+        // Normalize tweets to ensure smacks_count and likes_count are properly set
+        const tweets = rawTweets.map((tweet: any) => ({
+          ...tweet,
+          likes_count: tweet.metrics?.likes ?? tweet.likes_count ?? 0,
+          smacks_count: tweet.metrics?.smacks ?? tweet.smacks_count ?? 0,
+        }));
 
         set({
           tweets,
@@ -163,7 +170,14 @@ export const useTweetsStore = create<TweetsState & TweetsActions>(
         }
 
         const data = await response.json();
-        const tweets = data.tweets || [];
+        const rawTweets = data.tweets || [];
+
+        // Normalize tweets to ensure smacks_count and likes_count are properly set
+        const tweets = rawTweets.map((tweet: any) => ({
+          ...tweet,
+          likes_count: tweet.metrics?.likes ?? tweet.likes_count ?? 0,
+          smacks_count: tweet.metrics?.smacks ?? tweet.smacks_count ?? 0,
+        }));
 
         console.log("fetched tweets for user wall: ", tweets);
 
@@ -209,8 +223,15 @@ export const useTweetsStore = create<TweetsState & TweetsActions>(
           throw new Error(errorData.message || "Failed to create tweet");
         }
 
-        const newTweet = await response.json();
-        console.log("newTweet:", newTweet);
+        const rawTweet = await response.json();
+        console.log("newTweet:", rawTweet);
+
+        // Normalize tweet to ensure smacks_count and likes_count are properly set
+        const newTweet = {
+          ...rawTweet,
+          likes_count: rawTweet.metrics?.likes ?? rawTweet.likes_count ?? 0,
+          smacks_count: rawTweet.metrics?.smacks ?? rawTweet.smacks_count ?? 0,
+        };
 
         // Add the new tweet to the beginning of the list
         set((state) => ({
@@ -283,6 +304,8 @@ export const useTweetsStore = create<TweetsState & TweetsActions>(
                     ...tweet,
                     is_liked: !tweet.is_liked,
                     likes_count: tweet.likes_count + (tweet.is_liked ? -1 : 1),
+                    // Ensure smacks_count exists
+                    smacks_count: tweet.smacks_count ?? 0,
                   }
                 : tweet;
             }),
@@ -298,35 +321,56 @@ export const useTweetsStore = create<TweetsState & TweetsActions>(
       await get().likeTweet(tweetId);
     },
 
-    healTweet: async (tweetId: string, amount: number) => {
+    smackTweet: async (tweetId: string) => {
+      const { session } = useAuthStore.getState();
+
       try {
-        const response = await fetch(`${API_BASE_URL}/tweets/${tweetId}/heal`, {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({ amount }),
-        });
+        const headers: HeadersInit = {
+          "Content-Type": "application/json",
+        };
+
+        if (session?.access_token) {
+          headers["Authorization"] = `Bearer ${session.access_token}`;
+        }
+
+        const response = await fetch(
+          `${API_BASE_URL}/tweets/${tweetId}/smack`,
+          {
+            method: "POST",
+            headers,
+            body: JSON.stringify({}),
+          }
+        );
 
         if (!response.ok) {
           const errorData = await response.json().catch(() => ({}));
           return {
             success: false,
-            error: errorData.error || "Failed to heal tweet",
+            error: errorData.error || "Failed to smack tweet",
           };
         }
 
         const result = await response.json();
 
-        // Update the tweet's health in the store
-        get().updateTweet(tweetId, {
-          health: result.health_after,
-        });
+        // Update the tweet's smacks count in the store
+        set((state) => ({
+          tweets: state.tweets.map((tweet) => {
+            const currentTweetId = tweet._id.$oid;
+            return currentTweetId === tweetId
+              ? {
+                  ...tweet,
+                  smacks_count: (tweet.smacks_count ?? 0) + 1,
+                  // Ensure likes_count exists
+                  likes_count: tweet.likes_count ?? 0,
+                }
+              : tweet;
+          }),
+        }));
 
         return { success: true };
       } catch (error) {
-        console.error("Failed to heal tweet:", error);
-        return { success: false, error: "Failed to heal tweet" };
+        console.error("Failed to smack tweet:", error);
+        return { success: false, error: "Failed to smack tweet" };
       }
     },
 

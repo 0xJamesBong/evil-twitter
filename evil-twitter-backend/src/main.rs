@@ -16,17 +16,19 @@ mod utils;
 use routes::data_generation::{
     clear_all_data, generate_fake_data, generate_fake_tweets, generate_fake_users,
 };
+use routes::exchange::{get_prices, post_exchange};
 use routes::follow::{follow_user, get_followers_list, get_following_list, unfollow_user};
 use routes::migration::{migrate_user_objectids, migrate_users_weapons};
 use routes::ping::ping_handler;
+use routes::shop::{buy_item, get_catalog_endpoint, get_user_assets};
 use routes::tweet::{
     attack_tweet, create_tweet, get_thread, get_tweet, get_tweets, get_user_wall, like_tweet,
-    migrate_users_dollar_rate, quote_tweet, reply_tweet, retweet_tweet, support_tweet,
+    quote_tweet, reply_tweet, retweet_tweet, smack_tweet, support_tweet,
 };
 use routes::user::{
-    attack_dollar_rate, create_user, get_dollar_rate, get_user, get_users, improve_dollar_rate,
+    attack_dollar_rate, create_user, get_dollar_rate, get_user, get_user_balances, get_users,
+    improve_dollar_rate,
 };
-use routes::weapons::{buy_weapon, get_user_weapons, get_weapon_catalog_endpoint};
 
 /// API documentation
 #[derive(OpenApi)]
@@ -35,6 +37,7 @@ use routes::weapons::{buy_weapon, get_user_weapons, get_weapon_catalog_endpoint}
         routes::ping::ping_handler,
         routes::user::create_user,
         routes::user::get_user,
+        routes::user::get_user_balances,
         routes::user::get_users,
         routes::user::improve_dollar_rate,
         routes::user::attack_dollar_rate,
@@ -45,6 +48,7 @@ use routes::weapons::{buy_weapon, get_user_weapons, get_weapon_catalog_endpoint}
         routes::tweet::get_thread,
         routes::tweet::get_user_wall,
         routes::tweet::like_tweet,
+        routes::tweet::smack_tweet,
         routes::tweet::support_tweet,
         routes::tweet::attack_tweet,
         routes::tweet::retweet_tweet,
@@ -62,9 +66,11 @@ use routes::weapons::{buy_weapon, get_user_weapons, get_weapon_catalog_endpoint}
         routes::follow::get_follow_status,
         routes::follow::get_following_list,
         routes::follow::get_followers_list,
-        routes::weapons::buy_weapon,
-        routes::weapons::get_user_weapons,
-        routes::weapons::get_weapon_catalog_endpoint
+        routes::shop::buy_item,
+        routes::shop::get_catalog_endpoint,
+        routes::shop::get_user_assets,
+        routes::exchange::get_prices,
+        routes::exchange::post_exchange
     ),
     components(
         schemas(
@@ -95,10 +101,25 @@ use routes::weapons::{buy_weapon, get_user_weapons, get_weapon_catalog_endpoint}
             models::tool::Tool,
             routes::tweet::SupportTweetRequest,
             routes::tweet::AttackTweetRequest,
+            routes::tweet::SmackTweetRequest,
             routes::tweet::TweetListResponse,
             routes::tweet::TweetThreadResponse,
-            routes::weapons::BuyWeaponRequest,
-            models::weapon_catalog::WeaponCatalogItem,
+            routes::shop::BuyItemRequest,
+            routes::exchange::ExchangeRequest,
+            routes::exchange::ExchangeResponse,
+            routes::exchange::PricesResponse,
+            routes::exchange::PriceEntrySchema,
+            routes::exchange::PriceRatioSchema,
+            models::assets::asset::Asset,
+            models::assets::catalogItem::CatalogItem,
+            models::assets::enums::Item,
+            models::assets::enums::ItemTypeMetadata,
+            models::assets::enums::ToolMetadata,
+            models::assets::enums::CollectibleMetadata,
+            models::assets::enums::CosmeticMetadata,
+            models::assets::enums::BadgeMetadata,
+            models::assets::enums::MembershipMetadata,
+            models::assets::enums::RaffleboxMetadata,
             routes::migration::MigrationResponse
         )
     ),
@@ -109,7 +130,8 @@ use routes::weapons::{buy_weapon, get_user_weapons, get_weapon_catalog_endpoint}
         (name = "follows", description = "Follow management endpoints"),
         (name = "weapons", description = "Weapon management endpoints"),
         (name = "auth", description = "Authentication endpoints"),
-        (name = "admin", description = "Administrative endpoints")
+        (name = "admin", description = "Administrative endpoints"),
+        (name = "exchange", description = "Token exchange endpoints")
     ),
     info(
         title = "Evil Twitter API",
@@ -144,10 +166,12 @@ async fn main() -> anyhow::Result<()> {
         .route("/users/{user_id}/dollar-rate", get(get_dollar_rate))
         .route("/users/{user_id}/wall", get(get_user_wall))
         .route("/users/{id}", get(get_user))
+        .route("/users/{id}/balances", get(get_user_balances))
         .route("/tweets", post(create_tweet).get(get_tweets))
         .route("/tweets/{id}", get(get_tweet))
         .route("/tweets/{id}/thread", get(get_thread))
         .route("/tweets/{id}/like", post(like_tweet))
+        .route("/tweets/{id}/smack", post(smack_tweet))
         .route("/tweets/{id}/support", post(support_tweet))
         .route("/tweets/{id}/attack", post(attack_tweet))
         .route("/tweets/{id}/retweet", post(retweet_tweet))
@@ -162,10 +186,6 @@ async fn main() -> anyhow::Result<()> {
             "/admin/migrate-user-objectids",
             post(migrate_user_objectids),
         )
-        .route(
-            "/admin/migrate-users-dollar-rate",
-            post(migrate_users_dollar_rate),
-        )
         .route("/users/{user_id}/follow", post(follow_user))
         .route("/users/{user_id}/follow", delete(unfollow_user))
         .route(
@@ -174,9 +194,11 @@ async fn main() -> anyhow::Result<()> {
         )
         .route("/users/{user_id}/following", get(get_following_list))
         .route("/users/{user_id}/followers", get(get_followers_list))
-        .route("/weapons/catalog", get(get_weapon_catalog_endpoint))
-        .route("/weapons/{user_id}/buy", post(buy_weapon))
-        .route("/users/{user_id}/weapons", get(get_user_weapons))
+        .route("/shop/catalog", get(get_catalog_endpoint))
+        .route("/shop/{user_id}/buy", post(buy_item))
+        .route("/users/{user_id}/assets", get(get_user_assets))
+        .route("/exchange/prices", get(get_prices))
+        .route("/exchange", post(post_exchange))
         .split_for_parts();
 
     let app = app

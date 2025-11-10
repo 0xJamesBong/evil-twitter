@@ -15,11 +15,11 @@ import {
 } from '@mui/material';
 import { useBackendUserStore } from '../lib/stores/backendUserStore';
 import { useShopStore } from '../lib/stores/shopStore';
-import { useWeaponsStore } from '../lib/stores/weaponsStore';
+import { useAssetsStore } from '../lib/stores/assetsStore';
 
 export function Shop() {
     const { user } = useBackendUserStore();
-    const fetchUserWeapons = useWeaponsStore((state) => state.fetchUserWeapons);
+    const fetchUserAssets = useAssetsStore((state) => state.fetchUserAssets);
     const {
         catalog,
         loading,
@@ -27,7 +27,7 @@ export function Shop() {
         buying,
         selectedCategory,
         fetchCatalog,
-        buyWeapon,
+        buyItem,
         setSelectedCategory,
         clearError,
         getFilteredCatalog,
@@ -40,32 +40,20 @@ export function Shop() {
         }
     }, []);
 
-    const handleBuyWeapon = async (catalogId: string) => {
+    const handleBuyItem = async (catalogId: string) => {
         if (!user?._id?.$oid) {
-            // This will be handled by the store's error state
             return;
         }
 
-        const result = await buyWeapon(user._id.$oid, catalogId);
+        const result = await buyItem(user._id.$oid, catalogId);
 
         if (result.success) {
-            await fetchUserWeapons(user._id.$oid);
-            alert('Weapon purchased successfully! Check your arsenal.');
+            await fetchUserAssets(user._id.$oid);
+            alert('Item purchased successfully! Check your assets.');
         }
     };
 
-    const getRarityColor = (rarity: string) => {
-        switch (rarity) {
-            case 'legendary':
-                return '#FFD700';
-            case 'rare':
-                return '#9370DB';
-            case 'uncommon':
-                return '#4169E1';
-            default:
-                return '#808080';
-        }
-    };
+    const getRarityColor = () => '#9370DB';
 
     const categories = getCategories();
     const filteredCatalog = getFilteredCatalog();
@@ -81,12 +69,12 @@ export function Shop() {
     return (
         <Box>
             <Typography variant="h4" sx={{ mb: 3, fontWeight: 700 }}>
-                Tool Shop
+                Item Shop
             </Typography>
 
             <Typography variant="body1" color="text.secondary" sx={{ mb: 4 }}>
-                Select from our arsenal of offensive weapons, defensive gear, support tools, and utility gadgets.
-                Each item has unique stats and abilities to enhance your Twitter battles.
+                Browse our catalog of powerful tools, defensive gear, support items, and utility gadgets.
+                Each item has unique stats and abilities to enhance your Twitter experience.
             </Typography>
 
             {error && (
@@ -123,94 +111,101 @@ export function Shop() {
                 },
                 gap: 3
             }}>
-                {filteredCatalog.map((item) => (
-                    <Card
-                        key={item.id}
-                        sx={{
-                            height: '100%',
-                            display: 'flex',
-                            flexDirection: 'column',
-                            border: '2px solid',
-                            borderColor: getRarityColor(item.rarity),
-                            transition: 'transform 0.2s, box-shadow 0.2s',
-                            '&:hover': {
-                                transform: 'translateY(-4px)',
-                                boxShadow: `0 8px 16px ${getRarityColor(item.rarity)}40`,
-                            },
-                        }}
-                    >
-                        <CardContent sx={{ flexGrow: 1, display: 'flex', flexDirection: 'column' }}>
-                            {/* Emoji Icon */}
-                            <Box sx={{ textAlign: 'center', mb: 2 }}>
-                                <Typography sx={{ fontSize: '4rem' }}>
-                                    {item.emoji}
-                                </Typography>
-                            </Box>
+                {filteredCatalog.map((catalogItem) => {
+                    const item = catalogItem.item;
+                    const metadata = item?.item_type_metadata?.data;
 
-                            {/* Name & Rarity */}
-                            <Box sx={{ mb: 2 }}>
-                                <Typography variant="h6" sx={{ fontWeight: 600, mb: 0.5 }}>
-                                    {item.name}
-                                </Typography>
-                                <Chip
-                                    label={item.rarity.toUpperCase()}
-                                    size="small"
-                                    sx={{
-                                        backgroundColor: getRarityColor(item.rarity),
-                                        color: 'white',
-                                        fontWeight: 600,
-                                        fontSize: '0.7rem',
-                                    }}
-                                />
-                            </Box>
+                    if (!item || !metadata) return null;
 
-                            {/* Description */}
-                            <Typography
-                                variant="body2"
-                                color="text.secondary"
-                                sx={{ mb: 2, flexGrow: 1 }}
-                            >
-                                {item.description}
-                            </Typography>
+                    return (
+                        <Card
+                            key={catalogItem.catalog_id}
+                            sx={{
+                                height: '100%',
+                                display: 'flex',
+                                flexDirection: 'column',
+                                border: '2px solid',
+                                borderColor: getRarityColor(),
+                                transition: 'transform 0.2s, box-shadow 0.2s',
+                                '&:hover': {
+                                    transform: 'translateY(-4px)',
+                                    boxShadow: `0 8px 16px ${getRarityColor()}40`,
+                                },
+                            }}
+                        >
+                            <CardContent sx={{ flexGrow: 1, display: 'flex', flexDirection: 'column' }}>
+                                {/* Image */}
+                                <Box sx={{ textAlign: 'center', mb: 2 }}>
+                                    <Typography sx={{ fontSize: '4rem' }}>
+                                        {item.image_url}
+                                    </Typography>
+                                </Box>
 
-                            {/* Stats */}
-                            <Box sx={{ mb: 2 }}>
-                                <Typography variant="caption" display="block" sx={{ mb: 0.5 }}>
-                                    <strong>Type:</strong> {item.tool_type}
-                                </Typography>
-                                <Typography variant="caption" display="block" sx={{ mb: 0.5 }}>
-                                    <strong>Impact:</strong> {item.impact}
-                                </Typography>
-                                <Typography variant="caption" display="block" sx={{ mb: 0.5 }}>
-                                    <strong>Durability:</strong> {item.max_health}
-                                </Typography>
-                                <Typography variant="caption" display="block">
-                                    <strong>Degrade/use:</strong> {item.degrade_per_use}
-                                </Typography>
-                            </Box>
+                                {/* Name */}
+                                <Box sx={{ mb: 2 }}>
+                                    <Typography variant="h6" sx={{ fontWeight: 600, mb: 0.5 }}>
+                                        {item.name}
+                                    </Typography>
+                                    <Chip
+                                        label={metadata.tool_type.toUpperCase()}
+                                        size="small"
+                                        sx={{
+                                            backgroundColor: getRarityColor(),
+                                            color: 'white',
+                                            fontWeight: 600,
+                                            fontSize: '0.7rem',
+                                        }}
+                                    />
+                                </Box>
 
-                            {/* Price & Buy Button */}
-                            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                <Typography variant="h6" sx={{ fontWeight: 700, color: 'primary.main' }}>
-                                    ${item.price}
-                                </Typography>
-                                <Button
-                                    variant="contained"
-                                    size="small"
-                                    onClick={() => handleBuyWeapon(item.id)}
-                                    disabled={buying === item.id || !user}
-                                    sx={{ minWidth: 80 }}
+                                {/* Description */}
+                                <Typography
+                                    variant="body2"
+                                    color="text.secondary"
+                                    sx={{ mb: 2, flexGrow: 1 }}
                                 >
-                                    {buying === item.id ? (
-                                        <CircularProgress size={20} />
-                                    ) : (
-                                        'Buy'
-                                    )}
-                                </Button>
-                            </Box>
-                        </CardContent>
-                    </Card>
-                ))}
+                                    {item.description}
+                                </Typography>
+
+                                {/* Stats */}
+                                <Box sx={{ mb: 2 }}>
+                                    <Typography variant="caption" display="block" sx={{ mb: 0.5 }}>
+                                        <strong>Type:</strong> {metadata.tool_type}
+                                    </Typography>
+                                    <Typography variant="caption" display="block" sx={{ mb: 0.5 }}>
+                                        <strong>Impact:</strong> {metadata.impact}
+                                    </Typography>
+                                    <Typography variant="caption" display="block" sx={{ mb: 0.5 }}>
+                                        <strong>Durability:</strong> {metadata.max_health}
+                                    </Typography>
+                                    <Typography variant="caption" display="block">
+                                        <strong>Degrade/use:</strong> {metadata.degrade_per_use}
+                                    </Typography>
+                                </Box>
+
+                                {/* Price & Buy Button */}
+                                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                    <Typography variant="h6" sx={{ fontWeight: 700, color: 'primary.main' }}>
+                                        {(catalogItem.price / 1000000).toFixed(6)} USDC
+                                    </Typography>
+                                    <Button
+                                        variant="contained"
+                                        size="small"
+                                        onClick={() => handleBuyItem(catalogItem.catalog_id)}
+                                        disabled={buying === catalogItem.catalog_id || !user}
+                                        sx={{ minWidth: 80 }}
+                                    >
+                                        {buying === catalogItem.catalog_id ? (
+                                            <CircularProgress size={20} />
+                                        ) : (
+                                            'Buy'
+                                        )}
+                                    </Button>
+                                </Box>
+                            </CardContent>
+                        </Card>
+                    );
+                })}
             </Box>
 
             {filteredCatalog.length === 0 && (

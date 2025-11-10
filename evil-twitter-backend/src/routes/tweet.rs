@@ -21,8 +21,8 @@ use crate::{
     models::{
         tool::Tool,
         tweet::{
-            CreateTweet, Tweet, TweetAuthorSnapshot, TweetEnergyState, TweetMetrics, TweetType,
-            TweetView, TweetViewerContext,
+            CreateTweet, Tweet, TweetAttackAction, TweetAuthorSnapshot, TweetEnergyState,
+            TweetMetrics, TweetSupportAction, TweetType, TweetView, TweetViewerContext,
         },
         user::User,
     },
@@ -76,6 +76,11 @@ pub struct SupportTweetRequest {
 pub struct AttackTweetRequest {
     #[schema(value_type = String, example = "507f1f77bcf86cd799439011")]
     pub tool_id: Option<String>,
+}
+
+#[derive(Debug, serde::Deserialize, ToSchema)]
+pub struct SmackTweetRequest {
+    // No additional fields needed - smack always costs 1 DOOLER and decreases 1 energy
 }
 
 fn extract_supabase_id_from_auth_header(auth_header: &str) -> Result<String, String> {
@@ -428,20 +433,166 @@ pub async fn get_user_wall(
 pub async fn like_tweet(
     State(db): State<Database>,
     Path(id): Path<String>,
+    headers: HeaderMap,
 ) -> Result<(StatusCode, Json<Value>), ApiError> {
     let collection: Collection<Tweet> = db.collection("tweets");
     let object_id = parse_object_id(&id, "tweet")?;
 
-    let result = collection
-        .update_one(doc! {"_id": object_id}, doc! {"$inc": {"metrics.likes": 1}})
+    // Fetch the tweet to update
+    let mut tweet = collection
+        .find_one(doc! {"_id": object_id})
+        .await
+        .map_err(|_| internal_error("Database error fetching tweet"))?
+        .ok_or_else(|| not_found("Tweet not found"))?;
+
+    // Try to get authenticated user for energy tracking (optional)
+    // If not authenticated, still allow liking but don't track energy
+    let maybe_liker = get_authenticated_user(&db, &headers).await.ok();
+
+    if let Some(liker) = maybe_liker {
+        // Add 10 energy (like contributes 10 energy) - only if authenticated
+        if let Some(user_id) = liker.id {
+            let support_action = TweetSupportAction {
+                timestamp: mongodb::bson::DateTime::now(),
+                impact: 10.0,
+                user_id,
+                tool: None,
+            };
+            tweet.energy_state.record_support(support_action);
+        }
+    }
+
+    tweet.metrics.inc_like();
+
+    // Update both metrics and energy
+    collection
+        .update_one(
+            doc! {"_id": object_id},
+            doc! {
+                "$inc": {"metrics.likes": 1},
+                "$set": {
+                    "energy_state": mongodb::bson::to_bson(&tweet.energy_state)
+                        .map_err(|_| internal_error("Serialization error"))?,
+                    // Ensure smacks field exists if it doesn't
+                    "metrics.smacks": tweet.metrics.smacks
+                }
+            },
+        )
         .await
         .map_err(|_| internal_error("Database error while liking tweet"))?;
 
-    if result.matched_count == 0 {
-        return Err(not_found("Tweet not found"));
+    Ok((
+        StatusCode::OK,
+        Json(json!({
+            "message": "Tweet liked successfully",
+            "energy": tweet.energy_state.energy
+        })),
+    ))
+}
+
+#[utoipa::path(
+    post,
+    path = "/tweets/{id}/smack",
+    params(("id" = String, Path, description = "Tweet ID")),
+    request_body = SmackTweetRequest,
+    responses((status = 200, description = "Tweet smacked successfully")),
+    tag = "tweets"
+)]
+pub async fn smack_tweet(
+    State(db): State<Database>,
+    Path(id): Path<String>,
+    headers: HeaderMap,
+    Json(_payload): Json<SmackTweetRequest>,
+) -> Result<(StatusCode, Json<Value>), ApiError> {
+    use crate::models::tokens::{enums::TokenType, token_balance::TokenBalance};
+
+    let collection: Collection<Tweet> = db.collection("tweets");
+    let token_balance_collection: Collection<TokenBalance> = db.collection("token_balances");
+    let object_id = parse_object_id(&id, "tweet")?;
+
+    // Get the user who is smacking
+    let smacker = get_authenticated_user(&db, &headers).await?;
+    let smacker_id = smacker
+        .id
+        .ok_or_else(|| internal_error("User missing ID"))?;
+
+    // Check if user has enough BLING tokens (charge 1 BLING per smack)
+    let smack_cost = 1_i64;
+    let balance_filter = doc! {
+        "user_id": smacker_id,
+        "token": mongodb::bson::to_bson(&TokenType::Bling)
+            .map_err(|_| internal_error("Serialization error"))?,
+    };
+
+    let balance = token_balance_collection
+        .find_one(balance_filter.clone())
+        .await
+        .map_err(|_| internal_error("Database error checking token balance"))?;
+
+    let current_balance = balance.as_ref().map(|b| b.amount).unwrap_or(0_i64);
+
+    if current_balance < smack_cost {
+        return Err(json_error(
+            StatusCode::BAD_REQUEST,
+            format!(
+                "Insufficient BLING tokens. Required: {}, Available: {}",
+                smack_cost, current_balance
+            ),
+        ));
     }
 
-    Ok((StatusCode::OK, ok_message("Tweet liked successfully")))
+    // Fetch the tweet to update energy
+    let mut tweet = collection
+        .find_one(doc! {"_id": object_id})
+        .await
+        .map_err(|_| internal_error("Database error fetching tweet"))?
+        .ok_or_else(|| not_found("Tweet not found"))?;
+
+    // Decrease 1 energy (smack decreases 1 energy, which is 1/10 of like's 10)
+    let attack_action = TweetAttackAction {
+        timestamp: mongodb::bson::DateTime::now(),
+        impact: 1.0,
+        user_id: smacker_id,
+        tool: None,
+    };
+    tweet.energy_state.record_attack(attack_action);
+    tweet.metrics.inc_smack();
+
+    // Deduct tokens and update tweet in a transaction-like manner
+    // First deduct tokens
+    let update_balance = doc! {
+        "$inc": {"amount": -smack_cost}
+    };
+    token_balance_collection
+        .update_one(balance_filter, update_balance)
+        .await
+        .map_err(|_| internal_error("Database error deducting tokens"))?;
+
+    // Then update tweet - ensure smacks field exists
+    collection
+        .update_one(
+            doc! {"_id": object_id},
+            doc! {
+                "$inc": {"metrics.smacks": 1},
+                "$set": {
+                    "energy_state": mongodb::bson::to_bson(&tweet.energy_state)
+                        .map_err(|_| internal_error("Serialization error"))?,
+                    // Ensure smacks field exists if it doesn't
+                    "metrics.smacks": tweet.metrics.smacks
+                }
+            },
+        )
+        .await
+        .map_err(|_| internal_error("Database error while smacking tweet"))?;
+
+    Ok((
+        StatusCode::OK,
+        Json(json!({
+            "message": "Tweet smacked successfully",
+            "energy": tweet.energy_state.energy,
+            "tokens_charged": smack_cost
+        })),
+    ))
 }
 
 #[utoipa::path(

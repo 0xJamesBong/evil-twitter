@@ -7,6 +7,7 @@ export type TweetType = "original" | "retweet" | "quote" | "reply";
 
 export interface TweetMetrics {
   likes: number;
+  smacks: number;
   retweets: number;
   quotes: number;
   replies: number;
@@ -169,6 +170,7 @@ function normalizeTweet(raw: any): Tweet {
 
   const metrics: TweetMetrics = {
     likes: base.metrics?.likes ?? base.likes_count ?? 0,
+    smacks: base.metrics?.smacks ?? 0,
     retweets: base.metrics?.retweets ?? base.retweets_count ?? 0,
     quotes: base.metrics?.quotes ?? base.quote_count ?? 0,
     replies: base.metrics?.replies ?? base.replies_count ?? 0,
@@ -314,6 +316,9 @@ interface TweetsState {
   supportTweet: (
     tweetId: string,
     toolId: string
+  ) => Promise<{ success: boolean; error?: string }>;
+  smackTweet: (
+    tweetId: string
   ) => Promise<{ success: boolean; error?: string }>;
   updateTweet: (tweetId: string, updater: (tweet: Tweet) => Tweet) => void;
   clearError: () => void;
@@ -639,6 +644,40 @@ export const useTweetsStore = create<TweetsState>((set, get) => ({
     } catch (error) {
       const message =
         error instanceof Error ? error.message : "Failed to support tweet";
+      set({ error: message });
+      return { success: false, error: message };
+    }
+  },
+
+  smackTweet: async (tweetId: string) => {
+    try {
+      const headers = await getAuthHeaders();
+      const response = await fetch(`${API_BASE_URL}/tweets/${tweetId}/smack`, {
+        method: "POST",
+        headers,
+        body: JSON.stringify({}),
+      });
+      const data = await parseJson<any>(response);
+
+      get().updateTweet(tweetId, (tweet) => ({
+        ...tweet,
+        metrics: {
+          ...tweet.metrics,
+          smacks: (tweet.metrics.smacks || 0) + 1,
+        },
+        energy_state: {
+          ...tweet.energy_state,
+          energy: data.energy ?? tweet.energy_state.energy,
+          energy_lost_from_attacks:
+            tweet.energy_state.energy_lost_from_attacks + 1.0,
+          last_update_timestamp: new Date().toISOString(),
+        },
+      }));
+
+      return { success: true };
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : "Failed to smack tweet";
       set({ error: message });
       return { success: false, error: message };
     }

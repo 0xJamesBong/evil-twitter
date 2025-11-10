@@ -37,13 +37,13 @@ export const useWeaponsStore = create<WeaponsState>((set, get) => ({
     set({ loading: true, error: null });
 
     try {
-      const response = await fetch(`${API_BASE_URL}/users/${userId}/weapons`);
-      if (!response.ok) throw new Error("Failed to fetch user weapons");
+      const response = await fetch(`${API_BASE_URL}/users/${userId}/assets`);
+      if (!response.ok) throw new Error("Failed to fetch user assets");
       const weapons = await response.json();
       set({ weapons, loading: false });
     } catch (error) {
       const errorMessage =
-        error instanceof Error ? error.message : "Failed to fetch weapons";
+        error instanceof Error ? error.message : "Failed to fetch assets";
       set({ error: errorMessage, loading: false });
     }
   },
