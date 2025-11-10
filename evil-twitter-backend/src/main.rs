@@ -23,10 +23,11 @@ use routes::ping::ping_handler;
 use routes::shop::{buy_item, get_catalog_endpoint, get_user_assets};
 use routes::tweet::{
     attack_tweet, create_tweet, get_thread, get_tweet, get_tweets, get_user_wall, like_tweet,
-    quote_tweet, reply_tweet, retweet_tweet, support_tweet,
+    quote_tweet, reply_tweet, retweet_tweet, smack_tweet, support_tweet,
 };
 use routes::user::{
-    attack_dollar_rate, create_user, get_dollar_rate, get_user, get_users, improve_dollar_rate,
+    attack_dollar_rate, create_user, get_dollar_rate, get_user, get_user_balances, get_users,
+    improve_dollar_rate,
 };
 
 /// API documentation
@@ -36,6 +37,7 @@ use routes::user::{
         routes::ping::ping_handler,
         routes::user::create_user,
         routes::user::get_user,
+        routes::user::get_user_balances,
         routes::user::get_users,
         routes::user::improve_dollar_rate,
         routes::user::attack_dollar_rate,
@@ -46,6 +48,7 @@ use routes::user::{
         routes::tweet::get_thread,
         routes::tweet::get_user_wall,
         routes::tweet::like_tweet,
+        routes::tweet::smack_tweet,
         routes::tweet::support_tweet,
         routes::tweet::attack_tweet,
         routes::tweet::retweet_tweet,
@@ -98,6 +101,7 @@ use routes::user::{
             models::tool::Tool,
             routes::tweet::SupportTweetRequest,
             routes::tweet::AttackTweetRequest,
+            routes::tweet::SmackTweetRequest,
             routes::tweet::TweetListResponse,
             routes::tweet::TweetThreadResponse,
             routes::shop::BuyItemRequest,
@@ -162,10 +166,12 @@ async fn main() -> anyhow::Result<()> {
         .route("/users/{user_id}/dollar-rate", get(get_dollar_rate))
         .route("/users/{user_id}/wall", get(get_user_wall))
         .route("/users/{id}", get(get_user))
+        .route("/users/{id}/balances", get(get_user_balances))
         .route("/tweets", post(create_tweet).get(get_tweets))
         .route("/tweets/{id}", get(get_tweet))
         .route("/tweets/{id}/thread", get(get_thread))
         .route("/tweets/{id}/like", post(like_tweet))
+        .route("/tweets/{id}/smack", post(smack_tweet))
         .route("/tweets/{id}/support", post(support_tweet))
         .route("/tweets/{id}/attack", post(attack_tweet))
         .route("/tweets/{id}/retweet", post(retweet_tweet))

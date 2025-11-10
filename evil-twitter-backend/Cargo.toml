@@ -46,3 +46,11 @@ path = "create_fake_users.rs"
 [[bin]]
 name = "create_fake_tweets"
 path = "create_fake_tweets.rs"
+
+[[bin]]
+name = "migrate_smacks"
+path = "migrate_smacks.rs"
+
+[[bin]]
+name = "migrate_bling"
+path = "migrate_bling.rs"

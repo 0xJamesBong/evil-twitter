@@ -81,6 +81,10 @@ pub struct TweetMetrics {
 
     #[schema(example = "0")]
     pub impressions: i64,
+
+    #[serde(default)]
+    #[schema(example = "0")]
+    pub smacks: i64,
 }
 
 impl TweetMetrics {
@@ -103,6 +107,10 @@ impl TweetMetrics {
     pub fn touch_impression(&mut self) {
         self.impressions += 1;
     }
+
+    pub fn inc_smack(&mut self) {
+        self.smacks += 1;
+    }
 }
 
 impl Default for TweetMetrics {
@@ -113,6 +121,7 @@ impl Default for TweetMetrics {
             quotes: 0,
             replies: 0,
             impressions: 0,
+            smacks: 0,
         }
     }
 }

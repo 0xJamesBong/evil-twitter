@@ -8,7 +8,7 @@ import Navbar from '../../../components/Navbar';
 
 export default function ProfilePage() {
     const { user, logout } = useAuthStore();
-    const { user: backendUser, fetchUser, isLoading: backendLoading } = useBackendUserStore();
+    const { user: backendUser, fetchUser, isLoading: backendLoading, balances, fetchBalances } = useBackendUserStore();
 
     const handleSyncWithSupabase = async () => {
         if (user?.id) {
@@ -22,6 +22,13 @@ export default function ProfilePage() {
             fetchUser(user.id);
         }
     }, [user?.id, fetchUser]);
+
+    // Fetch token balances
+    useEffect(() => {
+        if (backendUser?._id?.$oid) {
+            fetchBalances(backendUser._id.$oid);
+        }
+    }, [backendUser?._id?.$oid, fetchBalances]);
 
     const handleLogout = async () => {
         try {
@@ -108,6 +115,43 @@ export default function ProfilePage() {
                                         <div className="bg-purple-500 rounded-lg p-4 text-center">
                                             <div className="text-2xl font-bold text-white">${backendUser.dollar_conversion_rate.toLocaleString()}</div>
                                             <div className="text-purple-200 text-sm">Dollar Rate</div>
+                                        </div>
+                                    </div>
+                                </div>
+                            )}
+
+                            {/* Token Balances */}
+                            {balances && (
+                                <div className="mb-6">
+                                    <h2 className="text-xl font-semibold text-white mb-4">💰 Token Balances</h2>
+                                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                                        <div className="bg-gradient-to-br from-purple-600 to-purple-800 rounded-lg p-4 text-center border-2 border-purple-400">
+                                            <div className="text-3xl mb-2">💎</div>
+                                            <div className="text-2xl font-bold text-white">
+                                                {balances['Bling']?.toLocaleString() || '0'}
+                                            </div>
+                                            <div className="text-purple-200 text-sm font-semibold">BLING</div>
+                                        </div>
+                                        <div className="bg-gray-800 rounded-lg p-4 text-center">
+                                            <div className="text-3xl mb-2">💵</div>
+                                            <div className="text-2xl font-bold text-white">
+                                                {balances['Dooler']?.toLocaleString() || '0'}
+                                            </div>
+                                            <div className="text-gray-400 text-sm">DOOLER</div>
+                                        </div>
+                                        <div className="bg-gray-800 rounded-lg p-4 text-center">
+                                            <div className="text-3xl mb-2">💲</div>
+                                            <div className="text-2xl font-bold text-white">
+                                                {balances['Usdc']?.toLocaleString() || '0'}
+                                            </div>
+                                            <div className="text-gray-400 text-sm">USDC</div>
+                                        </div>
+                                        <div className="bg-gray-800 rounded-lg p-4 text-center">
+                                            <div className="text-3xl mb-2">◎</div>
+                                            <div className="text-2xl font-bold text-white">
+                                                {balances['Sol']?.toLocaleString() || '0'}
+                                            </div>
+                                            <div className="text-gray-400 text-sm">SOL</div>
                                         </div>
                                     </div>
                                 </div>

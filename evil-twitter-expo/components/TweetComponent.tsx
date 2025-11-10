@@ -34,6 +34,7 @@ export function TweetComponent({
         retweetTweet,
         attackTweet,
         supportTweet,
+        smackTweet,
         openQuoteModal,
         openReplyModal
     } = useTweetsStore();
@@ -88,6 +89,15 @@ export function TweetComponent({
     const handleSupport = () => {
         setWeaponActionType('support');
         setShowWeaponModal(true);
+    };
+
+    const handleSmack = async () => {
+        const result = await smackTweet(tweet._id.$oid);
+        if (result.success) {
+            Alert.alert('Success', 'Tweet smacked!');
+        } else {
+            Alert.alert('Error', result.error || 'Failed to smack tweet. Make sure you have enough BLING tokens.');
+        }
     };
 
     const handleWeaponSelect = async (weaponId: string, _weapon: Weapon) => {
@@ -303,6 +313,17 @@ export function TweetComponent({
                             >
                                 <Text style={styles.actionIcon}>❤️</Text>
                                 <Text style={styles.actionText}>{tweet.likes_count || 0}</Text>
+                            </TouchableOpacity>
+
+                            <TouchableOpacity
+                                style={styles.actionButton}
+                                onPress={(e) => {
+                                    e.stopPropagation();
+                                    handleSmack();
+                                }}
+                            >
+                                <Text style={styles.actionIcon}>👊</Text>
+                                <Text style={styles.actionText}>{tweet.metrics?.smacks || 0}</Text>
                             </TouchableOpacity>
 
                             <TouchableOpacity
