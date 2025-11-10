@@ -1,4 +1,5 @@
 pub mod follow;
+pub mod like;
 
 pub mod tool;
 pub mod tweet;

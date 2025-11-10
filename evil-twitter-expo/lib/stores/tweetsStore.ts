@@ -1,5 +1,6 @@
 import { create } from "zustand";
 import { API_BASE_URL } from "../config/api";
+import { getAuthHeaders } from "../api/auth";
 
 type ObjectIdRef = { $oid: string };
 
@@ -116,24 +117,6 @@ interface TweetListResponse {
   total: number;
 }
 
-const getAuthHeaders = async (
-  includeJson: boolean = true
-): Promise<Record<string, string>> => {
-  const { supabase } = await import("../supabase");
-  const {
-    data: { session },
-  } = await supabase.auth.getSession();
-
-  const headers: Record<string, string> = {};
-  if (includeJson) {
-    headers["Content-Type"] = "application/json";
-  }
-  if (session?.access_token) {
-    headers["Authorization"] = `Bearer ${session.access_token}`;
-  }
-  return headers;
-};
-
 const flattenTweetPayload = (raw: any) => {
   if (raw && typeof raw === "object" && "tweet" in raw && raw.tweet) {
     const { tweet, ...rest } = raw;
@@ -161,7 +144,7 @@ const parseJson = async <T>(response: Response): Promise<T> => {
   return (data ?? {}) as T;
 };
 
-function normalizeTweet(raw: any): Tweet {
+export function normalizeTweet(raw: any): Tweet {
   const base = flattenTweetPayload(raw);
 
   if (!base) {
@@ -268,7 +251,7 @@ function normalizeTweet(raw: any): Tweet {
   return normalized;
 }
 
-const normalizeTweetList = (rawTweets: any[] | undefined): Tweet[] =>
+export const normalizeTweetList = (rawTweets: any[] | undefined): Tweet[] =>
   (rawTweets ?? []).map(normalizeTweet);
 
 interface TweetsState {
@@ -320,7 +303,11 @@ interface TweetsState {
   smackTweet: (
     tweetId: string
   ) => Promise<{ success: boolean; error?: string }>;
+  likeTweet: (
+    tweetId: string
+  ) => Promise<{ success: boolean; liked?: boolean; error?: string }>;
   updateTweet: (tweetId: string, updater: (tweet: Tweet) => Tweet) => void;
+  setUserTweets: (tweets: Tweet[]) => void;
   clearError: () => void;
 
   openQuoteModal: (tweetId: string) => void;
@@ -365,7 +352,10 @@ export const useTweetsStore = create<TweetsState>((set, get) => ({
   fetchTweets: async () => {
     set({ loading: true, error: null });
     try {
-      const response = await fetch(`${API_BASE_URL}/tweets`);
+      const headers = await getAuthHeaders(false);
+      const response = await fetch(`${API_BASE_URL}/tweets`, {
+        headers,
+      });
       const data = await parseJson<TweetListResponse>(response);
       const tweets = normalizeTweetList(data.tweets);
       set({ tweets, loading: false });
@@ -381,7 +371,10 @@ export const useTweetsStore = create<TweetsState>((set, get) => ({
   fetchUserTweets: async (userId: string) => {
     set({ loading: true, error: null });
     try {
-      const response = await fetch(`${API_BASE_URL}/users/${userId}/wall`);
+      const headers = await getAuthHeaders(false);
+      const response = await fetch(`${API_BASE_URL}/users/${userId}/wall`, {
+        headers,
+      });
       const data = await parseJson<TweetListResponse>(response);
       const userTweets = normalizeTweetList(data.tweets);
       set({ userTweets, loading: false });
@@ -398,7 +391,10 @@ export const useTweetsStore = create<TweetsState>((set, get) => ({
 
   fetchTweet: async (tweetId: string) => {
     try {
-      const response = await fetch(`${API_BASE_URL}/tweets/${tweetId}`);
+      const headers = await getAuthHeaders(false);
+      const response = await fetch(`${API_BASE_URL}/tweets/${tweetId}`, {
+        headers,
+      });
       const data = await parseJson<any>(response);
       return normalizeTweet(data);
     } catch (error) {
@@ -683,6 +679,49 @@ export const useTweetsStore = create<TweetsState>((set, get) => ({
     }
   },
 
+  likeTweet: async (tweetId: string) => {
+    try {
+      const headers = await getAuthHeaders();
+      const response = await fetch(`${API_BASE_URL}/tweets/${tweetId}/like`, {
+        method: "POST",
+        headers,
+      });
+      const data = await parseJson<{ liked?: boolean; energy?: number }>(
+        response
+      );
+      const liked = data.liked ?? true;
+
+      get().updateTweet(tweetId, (tweet) => {
+        const delta = liked ? 1 : -1;
+        const nextLikes = Math.max(0, (tweet.metrics.likes ?? 0) + delta);
+
+        return {
+          ...tweet,
+          metrics: {
+            ...tweet.metrics,
+            likes: nextLikes,
+          },
+          likes_count: nextLikes,
+          viewer_context: {
+            ...tweet.viewer_context,
+            is_liked: liked,
+          },
+          energy_state: {
+            ...tweet.energy_state,
+            energy: data.energy ?? tweet.energy_state.energy,
+          },
+        };
+      });
+
+      return { success: true, liked };
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : "Failed to like tweet";
+      set({ error: message });
+      return { success: false, error: message };
+    }
+  },
+
   updateTweet: (tweetId: string, updater: (tweet: Tweet) => Tweet) => {
     set((state) => {
       const updateCollection = (collection: Tweet[]) =>
@@ -710,6 +749,10 @@ export const useTweetsStore = create<TweetsState>((set, get) => ({
         threads: updatedThreads,
       };
     });
+  },
+
+  setUserTweets: (tweets: Tweet[]) => {
+    set({ userTweets: tweets });
   },
 
   clearError: () => {

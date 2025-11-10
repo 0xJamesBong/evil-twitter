@@ -1,4 +1,10 @@
-use axum::routing::{delete, get, post};
+use async_graphql::http::GraphiQLSource;
+use async_graphql_axum::{GraphQL, GraphQLSubscription};
+use axum::{
+    Router,
+    response::Html,
+    routing::{delete, get, post},
+};
 use dotenvy::dotenv;
 use tower_http::cors::CorsLayer;
 
@@ -11,6 +17,7 @@ mod actions;
 mod middleware;
 mod models;
 mod routes;
+mod graphql;
 mod utils;
 
 use routes::data_generation::{
@@ -29,6 +36,15 @@ use routes::user::{
     attack_dollar_rate, create_user, get_dollar_rate, get_user, get_user_balances, get_users,
     improve_dollar_rate,
 };
+
+async fn graphql_playground() -> Html<String> {
+    Html(
+        GraphiQLSource::build()
+            .endpoint("/graphql")
+            .subscription_endpoint("/graphql/ws")
+            .finish(),
+    )
+}
 
 /// API documentation
 #[derive(OpenApi)]
@@ -201,7 +217,17 @@ async fn main() -> anyhow::Result<()> {
         .route("/exchange", post(post_exchange))
         .split_for_parts();
 
+    let schema = graphql::build_schema(db.clone());
+
+    let graphql_router = Router::new()
+        .route(
+            "/graphql",
+            get(graphql_playground).post_service(GraphQL::new(schema.clone())),
+        )
+        .route_service("/graphql/ws", GraphQLSubscription::new(schema));
+
     let app = app
+        .merge(graphql_router)
         .merge(SwaggerUi::new("/doc").url("/api-docs/openapi.json", api))
         .with_state(db)
         .layer(cors);

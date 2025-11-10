@@ -237,6 +237,14 @@ impl TweetEnergyState {
         self.update_energy();
     }
 
+    pub fn revert_support(&mut self, impact: f64) {
+        self.energy_gained_from_support -= impact;
+        if self.energy_gained_from_support < 0.0 {
+            self.energy_gained_from_support = 0.0;
+        }
+        self.update_energy();
+    }
+
     pub fn record_attack(&mut self, action: TweetAttackAction) {
         self.energy_lost_from_attacks += action.impact;
         self.history.attack_history.push(action);

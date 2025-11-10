@@ -33,6 +33,8 @@ futures = "0.3"
 thiserror = "1.0"
 validator = { version = "0.16", features = ["derive"] }
 base64 = "0.21"
+async-graphql = { version = "7.0", features = ["chrono"] }
+async-graphql-axum = "7.0"
 
 utoipa = { version = "5.0.0", features = ["axum_extras", "uuid", "chrono"] }
 utoipa-axum = "0.2.0"
