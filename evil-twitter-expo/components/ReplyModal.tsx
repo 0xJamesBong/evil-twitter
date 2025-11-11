@@ -9,6 +9,7 @@ import {
     KeyboardAvoidingView,
     Platform,
     ActivityIndicator,
+    ScrollView,
 } from 'react-native';
 import { Tweet, useTweetsStore } from '@/lib/stores/tweetsStore';
 import { useBackendUserStore } from '@/lib/stores/backendUserStore';
@@ -57,9 +58,51 @@ export function ReplyModal() {
     }, [replyTweetId, threads, tweets]);
 
     const [isSubmitting, setIsSubmitting] = useState(false);
-    const [originalTweet, setOriginalTweet] = useState<Tweet | null>(targetTweet ?? null);
+    const [originalTweet, setOriginalTweet] = useState<Tweet | null>(null);
     const [originalLoading, setOriginalLoading] = useState(false);
     const [localContent, setLocalContent] = useState(replyContent);
+
+    // Helper to get author info safely
+    const getAuthorInfo = (tweet: Tweet | null) => {
+        if (!tweet) return { displayName: '', username: '', avatar: null };
+
+        const displayName =
+            tweet.author_display_name ||
+            tweet.author_snapshot?.display_name ||
+            tweet.author?.display_name ||
+            '';
+
+        const username =
+            tweet.author_username ||
+            tweet.author_snapshot?.username ||
+            tweet.author?.username ||
+            '';
+
+        const avatar =
+            tweet.author_avatar_url ||
+            tweet.author_snapshot?.avatar_url ||
+            tweet.author?.avatar_url ||
+            null;
+
+        return { displayName, username, avatar };
+    };
+
+    // Helper to parse date safely
+    const parseDate = (dateValue: string | { $date?: { $numberLong?: string } } | undefined): Date => {
+        if (!dateValue) return new Date();
+
+        if (typeof dateValue === 'string') {
+            const parsed = new Date(dateValue);
+            return isNaN(parsed.getTime()) ? new Date() : parsed;
+        }
+
+        if (typeof dateValue === 'object' && dateValue.$date?.$numberLong) {
+            const timestamp = parseInt(dateValue.$date.$numberLong, 10);
+            return new Date(timestamp);
+        }
+
+        return new Date();
+    };
 
     useEffect(() => {
         setLocalContent(showReplyModal ? replyContent : '');
@@ -74,18 +117,29 @@ export function ReplyModal() {
             return;
         }
 
+        // Always use targetTweet if available (it's already in memory)
         if (targetTweet) {
             setOriginalTweet(targetTweet);
             setOriginalLoading(false);
             return;
         }
 
+        // Only fetch if we don't have the tweet in memory
         const hydrateOriginal = async () => {
             setOriginalLoading(true);
-            const fetched = await fetchTweet(replyTweetId);
-            if (!isMounted) return;
-            setOriginalTweet(fetched);
-            setOriginalLoading(false);
+            try {
+                const fetched = await fetchTweet(replyTweetId);
+                if (!isMounted) return;
+                setOriginalTweet(fetched);
+            } catch (error) {
+                console.error('Failed to fetch tweet for reply modal:', error);
+                if (!isMounted) return;
+                setOriginalTweet(null);
+            } finally {
+                if (isMounted) {
+                    setOriginalLoading(false);
+                }
+            }
         };
 
         hydrateOriginal();
@@ -126,6 +180,7 @@ export function ReplyModal() {
     }
 
     const previewTweet = originalTweet || targetTweet;
+    const authorInfo = getAuthorInfo(previewTweet);
 
     return (
         <Modal
@@ -137,6 +192,7 @@ export function ReplyModal() {
             <KeyboardAvoidingView
                 style={styles.overlay}
                 behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+                keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 20}
             >
                 <View style={styles.card}>
                     <View style={styles.header}>
@@ -146,90 +202,96 @@ export function ReplyModal() {
                         </TouchableOpacity>
                     </View>
 
-                    {originalLoading && (
-                        <View style={styles.loadingTweet}>
-                            <ActivityIndicator size="small" color="#1DA1F2" />
-                            <Text style={styles.loadingTweetText}>Fetching original tweet...</Text>
-                        </View>
-                    )}
-
-                    {!originalLoading && !previewTweet && (
-                        <View style={styles.missingTweetContainer}>
-                            <Text style={styles.missingTweetText}>Original tweet unavailable</Text>
-                        </View>
-                    )}
-
-                    {previewTweet && (
-                        <View style={styles.threadContainer}>
-                            <View style={styles.timelineColumn}>
-                                <View style={styles.avatarLarge}>
-                                    <Text style={styles.avatarText}>
-                                        {previewTweet.author_display_name?.charAt(0).toUpperCase() ||
-                                            previewTweet.author_username?.charAt(0).toUpperCase() ||
-                                            '😈'}
-                                    </Text>
-                                </View>
-                                <View style={styles.timelineLine} />
-                                <View style={styles.avatarSmall}>
-                                    <Text style={styles.avatarText}>
-                                        {currentUser?.display_name?.charAt(0).toUpperCase() ||
-                                            currentUser?.username?.charAt(0).toUpperCase() ||
-                                            'You'.charAt(0)}
-                                    </Text>
-                                </View>
+                    <ScrollView
+                        style={styles.scrollContent}
+                        contentContainerStyle={styles.scrollContentContainer}
+                        keyboardShouldPersistTaps="handled"
+                    >
+                        {originalLoading && (
+                            <View style={styles.loadingTweet}>
+                                <ActivityIndicator size="small" color="#1DA1F2" />
+                                <Text style={styles.loadingTweetText}>Fetching original tweet...</Text>
                             </View>
-                            <View style={styles.threadContent}>
-                                <View style={styles.originalBubble}>
-                                    <View style={styles.previewHeaderRow}>
-                                        <Text style={styles.previewName}>
-                                            {previewTweet.author_display_name || previewTweet.author_username || 'User'}
-                                        </Text>
-                                        <Text style={styles.previewUsername}>
-                                            @{previewTweet.author_username || 'user'}
-                                        </Text>
-                                        <Text style={styles.previewDot}>·</Text>
-                                        <Text style={styles.previewTime}>
-                                            {new Date(previewTweet.created_at).toLocaleDateString()}
+                        )}
+
+                        {!originalLoading && !previewTweet && (
+                            <View style={styles.missingTweetContainer}>
+                                <Text style={styles.missingTweetText}>Original tweet unavailable</Text>
+                            </View>
+                        )}
+
+                        {previewTweet && (
+                            <View style={styles.threadContainer}>
+                                <View style={styles.timelineColumn}>
+                                    <View style={styles.avatarLarge}>
+                                        <Text style={styles.avatarText}>
+                                            {authorInfo.displayName?.charAt(0).toUpperCase() ||
+                                                authorInfo.username?.charAt(0).toUpperCase() ||
+                                                '😈'}
                                         </Text>
                                     </View>
-                                    <Text style={styles.previewBody}>{previewTweet.content}</Text>
+                                    <View style={styles.timelineLine} />
+                                    <View style={styles.avatarSmall}>
+                                        <Text style={styles.avatarText}>
+                                            {currentUser?.display_name?.charAt(0).toUpperCase() ||
+                                                currentUser?.username?.charAt(0).toUpperCase() ||
+                                                'You'.charAt(0)}
+                                        </Text>
+                                    </View>
                                 </View>
-                                <Text style={styles.replyingToLabel}>
-                                    Replying to{' '}
-                                    <Text style={styles.replyingToUsername}>
-                                        @{previewTweet.author_username || 'user'}
+                                <View style={styles.threadContent}>
+                                    <View style={styles.originalBubble}>
+                                        <View style={styles.previewHeaderRow}>
+                                            <Text style={styles.previewName}>
+                                                {authorInfo.displayName || 'User'}
+                                            </Text>
+                                            <Text style={styles.previewUsername}>
+                                                @{authorInfo.username || 'user'}
+                                            </Text>
+                                            <Text style={styles.previewDot}>·</Text>
+                                            <Text style={styles.previewTime}>
+                                                {parseDate(previewTweet.created_at).toLocaleDateString()}
+                                            </Text>
+                                        </View>
+                                        <Text style={styles.previewBody}>{previewTweet.content || ''}</Text>
+                                    </View>
+                                    <Text style={styles.replyingToLabel}>
+                                        Replying to{' '}
+                                        <Text style={styles.replyingToUsername}>
+                                            @{authorInfo.username || 'user'}
+                                        </Text>
                                     </Text>
-                                </Text>
-                                <TextInput
-                                    style={styles.input}
-                                    placeholder="Tweet your reply..."
-                                    placeholderTextColor="#6b6e72"
-                                    multiline
-                                    value={localContent}
-                                    onChangeText={handleContentChange}
-                                    maxLength={280}
-                                    editable={!isSubmitting}
-                                    autoFocus
-                                    textAlignVertical="top"
-                                />
+                                    <TextInput
+                                        style={styles.input}
+                                        placeholder="Tweet your reply..."
+                                        placeholderTextColor="#6b6e72"
+                                        multiline
+                                        value={localContent}
+                                        onChangeText={handleContentChange}
+                                        maxLength={280}
+                                        editable={!isSubmitting}
+                                        autoFocus
+                                        textAlignVertical="top"
+                                    />
+                                </View>
                             </View>
-                        </View>
-                    )}
+                        )}
 
-                    {(!originalLoading && !previewTweet) && (
-                        <TextInput
-                            style={styles.input}
-                            placeholder="Tweet your reply..."
-                            placeholderTextColor="#6b6e72"
-                            multiline
-                            value={localContent}
-                            onChangeText={handleContentChange}
-                            maxLength={280}
-                            editable={!isSubmitting}
-                            autoFocus
-                            textAlignVertical="top"
-                        />
-                    )}
+                        {(!originalLoading && !previewTweet) && (
+                            <TextInput
+                                style={styles.input}
+                                placeholder="Tweet your reply..."
+                                placeholderTextColor="#6b6e72"
+                                multiline
+                                value={localContent}
+                                onChangeText={handleContentChange}
+                                maxLength={280}
+                                editable={!isSubmitting}
+                                autoFocus
+                                textAlignVertical="top"
+                            />
+                        )}
+                    </ScrollView>
 
                     <View style={styles.footer}>
                         <Text style={styles.counter}>{localContent.length}/280</Text>
@@ -263,12 +325,19 @@ const styles = StyleSheet.create({
     card: {
         width: '100%',
         maxWidth: 540,
+        maxHeight: '90%',
         backgroundColor: '#000',
         borderRadius: 20,
         borderWidth: 1,
         borderColor: '#2f3336',
         padding: 20,
         gap: 16,
+    },
+    scrollContent: {
+        flex: 1,
+    },
+    scrollContentContainer: {
+        flexGrow: 1,
     },
     header: {
         flexDirection: 'row',
