@@ -378,24 +378,6 @@ export const useTweetsStore = create<TweetsState>((set, get) => ({
       });
     }
   },
-  // fetchTweets: async () => {
-  //   set({ loading: true, error: null });
-  //   try {
-  //     const headers = await getAuthHeaders(false);
-  //     const response = await fetch(`${API_BASE_URL}/tweets`, {
-  //       headers,
-  //     });
-  //     const data = await parseJson<TweetListResponse>(response);
-  //     const tweets = normalizeTweetList(data.tweets);
-  //     set({ tweets, loading: false });
-  //   } catch (error) {
-  //     set({
-  //       error:
-  //         error instanceof Error ? error.message : "Failed to fetch tweets",
-  //       loading: false,
-  //     });
-  //   }
-  // },
 
   fetchUserTweets: async (userId: string) => {
     set({ loading: true, error: null });
@@ -887,40 +869,6 @@ export const useTweetsStore = create<TweetsState>((set, get) => ({
       });
     }
   },
-
-  // fetchThread: async (tweetId: string) => {
-  //   set({
-  //     threadLoading: true,
-  //     threadError: null,
-  //   });
-  //   try {
-  //     const headers = await getAuthHeaders(false);
-  //     const response = await fetch(`${API_BASE_URL}/tweets/${tweetId}/thread`, {
-  //       method: "GET",
-  //       headers,
-  //     });
-  //     const data = await parseJson<ThreadApiResponse>(response);
-  //     const normalizedThread: ThreadData = {
-  //       tweet: normalizeTweet(data.tweet),
-  //       parents: normalizeTweetList(data.parents),
-  //       replies: normalizeTweetList(data.replies),
-  //     };
-
-  //     set((state) => ({
-  //       threads: {
-  //         ...state.threads,
-  //         [tweetId]: normalizedThread,
-  //       },
-  //       threadLoading: false,
-  //     }));
-  //   } catch (error) {
-  //     set({
-  //       threadError:
-  //         error instanceof Error ? error.message : "Failed to fetch thread",
-  //       threadLoading: false,
-  //     });
-  //   }
-  // },
 
   clearThread: (tweetId: string) => {
     set((state) => {
