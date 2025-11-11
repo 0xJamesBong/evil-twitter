@@ -12,7 +12,6 @@ import {
 } from 'react-native';
 import { Tweet, useTweetsStore } from '@/lib/stores/tweetsStore';
 import { useBackendUserStore } from '@/lib/stores/backendUserStore';
-import { TweetComponent } from './TweetComponent';
 
 export function ReplyModal() {
     const {
@@ -154,31 +153,70 @@ export function ReplyModal() {
                         </View>
                     )}
 
-                    {previewTweet && (
-                        <View style={styles.preview}>
-                            <TweetComponent
-                                tweet={previewTweet}
-                                isClickable={false}
-                                showActions={false}
-                            />
-                        </View>
-                    )}
-
                     {!originalLoading && !previewTweet && (
                         <View style={styles.missingTweetContainer}>
                             <Text style={styles.missingTweetText}>Original tweet unavailable</Text>
                         </View>
                     )}
 
-                    <View style={styles.inputContainer}>
-                        {previewTweet && (
-                            <Text style={styles.replyingToLabel}>
-                                Replying to{' '}
-                                <Text style={styles.replyingToUsername}>
-                                    @{previewTweet.author_username || 'user'}
+                    {previewTweet && (
+                        <View style={styles.threadContainer}>
+                            <View style={styles.timelineColumn}>
+                                <View style={styles.avatarLarge}>
+                                    <Text style={styles.avatarText}>
+                                        {previewTweet.author_display_name?.charAt(0).toUpperCase() ||
+                                            previewTweet.author_username?.charAt(0).toUpperCase() ||
+                                            '😈'}
+                                    </Text>
+                                </View>
+                                <View style={styles.timelineLine} />
+                                <View style={styles.avatarSmall}>
+                                    <Text style={styles.avatarText}>
+                                        {currentUser?.display_name?.charAt(0).toUpperCase() ||
+                                            currentUser?.username?.charAt(0).toUpperCase() ||
+                                            'You'.charAt(0)}
+                                    </Text>
+                                </View>
+                            </View>
+                            <View style={styles.threadContent}>
+                                <View style={styles.originalBubble}>
+                                    <View style={styles.previewHeaderRow}>
+                                        <Text style={styles.previewName}>
+                                            {previewTweet.author_display_name || previewTweet.author_username || 'User'}
+                                        </Text>
+                                        <Text style={styles.previewUsername}>
+                                            @{previewTweet.author_username || 'user'}
+                                        </Text>
+                                        <Text style={styles.previewDot}>·</Text>
+                                        <Text style={styles.previewTime}>
+                                            {new Date(previewTweet.created_at).toLocaleDateString()}
+                                        </Text>
+                                    </View>
+                                    <Text style={styles.previewBody}>{previewTweet.content}</Text>
+                                </View>
+                                <Text style={styles.replyingToLabel}>
+                                    Replying to{' '}
+                                    <Text style={styles.replyingToUsername}>
+                                        @{previewTweet.author_username || 'user'}
+                                    </Text>
                                 </Text>
-                            </Text>
-                        )}
+                                <TextInput
+                                    style={styles.input}
+                                    placeholder="Tweet your reply..."
+                                    placeholderTextColor="#6b6e72"
+                                    multiline
+                                    value={localContent}
+                                    onChangeText={handleContentChange}
+                                    maxLength={280}
+                                    editable={!isSubmitting}
+                                    autoFocus
+                                    textAlignVertical="top"
+                                />
+                            </View>
+                        </View>
+                    )}
+
+                    {(!originalLoading && !previewTweet) && (
                         <TextInput
                             style={styles.input}
                             placeholder="Tweet your reply..."
@@ -191,21 +229,22 @@ export function ReplyModal() {
                             autoFocus
                             textAlignVertical="top"
                         />
-                        <View style={styles.footer}>
-                            <Text style={styles.counter}>{localContent.length}/280</Text>
-                            <TouchableOpacity
-                                style={[
-                                    styles.submitButton,
-                                    (!localContent.trim() || isSubmitting) && styles.submitButtonDisabled,
-                                ]}
-                                onPress={handleSubmit}
-                                disabled={!localContent.trim() || isSubmitting}
-                            >
-                                <Text style={styles.submitButtonText}>
-                                    {isSubmitting ? 'Replying...' : 'Reply'}
-                                </Text>
-                            </TouchableOpacity>
-                        </View>
+                    )}
+
+                    <View style={styles.footer}>
+                        <Text style={styles.counter}>{localContent.length}/280</Text>
+                        <TouchableOpacity
+                            style={[
+                                styles.submitButton,
+                                (!localContent.trim() || isSubmitting) && styles.submitButtonDisabled,
+                            ]}
+                            onPress={handleSubmit}
+                            disabled={!localContent.trim() || isSubmitting}
+                        >
+                            <Text style={styles.submitButtonText}>
+                                {isSubmitting ? 'Replying...' : 'Reply'}
+                            </Text>
+                        </TouchableOpacity>
                     </View>
                 </View>
             </KeyboardAvoidingView>
@@ -223,18 +262,18 @@ const styles = StyleSheet.create({
     },
     card: {
         width: '100%',
-        maxWidth: 520,
+        maxWidth: 540,
         backgroundColor: '#000',
         borderRadius: 20,
         borderWidth: 1,
         borderColor: '#2f3336',
         padding: 20,
+        gap: 16,
     },
     header: {
         flexDirection: 'row',
         justifyContent: 'space-between',
         alignItems: 'center',
-        marginBottom: 12,
     },
     headerTitle: {
         color: '#fff',
@@ -244,45 +283,6 @@ const styles = StyleSheet.create({
     closeText: {
         color: '#6b6e72',
         fontSize: 20,
-    },
-    preview: {
-        flexDirection: 'row',
-        marginBottom: 16,
-    },
-    previewAvatar: {
-        width: 40,
-        height: 40,
-        borderRadius: 20,
-        backgroundColor: '#536471',
-        justifyContent: 'center',
-        alignItems: 'center',
-        marginRight: 10,
-    },
-    previewAvatarText: {
-        color: '#fff',
-        fontSize: 18,
-        fontWeight: '700',
-    },
-    previewContent: {
-        flex: 1,
-    },
-    previewHeader: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        marginBottom: 4,
-    },
-    previewName: {
-        color: '#fff',
-        fontWeight: '600',
-        marginRight: 6,
-    },
-    previewUsername: {
-        color: '#6b6e72',
-    },
-    previewText: {
-        color: '#e7e9ea',
-        fontSize: 15,
-        lineHeight: 20,
     },
     loadingTweet: {
         flexDirection: 'row',
@@ -304,10 +304,76 @@ const styles = StyleSheet.create({
         fontSize: 14,
         fontStyle: 'italic',
     },
-    inputContainer: {
-        borderTopWidth: 1,
-        borderTopColor: '#2f3336',
-        paddingTop: 16,
+    threadContainer: {
+        flexDirection: 'row',
+        gap: 12,
+    },
+    timelineColumn: {
+        alignItems: 'center',
+        width: 40,
+    },
+    avatarLarge: {
+        width: 40,
+        height: 40,
+        borderRadius: 20,
+        backgroundColor: '#536471',
+        justifyContent: 'center',
+        alignItems: 'center',
+    },
+    avatarSmall: {
+        width: 32,
+        height: 32,
+        borderRadius: 16,
+        backgroundColor: '#1d9bf0',
+        justifyContent: 'center',
+        alignItems: 'center',
+    },
+    avatarText: {
+        color: '#fff',
+        fontWeight: '700',
+    },
+    timelineLine: {
+        width: 2,
+        flex: 1,
+        backgroundColor: '#2f3336',
+        marginVertical: 6,
+    },
+    threadContent: {
+        flex: 1,
+    },
+    originalBubble: {
+        backgroundColor: '#0f0f0f',
+        borderWidth: 1,
+        borderColor: '#2f3336',
+        borderRadius: 16,
+        padding: 12,
+        marginBottom: 12,
+    },
+    previewHeaderRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 6,
+        marginBottom: 6,
+    },
+    previewName: {
+        color: '#fff',
+        fontWeight: '600',
+    },
+    previewUsername: {
+        color: '#6b6e72',
+        fontSize: 13,
+    },
+    previewDot: {
+        color: '#6b6e72',
+    },
+    previewTime: {
+        color: '#6b6e72',
+        fontSize: 13,
+    },
+    previewBody: {
+        color: '#e7e9ea',
+        fontSize: 15,
+        lineHeight: 20,
     },
     replyingToLabel: {
         color: '#6b6e72',
@@ -319,11 +385,11 @@ const styles = StyleSheet.create({
         fontWeight: '600',
     },
     input: {
-        minHeight: 80,
-        maxHeight: 200,
+        minHeight: 90,
+        maxHeight: 220,
         borderWidth: 1,
         borderColor: '#2f3336',
-        borderRadius: 12,
+        borderRadius: 16,
         padding: 12,
         color: '#fff',
         fontSize: 15,
