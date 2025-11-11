@@ -533,3 +533,7 @@ export const USER_BY_SUPABASE_ID_QUERY = `
 export interface UserBySupabaseIdQueryResult {
   userBySupabaseId: GraphQLProfileUser | null;
 }
+
+export interface TweetQueryResult {
+  tweet: GraphQLTweetNode | null;
+}

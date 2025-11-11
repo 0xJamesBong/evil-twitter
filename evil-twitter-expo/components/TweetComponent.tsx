@@ -32,8 +32,8 @@ export function TweetComponent({
     const { user: currentUser } = useBackendUserStore();
     const {
         retweetTweet,
-        attackTweet,
-        supportTweet,
+        // attackTweet,
+        // supportTweet,
         smackTweet,
         likeTweet,
         openQuoteModal,
@@ -108,18 +108,18 @@ export function TweetComponent({
         }
     };
 
-    const handleWeaponSelect = async (weaponId: string, _weapon: Weapon) => {
-        setShowWeaponModal(false);
-        const result = weaponActionType === 'attack'
-            ? await attackTweet(tweet._id.$oid, weaponId)
-            : await supportTweet(tweet._id.$oid, weaponId);
+    // const handleWeaponSelect = async (weaponId: string, _weapon: Weapon) => {
+    //     setShowWeaponModal(false);
+    //     const result = weaponActionType === 'attack'
+    //         ? await attackTweet(tweet._id.$oid, weaponId)
+    //         : await supportTweet(tweet._id.$oid, weaponId);
 
-        if (result.success) {
-            Alert.alert('Success', `Tweet ${weaponActionType === 'attack' ? 'attacked' : 'supported'}!`);
-        } else {
-            Alert.alert('Error', result.error || `Failed to ${weaponActionType === 'attack' ? 'attack' : 'support'} tweet`);
-        }
-    };
+    //     if (result.success) {
+    //         Alert.alert('Success', `Tweet ${weaponActionType === 'attack' ? 'attacked' : 'supported'}!`);
+    //     } else {
+    //         Alert.alert('Error', result.error || `Failed to ${weaponActionType === 'attack' ? 'attack' : 'support'} tweet`);
+    //     }
+    // };
 
     const handleTweetPress = () => {
         if (isClickable && onPress) {
@@ -347,7 +347,7 @@ export function TweetComponent({
                                 <Text style={styles.actionText}>{tweet.metrics?.smacks || 0}</Text>
                             </TouchableOpacity>
 
-                            <TouchableOpacity
+                            {/* <TouchableOpacity
                                 style={styles.actionButton}
                                 onPress={(e) => {
                                     e.stopPropagation();
@@ -356,9 +356,9 @@ export function TweetComponent({
                             >
                                 <Text style={styles.actionIcon}>⚔️</Text>
                                 <Text style={styles.actionText}>Attack</Text>
-                            </TouchableOpacity>
+                            </TouchableOpacity> */}
 
-                            <TouchableOpacity
+                            {/* <TouchableOpacity
                                 style={styles.actionButton}
                                 onPress={(e) => {
                                     e.stopPropagation();
@@ -367,7 +367,7 @@ export function TweetComponent({
                             >
                                 <Text style={styles.actionIcon}>✨</Text>
                                 <Text style={styles.actionText}>Support</Text>
-                            </TouchableOpacity>
+                            </TouchableOpacity> */}
                         </View>
                     )}
                 </View>
@@ -390,12 +390,12 @@ export function TweetComponent({
 
             {showActions && (
                 <>
-                    <WeaponSelectionModal
+                    {/* <WeaponSelectionModal
                         visible={showWeaponModal}
                         onClose={() => setShowWeaponModal(false)}
                         onSelectWeapon={handleWeaponSelect}
                         actionType={weaponActionType}
-                    />
+                    /> */}
                     <QuoteModal />
                     <ReplyThreadModal />
                 </>

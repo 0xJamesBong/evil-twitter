@@ -8,13 +8,20 @@ import {
   GraphQLTweetNode,
   TIMELINE_QUERY,
   TimelineQueryResult,
+  ProfileQueryResult,
+  PROFILE_QUERY,
+  TWEET_QUERY,
+  TweetQueryResult,
 } from "../graphql/queries";
 import {
+  CREATE_TWEET_MUTATION,
   LIKE_TWEET_MUTATION,
+  QUOTE_TWEET_MUTATION,
+  REPLY_TWEET_MUTATION,
+  RETWEET_MUTATION,
   SMACK_TWEET_MUTATION,
 } from "../graphql/mutations";
-
-type ObjectIdRef = { $oid: string };
+import { ObjectIdRef } from "./utils";
 
 export type TweetType = "original" | "retweet" | "quote" | "reply";
 
@@ -304,14 +311,7 @@ interface TweetsState {
     content: string,
     repliedToTweetId: string
   ) => Promise<{ success: boolean; error?: string }>;
-  attackTweet: (
-    tweetId: string,
-    toolId: string
-  ) => Promise<{ success: boolean; error?: string }>;
-  supportTweet: (
-    tweetId: string,
-    toolId: string
-  ) => Promise<{ success: boolean; error?: string }>;
+
   smackTweet: (
     tweetId: string
   ) => Promise<{ success: boolean; error?: string }>;
@@ -386,13 +386,19 @@ export const useTweetsStore = create<TweetsState>((set, get) => ({
   fetchUserTweets: async (userId: string) => {
     set({ loading: true, error: null });
     try {
-      const headers = await getAuthHeaders(false);
-      const response = await fetch(`${API_BASE_URL}/users/${userId}/wall`, {
-        headers,
+      const data = await graphqlRequest<ProfileQueryResult>(PROFILE_QUERY, {
+        userId,
+        viewerId: null,
       });
-      const data = await parseJson<TweetListResponse>(response);
-      const userTweets = normalizeTweetList(data.tweets);
-      set({ userTweets, loading: false });
+
+      if (data.user?.tweets) {
+        const userTweets = data.user.tweets.edges.map((edge) =>
+          normalizeTweet(mapGraphTweetNode(edge.node))
+        );
+        set({ userTweets, loading: false });
+      } else {
+        set({ userTweets: [], loading: false });
+      }
     } catch (error) {
       set({
         error:
@@ -406,12 +412,14 @@ export const useTweetsStore = create<TweetsState>((set, get) => ({
 
   fetchTweet: async (tweetId: string) => {
     try {
-      const headers = await getAuthHeaders(false);
-      const response = await fetch(`${API_BASE_URL}/tweets/${tweetId}`, {
-        headers,
+      const data = await graphqlRequest<TweetQueryResult>(TWEET_QUERY, {
+        id: tweetId,
       });
-      const data = await parseJson<any>(response);
-      return normalizeTweet(data);
+
+      if (data.tweet) {
+        return normalizeTweet(mapGraphTweetNode(data.tweet));
+      }
+      return null;
     } catch (error) {
       console.error("Failed to fetch tweet:", error);
       return null;
@@ -420,14 +428,17 @@ export const useTweetsStore = create<TweetsState>((set, get) => ({
 
   createTweet: async (content: string) => {
     try {
-      const headers = await getAuthHeaders();
-      const response = await fetch(`${API_BASE_URL}/tweets`, {
-        method: "POST",
-        headers,
-        body: JSON.stringify({ content }),
+      const data = await graphqlRequest<{
+        tweetCreate: {
+          tweet: GraphQLTweetNode;
+        };
+      }>(CREATE_TWEET_MUTATION, {
+        input: { content: content.trim() },
       });
-      const data = await parseJson<any>(response);
-      const newTweet = normalizeTweet(data);
+
+      const newTweet = normalizeTweet(
+        mapGraphTweetNode(data.tweetCreate.tweet)
+      );
       set((state) => ({
         tweets: [newTweet, ...state.tweets],
       }));
@@ -442,21 +453,23 @@ export const useTweetsStore = create<TweetsState>((set, get) => ({
 
   quoteTweet: async (content: string, quotedTweetId: string) => {
     try {
-      const headers = await getAuthHeaders();
-      const response = await fetch(
-        `${API_BASE_URL}/tweets/${quotedTweetId}/quote`,
-        {
-          method: "POST",
-          headers,
-          body: JSON.stringify({ content }),
-        }
-      );
-      const data = await parseJson<any>(response);
-      const newTweet = normalizeTweet(data);
+      const data = await graphqlRequest<{
+        tweetQuote: {
+          tweet: GraphQLTweetNode;
+        };
+      }>(QUOTE_TWEET_MUTATION, {
+        input: {
+          content: content.trim(),
+          quotedTweetId,
+        },
+      });
+
+      const newTweet = normalizeTweet(mapGraphTweetNode(data.tweetQuote.tweet));
       set((state) => ({
         tweets: [newTweet, ...state.tweets],
       }));
 
+      // Update quoted tweet's quote count
       get().updateTweet(quotedTweetId, (tweet) => ({
         ...tweet,
         metrics: {
@@ -477,20 +490,22 @@ export const useTweetsStore = create<TweetsState>((set, get) => ({
 
   retweetTweet: async (tweetId: string) => {
     try {
-      const headers = await getAuthHeaders();
-      const response = await fetch(
-        `${API_BASE_URL}/tweets/${tweetId}/retweet`,
-        {
-          method: "POST",
-          headers,
-        }
+      const data = await graphqlRequest<{
+        tweetRetweet: {
+          tweet: GraphQLTweetNode;
+        };
+      }>(RETWEET_MUTATION, {
+        id: tweetId,
+      });
+
+      const newTweet = normalizeTweet(
+        mapGraphTweetNode(data.tweetRetweet.tweet)
       );
-      const data = await parseJson<any>(response);
-      const newTweet = normalizeTweet(data);
       set((state) => ({
         tweets: [newTweet, ...state.tweets],
       }));
 
+      // Update retweet count
       get().updateTweet(tweetId, (tweet) => ({
         ...tweet,
         metrics: {
@@ -511,17 +526,18 @@ export const useTweetsStore = create<TweetsState>((set, get) => ({
 
   replyTweet: async (content: string, repliedToTweetId: string) => {
     try {
-      const headers = await getAuthHeaders();
-      const response = await fetch(
-        `${API_BASE_URL}/tweets/${repliedToTweetId}/reply`,
-        {
-          method: "POST",
-          headers,
-          body: JSON.stringify({ content }),
-        }
-      );
-      const data = await parseJson<any>(response);
-      const newTweet = normalizeTweet(data);
+      const data = await graphqlRequest<{
+        tweetReply: {
+          tweet: GraphQLTweetNode;
+        };
+      }>(REPLY_TWEET_MUTATION, {
+        input: {
+          content: content.trim(),
+          repliedToId: repliedToTweetId,
+        },
+      });
+
+      const newTweet = normalizeTweet(mapGraphTweetNode(data.tweetReply.tweet));
 
       set((state) => {
         const updatedThreads: Record<string, ThreadData> = {
@@ -567,6 +583,7 @@ export const useTweetsStore = create<TweetsState>((set, get) => ({
         };
       });
 
+      // Update reply counts
       get().updateTweet(repliedToTweetId, (tweet) => ({
         ...tweet,
         metrics: {
@@ -592,69 +609,6 @@ export const useTweetsStore = create<TweetsState>((set, get) => ({
     } catch (error) {
       const message =
         error instanceof Error ? error.message : "Failed to reply to tweet";
-      set({ error: message });
-      return { success: false, error: message };
-    }
-  },
-
-  attackTweet: async (tweetId: string, toolId: string) => {
-    try {
-      const headers = await getAuthHeaders();
-      const response = await fetch(`${API_BASE_URL}/tweets/${tweetId}/attack`, {
-        method: "POST",
-        headers,
-        body: JSON.stringify({ tool_id: toolId }),
-      });
-      const data = await parseJson<any>(response);
-
-      get().updateTweet(tweetId, (tweet) => ({
-        ...tweet,
-        energy_state: {
-          ...tweet.energy_state,
-          energy: data.energy_after ?? tweet.energy_state.energy,
-          energy_lost_from_attacks:
-            tweet.energy_state.energy_lost_from_attacks + (data.damage ?? 0),
-          last_update_timestamp: new Date().toISOString(),
-        },
-      }));
-
-      return { success: true };
-    } catch (error) {
-      const message =
-        error instanceof Error ? error.message : "Failed to attack tweet";
-      set({ error: message });
-      return { success: false, error: message };
-    }
-  },
-
-  supportTweet: async (tweetId: string, toolId: string) => {
-    try {
-      const headers = await getAuthHeaders();
-      const response = await fetch(
-        `${API_BASE_URL}/tweets/${tweetId}/support`,
-        {
-          method: "POST",
-          headers,
-          body: JSON.stringify({ tool_id: toolId }),
-        }
-      );
-      const data = await parseJson<any>(response);
-
-      get().updateTweet(tweetId, (tweet) => ({
-        ...tweet,
-        energy_state: {
-          ...tweet.energy_state,
-          energy: data.energy_after ?? tweet.energy_state.energy,
-          energy_gained_from_support:
-            tweet.energy_state.energy_gained_from_support + (data.support ?? 0),
-          last_update_timestamp: new Date().toISOString(),
-        },
-      }));
-
-      return { success: true };
-    } catch (error) {
-      const message =
-        error instanceof Error ? error.message : "Failed to support tweet";
       set({ error: message });
       return { success: false, error: message };
     }
@@ -701,6 +655,7 @@ export const useTweetsStore = create<TweetsState>((set, get) => ({
       };
     }
   },
+
   likeTweet: async (tweetId: string) => {
     try {
       const data = await graphqlRequest<{
