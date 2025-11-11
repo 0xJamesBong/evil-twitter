@@ -11,7 +11,7 @@ use crate::models::{
     tweet::Tweet,
     user::User,
 };
-use crate::routes::tweet::enrich_tweets_with_references;
+use crate::utils::tweet::enrich_tweets_with_references;
 
 // ============================================================================
 // Input Types

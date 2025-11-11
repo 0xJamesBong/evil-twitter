@@ -1,7 +1,7 @@
 use async_graphql::{Enum, ID, Object, SimpleObject};
 
 use crate::models::tweet::{TweetMetrics, TweetType, TweetView};
-use crate::routes::tweet::TweetThreadResponse;
+use crate::utils::tweet::TweetThreadResponse;
 
 // ============================================================================
 // Connection Types

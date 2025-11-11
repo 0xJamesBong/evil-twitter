@@ -5,8 +5,8 @@ use mongodb::{Collection, bson::doc};
 use crate::graphql::GraphQLState;
 use crate::graphql::tweet::types::{TweetConnection, TweetEdge, TweetNode, TweetThreadNode};
 use crate::models::{tweet::Tweet, user::User};
-use crate::routes::tweet::{ApiError, assemble_thread_response, enrich_tweets_with_references};
 use crate::utils::auth::get_authenticated_user;
+use crate::utils::tweet::{ApiError, assemble_thread_response, enrich_tweets_with_references};
 use axum::Json;
 use mongodb::bson::oid::ObjectId;
 

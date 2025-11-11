@@ -19,8 +19,8 @@ use crate::{
         },
         user::User,
     },
-    routes::tweet::enrich_tweets_with_references,
     utils::auth::get_authenticated_user,
+    utils::tweet::enrich_tweets_with_references,
 };
 
 // ============================================================================

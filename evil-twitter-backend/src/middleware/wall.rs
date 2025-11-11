@@ -75,7 +75,7 @@ pub async fn compose_wall(
     println!("Wall: Found {} tweets", all_tweets.len());
 
     // Enrich with quoted/replied tweets
-    let enriched_tweets = crate::routes::tweet::enrich_tweets_with_references(
+    let enriched_tweets = crate::utils::tweet::enrich_tweets_with_references(
         all_tweets,
         &tweet_collection,
         &user_collection,
