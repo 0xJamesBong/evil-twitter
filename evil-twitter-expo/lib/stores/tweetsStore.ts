@@ -9,6 +9,10 @@ import {
   TIMELINE_QUERY,
   TimelineQueryResult,
 } from "../graphql/queries";
+import {
+  LIKE_TWEET_MUTATION,
+  SMACK_TWEET_MUTATION,
+} from "../graphql/mutations";
 
 type ObjectIdRef = { $oid: string };
 
@@ -658,73 +662,79 @@ export const useTweetsStore = create<TweetsState>((set, get) => ({
 
   smackTweet: async (tweetId: string) => {
     try {
-      const headers = await getAuthHeaders();
-      const response = await fetch(`${API_BASE_URL}/tweets/${tweetId}/smack`, {
-        method: "POST",
-        headers,
-        body: JSON.stringify({}),
+      const data = await graphqlRequest<{
+        tweetSmack: {
+          id: string;
+          energy: number;
+          tokensCharged: number;
+          tokensPaidToAuthor: number;
+        };
+      }>(SMACK_TWEET_MUTATION, {
+        id: tweetId,
+        idempotencyKey: `smack-${tweetId}-${Date.now()}`,
       });
-      const data = await parseJson<any>(response);
 
-      get().updateTweet(tweetId, (tweet) => ({
-        ...tweet,
-        metrics: {
-          ...tweet.metrics,
-          smacks: (tweet.metrics.smacks || 0) + 1,
-        },
-        energy_state: {
-          ...tweet.energy_state,
-          energy: data.energy ?? tweet.energy_state.energy,
-          energy_lost_from_attacks:
-            tweet.energy_state.energy_lost_from_attacks + 1.0,
-          last_update_timestamp: new Date().toISOString(),
-        },
+      // Update tweet in store
+      set((state) => ({
+        tweets: state.tweets.map((tweet) =>
+          tweet._id.$oid === tweetId
+            ? {
+                ...tweet,
+                metrics: {
+                  ...tweet.metrics,
+                  smacks: tweet.metrics.smacks + 1,
+                },
+                energy_state: {
+                  ...tweet.energy_state,
+                  energy: data.tweetSmack.energy,
+                },
+              }
+            : tweet
+        ),
       }));
 
       return { success: true };
     } catch (error) {
-      const message =
-        error instanceof Error ? error.message : "Failed to smack tweet";
-      set({ error: message });
-      return { success: false, error: message };
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : "Failed to smack tweet",
+      };
     }
   },
-
   likeTweet: async (tweetId: string) => {
     try {
-      const headers = await getAuthHeaders();
-      const response = await fetch(`${API_BASE_URL}/tweets/${tweetId}/like`, {
-        method: "POST",
-        headers,
-      });
-      const data = await parseJson<{ liked?: boolean; energy?: number }>(
-        response
-      );
-      const liked = data.liked ?? true;
-
-      get().updateTweet(tweetId, (tweet) => {
-        const delta = liked ? 1 : -1;
-        const nextLikes = Math.max(0, (tweet.metrics.likes ?? 0) + delta);
-
-        return {
-          ...tweet,
-          metrics: {
-            ...tweet.metrics,
-            likes: nextLikes,
-          },
-          likes_count: nextLikes,
-          viewer_context: {
-            ...tweet.viewer_context,
-            is_liked: liked,
-          },
-          energy_state: {
-            ...tweet.energy_state,
-            energy: data.energy ?? tweet.energy_state.energy,
-          },
+      const data = await graphqlRequest<{
+        tweetLike: {
+          id: string;
+          likeCount: number;
+          likedByViewer: boolean;
+          energy: number;
         };
+      }>(LIKE_TWEET_MUTATION, {
+        id: tweetId,
+        idempotencyKey: `like-${tweetId}-${Date.now()}`,
       });
 
-      return { success: true, liked };
+      // Update tweet in store
+      set((state) => ({
+        tweets: state.tweets.map((tweet) =>
+          tweet._id.$oid === tweetId
+            ? {
+                ...tweet,
+                metrics: {
+                  ...tweet.metrics,
+                  likes: data.tweetLike.likeCount,
+                },
+                viewer_context: {
+                  ...tweet.viewer_context,
+                  is_liked: data.tweetLike.likedByViewer,
+                },
+              }
+            : tweet
+        ),
+      }));
+
+      return { success: true };
     } catch (error) {
       const message =
         error instanceof Error ? error.message : "Failed to like tweet";
@@ -831,8 +841,10 @@ export const useTweetsStore = create<TweetsState>((set, get) => ({
       threadLoading: true,
       threadError: null,
     });
+    console.log("trying to fetch thread", tweetId);
     try {
       // Call GraphQL instead of REST
+
       const data = await graphqlRequest<TweetThreadQueryResult>(
         TWEET_THREAD_QUERY,
         { tweetId }

@@ -360,6 +360,63 @@ export interface GraphQLTweetThread {
   replies: GraphQLTweetNode[];
 }
 
+export const TWEET_QUERY = `
+  query Tweet($id: ID!) {
+    tweet(id: $id) {
+      id
+      ownerId
+      content
+      tweetType
+      createdAt
+      metrics {
+        likes 
+        smacks 
+        retweets 
+        quotes 
+        replies 
+        impressions
+      }
+        energyState {
+          energy
+          kineticEnergy
+          potentialEnergy
+          energyGainedFromSupport
+          energyLostFromAttacks
+          mass
+          velocityInitial
+          heightInitial
+        }
+        author {
+          username
+          displayName
+          avatarUrl
+        }
+        quotedTweet {
+          id
+        }
+        repliedToTweet {
+          id
+          ownerId
+          content
+          tweetType
+          replyDepth
+          createdAt
+        }
+        rootTweetId
+        quotedTweetId
+        repliedToTweetId
+        replyDepth
+        createdAt
+        updatedAt
+        viewerContext {
+          isLiked
+          isRetweeted
+          isQuoted
+        }
+    }
+  }
+`;
+
 export const TIMELINE_QUERY = `
   query Timeline($first: Int, $after: String = "") {
     timeline(first: $first, after: $after) {
@@ -444,4 +501,35 @@ export interface TimelineQueryResult {
       node: GraphQLTweetNode;
     }[];
   };
+}
+
+// Add after existing queries:
+
+export const USER_BY_SUPABASE_ID_QUERY = `
+  query UserBySupabaseId($supabaseId: String!) {
+    userBySupabaseId(supabaseId: $supabaseId) {
+      id
+      supabaseId
+      username
+      displayName
+      email
+      avatarUrl
+      bio
+      followersCount
+      followingCount
+      tweetsCount
+      dollarConversionRate
+      createdAt
+      balances {
+        dooler
+        usdc
+        bling
+        sol
+      }
+    }
+  }
+`;
+
+export interface UserBySupabaseIdQueryResult {
+  userBySupabaseId: GraphQLProfileUser | null;
 }

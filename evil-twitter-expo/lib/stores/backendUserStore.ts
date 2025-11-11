@@ -8,9 +8,14 @@ import {
   GraphQLNestedTweet,
   GraphQLProfileUser,
   GraphQLBalanceSummary,
+  USER_BY_SUPABASE_ID_QUERY,
 } from "../graphql/queries";
 import { User } from "./authStore";
 import { useTweetsStore, Tweet, normalizeTweet } from "./tweetsStore";
+import {
+  CREATE_USER_MUTATION,
+  CreateUserMutationResult,
+} from "../graphql/mutations";
 
 export interface BackendUser {
   _id: { $oid: string };
@@ -73,65 +78,90 @@ export const useBackendUserStore = create<
   createUser: async (user: User) => {
     set({ isLoading: true, error: null });
     try {
-      const response = await fetch(`${API_BASE_URL}/users`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          supabase_id: user.id,
-          username: user.user_metadata?.username || user.email?.split("@")[0],
-          display_name:
-            user.user_metadata?.display_name || user.email?.split("@")[0],
-          email: user.email,
-          avatar_url: user.user_metadata?.avatar_url || null,
-          bio: null,
-        }),
-      });
+      const data = await graphqlRequest<CreateUserMutationResult>(
+        CREATE_USER_MUTATION,
+        {
+          input: {
+            supabaseId: user.id,
+            username: user.user_metadata?.username || user.email?.split("@")[0],
+            displayName:
+              user.user_metadata?.display_name || user.email?.split("@")[0],
+            email: user.email,
+            avatarUrl: user.user_metadata?.avatar_url || null,
+            bio: null,
+          },
+        }
+      );
 
-      if (response.ok) {
-        const newUser = await response.json();
-        set({ user: newUser, isLoading: false });
-      } else if (response.status === 409) {
-        // User already exists, fetch them instead
+      const newUser = mapGraphUserToBackend(data.userCreate.user);
+      set({ user: newUser, isLoading: false });
+    } catch (error) {
+      // If user already exists, fetch them instead
+      if (
+        error instanceof Error &&
+        (error.message.includes("already exists") ||
+          error.message.includes("409") ||
+          error.message.includes("Conflict"))
+      ) {
         console.log("User already exists, fetching...");
         await get().fetchUser(user.id);
       } else {
-        const errorText = await response.text();
-        throw new Error(
-          `Failed to create user: ${response.status} ${errorText}`
-        );
+        set({
+          error: error instanceof Error ? error.message : "An error occurred",
+          isLoading: false,
+        });
       }
-    } catch (error) {
-      set({
-        error: error instanceof Error ? error.message : "An error occurred",
-        isLoading: false,
-      });
     }
   },
+  // createUser: async (user: User) => {
+  //   set({ isLoading: true, error: null });
+  //   try {
+  //     const response = await fetch(`${API_BASE_URL}/users`, {
+  //       method: "POST",
+  //       headers: {
+  //         "Content-Type": "application/json",
+  //       },
+  //       body: JSON.stringify({
+  //         supabase_id: user.id,
+  //         username: user.user_metadata?.username || user.email?.split("@")[0],
+  //         display_name:
+  //           user.user_metadata?.display_name || user.email?.split("@")[0],
+  //         email: user.email,
+  //         avatar_url: user.user_metadata?.avatar_url || null,
+  //         bio: null,
+  //       }),
+  //     });
+
+  //     if (response.ok) {
+  //       const newUser = await response.json();
+  //       set({ user: newUser, isLoading: false });
+  //     } else if (response.status === 409) {
+  //       // User already exists, fetch them instead
+  //       console.log("User already exists, fetching...");
+  //       await get().fetchUser(user.id);
+  //     } else {
+  //       const errorText = await response.text();
+  //       throw new Error(
+  //         `Failed to create user: ${response.status} ${errorText}`
+  //       );
+  //     }
+  //   } catch (error) {
+  //     set({
+  //       error: error instanceof Error ? error.message : "An error occurred",
+  //       isLoading: false,
+  //     });
+  //   }
+  // },
   fetchUser: async (supabaseId: string) => {
     set({ isLoading: true, error: null });
     try {
-      const response = await fetch(
-        `${API_BASE_URL}/users?supabase_id=${encodeURIComponent(supabaseId)}`
+      const data = await graphqlRequest<UserBySupabaseIdQueryResult>(
+        USER_BY_SUPABASE_ID_QUERY,
+        { supabaseId }
       );
-      if (!response.ok) {
-        if (response.status === 404) {
-          set({
-            user: null,
-            isLoading: false,
-            error: "User not found in backend",
-          });
-          return;
-        }
-        throw new Error(`Failed to fetch backend user: ${response.status}`);
-      }
-
-      const data = await response.json();
-      const users = data.users || [];
-
-      if (users.length > 0) {
-        set({ user: users[0], isLoading: false });
+      if (data.userBySupabaseId) {
+        const backendUser = mapGraphUserToBackend(data.userBySupabaseId);
+        set({ user: backendUser, isLoading: false });
       } else {
         set({
           user: null,
@@ -146,25 +176,61 @@ export const useBackendUserStore = create<
       });
     }
   },
+  // fetchUser: async (supabaseId: string) => {
+  //   set({ isLoading: true, error: null });
+  //   try {
+  //     const response = await fetch(
+  //       `${API_BASE_URL}/users?supabase_id=${encodeURIComponent(supabaseId)}`
+  //     );
+  //     if (!response.ok) {
+  //       if (response.status === 404) {
+  //         set({
+  //           user: null,
+  //           isLoading: false,
+  //           error: "User not found in backend",
+  //         });
+  //         return;
+  //       }
+  //       throw new Error(`Failed to fetch backend user: ${response.status}`);
+  //     }
 
+  //     const data = await response.json();
+  //     const users = data.users || [];
+
+  //     if (users.length > 0) {
+  //       set({ user: users[0], isLoading: false });
+  //     } else {
+  //       set({
+  //         user: null,
+  //         isLoading: false,
+  //         error: "User not found in backend",
+  //       });
+  //     }
+  //   } catch (error) {
+  //     set({
+  //       error: error instanceof Error ? error.message : "An error occurred",
+  //       isLoading: false,
+  //     });
+  //   }
+  // },
   fetchUserById: async (userId: string) => {
     set({ isLoading: true, error: null });
     try {
-      const response = await fetch(`${API_BASE_URL}/users/${userId}`);
-      if (!response.ok) {
-        if (response.status === 404) {
-          set({
-            user: null,
-            isLoading: false,
-            error: "User not found",
-          });
-          return;
-        }
-        throw new Error(`Failed to fetch user: ${response.status}`);
+      // Use the existing PROFILE_QUERY to fetch the user
+      const data = await graphqlRequest<ProfileQueryResult>(PROFILE_QUERY, {
+        userId: userId,
+        viewerId: null,
+      });
+      if (data.user) {
+        const backendUser = mapGraphUserToBackend(data.user);
+        set({ user: backendUser, isLoading: false });
+      } else {
+        set({
+          user: null,
+          isLoading: false,
+          error: "User not found in backend",
+        });
       }
-
-      const user = await response.json();
-      set({ user, isLoading: false });
     } catch (error) {
       set({
         error: error instanceof Error ? error.message : "An error occurred",
@@ -172,6 +238,31 @@ export const useBackendUserStore = create<
       });
     }
   },
+  // fetchUserById: async (userId: string) => {
+  //   set({ isLoading: true, error: null });
+  //   try {
+  //     const response = await fetch(`${API_BASE_URL}/users/${userId}`);
+  //     if (!response.ok) {
+  //       if (response.status === 404) {
+  //         set({
+  //           user: null,
+  //           isLoading: false,
+  //           error: "User not found",
+  //         });
+  //         return;
+  //       }
+  //       throw new Error(`Failed to fetch user: ${response.status}`);
+  //     }
+
+  //     const user = await response.json();
+  //     set({ user, isLoading: false });
+  //   } catch (error) {
+  //     set({
+  //       error: error instanceof Error ? error.message : "An error occurred",
+  //       isLoading: false,
+  //     });
+  //   }
+  // },
 
   syncWithSupabase: async (supabaseUser: any) => {
     set({ isLoading: true, error: null });
@@ -208,16 +299,28 @@ export const useBackendUserStore = create<
   fetchBalances: async (userId: string) => {
     set({ loadingBalances: true });
     try {
-      const response = await fetch(`${API_BASE_URL}/users/${userId}/balances`);
-      if (response.ok) {
-        const data = await response.json();
-        set({ balances: data.balances || {}, loadingBalances: false });
+      const data = await graphqlRequest<ProfileQueryResult>(PROFILE_QUERY, {
+        userId,
+        viewerId: null,
+      });
+
+      if (data.user?.balances) {
+        const balances: { [key: string]: number } = {
+          dooler: data.user.balances.dooler || 0,
+          usdc: data.user.balances.usdc || 0,
+          bling: data.user.balances.bling || 0,
+          sol: data.user.balances.sol || 0,
+        };
+        set({ balances, loadingBalances: false });
       } else {
-        set({ loadingBalances: false });
+        set({ balances: null, loadingBalances: false });
       }
     } catch (error) {
-      console.error("Failed to fetch balances:", error);
-      set({ loadingBalances: false });
+      set({
+        error:
+          error instanceof Error ? error.message : "Failed to fetch balances",
+        loadingBalances: false,
+      });
     }
   },
 
@@ -368,9 +471,7 @@ const mapGraphTweetNode = (
     content: node.content,
     tweet_type: (node.tweetType ?? "original").toLowerCase(),
     reply_depth: node.replyDepth ?? 0,
-    root_tweet_id: isFull
-      ? toObjectIdRef(node.rootTweetId ?? null)
-      : undefined,
+    root_tweet_id: isFull ? toObjectIdRef(node.rootTweetId ?? null) : undefined,
     quoted_tweet_id: isFull
       ? toObjectIdRef(node.quotedTweetId ?? null)
       : undefined,

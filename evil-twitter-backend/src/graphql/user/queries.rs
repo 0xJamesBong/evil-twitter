@@ -30,6 +30,15 @@ impl UserQuery {
         user_resolver(ctx, id).await
     }
 
+    /// Find user by Supabase ID
+    async fn user_by_supabase_id(
+        &self,
+        ctx: &Context<'_>,
+        supabase_id: String,
+    ) -> Result<Option<UserNode>> {
+        user_by_supabase_id_resolver(ctx, supabase_id).await
+    }
+
     /// Flexible user search for discovery surfaces.
     async fn search_users(
         &self,
@@ -62,6 +71,22 @@ pub async fn user_resolver(ctx: &Context<'_>, id: ID) -> Result<Option<UserNode>
 
     let user = collection
         .find_one(doc! {"_id": object_id})
+        .await
+        .map_err(map_mongo_error)?;
+
+    Ok(user.map(UserNode::from))
+}
+
+/// Find user by Supabase ID
+pub async fn user_by_supabase_id_resolver(
+    ctx: &Context<'_>,
+    supabase_id: String,
+) -> Result<Option<UserNode>> {
+    let state = ctx.data::<GraphQLState>()?;
+    let collection: Collection<User> = state.db.collection("users");
+
+    let user = collection
+        .find_one(doc! {"supabase_id": supabase_id})
         .await
         .map_err(map_mongo_error)?;
 
