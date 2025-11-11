@@ -113,45 +113,7 @@ export const useBackendUserStore = create<
       }
     }
   },
-  // createUser: async (user: User) => {
-  //   set({ isLoading: true, error: null });
-  //   try {
-  //     const response = await fetch(`${API_BASE_URL}/users`, {
-  //       method: "POST",
-  //       headers: {
-  //         "Content-Type": "application/json",
-  //       },
-  //       body: JSON.stringify({
-  //         supabase_id: user.id,
-  //         username: user.user_metadata?.username || user.email?.split("@")[0],
-  //         display_name:
-  //           user.user_metadata?.display_name || user.email?.split("@")[0],
-  //         email: user.email,
-  //         avatar_url: user.user_metadata?.avatar_url || null,
-  //         bio: null,
-  //       }),
-  //     });
 
-  //     if (response.ok) {
-  //       const newUser = await response.json();
-  //       set({ user: newUser, isLoading: false });
-  //     } else if (response.status === 409) {
-  //       // User already exists, fetch them instead
-  //       console.log("User already exists, fetching...");
-  //       await get().fetchUser(user.id);
-  //     } else {
-  //       const errorText = await response.text();
-  //       throw new Error(
-  //         `Failed to create user: ${response.status} ${errorText}`
-  //       );
-  //     }
-  //   } catch (error) {
-  //     set({
-  //       error: error instanceof Error ? error.message : "An error occurred",
-  //       isLoading: false,
-  //     });
-  //   }
-  // },
   fetchUser: async (supabaseId: string) => {
     set({ isLoading: true, error: null });
     try {
@@ -176,43 +138,7 @@ export const useBackendUserStore = create<
       });
     }
   },
-  // fetchUser: async (supabaseId: string) => {
-  //   set({ isLoading: true, error: null });
-  //   try {
-  //     const response = await fetch(
-  //       `${API_BASE_URL}/users?supabase_id=${encodeURIComponent(supabaseId)}`
-  //     );
-  //     if (!response.ok) {
-  //       if (response.status === 404) {
-  //         set({
-  //           user: null,
-  //           isLoading: false,
-  //           error: "User not found in backend",
-  //         });
-  //         return;
-  //       }
-  //       throw new Error(`Failed to fetch backend user: ${response.status}`);
-  //     }
 
-  //     const data = await response.json();
-  //     const users = data.users || [];
-
-  //     if (users.length > 0) {
-  //       set({ user: users[0], isLoading: false });
-  //     } else {
-  //       set({
-  //         user: null,
-  //         isLoading: false,
-  //         error: "User not found in backend",
-  //       });
-  //     }
-  //   } catch (error) {
-  //     set({
-  //       error: error instanceof Error ? error.message : "An error occurred",
-  //       isLoading: false,
-  //     });
-  //   }
-  // },
   fetchUserById: async (userId: string) => {
     set({ isLoading: true, error: null });
     try {
