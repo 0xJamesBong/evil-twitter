@@ -1,10 +1,13 @@
 use async_graphql::{
-    Context, EmptyMutation, EmptySubscription, Enum, InputObject, Object, Result, Schema,
-    SimpleObject, ID,
+    Context, EmptyMutation, EmptySubscription, Enum, ID, InputObject, Object, Result, Schema,
+    SimpleObject,
 };
 use axum::Json;
 use futures::TryStreamExt;
-use mongodb::{Collection, Database, bson::{doc, oid::ObjectId}};
+use mongodb::{
+    Collection, Database,
+    bson::{doc, oid::ObjectId},
+};
 
 use crate::{
     models::{
@@ -15,7 +18,7 @@ use crate::{
         user::User,
     },
     routes::tweet::{
-        assemble_thread_response, enrich_tweets_with_references, ApiError, TweetThreadResponse,
+        ApiError, TweetThreadResponse, assemble_thread_response, enrich_tweets_with_references,
     },
 };
 
@@ -142,6 +145,48 @@ impl QueryRoot {
         Ok(TweetThreadNode::from(response))
     }
 
+    // Main timeline feed of tweets
+    async fn timeline(
+        &self,
+        ctx: &Context<'_>,
+        #[graphql(default = 20)] first: i32,
+        #[graphql(default = "")] after: String, // For cursor paginatio
+    ) -> Result<TweetConnection> {
+        let limit = first.clamp(1, 50);
+        let state = ctx.data::<GraphQLState>()?;
+        let tweet_collection: Collection<Tweet> = state.db.collection("tweets");
+        let user_collection: Collection<User> = state.db.collection("users");
+        // Build query - similar to REST get_tweets
+        let mut cursor = tweet_collection
+            .find(doc! {})
+            .sort(doc! {"created_at": -1})
+            .limit(i64::from(limit))
+            .await
+            .map_err(map_mongo_error)?;
+
+        let mut tweets = Vec::new();
+        while let Some(tweet) = cursor.try_next().await.map_err(map_mongo_error)? {
+            tweets.push(tweet);
+        }
+        let enriched = enrich_tweets_with_references(tweets, &tweet_collection, &user_collection)
+            .await
+            .map_err(map_api_error)?;
+
+        let edges = enriched
+            .into_iter()
+            .filter_map(|view| {
+                view.tweet.id.map(|id| TweetEdge {
+                    cursor: ID::from(id.to_hex()),
+                    node: TweetNode::from(view),
+                })
+            })
+            .collect::<Vec<_>>();
+
+        Ok(TweetConnection {
+            edges: edges.clone(),
+            total_count: edges.len() as i64,
+        })
+    }
 }
 
 #[derive(InputObject, Default)]
@@ -197,6 +242,14 @@ impl UserNode {
         &self.inner.display_name
     }
 
+    async fn supabase_id(&self) -> &str {
+        &self.inner.supabase_id
+    }
+
+    async fn email(&self) -> &str {
+        &self.inner.email
+    }
+
     async fn bio(&self) -> Option<&str> {
         self.inner.bio.as_deref()
     }
@@ -219,6 +272,10 @@ impl UserNode {
 
     async fn dollar_conversion_rate(&self) -> i32 {
         self.inner.dollar_conversion_rate
+    }
+
+    async fn created_at(&self) -> String {
+        self.inner.created_at.to_chrono().to_rfc3339()
     }
 
     async fn balances(&self, ctx: &Context<'_>) -> Result<TokenBalancesSummary> {
@@ -369,7 +426,10 @@ impl AssetNode {
     }
 
     async fn description(&self) -> Option<&str> {
-        self.inner.item.as_ref().map(|item| item.description.as_str())
+        self.inner
+            .item
+            .as_ref()
+            .map(|item| item.description.as_str())
     }
 
     async fn image_url(&self) -> Option<&str> {
@@ -458,6 +518,34 @@ impl TweetNode {
             .replied_to_tweet
             .as_ref()
             .map(|boxed| TweetNode::from((**boxed).clone()))
+    }
+
+    async fn root_tweet_id(&self) -> Option<ID> {
+        self.view
+            .tweet
+            .root_tweet_id
+            .map(|id| ID::from(id.to_hex()))
+    }
+
+    async fn quoted_tweet_id(&self) -> Option<ID> {
+        self.view
+            .tweet
+            .quoted_tweet_id
+            .map(|id| ID::from(id.to_hex()))
+    }
+
+    async fn replied_to_tweet_id(&self) -> Option<ID> {
+        self.view
+            .tweet
+            .replied_to_tweet_id
+            .map(|id| ID::from(id.to_hex()))
+    }
+
+    async fn updated_at(&self) -> Option<String> {
+        self.view
+            .tweet
+            .updated_at
+            .map(|ts| ts.to_chrono().to_rfc3339())
     }
 
     async fn created_at(&self) -> String {

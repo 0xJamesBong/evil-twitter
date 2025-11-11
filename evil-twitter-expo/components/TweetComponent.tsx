@@ -35,6 +35,7 @@ export function TweetComponent({
         attackTweet,
         supportTweet,
         smackTweet,
+        likeTweet,
         openQuoteModal,
         openReplyModal
     } = useTweetsStore();
@@ -89,6 +90,13 @@ export function TweetComponent({
     const handleSupport = () => {
         setWeaponActionType('support');
         setShowWeaponModal(true);
+    };
+
+    const handleLike = async () => {
+        const result = await likeTweet(tweet._id.$oid);
+        if (!result.success) {
+            Alert.alert('Error', result.error || 'Failed to like tweet');
+        }
     };
 
     const handleSmack = async () => {
@@ -309,10 +317,23 @@ export function TweetComponent({
 
                             <TouchableOpacity
                                 style={styles.actionButton}
-                                onPress={(e) => e.stopPropagation()}
+                                onPress={(e) => {
+                                    e.stopPropagation();
+                                    handleLike();
+                                }}
                             >
-                                <Text style={styles.actionIcon}>❤️</Text>
-                                <Text style={styles.actionText}>{tweet.likes_count || 0}</Text>
+                                <Text style={[
+                                    styles.actionIcon,
+                                    tweet.viewer_context?.is_liked && styles.likeActive
+                                ]}>
+                                    ❤️
+                                </Text>
+                                <Text style={[
+                                    styles.actionText,
+                                    tweet.viewer_context?.is_liked && styles.likeActive
+                                ]}>
+                                    {tweet.likes_count || 0}
+                                </Text>
                             </TouchableOpacity>
 
                             <TouchableOpacity
@@ -564,5 +585,8 @@ const styles = StyleSheet.create({
         color: '#71767b',
         fontSize: 13,
         fontWeight: '500',
+    },
+    likeActive: {
+        color: '#f91880',
     },
 });

@@ -192,3 +192,256 @@ export interface GraphQLEnergyState {
   velocityInitial: number;
   heightInitial: number;
 }
+
+// Add after PROFILE_QUERY
+
+export const TWEET_THREAD_QUERY = `
+  query TweetThread($tweetId: ID!) {
+    tweetThread(tweetId: $tweetId) {
+      tweet {
+        id
+        ownerId
+        content
+        tweetType
+        replyDepth
+        rootTweetId
+        quotedTweetId
+        repliedToTweetId
+        createdAt
+        updatedAt
+        metrics {
+          likes
+          smacks
+          retweets
+          quotes
+          replies
+          impressions
+        }
+        energyState {
+          energy
+          kineticEnergy
+          potentialEnergy
+          energyGainedFromSupport
+          energyLostFromAttacks
+          mass
+          velocityInitial
+          heightInitial
+        }
+        author {
+          username
+          displayName
+          avatarUrl
+        }
+        quotedTweet {
+          id
+          ownerId
+          content
+          tweetType
+          replyDepth
+          createdAt
+          metrics {
+            likes
+            smacks
+            retweets
+            quotes
+            replies
+            impressions
+          }
+          author {
+            username
+            displayName
+            avatarUrl
+          }
+        }
+        repliedToTweet {
+          id
+          ownerId
+          content
+          tweetType
+          replyDepth
+          createdAt
+          metrics {
+            likes
+            smacks
+            retweets
+            quotes
+            replies
+            impressions
+          }
+          author {
+            username
+            displayName
+            avatarUrl
+          }
+        }
+      }
+      parents {
+        id
+        ownerId
+        content
+        tweetType
+        replyDepth
+        rootTweetId
+        quotedTweetId
+        repliedToTweetId
+        createdAt
+        updatedAt
+        metrics {
+          likes
+          smacks
+          retweets
+          quotes
+          replies
+          impressions
+        }
+        energyState {
+          energy
+          kineticEnergy
+          potentialEnergy
+          energyGainedFromSupport
+          energyLostFromAttacks
+          mass
+          velocityInitial
+          heightInitial
+        }
+        author {
+          username
+          displayName
+          avatarUrl
+        }
+      }
+      replies {
+        id
+        ownerId
+        content
+        tweetType
+        replyDepth
+        rootTweetId
+        quotedTweetId
+        repliedToTweetId
+        createdAt
+        updatedAt
+        metrics {
+          likes
+          smacks
+          retweets
+          quotes
+          replies
+          impressions
+        }
+        energyState {
+          energy
+          kineticEnergy
+          potentialEnergy
+          energyGainedFromSupport
+          energyLostFromAttacks
+          mass
+          velocityInitial
+          heightInitial
+        }
+        author {
+          username
+          displayName
+          avatarUrl
+        }
+      }
+    }
+  }
+`;
+
+// Add TypeScript interfaces
+export interface TweetThreadQueryResult {
+  tweetThread: GraphQLTweetThread;
+}
+
+export interface GraphQLTweetThread {
+  tweet: GraphQLTweetNode;
+  parents: GraphQLTweetNode[];
+  replies: GraphQLTweetNode[];
+}
+
+export const TIMELINE_QUERY = `
+  query Timeline($first: Int, $after: String = "") {
+    timeline(first: $first, after: $after) {
+      totalCount
+      edges {
+        cursor
+        node {
+          id
+          ownerId
+          content
+          tweetType
+          replyDepth
+          rootTweetId
+          quotedTweetId
+          repliedToTweetId
+          createdAt
+          updatedAt
+          metrics {
+            likes
+            smacks
+            retweets
+            quotes
+            replies
+            impressions
+          }
+          energyState {
+            energy
+            kineticEnergy
+            potentialEnergy
+            energyGainedFromSupport
+            energyLostFromAttacks
+            mass
+            velocityInitial
+            heightInitial
+          }
+          author {
+            username
+            displayName
+            avatarUrl
+          }
+          quotedTweet {
+            id
+            ownerId
+            content
+            tweetType
+            replyDepth
+            createdAt
+            metrics {
+              likes
+              smacks
+              retweets
+            }
+            author {
+              username
+              displayName
+              avatarUrl
+            }
+          }
+          repliedToTweet {
+            id
+            ownerId
+            content
+            tweetType
+            replyDepth
+            createdAt
+            author {
+              username
+              displayName
+            }
+          }
+        }
+      }
+    }
+  }
+`;
+
+export interface TimelineQueryResult {
+  timeline: {
+    totalCount: number;
+    edges: {
+      cursor: string;
+      node: GraphQLTweetNode;
+    }[];
+  };
+}

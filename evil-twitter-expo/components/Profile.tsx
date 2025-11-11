@@ -4,7 +4,6 @@ import { TweetCard } from '@/components/TweetCard';
 import { useAuthStore } from '@/lib/stores/authStore';
 import { useBackendUserStore } from '@/lib/stores/backendUserStore';
 import { useFollowStore } from '@/lib/stores/followStore';
-import { useTweetsStore } from '@/lib/stores/tweetsStore';
 import { useWeaponsStore } from '@/lib/stores/weaponsStore';
 import { useRouter } from 'expo-router';
 import React, { useCallback, useEffect } from 'react';
@@ -36,25 +35,33 @@ export function Profile({
         user: currentBackendUser,
         fetchUser: fetchCurrentUser,
         syncWithSupabase,
-        fetchUserById,
-        isLoading: profileLoading,
-        error: profileError,
         balances,
-        fetchBalances,
-        loadingBalances,
-        adjustFollowersCount
+        adjustFollowersCount,
+        profileUser,
+        profileUserId,
+        profileTweets,
+        profileCompositeLoading,
+        profileCompositeError,
+        fetchProfileComposite,
+        adjustProfileFollowers
     } = useBackendUserStore();
 
-    // Tweets and weapons
-    const { userTweets, fetchUserTweets, loading: tweetsLoading } = useTweetsStore();
-    const { weapons, fetchUserWeapons } = useWeaponsStore();
-
-    // For viewing other users, fetch and store separately to avoid overwriting currentBackendUser
-    const [viewedUser, setViewedUser] = React.useState<typeof currentBackendUser>(null);
-
     // Determine which user we're displaying
-    const displayUser = isOwnProfile ? currentBackendUser : viewedUser;
     const displayUserId = isOwnProfile ? currentBackendUser?._id?.$oid : userId;
+    const profileDataReady =
+        !!displayUserId && profileUserId === displayUserId && !!profileUser;
+    const displayUser = profileDataReady
+        ? profileUser
+        : isOwnProfile
+            ? currentBackendUser
+            : null;
+
+    // Tweets and weapons
+    const tweetsLoading =
+        !!displayUserId &&
+        (profileCompositeLoading || profileUserId !== displayUserId);
+    const userTweets = profileDataReady ? profileTweets : [];
+    const { weapons, fetchUserWeapons } = useWeaponsStore();
 
     const followStatusEntry = useFollowStore(
         useCallback(
@@ -68,35 +75,6 @@ export function Profile({
     const unfollowUser = useFollowStore((state) => state.unfollowUser);
     const isFollowing = followStatusEntry?.isFollowing ?? false;
 
-    // Fetch profile data for other users
-    useEffect(() => {
-        if (!isOwnProfile && userId) {
-            // Fetch user directly without using the store's fetchUserById to avoid overwriting currentBackendUser
-            const fetchViewedUser = async () => {
-                try {
-                    const { API_BASE_URL } = await import('@/lib/config/api');
-                    const response = await fetch(`${API_BASE_URL}/users/${userId}`);
-                    if (response.ok) {
-                        const user = await response.json();
-                        setViewedUser(user);
-                    }
-                } catch (error) {
-                    console.error('Failed to fetch viewed user:', error);
-                }
-            };
-            fetchViewedUser();
-        } else {
-            setViewedUser(null);
-        }
-    }, [userId, isOwnProfile]);
-
-    // Fetch token balances (for both own profile and other profiles)
-    useEffect(() => {
-        if (displayUserId) {
-            fetchBalances(displayUserId);
-        }
-    }, [displayUserId, fetchBalances]);
-
     // Ensure current user is loaded for follow functionality
     useEffect(() => {
         if (authUser?.id && !currentBackendUser) {
@@ -104,13 +82,18 @@ export function Profile({
         }
     }, [authUser?.id, currentBackendUser, fetchCurrentUser]);
 
+    useEffect(() => {
+        if (displayUserId) {
+            fetchProfileComposite(displayUserId, currentBackendUser?._id?.$oid);
+        }
+    }, [displayUserId, currentBackendUser?._id?.$oid, fetchProfileComposite]);
+
     // Fetch user data (tweets, weapons, follow status)
     useEffect(() => {
         if (displayUserId) {
             fetchUserWeapons(displayUserId);
-            fetchUserTweets(displayUserId);
         }
-    }, [displayUserId, fetchUserWeapons, fetchUserTweets]);
+    }, [displayUserId, fetchUserWeapons]);
 
     // Ensure follow status is available when viewing other profiles
     useEffect(() => {
@@ -149,14 +132,11 @@ export function Profile({
         if (!displayUserId || !viewerId) return;
 
         const delta = isFollowing ? -1 : 1;
-        if (!isOwnProfile && viewedUser) {
-            // Optimistically update viewed user's follower count
-            setViewedUser({
-                ...viewedUser,
-                followers_count: viewedUser.followers_count + delta,
-            });
+        const canAdjustProfile = !isOwnProfile && profileDataReady;
+
+        if (canAdjustProfile) {
+            adjustProfileFollowers(delta);
         } else if (isOwnProfile) {
-            // Update current user in store
             adjustFollowersCount(delta);
         }
 
@@ -168,11 +148,8 @@ export function Profile({
             }
         } catch (error) {
             // Rollback on error
-            if (!isOwnProfile && viewedUser) {
-                setViewedUser({
-                    ...viewedUser,
-                    followers_count: viewedUser.followers_count - delta,
-                });
+            if (canAdjustProfile) {
+                adjustProfileFollowers(-delta);
             } else if (isOwnProfile) {
                 adjustFollowersCount(-delta);
             }
@@ -258,7 +235,11 @@ export function Profile({
         );
     }
 
-    if (!isOwnProfile && profileLoading) {
+    if (
+        !isOwnProfile &&
+        (!!displayUserId &&
+            (profileCompositeLoading || profileUserId !== displayUserId))
+    ) {
         return (
             <View style={styles.container}>
                 <View style={styles.header}>
@@ -277,7 +258,7 @@ export function Profile({
         );
     }
 
-    if (!isOwnProfile && profileError) {
+    if (!isOwnProfile && profileCompositeError && !profileDataReady) {
         return (
             <View style={styles.container}>
                 <View style={styles.header}>
@@ -289,21 +270,14 @@ export function Profile({
                     <Text style={styles.headerTitle}>{headerTitle}</Text>
                 </View>
                 <View style={styles.errorContainer}>
-                    <Text style={styles.errorText}>{profileError}</Text>
-                    <TouchableOpacity style={styles.retryButton} onPress={async () => {
-                        if (userId) {
-                            try {
-                                const { API_BASE_URL } = await import('@/lib/config/api');
-                                const response = await fetch(`${API_BASE_URL}/users/${userId}`);
-                                if (response.ok) {
-                                    const user = await response.json();
-                                    setViewedUser(user);
-                                }
-                            } catch (error) {
-                                console.error('Failed to fetch viewed user:', error);
+                    <Text style={styles.errorText}>{profileCompositeError}</Text>
+                    <TouchableOpacity
+                        style={styles.retryButton}
+                        onPress={() => {
+                            if (displayUserId) {
+                                fetchProfileComposite(displayUserId, currentBackendUser?._id?.$oid);
                             }
-                        }
-                    }}>
+                        }}>
                         <Text style={styles.retryButtonText}>Retry</Text>
                     </TouchableOpacity>
                 </View>

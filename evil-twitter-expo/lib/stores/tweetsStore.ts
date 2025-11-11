@@ -1,6 +1,14 @@
 import { create } from "zustand";
 import { API_BASE_URL } from "../config/api";
 import { getAuthHeaders } from "../api/auth";
+import { graphqlRequest } from "../graphql/client";
+import {
+  TWEET_THREAD_QUERY,
+  TweetThreadQueryResult,
+  GraphQLTweetNode,
+  TIMELINE_QUERY,
+  TimelineQueryResult,
+} from "../graphql/queries";
 
 type ObjectIdRef = { $oid: string };
 
@@ -352,12 +360,15 @@ export const useTweetsStore = create<TweetsState>((set, get) => ({
   fetchTweets: async () => {
     set({ loading: true, error: null });
     try {
-      const headers = await getAuthHeaders(false);
-      const response = await fetch(`${API_BASE_URL}/tweets`, {
-        headers,
+      const data = await graphqlRequest<TimelineQueryResult>(TIMELINE_QUERY, {
+        first: 20,
+        after: "", // Pass empty string to match backend default
       });
-      const data = await parseJson<TweetListResponse>(response);
-      const tweets = normalizeTweetList(data.tweets);
+
+      const tweets = data.timeline.edges.map((edge) =>
+        normalizeTweet(mapGraphTweetNode(edge.node))
+      );
+      console.log("using graphql to fetch timeline", tweets);
       set({ tweets, loading: false });
     } catch (error) {
       set({
@@ -367,6 +378,24 @@ export const useTweetsStore = create<TweetsState>((set, get) => ({
       });
     }
   },
+  // fetchTweets: async () => {
+  //   set({ loading: true, error: null });
+  //   try {
+  //     const headers = await getAuthHeaders(false);
+  //     const response = await fetch(`${API_BASE_URL}/tweets`, {
+  //       headers,
+  //     });
+  //     const data = await parseJson<TweetListResponse>(response);
+  //     const tweets = normalizeTweetList(data.tweets);
+  //     set({ tweets, loading: false });
+  //   } catch (error) {
+  //     set({
+  //       error:
+  //         error instanceof Error ? error.message : "Failed to fetch tweets",
+  //       loading: false,
+  //     });
+  //   }
+  // },
 
   fetchUserTweets: async (userId: string) => {
     set({ loading: true, error: null });
@@ -821,16 +850,26 @@ export const useTweetsStore = create<TweetsState>((set, get) => ({
       threadError: null,
     });
     try {
-      const headers = await getAuthHeaders(false);
-      const response = await fetch(`${API_BASE_URL}/tweets/${tweetId}/thread`, {
-        method: "GET",
-        headers,
-      });
-      const data = await parseJson<ThreadApiResponse>(response);
+      // Call GraphQL instead of REST
+      const data = await graphqlRequest<TweetThreadQueryResult>(
+        TWEET_THREAD_QUERY,
+        { tweetId }
+      );
+      if (!data.tweetThread) {
+        throw new Error("Tweet thread not found");
+      }
+
+      console.log("using graphql to fetch thread", data.tweetThread);
+
+      // Map GraphQL response to your threadData format
       const normalizedThread: ThreadData = {
-        tweet: normalizeTweet(data.tweet),
-        parents: normalizeTweetList(data.parents),
-        replies: normalizeTweetList(data.replies),
+        tweet: normalizeTweet(mapGraphTweetNode(data.tweetThread.tweet)),
+        parents: data.tweetThread.parents.map((parent) =>
+          normalizeTweet(mapGraphTweetNode(parent))
+        ),
+        replies: data.tweetThread.replies.map((reply) =>
+          normalizeTweet(mapGraphTweetNode(reply))
+        ),
       };
 
       set((state) => ({
@@ -848,6 +887,40 @@ export const useTweetsStore = create<TweetsState>((set, get) => ({
       });
     }
   },
+
+  // fetchThread: async (tweetId: string) => {
+  //   set({
+  //     threadLoading: true,
+  //     threadError: null,
+  //   });
+  //   try {
+  //     const headers = await getAuthHeaders(false);
+  //     const response = await fetch(`${API_BASE_URL}/tweets/${tweetId}/thread`, {
+  //       method: "GET",
+  //       headers,
+  //     });
+  //     const data = await parseJson<ThreadApiResponse>(response);
+  //     const normalizedThread: ThreadData = {
+  //       tweet: normalizeTweet(data.tweet),
+  //       parents: normalizeTweetList(data.parents),
+  //       replies: normalizeTweetList(data.replies),
+  //     };
+
+  //     set((state) => ({
+  //       threads: {
+  //         ...state.threads,
+  //         [tweetId]: normalizedThread,
+  //       },
+  //       threadLoading: false,
+  //     }));
+  //   } catch (error) {
+  //     set({
+  //       threadError:
+  //         error instanceof Error ? error.message : "Failed to fetch thread",
+  //       threadLoading: false,
+  //     });
+  //   }
+  // },
 
   clearThread: (tweetId: string) => {
     set((state) => {
@@ -875,3 +948,65 @@ export const useTweetsStore = create<TweetsState>((set, get) => ({
     });
   },
 }));
+
+// Helper function to map GraphQL tweet node to your app's format
+const mapGraphTweetNode = (node: GraphQLTweetNode): any => {
+  const metrics = node.metrics ?? {
+    likes: 0,
+    smacks: 0,
+    retweets: 0,
+    quotes: 0,
+    replies: 0,
+    impressions: 0,
+  };
+
+  return {
+    _id: { $oid: node.id },
+    owner_id: { $oid: node.ownerId },
+    content: node.content,
+    tweet_type: (node.tweetType ?? "original").toLowerCase(),
+    reply_depth: node.replyDepth,
+    root_tweet_id: node.rootTweetId ? { $oid: node.rootTweetId } : null,
+    quoted_tweet_id: node.quotedTweetId ? { $oid: node.quotedTweetId } : null,
+    replied_to_tweet_id: node.repliedToTweetId
+      ? { $oid: node.repliedToTweetId }
+      : null,
+    created_at: { $date: { $numberLong: String(Date.parse(node.createdAt)) } },
+    updated_at: node.updatedAt
+      ? { $date: { $numberLong: String(Date.parse(node.updatedAt)) } }
+      : null,
+    metrics: {
+      likes: metrics.likes,
+      smacks: metrics.smacks,
+      retweets: metrics.retweets,
+      quotes: metrics.quotes,
+      replies: metrics.replies,
+      impressions: metrics.impressions,
+    },
+    energy_state: node.energyState
+      ? {
+          energy: node.energyState.energy,
+          kinetic_energy: node.energyState.kineticEnergy,
+          potential_energy: node.energyState.potentialEnergy,
+          energy_gained_from_support: node.energyState.energyGainedFromSupport,
+          energy_lost_from_attacks: node.energyState.energyLostFromAttacks,
+          mass: node.energyState.mass,
+          velocity_initial: node.energyState.velocityInitial,
+          height_initial: node.energyState.heightInitial,
+        }
+      : undefined,
+    author_snapshot: node.author
+      ? {
+          username: node.author.username,
+          display_name: node.author.displayName,
+          avatar_url: node.author.avatarUrl,
+        }
+      : undefined,
+    quoted_tweet: node.quotedTweet
+      ? mapGraphTweetNode(node.quotedTweet as any)
+      : undefined,
+    replied_to_tweet: node.repliedToTweet
+      ? mapGraphTweetNode(node.repliedToTweet as any)
+      : undefined,
+  };
+};
