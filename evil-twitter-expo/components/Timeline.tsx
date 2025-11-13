@@ -2,6 +2,8 @@ import { useAuthStore } from '@/lib/stores/authStore';
 import { useBackendUserStore } from '@/lib/stores/backendUserStore';
 import { useTweetsStore } from '@/lib/stores/tweetsStore';
 import { useWeaponsStore } from '@/lib/stores/weaponsStore';
+import { AppText, AppButton } from '@/components/ui';
+import { colors, spacing, radii, typography } from '@/theme';
 import React, { useEffect } from 'react';
 import { ScrollView, StyleSheet, Text, TouchableOpacity, View, useWindowDimensions } from 'react-native';
 import { ComposeTweet } from './ComposeTweet';
@@ -30,7 +32,7 @@ export function Timeline() {
     if (loading) {
         return (
             <View style={styles.loadingContainer}>
-                <Text style={styles.loadingText}>Loading...</Text>
+                <AppText variant="h3">Loading...</AppText>
             </View>
         );
     }
@@ -38,10 +40,10 @@ export function Timeline() {
     if (error) {
         return (
             <View style={styles.errorContainer}>
-                <Text style={styles.errorText}>Error: {error}</Text>
-                <TouchableOpacity onPress={fetchTweets} style={styles.retryButton}>
-                    <Text style={styles.retryText}>Try Again</Text>
-                </TouchableOpacity>
+                <AppText variant="bodyLarge" color="danger">Error: {error}</AppText>
+                <AppButton variant="primary" onPress={fetchTweets}>
+                    Try Again
+                </AppButton>
             </View>
         );
     }
@@ -51,7 +53,7 @@ export function Timeline() {
         <View>
             {/* Header */}
             <View style={styles.header}>
-                <Text style={styles.headerTitle}>Home</Text>
+                <AppText variant="h4">Home</AppText>
             </View>
 
             {/* Compose Tweet */}
@@ -61,10 +63,10 @@ export function Timeline() {
                 </View>
             ) : (
                 <View style={styles.welcomeSection}>
-                    <Text style={styles.welcomeTitle}>Welcome to Evil Twitter</Text>
-                    <Text style={styles.welcomeText}>
+                    <AppText variant="h2">Welcome to Evil Twitter</AppText>
+                    <AppText variant="bodyLarge" color="tertiary">
                         Sign in to see tweets and join the conversation!
-                    </Text>
+                    </AppText>
                     <SignInButton />
                 </View>
             )}
@@ -74,9 +76,9 @@ export function Timeline() {
     // Create empty state component
     const EmptyState = () => (
         <View style={styles.emptyState}>
-            <Text style={styles.emptyText}>
+            <AppText variant="bodyLarge" color="tertiary">
                 {isAuthenticated ? 'No tweets yet. Be the first to tweet!' : 'Sign in to see tweets'}
-            </Text>
+            </AppText>
         </View>
     );
 
@@ -146,58 +148,55 @@ const styles = StyleSheet.create({
         fontWeight: 'bold',
     },
     header: {
-        paddingHorizontal: 16,
-        paddingVertical: 16,
+        paddingHorizontal: spacing.lg,
+        paddingVertical: spacing.lg,
         borderBottomWidth: 1,
-        borderBottomColor: '#2f3336',
+        borderBottomColor: colors.border,
         position: 'sticky',
         top: 0,
-        backgroundColor: '#000',
+        backgroundColor: colors.bg,
         zIndex: 10,
     },
     headerTitle: {
-        fontSize: 20,
-        fontWeight: 'bold',
-        color: '#fff',
+        ...typography.h4,
+        color: colors.textPrimary,
     },
     composeSection: {
         borderBottomWidth: 1,
-        borderBottomColor: '#2f3336',
+        borderBottomColor: colors.border,
     },
     welcomeSection: {
-        padding: 32,
+        padding: spacing['2xl'],
         alignItems: 'center',
         borderBottomWidth: 1,
-        borderBottomColor: '#2f3336',
+        borderBottomColor: colors.border,
     },
     welcomeTitle: {
-        fontSize: 24,
-        fontWeight: 'bold',
-        color: '#fff',
-        marginBottom: 16,
+        ...typography.h2,
+        color: colors.textPrimary,
+        marginBottom: spacing.lg,
     },
     welcomeText: {
-        fontSize: 16,
-        color: '#888',
+        ...typography.bodyLarge,
+        color: colors.textTertiary,
         textAlign: 'center',
-        marginBottom: 24,
-        lineHeight: 24,
+        marginBottom: spacing.xl,
     },
     emptyState: {
-        padding: 32,
+        padding: spacing['2xl'],
         alignItems: 'center',
     },
     emptyText: {
-        fontSize: 16,
-        color: '#888',
+        ...typography.bodyLarge,
+        color: colors.textTertiary,
         textAlign: 'center',
     },
     tweetContainer: {
         borderBottomWidth: 1,
-        borderBottomColor: '#2f3336',
+        borderBottomColor: colors.border,
     },
     text: {
-        color: '#fff',
-        fontSize: 16,
+        ...typography.bodyLarge,
+        color: colors.textPrimary,
     },
 });

@@ -1,5 +1,7 @@
 import { useBackendUserStore } from '@/lib/stores/backendUserStore';
 import { Tweet, useTweetsStore } from '@/lib/stores/tweetsStore';
+import { AppText } from '@/components/ui';
+import { colors, spacing, radii, typography } from '@/theme';
 import { router } from 'expo-router';
 import React, { useState } from 'react';
 import {
@@ -117,8 +119,8 @@ export function TweetComponent({
         <View style={[styles.tweetContainer, isReply && styles.replyContainer]}>
             {isRetweet && (
                 <View style={styles.retweetBanner}>
-                    <Text style={styles.retweetIcon}>🔁</Text>
-                    <Text style={styles.retweetText}>{retweeterName} retweeted</Text>
+                    <AppText variant="small" color="accent">🔁</AppText>
+                    <AppText variant="small" color="accent" style={{ textTransform: 'uppercase', letterSpacing: 0.8 }}>{retweeterName} retweeted</AppText>
                 </View>
             )}
             {/* Header */}
@@ -130,9 +132,9 @@ export function TweetComponent({
                         router.push(`/profile/${displayOwnerId}`);
                     }}
                 >
-                    <Text style={styles.avatarText}>
+                    <AppText variant="h4">
                         {avatarInitial}
-                    </Text>
+                    </AppText>
                 </TouchableOpacity>
                 <View style={styles.tweetContent}>
                     <View style={styles.tweetHeader}>
@@ -142,9 +144,9 @@ export function TweetComponent({
                                 router.push(`/profile/${displayOwnerId}`);
                             }}
                         >
-                            <Text style={styles.displayName}>
+                            <AppText variant="bodyBold">
                                 {displayName}
-                            </Text>
+                            </AppText>
                         </TouchableOpacity>
                         <TouchableOpacity
                             onPress={(e) => {
@@ -152,12 +154,12 @@ export function TweetComponent({
                                 router.push(`/profile/${displayOwnerId}`);
                             }}
                         >
-                            <Text style={styles.username}>@{displayUsername}</Text>
+                            <AppText variant="body" color="secondary">@{displayUsername}</AppText>
                         </TouchableOpacity>
-                        <Text style={styles.time}>· {formatTime(tweet.created_at)}</Text>
+                        <AppText variant="body" color="secondary">· {formatTime(tweet.created_at)}</AppText>
                         {!isReply && (
                             <TouchableOpacity style={styles.moreButton}>
-                                <Text style={styles.moreIcon}>⋯</Text>
+                                <AppText variant="h4" color="secondary">⋯</AppText>
                             </TouchableOpacity>
                         )}
                     </View>
@@ -165,37 +167,39 @@ export function TweetComponent({
                     {/* Replying to indicator */}
                     {displayTweet.tweet_type === 'reply' && displayTweet.replied_to_tweet && (
                         <View style={styles.replyingToContainer}>
-                            <Text style={styles.replyingToText}>
-                                Replying to <TouchableOpacity
-                                    onPress={(e) => {
-                                        e.stopPropagation(); // Prevent tweet click when clicking username
-                                        router.push(`/profile/${displayTweet.replied_to_tweet?.owner_id.$oid}`);
-                                    }}
-                                >
-                                    <Text style={styles.replyingToUsername}>@{displayTweet.replied_to_tweet?.author_username || 'user'}</Text>
-                                </TouchableOpacity>
-                            </Text>
+                            <AppText variant="caption" color="secondary">
+                                Replying to{' '}
+                            </AppText>
+                            <TouchableOpacity
+                                onPress={(e) => {
+                                    e.stopPropagation(); // Prevent tweet click when clicking username
+                                    router.push(`/profile/${displayTweet.replied_to_tweet?.owner_id.$oid}`);
+                                }}
+                            >
+                                <AppText variant="caption" color="accent" style={{ fontWeight: '500' }}>@{displayTweet.replied_to_tweet?.author_username || 'user'}</AppText>
+                            </TouchableOpacity>
                         </View>
                     )}
 
                     {/* Quoting indicator */}
                     {!isRetweet && tweet.tweet_type === 'quote' && tweet.quoted_tweet && (
                         <View style={styles.replyingToContainer}>
-                            <Text style={styles.replyingToText}>
-                                Quoting <TouchableOpacity
-                                    onPress={(e) => {
-                                        e.stopPropagation(); // Prevent tweet click when clicking username
-                                        router.push(`/profile/${tweet.quoted_tweet?.owner_id.$oid}`);
-                                    }}
-                                >
-                                    <Text style={styles.replyingToUsername}>@{tweet.quoted_tweet?.author_username || 'user'}</Text>
-                                </TouchableOpacity>
-                            </Text>
+                            <AppText variant="caption" color="secondary">
+                                Quoting{' '}
+                            </AppText>
+                            <TouchableOpacity
+                                onPress={(e) => {
+                                    e.stopPropagation(); // Prevent tweet click when clicking username
+                                    router.push(`/profile/${tweet.quoted_tweet?.owner_id.$oid}`);
+                                }}
+                            >
+                                <AppText variant="caption" color="accent" style={{ fontWeight: '500' }}>@{tweet.quoted_tweet?.author_username || 'user'}</AppText>
+                            </TouchableOpacity>
                         </View>
                     )}
 
                     {/* Tweet Content */}
-                    <Text style={styles.tweetText}>{displayTweet.content}</Text>
+                    <AppText variant="body">{displayTweet.content}</AppText>
 
                     {/* Quoted Tweet */}
                     {!isRetweet && tweet.quoted_tweet && (
@@ -208,10 +212,10 @@ export function TweetComponent({
                                         router.push(`/profile/${tweet.quoted_tweet?.owner_id.$oid}`);
                                     }}
                                 >
-                                    <Text style={styles.quotedAvatarText}>
+                                    <AppText variant="captionBold">
                                         {tweet.quoted_tweet?.author_display_name?.charAt(0).toUpperCase() ||
                                             tweet.quoted_tweet?.author_username?.charAt(0).toUpperCase() || '😈'}
-                                    </Text>
+                                    </AppText>
                                 </TouchableOpacity>
                                 <View style={styles.quotedInfo}>
                                     <TouchableOpacity
@@ -220,10 +224,10 @@ export function TweetComponent({
                                             router.push(`/profile/${tweet.quoted_tweet?.owner_id.$oid}`);
                                         }}
                                     >
-                                        <Text style={styles.quotedName}>
+                                        <AppText variant="captionBold">
                                             {tweet.quoted_tweet?.author_display_name ||
                                                 tweet.quoted_tweet?.author_username || 'User'}
-                                        </Text>
+                                        </AppText>
                                     </TouchableOpacity>
                                     <TouchableOpacity
                                         onPress={(e) => {
@@ -231,40 +235,38 @@ export function TweetComponent({
                                             router.push(`/profile/${tweet.quoted_tweet?.owner_id.$oid}`);
                                         }}
                                     >
-                                        <Text style={styles.quotedUsername}>@{tweet.quoted_tweet?.author_username || 'user'}</Text>
+                                        <AppText variant="caption" color="tertiary">@{tweet.quoted_tweet?.author_username || 'user'}</AppText>
                                     </TouchableOpacity>
                                 </View>
                             </View>
-                            <Text style={styles.quotedText}>{tweet.quoted_tweet.content}</Text>
+                            <AppText variant="caption">{tweet.quoted_tweet.content}</AppText>
                         </View>
                     )}
 
                     {/* Energy Overview */}
                     <View style={styles.energyContainer}>
-                        <Text style={styles.energyLabel}>Energy</Text>
-                        <Text
-                            style={[
-                                styles.energyValue,
-                                { color: getEnergyColor(tweet.energy_state.energy) },
-                            ]}
+                        <AppText variant="small" color="secondary" style={{ textTransform: 'uppercase', letterSpacing: 1 }}>Energy</AppText>
+                        <AppText
+                            variant="h3"
+                            style={{ color: getEnergyColor(tweet.energy_state.energy) }}
                         >
                             {tweet.energy_state.energy.toFixed(1)} J
-                        </Text>
+                        </AppText>
                         <View style={styles.energyBreakdownRow}>
-                            <Text style={styles.energyBreakdownText}>
+                            <AppText variant="small" color="tertiary">
                                 Kinetic: {tweet.energy_state.kinetic_energy.toFixed(1)} J
-                            </Text>
-                            <Text style={styles.energyBreakdownText}>
+                            </AppText>
+                            <AppText variant="small" color="tertiary">
                                 Potential: {tweet.energy_state.potential_energy.toFixed(1)} J
-                            </Text>
+                            </AppText>
                         </View>
                         <View style={styles.energyBreakdownRow}>
-                            <Text style={styles.energySupportText}>
+                            <AppText variant="small" style={{ color: colors.energySupport }}>
                                 Support +{tweet.energy_state.energy_gained_from_support.toFixed(1)} J
-                            </Text>
-                            <Text style={styles.energyAttackText}>
+                            </AppText>
+                            <AppText variant="small" style={{ color: colors.energyAttack }}>
                                 Damage -{tweet.energy_state.energy_lost_from_attacks.toFixed(1)} J
-                            </Text>
+                            </AppText>
                         </View>
                     </View>
 
@@ -278,8 +280,8 @@ export function TweetComponent({
                                     handleReply();
                                 }}
                             >
-                                <Text style={styles.actionIcon}>💬</Text>
-                                <Text style={styles.actionText}>{tweet.replies_count || 0}</Text>
+                                <AppText variant="caption" style={{ fontSize: 16, marginRight: spacing.xs }}>💬</AppText>
+                                <AppText variant="caption" color="secondary" style={{ fontWeight: '500' }}>{tweet.replies_count || 0}</AppText>
                             </TouchableOpacity>
 
                             <TouchableOpacity
@@ -289,8 +291,8 @@ export function TweetComponent({
                                     handleRetweet();
                                 }}
                             >
-                                <Text style={styles.actionIcon}>🔄</Text>
-                                <Text style={styles.actionText}>{tweet.retweets_count || 0}</Text>
+                                <AppText variant="caption" style={{ fontSize: 16, marginRight: spacing.xs }}>🔄</AppText>
+                                <AppText variant="caption" color="secondary" style={{ fontWeight: '500' }}>{tweet.retweets_count || 0}</AppText>
                             </TouchableOpacity>
 
                             <TouchableOpacity
@@ -300,8 +302,8 @@ export function TweetComponent({
                                     handleQuote();
                                 }}
                             >
-                                <Text style={styles.actionIcon}>💬</Text>
-                                <Text style={styles.actionText}>{tweet.quote_count || 0}</Text>
+                                <AppText variant="caption" style={{ fontSize: 16, marginRight: spacing.xs }}>💬</AppText>
+                                <AppText variant="caption" color="secondary" style={{ fontWeight: '500' }}>{tweet.quote_count || 0}</AppText>
                             </TouchableOpacity>
 
                             <TouchableOpacity
@@ -311,18 +313,25 @@ export function TweetComponent({
                                     handleLike();
                                 }}
                             >
-                                <Text style={[
-                                    styles.actionIcon,
-                                    tweet.viewer_context?.is_liked && styles.likeActive
-                                ]}>
+                                <AppText
+                                    variant="caption"
+                                    style={{
+                                        fontSize: 16,
+                                        marginRight: spacing.xs,
+                                        color: tweet.viewer_context?.is_liked ? colors.likeActive : colors.textSecondary
+                                    }}
+                                >
                                     ❤️
-                                </Text>
-                                <Text style={[
-                                    styles.actionText,
-                                    tweet.viewer_context?.is_liked && styles.likeActive
-                                ]}>
+                                </AppText>
+                                <AppText
+                                    variant="caption"
+                                    style={{
+                                        fontWeight: '500',
+                                        color: tweet.viewer_context?.is_liked ? colors.likeActive : colors.textSecondary
+                                    }}
+                                >
                                     {tweet.likes_count || 0}
-                                </Text>
+                                </AppText>
                             </TouchableOpacity>
 
                             <TouchableOpacity
@@ -332,8 +341,8 @@ export function TweetComponent({
                                     handleSmack();
                                 }}
                             >
-                                <Text style={styles.actionIcon}>👊</Text>
-                                <Text style={styles.actionText}>{tweet.metrics?.smacks || 0}</Text>
+                                <AppText variant="caption" style={{ fontSize: 16, marginRight: spacing.xs }}>👊</AppText>
+                                <AppText variant="caption" color="secondary" style={{ fontWeight: '500' }}>{tweet.metrics?.smacks || 0}</AppText>
                             </TouchableOpacity>
 
                         </View>
@@ -368,33 +377,23 @@ export function TweetComponent({
 
 const styles = StyleSheet.create({
     tweetContainer: {
-        paddingHorizontal: 16,
-        paddingVertical: 12,
+        paddingHorizontal: spacing.lg,
+        paddingVertical: spacing.md,
         borderBottomWidth: 1,
-        borderBottomColor: '#2f3336',
+        borderBottomColor: colors.border,
     },
     replyContainer: {
         marginLeft: 20,
         borderLeftWidth: 2,
-        borderLeftColor: '#2f3336',
-        paddingLeft: 16,
+        borderLeftColor: colors.border,
+        paddingLeft: spacing.lg,
     },
     retweetBanner: {
         flexDirection: 'row',
         alignItems: 'center',
-        gap: 6,
-        marginBottom: 8,
+        gap: spacing.sm,
+        marginBottom: spacing.sm,
         marginLeft: 60,
-    },
-    retweetIcon: {
-        color: '#1DA1F2',
-        fontSize: 12,
-    },
-    retweetText: {
-        color: '#1DA1F2',
-        fontSize: 12,
-        textTransform: 'uppercase',
-        letterSpacing: 0.8,
     },
     header: {
         flexDirection: 'row',
@@ -403,15 +402,10 @@ const styles = StyleSheet.create({
         width: 48,
         height: 48,
         borderRadius: 24,
-        backgroundColor: '#536471',
+        backgroundColor: colors.borderStrong,
         justifyContent: 'center',
         alignItems: 'center',
-        marginRight: 12,
-    },
-    avatarText: {
-        color: '#fff',
-        fontSize: 20,
-        fontWeight: 'bold',
+        marginRight: spacing.md,
     },
     tweetContent: {
         flex: 1,
@@ -419,153 +413,72 @@ const styles = StyleSheet.create({
     tweetHeader: {
         flexDirection: 'row',
         alignItems: 'center',
-        marginBottom: 4,
-    },
-    displayName: {
-        fontWeight: 'bold',
-        color: '#fff',
-        fontSize: 15,
-        marginRight: 4,
-    },
-    username: {
-        color: '#71767b',
-        fontSize: 15,
-        marginRight: 4,
-    },
-    time: {
-        color: '#71767b',
-        fontSize: 15,
+        marginBottom: spacing.xs,
+        gap: spacing.xs,
     },
     moreButton: {
         marginLeft: 'auto',
-        padding: 8,
-        borderRadius: 20,
-    },
-    moreIcon: {
-        color: '#71767b',
-        fontSize: 18,
+        padding: spacing.sm,
+        borderRadius: radii.pill,
     },
     replyingToContainer: {
-        marginBottom: 8,
-    },
-    replyingToText: {
-        color: '#71767b',
-        fontSize: 13,
-    },
-    replyingToUsername: {
-        color: '#1DA1F2',
-        fontWeight: '500',
-    },
-    tweetText: {
-        color: '#fff',
-        fontSize: 15,
-        lineHeight: 20,
-        marginBottom: 12,
+        flexDirection: 'row',
+        alignItems: 'center',
+        marginBottom: spacing.sm,
+        gap: spacing.xs,
     },
     quotedCard: {
-        backgroundColor: '#16181c',
-        borderRadius: 12,
-        padding: 12,
-        marginBottom: 12,
+        backgroundColor: colors.bgCard,
+        borderRadius: radii.lg,
+        padding: spacing.md,
+        marginBottom: spacing.md,
         borderWidth: 1,
-        borderColor: '#2f3336',
+        borderColor: colors.border,
     },
     quotedHeader: {
         flexDirection: 'row',
         alignItems: 'center',
-        marginBottom: 8,
+        marginBottom: spacing.sm,
     },
     quotedAvatar: {
         width: 30,
         height: 30,
         borderRadius: 15,
-        backgroundColor: '#555',
+        backgroundColor: colors.borderStrong,
         justifyContent: 'center',
         alignItems: 'center',
-        marginRight: 8,
-    },
-    quotedAvatarText: {
-        color: '#fff',
-        fontWeight: 'bold',
-        fontSize: 14,
+        marginRight: spacing.sm,
     },
     quotedInfo: {
         flexDirection: 'row',
         alignItems: 'center',
-    },
-    quotedName: {
-        color: '#fff',
-        fontWeight: 'bold',
-        marginRight: 4,
-    },
-    quotedUsername: {
-        color: '#888',
-    },
-    quotedText: {
-        color: '#fff',
-        fontSize: 14,
-        lineHeight: 18,
+        gap: spacing.xs,
     },
     energyContainer: {
-        marginBottom: 12,
-        backgroundColor: '#11161c',
-        borderRadius: 8,
+        marginBottom: spacing.md,
+        backgroundColor: colors.energyBg,
+        borderRadius: radii.md,
         borderWidth: 1,
-        borderColor: '#2f3336',
-        padding: 12,
-        gap: 6,
-    },
-    energyLabel: {
-        color: '#71767b',
-        fontSize: 12,
-        textTransform: 'uppercase',
-        letterSpacing: 1,
-    },
-    energyValue: {
-        color: '#fff',
-        fontSize: 18,
-        fontWeight: 'bold',
+        borderColor: colors.border,
+        padding: spacing.md,
+        gap: spacing.sm,
     },
     energyBreakdownRow: {
         flexDirection: 'row',
         justifyContent: 'space-between',
     },
-    energyBreakdownText: {
-        color: '#9aa0a6',
-        fontSize: 12,
-    },
-    energySupportText: {
-        color: '#81c995',
-        fontSize: 12,
-    },
-    energyAttackText: {
-        color: '#f28b82',
-        fontSize: 12,
-    },
     actions: {
         flexDirection: 'row',
         justifyContent: 'space-around',
-        paddingTop: 8,
+        paddingTop: spacing.sm,
         borderTopWidth: 1,
-        borderTopColor: '#2f3336',
+        borderTopColor: colors.border,
     },
     actionButton: {
         flexDirection: 'row',
         alignItems: 'center',
-        paddingVertical: 8,
-        paddingHorizontal: 12,
-        borderRadius: 20,
-    },
-    actionIcon: {
-        fontSize: 16,
-        marginRight: 4,
-    },
-    actionText: {
-        color: '#71767b',
-        fontSize: 13,
-        fontWeight: '500',
-    },
-    likeActive: {
-        color: '#f91880',
+        paddingVertical: spacing.sm,
+        paddingHorizontal: spacing.md,
+        borderRadius: radii.pill,
     },
 });

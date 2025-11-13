@@ -1,5 +1,7 @@
 import { AuthModal } from '@/components/AuthModal';
 import { SignInButton } from '@/components/SignInButton';
+import { AppText, AppButton } from '@/components/ui';
+import { colors, spacing, radii, typography } from '@/theme';
 import { useAuthStore } from '@/lib/stores/authStore';
 import { useBackendUserStore } from '@/lib/stores/backendUserStore';
 import { useRouter } from 'expo-router';
@@ -43,9 +45,9 @@ export function Sidebar({ compact = false }: SidebarProps) {
         <View style={[styles.sidebarContainer, compact && styles.sidebarContainerCompact]}>
             <View>
                 <TouchableOpacity onPress={() => router.push('/(tabs)' as any)}>
-                    <Text style={[styles.logo, compact && styles.logoCompact]}>ET</Text>
+                    <AppText variant="h2" style={compact ? { textAlign: 'center' } : undefined}>ET</AppText>
                     {!compact ? (
-                        <Text style={styles.logoSubtitle}>Evil Twitter</Text>
+                        <AppText variant="bodyLarge" color="secondary">Evil Twitter</AppText>
                     ) : null}
                 </TouchableOpacity>
 
@@ -56,17 +58,17 @@ export function Sidebar({ compact = false }: SidebarProps) {
                             style={styles.navItem}
                             onPress={() => router.push(item.route as any)}
                         >
-                            <Text style={styles.navIcon}>{item.icon}</Text>
-                            {!compact ? <Text style={styles.navLabel}>{item.name}</Text> : null}
+                            <Text style={{ fontSize: 22 }}>{item.icon}</Text>
+                            {!compact ? <AppText variant="h4">{item.name}</AppText> : null}
                         </TouchableOpacity>
                     ))}
                 </View>
             </View>
 
             <View style={styles.sidebarFooter}>
-                <TouchableOpacity style={styles.tweetButton} activeOpacity={0.8}>
-                    <Text style={styles.tweetButtonText}>{compact ? '✍️' : 'Tweet'}</Text>
-                </TouchableOpacity>
+                <AppButton variant="primary" onPress={() => { }} style={{ width: '100%' }}>
+                    {compact ? '✍️' : 'Tweet'}
+                </AppButton>
 
                 {isAuthenticated && backendUser ? (
                     <View style={styles.profileCard}>
@@ -75,28 +77,28 @@ export function Sidebar({ compact = false }: SidebarProps) {
                             onPress={() => router.push('/(tabs)/profile' as any)}
                         >
                             <View style={styles.profileAvatar}>
-                                <Text style={styles.profileAvatarText}>
+                                <AppText variant="bodyBold">
                                     {backendUser.display_name?.charAt(0).toUpperCase() || '😈'}
-                                </Text>
+                                </AppText>
                             </View>
                             {!compact ? (
                                 <View style={styles.profileMeta}>
-                                    <Text style={styles.profileName}>
+                                    <AppText variant="bodyLarge">
                                         {backendUser.display_name || 'User'}
-                                    </Text>
-                                    <Text style={styles.profileHandle}>
+                                    </AppText>
+                                    <AppText variant="caption" color="secondary">
                                         @{backendUser.username || 'user'}
-                                    </Text>
+                                    </AppText>
                                 </View>
                             ) : null}
                         </TouchableOpacity>
                         {!compact ? (
-                            <TouchableOpacity onPress={handleLogout} style={styles.logoutButton}>
-                                <Text style={styles.logoutText}>Logout</Text>
-                            </TouchableOpacity>
+                            <AppButton variant="danger" size="sm" onPress={handleLogout}>
+                                Logout
+                            </AppButton>
                         ) : (
                             <TouchableOpacity onPress={handleLogout} style={styles.logoutButtonCompact}>
-                                <Text style={styles.logoutIcon}>🚪</Text>
+                                <AppText variant="caption">🚪</AppText>
                             </TouchableOpacity>
                         )}
                     </View>
@@ -228,31 +230,30 @@ const styles = StyleSheet.create({
         marginTop: 2,
     },
     profileMenu: {
-        color: '#9ca3af',
-        fontSize: 18,
+        ...typography.h4,
+        color: colors.textSecondary,
     },
     profileLink: {
         flexDirection: 'row',
         alignItems: 'center',
         flex: 1,
-        gap: 12,
+        gap: spacing.md,
     },
     logoutButton: {
-        backgroundColor: '#ef4444',
-        paddingVertical: 8,
-        paddingHorizontal: 12,
-        borderRadius: 8,
+        backgroundColor: colors.danger,
+        paddingVertical: spacing.sm,
+        paddingHorizontal: spacing.md,
+        borderRadius: radii.md,
     },
     logoutText: {
-        color: '#fff',
-        fontSize: 12,
-        fontWeight: '600',
+        ...typography.smallBold,
+        color: colors.textPrimary,
     },
     logoutButtonCompact: {
-        backgroundColor: '#ef4444',
-        paddingVertical: 8,
-        paddingHorizontal: 8,
-        borderRadius: 8,
+        backgroundColor: colors.danger,
+        paddingVertical: spacing.sm,
+        paddingHorizontal: spacing.sm,
+        borderRadius: radii.md,
         alignItems: 'center',
         justifyContent: 'center',
     },
@@ -263,24 +264,23 @@ const styles = StyleSheet.create({
         alignItems: 'center',
     },
     loginButton: {
-        backgroundColor: '#1d9bf0',
-        paddingVertical: 12,
-        paddingHorizontal: 24,
-        borderRadius: 24,
+        backgroundColor: colors.accent,
+        paddingVertical: spacing.md,
+        paddingHorizontal: spacing.xl,
+        borderRadius: radii['2xl'],
         alignItems: 'center',
         justifyContent: 'center',
         width: '100%',
     },
     loginText: {
-        color: '#fff',
-        fontSize: 16,
-        fontWeight: 'bold',
+        ...typography.bodyBold,
+        color: colors.textPrimary,
     },
     loginButtonCompact: {
-        backgroundColor: '#1d9bf0',
-        paddingVertical: 12,
-        paddingHorizontal: 12,
-        borderRadius: 24,
+        backgroundColor: colors.accent,
+        paddingVertical: spacing.md,
+        paddingHorizontal: spacing.md,
+        borderRadius: radii['2xl'],
         alignItems: 'center',
         justifyContent: 'center',
         width: '100%',

@@ -1,10 +1,12 @@
 import { FollowButton } from '@/components/FollowButton';
 import { FollowLists } from '@/components/FollowLists';
 import { TweetCard } from '@/components/TweetCard';
+import { AppText, AppButton, AppCard } from '@/components/ui';
 import { useAuthStore } from '@/lib/stores/authStore';
 import { useBackendUserStore } from '@/lib/stores/backendUserStore';
 import { useFollowStore } from '@/lib/stores/followStore';
 import { useWeaponsStore } from '@/lib/stores/weaponsStore';
+import { colors, spacing, radii, typography } from '@/theme';
 import { useRouter } from 'expo-router';
 import React, { useCallback, useEffect } from 'react';
 import { ActivityIndicator, Alert, FlatList, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
@@ -190,11 +192,11 @@ export function Profile({
             <Card.Content style={styles.weaponContent}>
                 <Text style={styles.weaponEmoji}>{item.image_url}</Text>
                 <View style={styles.weaponInfo}>
-                    <Text style={styles.weaponName}>{item.name}</Text>
-                    <Text style={styles.weaponDescription}>{item.description}</Text>
+                    <AppText variant="bodyLarge" style={{ fontWeight: '700' }}>{item.name}</AppText>
+                    <AppText variant="caption" color="secondary">{item.description}</AppText>
                     <View style={styles.weaponStats}>
-                        <Text style={styles.statText}>Impact: {item.impact}</Text>
-                        <Text style={styles.statText}>Durability: {item.health}/{item.max_health}</Text>
+                        <AppText variant="small">Impact: {item.impact}</AppText>
+                        <AppText variant="small">Durability: {item.health}/{item.max_health}</AppText>
                     </View>
                 </View>
             </Card.Content>
@@ -211,11 +213,11 @@ export function Profile({
                             <Text style={styles.backButtonText}>← Back</Text>
                         </TouchableOpacity>
                     )}
-                    <Text style={styles.headerTitle}>{headerTitle}</Text>
+                    <AppText variant="h4">{headerTitle}</AppText>
                 </View>
                 <View style={styles.loadingContainer}>
-                    <Text style={styles.welcomeText}>Welcome to Evil Twitter</Text>
-                    <Text style={styles.signInPrompt}>Please sign in to view your profile</Text>
+                    <AppText variant="h2">Welcome to Evil Twitter</AppText>
+                    <AppText variant="bodyLarge" color="secondary">Please sign in to view your profile</AppText>
                 </View>
             </View>
         );
@@ -225,11 +227,11 @@ export function Profile({
         return (
             <View style={styles.container}>
                 <View style={styles.header}>
-                    <Text style={styles.headerTitle}>{headerTitle}</Text>
+                    <AppText variant="h4">{headerTitle}</AppText>
                 </View>
                 <View style={styles.loadingContainer}>
-                    <ActivityIndicator size="large" color="#1d9bf0" />
-                    <Text style={styles.loadingText}>Loading profile...</Text>
+                    <ActivityIndicator size="large" color={colors.accent} />
+                    <AppText variant="bodyLarge">Loading profile...</AppText>
                 </View>
             </View>
         );
@@ -248,11 +250,11 @@ export function Profile({
                             <Text style={styles.backButtonText}>← Back</Text>
                         </TouchableOpacity>
                     )}
-                    <Text style={styles.headerTitle}>{headerTitle}</Text>
+                    <AppText variant="h4">{headerTitle}</AppText>
                 </View>
                 <View style={styles.loadingContainer}>
-                    <ActivityIndicator size="large" color="#1d9bf0" />
-                    <Text style={styles.loadingText}>Loading profile...</Text>
+                    <ActivityIndicator size="large" color={colors.accent} />
+                    <AppText variant="bodyLarge">Loading profile...</AppText>
                 </View>
             </View>
         );
@@ -267,19 +269,19 @@ export function Profile({
                             <Text style={styles.backButtonText}>← Back</Text>
                         </TouchableOpacity>
                     )}
-                    <Text style={styles.headerTitle}>{headerTitle}</Text>
+                    <AppText variant="h4">{headerTitle}</AppText>
                 </View>
                 <View style={styles.errorContainer}>
-                    <Text style={styles.errorText}>{profileCompositeError}</Text>
-                    <TouchableOpacity
-                        style={styles.retryButton}
+                    <AppText variant="h3" color="danger">{profileCompositeError}</AppText>
+                    <AppButton
+                        variant="primary"
                         onPress={() => {
                             if (displayUserId) {
                                 fetchProfileComposite(displayUserId, currentBackendUser?._id?.$oid);
                             }
                         }}>
-                        <Text style={styles.retryButtonText}>Retry</Text>
-                    </TouchableOpacity>
+                        Retry
+                    </AppButton>
                 </View>
             </View>
         );
@@ -294,13 +296,13 @@ export function Profile({
                             <Text style={styles.backButtonText}>← Back</Text>
                         </TouchableOpacity>
                     )}
-                    <Text style={styles.headerTitle}>{headerTitle}</Text>
+                    <AppText variant="h4">{headerTitle}</AppText>
                 </View>
                 <View style={styles.errorContainer}>
-                    <Text style={styles.errorText}>User not found</Text>
-                    <TouchableOpacity style={styles.retryButton} onPress={() => router.back()}>
-                        <Text style={styles.retryButtonText}>Go Back</Text>
-                    </TouchableOpacity>
+                    <AppText variant="h3" color="danger">User not found</AppText>
+                    <AppButton variant="primary" onPress={() => router.back()}>
+                        Go Back
+                    </AppButton>
                 </View>
             </View>
         );
@@ -311,11 +313,11 @@ export function Profile({
             {/* Header */}
             <View style={styles.header}>
                 {showBackButton && (
-                    <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
-                        <Text style={styles.backButtonText}>← Back</Text>
-                    </TouchableOpacity>
+                    <AppButton variant="ghost" size="sm" onPress={() => router.back()}>
+                        ← Back
+                    </AppButton>
                 )}
-                <Text style={styles.headerTitle}>{headerTitle}</Text>
+                <AppText variant="h4">{headerTitle}</AppText>
             </View>
 
             <ScrollView style={styles.scrollView}>
@@ -325,38 +327,38 @@ export function Profile({
                     <View style={styles.profileInfo}>
                         <View style={styles.avatarContainer}>
                             <View style={styles.profileAvatar}>
-                                <Text style={styles.avatarText}>
+                                <AppText variant="h2">
                                     {displayUser?.display_name?.charAt(0).toUpperCase() || '😈'}
-                                </Text>
+                                </AppText>
                             </View>
                         </View>
 
                         <View style={styles.profileDetails}>
                             <View style={styles.profileHeaderRow}>
                                 <View style={styles.profileInfo}>
-                                    <Text style={styles.displayName}>
+                                    <AppText variant="h4">
                                         {displayUser?.display_name || 'Unknown User'}
-                                    </Text>
-                                    <Text style={styles.username}>
+                                    </AppText>
+                                    <AppText variant="body" color="secondary">
                                         @{displayUser?.username || 'unknown'}
-                                    </Text>
+                                    </AppText>
 
                                     {displayUser?.bio && (
-                                        <Text style={styles.bio}>{displayUser.bio}</Text>
+                                        <AppText variant="body">{displayUser.bio}</AppText>
                                     )}
 
                                     <View style={styles.profileMeta}>
-                                        <Text style={styles.metaText}>
+                                        <AppText variant="body" color="secondary">
                                             📅 Joined {displayUser?.created_at ? formatDate(displayUser.created_at) : 'Unknown'}
-                                        </Text>
+                                        </AppText>
                                     </View>
                                 </View>
 
                                 {/* Sync button for own profile */}
                                 {isOwnProfile && (
-                                    <TouchableOpacity style={styles.syncButtonTop} onPress={handleSyncWithSupabase}>
-                                        <Text style={styles.syncButtonText}>🔄 Sync</Text>
-                                    </TouchableOpacity>
+                                    <AppButton variant="primary" size="sm" onPress={handleSyncWithSupabase}>
+                                        🔄 Sync
+                                    </AppButton>
                                 )}
                             </View>
                         </View>
@@ -376,57 +378,57 @@ export function Profile({
                 {/* Profile Stats */}
                 <View style={styles.statsContainer}>
                     <View style={styles.statItem}>
-                        <Text style={styles.statNumber}>{displayUser?.tweets_count || 0}</Text>
-                        <Text style={styles.statLabel}>Tweets</Text>
+                        <AppText variant="h4">{displayUser?.tweets_count || 0}</AppText>
+                        <AppText variant="caption" color="secondary">Tweets</AppText>
                     </View>
                     <View style={styles.statItem}>
-                        <Text style={styles.statNumber}>{displayUser?.followers_count || 0}</Text>
-                        <Text style={styles.statLabel}>Followers</Text>
+                        <AppText variant="h4">{displayUser?.followers_count || 0}</AppText>
+                        <AppText variant="caption" color="secondary">Followers</AppText>
                     </View>
                     <View style={styles.statItem}>
-                        <Text style={styles.statNumber}>{displayUser?.following_count || 0}</Text>
-                        <Text style={styles.statLabel}>Following</Text>
+                        <AppText variant="h4">{displayUser?.following_count || 0}</AppText>
+                        <AppText variant="caption" color="secondary">Following</AppText>
                     </View>
                     <View style={[styles.statItem, styles.dollarRateItem]}>
-                        <Text style={[styles.statNumber, styles.dollarRateText]}>
+                        <AppText variant="h4">
                             ${displayUser?.dollar_conversion_rate?.toLocaleString() || '0'}
-                        </Text>
-                        <Text style={[styles.statLabel, styles.dollarRateText]}>Dollar Rate</Text>
+                        </AppText>
+                        <AppText variant="caption">Dollar Rate</AppText>
                     </View>
                 </View>
 
                 {/* Token Balances */}
                 {balances && (
                     <View style={styles.balancesContainer}>
-                        <Text style={styles.sectionTitle}>💰 Token Balances</Text>
+                        <AppText variant="h4">💰 Token Balances</AppText>
                         <View style={styles.balancesGrid}>
                             <View style={[styles.balanceItem, styles.blingItem]}>
                                 <Text style={styles.balanceEmoji}>💎</Text>
-                                <Text style={styles.balanceAmount}>
+                                <AppText variant="h4">
                                     {balances['Bling']?.toLocaleString() || '0'}
-                                </Text>
-                                <Text style={styles.balanceLabel}>BLING</Text>
+                                </AppText>
+                                <AppText variant="small" color="secondary" style={{ textTransform: 'uppercase' }}>BLING</AppText>
                             </View>
                             <View style={styles.balanceItem}>
                                 <Text style={styles.balanceEmoji}>💵</Text>
-                                <Text style={styles.balanceAmount}>
+                                <AppText variant="h4">
                                     {balances['Dooler']?.toLocaleString() || '0'}
-                                </Text>
-                                <Text style={styles.balanceLabel}>DOOLER</Text>
+                                </AppText>
+                                <AppText variant="small" color="secondary" style={{ textTransform: 'uppercase' }}>DOOLER</AppText>
                             </View>
                             <View style={styles.balanceItem}>
                                 <Text style={styles.balanceEmoji}>💲</Text>
-                                <Text style={styles.balanceAmount}>
+                                <AppText variant="h4">
                                     {balances['Usdc']?.toLocaleString() || '0'}
-                                </Text>
-                                <Text style={styles.balanceLabel}>USDC</Text>
+                                </AppText>
+                                <AppText variant="small" color="secondary" style={{ textTransform: 'uppercase' }}>USDC</AppText>
                             </View>
                             <View style={styles.balanceItem}>
                                 <Text style={styles.balanceEmoji}>◎</Text>
-                                <Text style={styles.balanceAmount}>
+                                <AppText variant="h4">
                                     {balances['Sol']?.toLocaleString() || '0'}
-                                </Text>
-                                <Text style={styles.balanceLabel}>SOL</Text>
+                                </AppText>
+                                <AppText variant="small" color="secondary" style={{ textTransform: 'uppercase' }}>SOL</AppText>
                             </View>
                         </View>
                     </View>
@@ -444,65 +446,63 @@ export function Profile({
                 {/* Tabs */}
                 <View style={styles.tabsContainer}>
                     <TouchableOpacity style={[styles.tab, styles.activeTab]}>
-                        <Text style={[styles.tabText, styles.activeTabText]}>Tweets</Text>
+                        <AppText variant="bodyBold" color="accent">Tweets</AppText>
                     </TouchableOpacity>
                     <TouchableOpacity style={styles.tab}>
-                        <Text style={styles.tabText}>Tweets & replies</Text>
+                        <AppText variant="bodyBold" color="secondary">Tweets & replies</AppText>
                     </TouchableOpacity>
                     <TouchableOpacity style={styles.tab}>
-                        <Text style={styles.tabText}>Media</Text>
+                        <AppText variant="bodyBold" color="secondary">Media</AppText>
                     </TouchableOpacity>
                     <TouchableOpacity style={styles.tab}>
-                        <Text style={styles.tabText}>Likes</Text>
+                        <AppText variant="bodyBold" color="secondary">Likes</AppText>
                     </TouchableOpacity>
                 </View>
 
                 {/* Account Information Section (only for own profile) */}
                 {isOwnProfile && (
                     <View style={styles.accountInfoSection}>
-                        <Text style={styles.sectionTitle}>📋 Account Information</Text>
-                        <Card style={styles.accountInfoCard}>
-                            <Card.Content style={styles.accountInfoContent}>
-                                <View style={styles.accountInfoRow}>
-                                    <Text style={styles.accountInfoLabel}>Email:</Text>
-                                    <Text style={styles.accountInfoValue}>{authUser?.email || 'N/A'}</Text>
-                                </View>
-                                <View style={styles.accountInfoRow}>
-                                    <Text style={styles.accountInfoLabel}>Supabase User ID:</Text>
-                                    <Text style={styles.accountInfoValue}>{authUser?.id || 'N/A'}</Text>
-                                </View>
-                                <View style={styles.accountInfoRow}>
-                                    <Text style={styles.accountInfoLabel}>Backend User ID:</Text>
-                                    <Text style={styles.accountInfoValue}>
-                                        {currentBackendUser?._id?.$oid || 'Not loaded'}
-                                    </Text>
-                                </View>
-                                <View style={styles.accountInfoRow}>
-                                    <Text style={styles.accountInfoLabel}>Created:</Text>
-                                    <Text style={styles.accountInfoValue}>
-                                        {authUser?.created_at ? formatDate(authUser.created_at) : 'N/A'}
-                                    </Text>
-                                </View>
-                                <View style={styles.accountInfoRow}>
-                                    <Text style={styles.accountInfoLabel}>Last Sign In:</Text>
-                                    <Text style={styles.accountInfoValue}>
-                                        {authUser?.last_sign_in_at ? formatDate(authUser.last_sign_in_at) : 'N/A'}
-                                    </Text>
-                                </View>
-                            </Card.Content>
-                        </Card>
+                        <AppText variant="h4">📋 Account Information</AppText>
+                        <AppCard padding elevated>
+                            <View style={styles.accountInfoRow}>
+                                <AppText variant="caption" color="secondary">Email:</AppText>
+                                <AppText variant="caption" style={{ flex: 2, textAlign: 'right', fontFamily: 'monospace' }}>{authUser?.email || 'N/A'}</AppText>
+                            </View>
+                            <View style={styles.accountInfoRow}>
+                                <AppText variant="caption" color="secondary">Supabase User ID:</AppText>
+                                <AppText variant="caption" style={{ flex: 2, textAlign: 'right', fontFamily: 'monospace' }}>{authUser?.id || 'N/A'}</AppText>
+                            </View>
+                            <View style={styles.accountInfoRow}>
+                                <AppText variant="caption" color="secondary">Backend User ID:</AppText>
+                                <AppText variant="caption" style={{ flex: 2, textAlign: 'right', fontFamily: 'monospace' }}>
+                                    {currentBackendUser?._id?.$oid || 'Not loaded'}
+                                </AppText>
+                            </View>
+                            <View style={styles.accountInfoRow}>
+                                <AppText variant="caption" color="secondary">Created:</AppText>
+                                <AppText variant="caption" style={{ flex: 2, textAlign: 'right', fontFamily: 'monospace' }}>
+                                    {authUser?.created_at ? formatDate(authUser.created_at) : 'N/A'}
+                                </AppText>
+                            </View>
+                            <View style={styles.accountInfoRow}>
+                                <AppText variant="caption" color="secondary">Last Sign In:</AppText>
+                                <AppText variant="caption" style={{ flex: 2, textAlign: 'right', fontFamily: 'monospace' }}>
+                                    {authUser?.last_sign_in_at ? formatDate(authUser.last_sign_in_at) : 'N/A'}
+                                </AppText>
+                            </View>
+                        </AppCard>
                     </View>
                 )}
 
                 {/* User Tweets Section */}
                 <View style={styles.tweetsSection}>
-                    <Text style={styles.sectionTitle}>
+                    <AppText variant="h4">
                         🐦 {isOwnProfile ? 'My' : ''} Tweets ({userTweets.length})
-                    </Text>
+                    </AppText>
                     {tweetsLoading ? (
                         <View style={styles.loadingTweets}>
-                            <ActivityIndicator size="small" color="#1d9bf0" />
-                            <Text style={styles.loadingTweetsText}>Loading tweets...</Text>
+                            <ActivityIndicator size="small" color={colors.accent} />
+                            <AppText variant="caption" color="secondary">Loading tweets...</AppText>
                         </View>
                     ) : userTweets.length > 0 ? (
                         <FlatList
@@ -514,22 +514,22 @@ export function Profile({
                         />
                     ) : (
                         <View style={styles.emptyTweets}>
-                            <Text style={styles.emptyText}>No tweets yet</Text>
-                            <Text style={styles.emptySubtext}>
+                            <AppText variant="h3" color="secondary">No tweets yet</AppText>
+                            <AppText variant="caption" color="secondary">
                                 {isOwnProfile
                                     ? 'Start tweeting to see your posts here!'
                                     : "This user hasn't posted anything yet!"
                                 }
-                            </Text>
+                            </AppText>
                         </View>
                     )}
                 </View>
 
                 {/* Weapons Section */}
                 <View style={styles.weaponsSection}>
-                    <Text style={styles.sectionTitle}>
+                    <AppText variant="h4">
                         ⚔️ {isOwnProfile ? 'My' : ''} Arsenal ({weapons.length})
-                    </Text>
+                    </AppText>
                     {weapons.length > 0 ? (
                         <FlatList
                             data={weapons}
@@ -540,13 +540,13 @@ export function Profile({
                         />
                     ) : (
                         <View style={styles.emptyWeapons}>
-                            <Text style={styles.emptyText}>No weapons yet</Text>
-                            <Text style={styles.emptySubtext}>
+                            <AppText variant="h3" color="secondary">No weapons yet</AppText>
+                            <AppText variant="caption" color="secondary">
                                 {isOwnProfile
                                     ? 'Visit the shop to buy some weapons!'
                                     : "This user hasn't bought any weapons yet!"
                                 }
-                            </Text>
+                            </AppText>
                         </View>
                     )}
                 </View>
@@ -559,32 +559,30 @@ export function Profile({
 const styles = StyleSheet.create({
     container: {
         flex: 1,
-        backgroundColor: '#000',
+        backgroundColor: colors.bg,
     },
     header: {
         flexDirection: 'row',
         alignItems: 'center',
-        paddingHorizontal: 16,
-        paddingVertical: 16,
+        paddingHorizontal: spacing.lg,
+        paddingVertical: spacing.lg,
         borderBottomWidth: 1,
-        borderBottomColor: '#2f3336',
+        borderBottomColor: colors.border,
         position: 'sticky',
         top: 0,
-        backgroundColor: '#000',
+        backgroundColor: colors.bg,
         zIndex: 10,
     },
     backButton: {
-        marginRight: 16,
+        marginRight: spacing.lg,
     },
     backButtonText: {
-        color: '#1d9bf0',
-        fontSize: 16,
-        fontWeight: 'bold',
+        ...typography.bodyBold,
+        color: colors.accent,
     },
     headerTitle: {
-        fontSize: 20,
-        fontWeight: 'bold',
-        color: '#fff',
+        ...typography.h4,
+        color: colors.textPrimary,
     },
     scrollView: {
         flex: 1,
@@ -594,207 +592,201 @@ const styles = StyleSheet.create({
     },
     coverPhoto: {
         height: 200,
-        backgroundColor: '#1d9bf0',
+        backgroundColor: colors.accent,
     },
     profileInfo: {
-        paddingHorizontal: 16,
-        paddingBottom: 16,
+        paddingHorizontal: spacing.lg,
+        paddingBottom: spacing.lg,
     },
     avatarContainer: {
         marginTop: -40,
-        marginBottom: 16,
+        marginBottom: spacing.lg,
     },
     profileAvatar: {
         width: 80,
         height: 80,
         borderRadius: 40,
-        backgroundColor: '#536471',
+        backgroundColor: colors.borderStrong,
         justifyContent: 'center',
         alignItems: 'center',
         borderWidth: 4,
-        borderColor: '#000',
+        borderColor: colors.bg,
     },
     avatarText: {
-        color: '#fff',
-        fontSize: 32,
-        fontWeight: 'bold',
+        ...typography.h2,
+        color: colors.textPrimary,
     },
     profileDetails: {
-        marginTop: 8,
+        marginTop: spacing.sm,
     },
     profileHeaderRow: {
         flexDirection: 'row',
         justifyContent: 'space-between',
         alignItems: 'flex-start',
-        paddingRight: 8,
+        paddingRight: spacing.sm,
     },
     displayName: {
-        fontSize: 20,
-        fontWeight: 'bold',
-        color: '#fff',
-        marginBottom: 4,
+        ...typography.h4,
+        color: colors.textPrimary,
+        marginBottom: spacing.xs,
     },
     username: {
-        fontSize: 15,
-        color: '#71767b',
-        marginBottom: 12,
+        ...typography.body,
+        color: colors.textSecondary,
+        marginBottom: spacing.md,
     },
     bio: {
-        fontSize: 15,
-        color: '#e7e9ea',
-        lineHeight: 20,
-        marginBottom: 12,
+        ...typography.body,
+        color: colors.textPrimary,
+        marginBottom: spacing.md,
     },
     profileMeta: {
-        marginBottom: 16,
+        marginBottom: spacing.lg,
     },
     metaText: {
-        fontSize: 15,
-        color: '#71767b',
+        ...typography.body,
+        color: colors.textSecondary,
     },
     statsContainer: {
         flexDirection: 'row',
-        paddingHorizontal: 16,
-        paddingVertical: 16,
+        paddingHorizontal: spacing.lg,
+        paddingVertical: spacing.lg,
         borderBottomWidth: 1,
-        borderBottomColor: '#2f3336',
+        borderBottomColor: colors.border,
         flexWrap: 'wrap',
     },
     statItem: {
         flex: 1,
         alignItems: 'center',
         minWidth: '25%',
-        marginBottom: 8,
+        marginBottom: spacing.sm,
     },
     dollarRateItem: {
-        backgroundColor: '#536471',
-        borderRadius: 8,
-        paddingVertical: 8,
-        paddingHorizontal: 4,
+        backgroundColor: colors.borderStrong,
+        borderRadius: radii.md,
+        paddingVertical: spacing.sm,
+        paddingHorizontal: spacing.xs,
     },
     dollarRateText: {
-        color: '#fff',
+        color: colors.textPrimary,
     },
     statNumber: {
-        fontSize: 20,
-        fontWeight: 'bold',
-        color: '#fff',
-        marginBottom: 4,
+        ...typography.h4,
+        color: colors.textPrimary,
+        marginBottom: spacing.xs,
     },
     statLabel: {
-        fontSize: 13,
-        color: '#71767b',
+        ...typography.caption,
+        color: colors.textSecondary,
     },
     tabsContainer: {
         flexDirection: 'row',
         borderBottomWidth: 1,
-        borderBottomColor: '#2f3336',
+        borderBottomColor: colors.border,
     },
     tab: {
         flex: 1,
-        paddingVertical: 16,
+        paddingVertical: spacing.lg,
         alignItems: 'center',
     },
     activeTab: {
         borderBottomWidth: 2,
-        borderBottomColor: '#1d9bf0',
+        borderBottomColor: colors.accent,
     },
     tabText: {
-        fontSize: 15,
-        color: '#71767b',
-        fontWeight: 'bold',
+        ...typography.bodyBold,
+        color: colors.textSecondary,
     },
     activeTabText: {
-        color: '#1d9bf0',
+        color: colors.accent,
     },
     accountInfoSection: {
-        paddingHorizontal: 16,
-        paddingVertical: 16,
+        paddingHorizontal: spacing.lg,
+        paddingVertical: spacing.lg,
     },
     sectionTitle: {
-        fontSize: 20,
-        fontWeight: 'bold',
-        color: '#fff',
-        marginBottom: 16,
+        ...typography.h4,
+        color: colors.textPrimary,
+        marginBottom: spacing.lg,
     },
     accountInfoCard: {
-        backgroundColor: '#16181c',
-        borderRadius: 12,
+        backgroundColor: colors.bgCard,
+        borderRadius: radii.lg,
         borderWidth: 1,
-        borderColor: '#2f3336',
+        borderColor: colors.border,
     },
     accountInfoContent: {
-        padding: 16,
+        padding: spacing.lg,
     },
     accountInfoRow: {
         flexDirection: 'row',
         justifyContent: 'space-between',
         alignItems: 'center',
-        paddingVertical: 8,
+        paddingVertical: spacing.sm,
         borderBottomWidth: 1,
-        borderBottomColor: '#2f3336',
+        borderBottomColor: colors.border,
     },
     accountInfoLabel: {
-        fontSize: 14,
-        color: '#71767b',
+        ...typography.caption,
+        color: colors.textSecondary,
         flex: 1,
     },
     accountInfoValue: {
-        fontSize: 14,
-        color: '#e7e9ea',
+        ...typography.caption,
+        color: colors.textPrimary,
         flex: 2,
         textAlign: 'right',
         fontFamily: 'monospace',
     },
     tweetsSection: {
-        paddingHorizontal: 16,
-        paddingVertical: 16,
+        paddingHorizontal: spacing.lg,
+        paddingVertical: spacing.lg,
     },
     tweetsList: {
-        gap: 8,
+        gap: spacing.sm,
     },
     loadingTweets: {
         flexDirection: 'row',
         alignItems: 'center',
         justifyContent: 'center',
-        padding: 32,
+        padding: spacing['2xl'],
     },
     loadingTweetsText: {
-        color: '#71767b',
-        fontSize: 14,
-        marginLeft: 8,
+        ...typography.caption,
+        color: colors.textSecondary,
+        marginLeft: spacing.sm,
     },
     emptyTweets: {
         alignItems: 'center',
-        padding: 32,
+        padding: spacing['2xl'],
     },
     emptyText: {
-        fontSize: 18,
-        color: '#71767b',
-        marginBottom: 8,
+        ...typography.h3,
+        color: colors.textSecondary,
+        marginBottom: spacing.sm,
     },
     emptySubtext: {
-        fontSize: 14,
-        color: '#71767b',
+        ...typography.caption,
+        color: colors.textSecondary,
     },
     weaponsSection: {
-        paddingHorizontal: 16,
-        paddingVertical: 16,
+        paddingHorizontal: spacing.lg,
+        paddingVertical: spacing.lg,
     },
     weaponsList: {
-        gap: 12,
+        gap: spacing.md,
     },
     weaponCard: {
-        backgroundColor: '#16181c',
-        borderRadius: 12,
-        padding: 16,
+        backgroundColor: colors.bgCard,
+        borderRadius: radii.lg,
+        padding: spacing.lg,
         borderWidth: 1,
-        borderColor: '#2f3336',
+        borderColor: colors.border,
     },
     weaponContent: {
         flexDirection: 'row',
         alignItems: 'center',
-        gap: 12,
+        gap: spacing.md,
     },
     weaponEmoji: {
         fontSize: 32,
@@ -803,132 +795,127 @@ const styles = StyleSheet.create({
         flex: 1,
     },
     weaponName: {
-        fontSize: 16,
-        fontWeight: 'bold',
-        color: '#fff',
-        marginBottom: 4,
+        ...typography.bodyLarge,
+        fontWeight: '700',
+        color: colors.textPrimary,
+        marginBottom: spacing.xs,
     },
     weaponDescription: {
-        fontSize: 14,
-        color: '#71767b',
-        marginBottom: 8,
+        ...typography.caption,
+        color: colors.textSecondary,
+        marginBottom: spacing.sm,
     },
     weaponStats: {
         flexDirection: 'row',
-        gap: 16,
+        gap: spacing.lg,
     },
     statText: {
-        fontSize: 12,
-        color: '#e7e9ea',
+        ...typography.small,
+        color: colors.textPrimary,
     },
     balancesContainer: {
-        padding: 16,
-        backgroundColor: '#1a1a1a',
-        marginHorizontal: 16,
-        marginTop: 16,
-        borderRadius: 12,
+        padding: spacing.lg,
+        backgroundColor: colors.bgHover,
+        marginHorizontal: spacing.lg,
+        marginTop: spacing.lg,
+        borderRadius: radii.lg,
     },
     balancesGrid: {
         flexDirection: 'row',
         flexWrap: 'wrap',
-        gap: 12,
-        marginTop: 12,
+        gap: spacing.md,
+        marginTop: spacing.md,
     },
     balanceItem: {
         flex: 1,
         minWidth: '45%',
-        backgroundColor: '#2a2a2a',
-        padding: 16,
-        borderRadius: 8,
+        backgroundColor: colors.bgCardSecondary,
+        padding: spacing.lg,
+        borderRadius: radii.md,
         alignItems: 'center',
     },
     blingItem: {
-        backgroundColor: '#3a2a4a',
+        backgroundColor: colors.blingBg,
         borderWidth: 2,
-        borderColor: '#9d4edd',
+        borderColor: colors.blingBorder,
     },
     balanceEmoji: {
         fontSize: 24,
-        marginBottom: 8,
+        marginBottom: spacing.sm,
     },
     balanceAmount: {
-        fontSize: 20,
-        fontWeight: 'bold',
-        color: '#fff',
-        marginBottom: 4,
+        ...typography.h4,
+        color: colors.textPrimary,
+        marginBottom: spacing.xs,
     },
     balanceLabel: {
-        fontSize: 12,
-        color: '#71767b',
+        ...typography.small,
+        color: colors.textSecondary,
         textTransform: 'uppercase',
     },
     emptyWeapons: {
         alignItems: 'center',
-        padding: 32,
+        padding: spacing['2xl'],
     },
     loadingContainer: {
         flex: 1,
         justifyContent: 'center',
         alignItems: 'center',
-        padding: 32,
+        padding: spacing['2xl'],
     },
     loadingText: {
-        color: '#fff',
-        fontSize: 16,
-        marginTop: 16,
+        ...typography.bodyLarge,
+        color: colors.textPrimary,
+        marginTop: spacing.lg,
     },
     welcomeText: {
-        color: '#fff',
-        fontSize: 24,
-        fontWeight: 'bold',
-        marginBottom: 16,
+        ...typography.h2,
+        color: colors.textPrimary,
+        marginBottom: spacing.lg,
         textAlign: 'center',
     },
     signInPrompt: {
-        color: '#71767b',
-        fontSize: 16,
+        ...typography.bodyLarge,
+        color: colors.textSecondary,
         textAlign: 'center',
     },
     errorContainer: {
         flex: 1,
         justifyContent: 'center',
         alignItems: 'center',
-        padding: 32,
+        padding: spacing['2xl'],
     },
     errorText: {
-        color: '#f4212e',
-        fontSize: 18,
-        fontWeight: 'bold',
-        marginBottom: 16,
+        ...typography.h3,
+        color: colors.dangerStrong,
+        marginBottom: spacing.lg,
         textAlign: 'center',
     },
     retryButton: {
-        backgroundColor: '#1d9bf0',
-        paddingVertical: 12,
-        paddingHorizontal: 24,
-        borderRadius: 20,
+        backgroundColor: colors.accent,
+        paddingVertical: spacing.md,
+        paddingHorizontal: spacing.xl,
+        borderRadius: radii.pill,
     },
     retryButtonText: {
-        color: '#fff',
-        fontSize: 16,
-        fontWeight: 'bold',
+        ...typography.bodyBold,
+        color: colors.textPrimary,
     },
     followButtonContainer: {
         position: 'absolute',
-        top: 16,
-        right: 16,
+        top: spacing.lg,
+        right: spacing.lg,
     },
     syncButtonTop: {
-        backgroundColor: '#1d9bf0',
-        paddingVertical: 8,
-        paddingHorizontal: 12,
-        borderRadius: 16,
+        backgroundColor: colors.accent,
+        paddingVertical: spacing.sm,
+        paddingHorizontal: spacing.md,
+        borderRadius: radii.lg,
         alignItems: 'center',
-        marginLeft: 16,
+        marginLeft: spacing.lg,
     },
     syncButtonText: {
-        color: '#fff',
-        fontSize: 14,
-        fontWeight: 'bold',
+        ...typography.captionBold,
+        color: colors.textPrimary,
     },
 });

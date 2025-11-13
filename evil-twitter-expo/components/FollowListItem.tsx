@@ -3,6 +3,8 @@ import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 
 import { FollowButton } from '@/components/FollowButton';
 import { FollowUser } from '@/lib/stores/followStore';
+import { AppText } from '@/components/ui';
+import { colors, spacing, radii, typography } from '@/theme';
 
 interface FollowListItemProps {
   user: FollowUser;
@@ -39,19 +41,19 @@ export function FollowListItem({
       onPress={handlePress}
     >
       <View style={styles.avatar}>
-        <Text style={styles.avatarText}>{initials}</Text>
+        <AppText variant="h4">{initials}</AppText>
       </View>
       <View style={styles.info}>
-        <Text style={styles.displayName} numberOfLines={1}>
+        <AppText variant="bodyBold" numberOfLines={1}>
           {user.display_name || user.username || 'User'}
-        </Text>
-        <Text style={styles.username} numberOfLines={1}>
+        </AppText>
+        <AppText variant="caption" color="secondary" numberOfLines={1}>
           @{user.username || 'user'}
-        </Text>
+        </AppText>
         {showBio && user.bio ? (
-          <Text style={styles.bio} numberOfLines={2}>
+          <AppText variant="small" color="secondary" numberOfLines={2}>
             {user.bio}
-          </Text>
+          </AppText>
         ) : null}
       </View>
       {rightContent ? (
@@ -71,47 +73,45 @@ const styles = StyleSheet.create({
   item: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: 12,
-    paddingHorizontal: 8,
-    backgroundColor: '#16181c',
-    borderRadius: 12,
+    paddingVertical: spacing.md,
+    paddingHorizontal: spacing.sm,
+    backgroundColor: colors.bgCard,
+    borderRadius: radii.lg,
     borderWidth: 1,
-    borderColor: '#2f3336',
+    borderColor: colors.border,
   },
   avatar: {
     width: 44,
     height: 44,
     borderRadius: 22,
-    backgroundColor: '#293038',
+    backgroundColor: colors.borderStrong,
     justifyContent: 'center',
     alignItems: 'center',
-    marginRight: 12,
+    marginRight: spacing.md,
   },
   avatarText: {
-    color: '#fff',
-    fontSize: 18,
-    fontWeight: 'bold',
+    ...typography.h4,
+    color: colors.textPrimary,
   },
   info: {
     flex: 1,
     gap: 2,
   },
   displayName: {
-    color: '#fff',
-    fontSize: 15,
-    fontWeight: 'bold',
+    ...typography.bodyBold,
+    color: colors.textPrimary,
   },
   username: {
-    color: '#71767b',
-    fontSize: 13,
+    ...typography.caption,
+    color: colors.textSecondary,
   },
   bio: {
-    color: '#9ba2ab',
-    fontSize: 12,
+    ...typography.small,
+    color: colors.textSecondary,
     marginTop: 2,
   },
   rightContent: {
-    marginLeft: 12,
+    marginLeft: spacing.md,
     flexDirection: 'row',
     alignItems: 'center',
   },

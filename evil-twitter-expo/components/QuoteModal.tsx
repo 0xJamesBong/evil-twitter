@@ -13,6 +13,8 @@ import {
 } from 'react-native';
 import { useTweetsStore } from '@/lib/stores/tweetsStore';
 import { useBackendUserStore } from '@/lib/stores/backendUserStore';
+import { AppText, AppButton } from '@/components/ui';
+import { colors, spacing, radii, typography } from '@/theme';
 import { TweetComponent } from './TweetComponent';
 
 export function QuoteModal() {
@@ -106,43 +108,31 @@ export function QuoteModal() {
                 <View style={styles.sheet}>
                     <SafeAreaView>
                         <View style={styles.header}>
-                            <TouchableOpacity
-                                onPress={handleCancel}
-                                style={styles.cancelButton}
-                            >
-                                <Text style={styles.cancelButtonText}>Cancel</Text>
-                            </TouchableOpacity>
+                            <AppButton variant="ghost" size="sm" onPress={handleCancel}>
+                                Cancel
+                            </AppButton>
 
-                            <Text style={styles.title}>Quote Tweet</Text>
+                            <AppText variant="h4">Quote Tweet</AppText>
 
-                            <TouchableOpacity
+                            <AppButton
+                                variant="primary"
                                 onPress={handleQuoteSubmit}
-                                style={[
-                                    styles.quoteButton,
-                                    (!trimmedContent || isSubmitting) && styles.quoteButtonDisabled,
-                                ]}
                                 disabled={!trimmedContent || isSubmitting}
+                                loading={isSubmitting}
                             >
-                                <Text
-                                    style={[
-                                        styles.quoteButtonText,
-                                        (!trimmedContent || isSubmitting) && styles.quoteButtonTextDisabled,
-                                    ]}
-                                >
-                                    {isSubmitting ? 'Posting...' : 'Quote'}
-                                </Text>
-                            </TouchableOpacity>
+                                {isSubmitting ? 'Posting...' : 'Quote'}
+                            </AppButton>
                         </View>
                     </SafeAreaView>
 
                     <View style={styles.body}>
                         <View style={styles.composerRow}>
                             <View style={styles.avatar}>
-                                <Text style={styles.avatarText}>
+                                <AppText variant="h4">
                                     {currentUser?.display_name?.charAt(0).toUpperCase() ||
                                         currentUser?.username?.charAt(0).toUpperCase() ||
                                         '😈'}
-                                </Text>
+                                </AppText>
                             </View>
                             <TextInput
                                 style={styles.textInput}
@@ -159,12 +149,12 @@ export function QuoteModal() {
                         </View>
 
                         <View style={styles.composerFooter}>
-                            <Text style={styles.characterCount}>{localContent.length}/280</Text>
+                            <AppText variant="caption" color="tertiary">{localContent.length}/280</AppText>
                         </View>
 
                         {previewTweet && (
                             <View style={styles.previewWrapper}>
-                                <Text style={styles.previewLabel}>Original Tweet</Text>
+                                <AppText variant="caption" color="tertiary" style={{ textTransform: 'uppercase', letterSpacing: 0.6 }}>Original Tweet</AppText>
                                 <View style={styles.previewCard}>
                                     <TweetComponent
                                         tweet={previewTweet}
@@ -184,109 +174,106 @@ export function QuoteModal() {
 const styles = StyleSheet.create({
     overlay: {
         flex: 1,
-        backgroundColor: 'rgba(0,0,0,0.7)',
+        backgroundColor: colors.overlayStrong,
         justifyContent: 'center',
-        padding: 16,
+        padding: spacing.lg,
     },
     sheet: {
         width: '100%',
         maxWidth: 560,
         alignSelf: 'center',
-        backgroundColor: '#000',
-        borderRadius: 20,
+        backgroundColor: colors.bg,
+        borderRadius: radii.xl,
         borderWidth: 1,
-        borderColor: '#2f3336',
+        borderColor: colors.border,
         overflow: 'hidden',
     },
     body: {
-        padding: 20,
-        gap: 20,
+        padding: spacing.xl,
+        gap: spacing.xl,
     },
     header: {
         flexDirection: 'row',
         justifyContent: 'space-between',
         alignItems: 'center',
-        paddingHorizontal: 20,
-        paddingVertical: 12,
+        paddingHorizontal: spacing.xl,
+        paddingVertical: spacing.md,
         borderBottomWidth: 1,
-        borderBottomColor: '#1f1f1f',
+        borderBottomColor: colors.bgSubtle,
     },
     title: {
-        fontSize: 18,
-        fontWeight: 'bold',
-        color: '#fff',
+        ...typography.h4,
+        color: colors.textPrimary,
     },
     cancelButton: {
-        paddingVertical: 8,
-        paddingHorizontal: 12,
+        paddingVertical: spacing.sm,
+        paddingHorizontal: spacing.md,
     },
     cancelButtonText: {
-        color: '#1DA1F2',
-        fontSize: 16,
+        ...typography.bodyLarge,
+        color: colors.accent,
     },
     quoteButton: {
-        backgroundColor: '#1DA1F2',
-        paddingVertical: 8,
-        paddingHorizontal: 16,
-        borderRadius: 20,
+        backgroundColor: colors.accent,
+        paddingVertical: spacing.sm,
+        paddingHorizontal: spacing.lg,
+        borderRadius: radii.pill,
     },
     quoteButtonDisabled: {
-        backgroundColor: '#333',
+        backgroundColor: colors.bgCardSecondary,
     },
     quoteButtonText: {
-        color: '#fff',
-        fontSize: 16,
-        fontWeight: 'bold',
+        ...typography.bodyBold,
+        color: colors.textPrimary,
     },
     quoteButtonTextDisabled: {
-        color: '#666',
+        color: colors.textTertiary,
     },
     composerRow: {
         flexDirection: 'row',
-        gap: 12,
+        gap: spacing.md,
     },
     avatar: {
         width: 40,
         height: 40,
         borderRadius: 20,
-        backgroundColor: '#1d9bf0',
+        backgroundColor: colors.accent,
         justifyContent: 'center',
         alignItems: 'center',
     },
     avatarText: {
-        color: '#fff',
-        fontWeight: '700',
-        fontSize: 18,
+        ...typography.h4,
+        color: colors.textPrimary,
     },
     textInput: {
         flex: 1,
         minHeight: 100,
-        color: '#fff',
-        fontSize: 16,
+        color: colors.textPrimary,
+        ...typography.bodyLarge,
         textAlignVertical: 'top',
-        paddingVertical: 8,
+        paddingVertical: spacing.sm,
     },
     composerFooter: {
         flexDirection: 'row',
         justifyContent: 'flex-end',
     },
     characterCount: {
-        color: '#6b6e72',
-        fontSize: 13,
+        ...typography.caption,
+        color: colors.textTertiary,
     },
     previewWrapper: {
-        gap: 8,
+        gap: spacing.sm,
     },
     previewLabel: {
-        color: '#6b6e72',
-        fontSize: 13,
+        ...typography.caption,
+        color: colors.textTertiary,
         textTransform: 'uppercase',
         letterSpacing: 0.6,
     },
     previewCard: {
         borderWidth: 1,
-        borderColor: '#2f3336',
-        borderRadius: 16,
+        borderColor: colors.border,
+        borderRadius: radii.lg,
         overflow: 'hidden',
     },
 });

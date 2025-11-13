@@ -1,5 +1,6 @@
 import React from 'react';
 import { StyleSheet, Text, TouchableOpacity } from 'react-native';
+import { colors, spacing, radii, typography } from '@/theme';
 
 interface FollowButtonProps {
   isFollowing: boolean;
@@ -32,29 +33,28 @@ export function FollowButton({ isFollowing, onToggle, compact = false }: FollowB
 
 const styles = StyleSheet.create({
   button: {
-    backgroundColor: '#1d9bf0',
-    paddingVertical: 8,
-    paddingHorizontal: 16,
-    borderRadius: 20,
+    backgroundColor: colors.accent,
+    paddingVertical: spacing.sm,
+    paddingHorizontal: spacing.lg,
+    borderRadius: radii.pill,
     alignItems: 'center',
     minWidth: 80,
   },
   buttonCompact: {
-    paddingVertical: 6,
-    paddingHorizontal: 12,
+    paddingVertical: spacing.sm - 2,
+    paddingHorizontal: spacing.md,
   },
   following: {
     backgroundColor: 'transparent',
     borderWidth: 1,
-    borderColor: '#71767b',
+    borderColor: colors.textSecondary,
   },
   label: {
-    color: '#fff',
-    fontSize: 14,
-    fontWeight: 'bold',
+    ...typography.captionBold,
+    color: colors.textPrimary,
   },
   followingLabel: {
-    color: '#71767b',
+    color: colors.textSecondary,
   },
 });
 

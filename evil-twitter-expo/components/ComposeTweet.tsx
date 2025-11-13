@@ -1,6 +1,8 @@
 import { useBackendUserStore } from '@/lib/stores/backendUserStore';
 import { useComposeStore } from '@/lib/stores/composeStore';
 import { useTweetsStore } from '@/lib/stores/tweetsStore';
+import { AppText, AppButton } from '@/components/ui';
+import { colors, spacing, radii, typography } from '@/theme';
 import React from 'react';
 import { StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 
@@ -46,7 +48,7 @@ export function ComposeTweet({ onClose }: ComposeTweetProps) {
             {onClose && (
                 <View style={styles.header}>
                     <TouchableOpacity onPress={onClose} style={styles.closeButton}>
-                        <Text style={styles.closeButtonText}>✕</Text>
+                        <AppText variant="h4" color="secondary">✕</AppText>
                     </TouchableOpacity>
                 </View>
             )}
@@ -54,9 +56,9 @@ export function ComposeTweet({ onClose }: ComposeTweetProps) {
             <View style={styles.content}>
                 {/* Avatar */}
                 <View style={styles.avatar}>
-                    <Text style={styles.avatarText}>
+                    <AppText variant="h4">
                         {currentUser?.display_name?.charAt(0).toUpperCase() || '😈'}
-                    </Text>
+                    </AppText>
                 </View>
 
                 {/* Tweet Input */}
@@ -72,7 +74,7 @@ export function ComposeTweet({ onClose }: ComposeTweetProps) {
                     />
 
                     {error && (
-                        <Text style={styles.errorText}>{error}</Text>
+                        <AppText variant="caption" color="danger">{error}</AppText>
                     )}
 
                     {/* Actions */}
@@ -98,18 +100,14 @@ export function ComposeTweet({ onClose }: ComposeTweetProps) {
                             </TouchableOpacity>
                         </View>
 
-                        <TouchableOpacity
-                            style={[
-                                styles.postButton,
-                                (!content.trim() || isOverLimit || isSubmitting) && styles.postButtonDisabled
-                            ]}
+                        <AppButton
+                            variant="primary"
                             onPress={handleSubmit}
                             disabled={!content.trim() || isOverLimit || isSubmitting}
+                            loading={isSubmitting}
                         >
-                            <Text style={styles.postButtonText}>
-                                {isSubmitting ? 'Posting...' : `Post ${content.length > 0 ? `(${content.length}/280)` : ''}`}
-                            </Text>
-                        </TouchableOpacity>
+                            {isSubmitting ? 'Posting...' : `Post ${content.length > 0 ? `(${content.length}/280)` : ''}`}
+                        </AppButton>
                     </View>
                 </View>
             </View>
@@ -119,15 +117,15 @@ export function ComposeTweet({ onClose }: ComposeTweetProps) {
 
 const styles = StyleSheet.create({
     container: {
-        backgroundColor: '#000',
+        backgroundColor: colors.bg,
         borderBottomWidth: 1,
-        borderBottomColor: '#2f3336',
+        borderBottomColor: colors.border,
     },
     header: {
         flexDirection: 'row',
         justifyContent: 'flex-end',
-        paddingHorizontal: 16,
-        paddingTop: 8,
+        paddingHorizontal: spacing.lg,
+        paddingTop: spacing.sm,
     },
     closeButton: {
         width: 34,
@@ -138,83 +136,79 @@ const styles = StyleSheet.create({
         alignItems: 'center',
     },
     closeButtonText: {
-        color: '#71767b',
-        fontSize: 18,
-        fontWeight: 'bold',
+        ...typography.h4,
+        color: colors.textSecondary,
     },
     content: {
         flexDirection: 'row',
-        paddingHorizontal: 16,
-        paddingVertical: 12,
-        gap: 12,
+        paddingHorizontal: spacing.lg,
+        paddingVertical: spacing.md,
+        gap: spacing.md,
     },
     avatar: {
         width: 48,
         height: 48,
         borderRadius: 24,
-        backgroundColor: '#536471',
+        backgroundColor: colors.borderStrong,
         justifyContent: 'center',
         alignItems: 'center',
     },
     avatarText: {
-        color: '#fff',
-        fontSize: 20,
-        fontWeight: 'bold',
+        ...typography.h4,
+        color: colors.textPrimary,
     },
     inputContainer: {
         flex: 1,
     },
     input: {
         backgroundColor: 'transparent',
-        color: '#fff',
-        fontSize: 20,
-        lineHeight: 24,
+        color: colors.textPrimary,
+        ...typography.h3,
         minHeight: 60,
         textAlignVertical: 'top',
     },
     inputError: {
-        color: '#f4212e',
+        color: colors.dangerStrong,
     },
     errorText: {
-        color: '#f4212e',
-        marginTop: 8,
-        fontSize: 13,
+        ...typography.caption,
+        color: colors.dangerStrong,
+        marginTop: spacing.sm,
     },
     actions: {
         flexDirection: 'row',
         justifyContent: 'space-between',
         alignItems: 'center',
-        marginTop: 12,
-        paddingTop: 12,
+        marginTop: spacing.md,
+        paddingTop: spacing.md,
         borderTopWidth: 1,
-        borderTopColor: '#2f3336',
+        borderTopColor: colors.border,
     },
     mediaButtons: {
         flexDirection: 'row',
-        gap: 4,
+        gap: spacing.xs,
     },
     mediaButton: {
-        padding: 8,
-        borderRadius: 20,
+        padding: spacing.sm,
+        borderRadius: radii.pill,
     },
     mediaIcon: {
         fontSize: 20,
-        color: '#1d9bf0',
+        color: colors.accent,
     },
     postButton: {
-        backgroundColor: '#1d9bf0',
-        paddingVertical: 8,
-        paddingHorizontal: 16,
-        borderRadius: 20,
+        backgroundColor: colors.accent,
+        paddingVertical: spacing.sm,
+        paddingHorizontal: spacing.lg,
+        borderRadius: radii.pill,
         minWidth: 80,
         alignItems: 'center',
     },
     postButtonDisabled: {
-        backgroundColor: '#536471',
+        backgroundColor: colors.borderStrong,
     },
     postButtonText: {
-        color: '#fff',
-        fontSize: 15,
-        fontWeight: 'bold',
+        ...typography.bodyBold,
+        color: colors.textPrimary,
     },
 });
