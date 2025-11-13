@@ -1,4 +1,8 @@
-use axum::routing::{delete, get, post};
+use std::sync::Arc;
+
+use axum::{
+    routing::{delete, get, post},
+};
 use dotenvy::dotenv;
 use tower_http::cors::CorsLayer;
 
@@ -8,6 +12,8 @@ use utoipa_axum::router::OpenApiRouter;
 use utoipa_swagger_ui::SwaggerUi;
 
 mod actions;
+mod app_state;
+mod graphql;
 mod middleware;
 mod models;
 mod routes;
@@ -21,44 +27,17 @@ use routes::follow::{follow_user, get_followers_list, get_following_list, unfoll
 use routes::migration::{migrate_user_objectids, migrate_users_weapons};
 use routes::ping::ping_handler;
 use routes::shop::{buy_item, get_catalog_endpoint, get_user_assets};
-use routes::tweet::{
-    attack_tweet, create_tweet, get_thread, get_tweet, get_tweets, get_user_wall, like_tweet,
-    quote_tweet, reply_tweet, retweet_tweet, smack_tweet, support_tweet,
-};
-use routes::user::{
-    attack_dollar_rate, create_user, get_dollar_rate, get_user, get_user_balances, get_users,
-    improve_dollar_rate,
-};
+
 
 /// API documentation
 #[derive(OpenApi)]
 #[openapi(
     paths(
         routes::ping::ping_handler,
-        routes::user::create_user,
-        routes::user::get_user,
-        routes::user::get_user_balances,
-        routes::user::get_users,
-        routes::user::improve_dollar_rate,
-        routes::user::attack_dollar_rate,
-        routes::user::get_dollar_rate,
-        routes::tweet::create_tweet,
-        routes::tweet::get_tweet,
-        routes::tweet::get_tweets,
-        routes::tweet::get_thread,
-        routes::tweet::get_user_wall,
-        routes::tweet::like_tweet,
-        routes::tweet::smack_tweet,
-        routes::tweet::support_tweet,
-        routes::tweet::attack_tweet,
-        routes::tweet::retweet_tweet,
-        routes::tweet::quote_tweet,
-        routes::tweet::reply_tweet,
         routes::data_generation::generate_fake_users,
         routes::data_generation::generate_fake_tweets,
         routes::data_generation::generate_fake_data,
         routes::data_generation::clear_all_data,
-        routes::tweet::migrate_users_dollar_rate,
         routes::migration::migrate_users_weapons,
         routes::migration::migrate_user_objectids,
         routes::follow::follow_user,
@@ -75,20 +54,8 @@ use routes::user::{
     components(
         schemas(
             models::user::User,
-            models::user::CreateUser,
             models::user::ImproveRateRequest,
-            models::user::AttackRateRequest,
-            models::tweet::Tweet,
-            models::tweet::TweetView,
-            models::tweet::TweetType,
-            models::tweet::CreateTweet,
-            models::tweet::CreateReply,
-            models::tweet::CreateQuote,
-            models::tweet::TweetAttackAction,
-            models::tweet::TweetMetrics,
-            models::tweet::TweetAuthorSnapshot,
-            models::tweet::TweetViewerContext,
-            models::tweet::TweetEnergyState,
+            models::user::AttackRateRequest,    
             models::follow::Follow,
             models::follow::FollowRequest,
             models::follow::FollowResponse,
@@ -99,11 +66,6 @@ use routes::user::{
             routes::data_generation::UserGenerationRequest,
             routes::data_generation::TweetGenerationRequest,
             models::tool::Tool,
-            routes::tweet::SupportTweetRequest,
-            routes::tweet::AttackTweetRequest,
-            routes::tweet::SmackTweetRequest,
-            routes::tweet::TweetListResponse,
-            routes::tweet::TweetThreadResponse,
             routes::shop::BuyItemRequest,
             routes::exchange::ExchangeRequest,
             routes::exchange::ExchangeResponse,
@@ -150,6 +112,9 @@ async fn main() -> anyhow::Result<()> {
     let mongo_db = std::env::var("MONGO_DB_NAME").expect("MONGO_DB_NAME must be set");
     let client = Client::with_uri_str(&mongo_uri).await?;
     let db = client.database(&mongo_db);
+    
+    // Create application state
+    let app_state = Arc::new(app_state::AppState::new(db.clone()));
 
     // Configure CORS
     // let cors = CorsLayer::new()
@@ -160,23 +125,6 @@ async fn main() -> anyhow::Result<()> {
 
     let (app, api) = OpenApiRouter::with_openapi(ApiDoc::openapi())
         .route("/ping", get(ping_handler))
-        .route("/users", post(create_user).get(get_users))
-        .route("/users/{user_id}/improve", post(improve_dollar_rate))
-        .route("/users/{user_id}/attack", post(attack_dollar_rate))
-        .route("/users/{user_id}/dollar-rate", get(get_dollar_rate))
-        .route("/users/{user_id}/wall", get(get_user_wall))
-        .route("/users/{id}", get(get_user))
-        .route("/users/{id}/balances", get(get_user_balances))
-        .route("/tweets", post(create_tweet).get(get_tweets))
-        .route("/tweets/{id}", get(get_tweet))
-        .route("/tweets/{id}/thread", get(get_thread))
-        .route("/tweets/{id}/like", post(like_tweet))
-        .route("/tweets/{id}/smack", post(smack_tweet))
-        .route("/tweets/{id}/support", post(support_tweet))
-        .route("/tweets/{id}/attack", post(attack_tweet))
-        .route("/tweets/{id}/retweet", post(retweet_tweet))
-        .route("/tweets/{id}/quote", post(quote_tweet))
-        .route("/tweets/{id}/reply", post(reply_tweet))
         .route("/data/users/generate", post(generate_fake_users))
         .route("/data/tweets/generate", post(generate_fake_tweets))
         .route("/data/generate", post(generate_fake_data))
@@ -201,9 +149,14 @@ async fn main() -> anyhow::Result<()> {
         .route("/exchange", post(post_exchange))
         .split_for_parts();
 
+    // Create GraphQL routes with app state
+    let graphql_router = graphql::graphql_routes(app_state.clone());
+
+    // Add Database state to REST router, then merge with GraphQL router
     let app = app
+        .with_state(app_state.db.clone())
+        .merge(graphql_router)
         .merge(SwaggerUi::new("/doc").url("/api-docs/openapi.json", api))
-        .with_state(db)
         .layer(cors);
 
     // let listener = tokio::net::TcpListener::bind("0.0.0.0:3000").await?;

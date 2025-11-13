@@ -1,6 +1,5 @@
 import { useBackendUserStore } from '@/lib/stores/backendUserStore';
 import { Tweet, useTweetsStore } from '@/lib/stores/tweetsStore';
-import { Weapon } from '@/lib/stores/weaponsStore';
 import { router } from 'expo-router';
 import React, { useState } from 'react';
 import {
@@ -12,7 +11,6 @@ import {
 } from 'react-native';
 import { QuoteModal } from './QuoteModal';
 import { ReplyThreadModal } from './ReplyThreadModal';
-import { WeaponSelectionModal } from './WeaponSelectionModal';
 
 interface TweetComponentProps {
     tweet: Tweet;
@@ -32,15 +30,24 @@ export function TweetComponent({
     const { user: currentUser } = useBackendUserStore();
     const {
         retweetTweet,
-        attackTweet,
-        supportTweet,
+        // attackTweet,
+        // supportTweet,
         smackTweet,
+        likeTweet,
         openQuoteModal,
         openReplyModal
     } = useTweetsStore();
 
-    const [showWeaponModal, setShowWeaponModal] = useState(false);
-    const [weaponActionType, setWeaponActionType] = useState<'attack' | 'support'>('attack');
+    const isRetweet = tweet.tweet_type === 'retweet' && !!tweet.quoted_tweet;
+    const displayTweet = isRetweet ? tweet.quoted_tweet! : tweet;
+    const displayOwnerId = displayTweet.owner_id.$oid;
+    const displayName =
+        displayTweet.author_display_name || displayTweet.author_username || 'User';
+    const displayUsername = displayTweet.author_username || 'user';
+    const avatarInitial =
+        (displayName || displayUsername || '😈').charAt(0).toUpperCase() || '😈';
+    const retweeterName =
+        tweet.author_display_name || tweet.author_username || 'Someone';
 
     const formatTime = (dateString: string) => {
         const date = new Date(dateString);
@@ -81,14 +88,11 @@ export function TweetComponent({
         openReplyModal(tweet._id.$oid);
     };
 
-    const handleAttack = () => {
-        setWeaponActionType('attack');
-        setShowWeaponModal(true);
-    };
-
-    const handleSupport = () => {
-        setWeaponActionType('support');
-        setShowWeaponModal(true);
+    const handleLike = async () => {
+        const result = await likeTweet(tweet._id.$oid);
+        if (!result.success) {
+            Alert.alert('Error', result.error || 'Failed to like tweet');
+        }
     };
 
     const handleSmack = async () => {
@@ -100,18 +104,6 @@ export function TweetComponent({
         }
     };
 
-    const handleWeaponSelect = async (weaponId: string, _weapon: Weapon) => {
-        setShowWeaponModal(false);
-        const result = weaponActionType === 'attack'
-            ? await attackTweet(tweet._id.$oid, weaponId)
-            : await supportTweet(tweet._id.$oid, weaponId);
-
-        if (result.success) {
-            Alert.alert('Success', `Tweet ${weaponActionType === 'attack' ? 'attacked' : 'supported'}!`);
-        } else {
-            Alert.alert('Error', result.error || `Failed to ${weaponActionType === 'attack' ? 'attack' : 'support'} tweet`);
-        }
-    };
 
     const handleTweetPress = () => {
         if (isClickable && onPress) {
@@ -123,18 +115,23 @@ export function TweetComponent({
 
     const TweetContent = () => (
         <View style={[styles.tweetContainer, isReply && styles.replyContainer]}>
+            {isRetweet && (
+                <View style={styles.retweetBanner}>
+                    <Text style={styles.retweetIcon}>🔁</Text>
+                    <Text style={styles.retweetText}>{retweeterName} retweeted</Text>
+                </View>
+            )}
             {/* Header */}
             <View style={styles.header}>
                 <TouchableOpacity
                     style={styles.avatar}
                     onPress={(e) => {
                         e.stopPropagation(); // Prevent tweet click when clicking avatar
-                        router.push(`/profile/${tweet.owner_id.$oid}`);
+                        router.push(`/profile/${displayOwnerId}`);
                     }}
                 >
                     <Text style={styles.avatarText}>
-                        {tweet.author_display_name?.charAt(0).toUpperCase() ||
-                            tweet.author_username?.charAt(0).toUpperCase() || '😈'}
+                        {avatarInitial}
                     </Text>
                 </TouchableOpacity>
                 <View style={styles.tweetContent}>
@@ -142,20 +139,20 @@ export function TweetComponent({
                         <TouchableOpacity
                             onPress={(e) => {
                                 e.stopPropagation(); // Prevent tweet click when clicking name
-                                router.push(`/profile/${tweet.owner_id.$oid}`);
+                                router.push(`/profile/${displayOwnerId}`);
                             }}
                         >
                             <Text style={styles.displayName}>
-                                {tweet.author_display_name || tweet.author_username || 'User'}
+                                {displayName}
                             </Text>
                         </TouchableOpacity>
                         <TouchableOpacity
                             onPress={(e) => {
                                 e.stopPropagation(); // Prevent tweet click when clicking username
-                                router.push(`/profile/${tweet.owner_id.$oid}`);
+                                router.push(`/profile/${displayOwnerId}`);
                             }}
                         >
-                            <Text style={styles.username}>@{tweet.author_username || 'user'}</Text>
+                            <Text style={styles.username}>@{displayUsername}</Text>
                         </TouchableOpacity>
                         <Text style={styles.time}>· {formatTime(tweet.created_at)}</Text>
                         {!isReply && (
@@ -166,23 +163,23 @@ export function TweetComponent({
                     </View>
 
                     {/* Replying to indicator */}
-                    {tweet.tweet_type === 'reply' && tweet.replied_to_tweet && (
+                    {displayTweet.tweet_type === 'reply' && displayTweet.replied_to_tweet && (
                         <View style={styles.replyingToContainer}>
                             <Text style={styles.replyingToText}>
                                 Replying to <TouchableOpacity
                                     onPress={(e) => {
                                         e.stopPropagation(); // Prevent tweet click when clicking username
-                                        router.push(`/profile/${tweet.replied_to_tweet?.owner_id.$oid}`);
+                                        router.push(`/profile/${displayTweet.replied_to_tweet?.owner_id.$oid}`);
                                     }}
                                 >
-                                    <Text style={styles.replyingToUsername}>@{tweet.replied_to_tweet?.author_username || 'user'}</Text>
+                                    <Text style={styles.replyingToUsername}>@{displayTweet.replied_to_tweet?.author_username || 'user'}</Text>
                                 </TouchableOpacity>
                             </Text>
                         </View>
                     )}
 
                     {/* Quoting indicator */}
-                    {tweet.tweet_type === 'quote' && tweet.quoted_tweet && (
+                    {!isRetweet && tweet.tweet_type === 'quote' && tweet.quoted_tweet && (
                         <View style={styles.replyingToContainer}>
                             <Text style={styles.replyingToText}>
                                 Quoting <TouchableOpacity
@@ -198,10 +195,10 @@ export function TweetComponent({
                     )}
 
                     {/* Tweet Content */}
-                    <Text style={styles.tweetText}>{tweet.content}</Text>
+                    <Text style={styles.tweetText}>{displayTweet.content}</Text>
 
                     {/* Quoted Tweet */}
-                    {tweet.quoted_tweet && (
+                    {!isRetweet && tweet.quoted_tweet && (
                         <View style={styles.quotedCard}>
                             <View style={styles.quotedHeader}>
                                 <TouchableOpacity
@@ -309,10 +306,23 @@ export function TweetComponent({
 
                             <TouchableOpacity
                                 style={styles.actionButton}
-                                onPress={(e) => e.stopPropagation()}
+                                onPress={(e) => {
+                                    e.stopPropagation();
+                                    handleLike();
+                                }}
                             >
-                                <Text style={styles.actionIcon}>❤️</Text>
-                                <Text style={styles.actionText}>{tweet.likes_count || 0}</Text>
+                                <Text style={[
+                                    styles.actionIcon,
+                                    tweet.viewer_context?.is_liked && styles.likeActive
+                                ]}>
+                                    ❤️
+                                </Text>
+                                <Text style={[
+                                    styles.actionText,
+                                    tweet.viewer_context?.is_liked && styles.likeActive
+                                ]}>
+                                    {tweet.likes_count || 0}
+                                </Text>
                             </TouchableOpacity>
 
                             <TouchableOpacity
@@ -326,27 +336,6 @@ export function TweetComponent({
                                 <Text style={styles.actionText}>{tweet.metrics?.smacks || 0}</Text>
                             </TouchableOpacity>
 
-                            <TouchableOpacity
-                                style={styles.actionButton}
-                                onPress={(e) => {
-                                    e.stopPropagation();
-                                    handleAttack();
-                                }}
-                            >
-                                <Text style={styles.actionIcon}>⚔️</Text>
-                                <Text style={styles.actionText}>Attack</Text>
-                            </TouchableOpacity>
-
-                            <TouchableOpacity
-                                style={styles.actionButton}
-                                onPress={(e) => {
-                                    e.stopPropagation();
-                                    handleSupport();
-                                }}
-                            >
-                                <Text style={styles.actionIcon}>✨</Text>
-                                <Text style={styles.actionText}>Support</Text>
-                            </TouchableOpacity>
                         </View>
                     )}
                 </View>
@@ -369,12 +358,6 @@ export function TweetComponent({
 
             {showActions && (
                 <>
-                    <WeaponSelectionModal
-                        visible={showWeaponModal}
-                        onClose={() => setShowWeaponModal(false)}
-                        onSelectWeapon={handleWeaponSelect}
-                        actionType={weaponActionType}
-                    />
                     <QuoteModal />
                     <ReplyThreadModal />
                 </>
@@ -395,6 +378,23 @@ const styles = StyleSheet.create({
         borderLeftWidth: 2,
         borderLeftColor: '#2f3336',
         paddingLeft: 16,
+    },
+    retweetBanner: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 6,
+        marginBottom: 8,
+        marginLeft: 60,
+    },
+    retweetIcon: {
+        color: '#1DA1F2',
+        fontSize: 12,
+    },
+    retweetText: {
+        color: '#1DA1F2',
+        fontSize: 12,
+        textTransform: 'uppercase',
+        letterSpacing: 0.8,
     },
     header: {
         flexDirection: 'row',
@@ -564,5 +564,8 @@ const styles = StyleSheet.create({
         color: '#71767b',
         fontSize: 13,
         fontWeight: '500',
+    },
+    likeActive: {
+        color: '#f91880',
     },
 });

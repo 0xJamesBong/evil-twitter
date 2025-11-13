@@ -1,6 +1,23 @@
 import { create } from "zustand";
 import { API_BASE_URL } from "../config/api";
+import { graphqlRequest } from "../graphql/client";
+import {
+  PROFILE_QUERY,
+  ProfileQueryResult,
+  USER_BY_SUPABASE_ID_QUERY,
+  UserBySupabaseIdQueryResult,
+} from "../graphql/queries";
 import { User } from "./authStore";
+import { useTweetsStore, Tweet, normalizeTweet } from "./tweetsStore";
+import {
+  CREATE_USER_MUTATION,
+  CreateUserMutationResult,
+} from "../graphql/mutations";
+import {
+  mapGraphBalances,
+  mapGraphTweetNode,
+  mapGraphUserToBackend,
+} from "./utils";
 
 export interface BackendUser {
   _id: { $oid: string };
@@ -25,6 +42,11 @@ interface BackendUserState {
   // Token balances (for any user being viewed)
   balances: { [key: string]: number } | null;
   loadingBalances: boolean;
+  profileUser: BackendUser | null;
+  profileUserId: string | null;
+  profileTweets: Tweet[];
+  profileCompositeLoading: boolean;
+  profileCompositeError: string | null;
 }
 
 interface BackendUserActions {
@@ -35,6 +57,11 @@ interface BackendUserActions {
   adjustFollowersCount: (delta: number) => void;
   syncWithSupabase: (supabaseUser: any) => Promise<void>;
   clearUser: () => void;
+  fetchProfileComposite: (
+    userId: string,
+    viewerId?: string
+  ) => Promise<{ user: BackendUser; tweets: Tweet[] } | null>;
+  adjustProfileFollowers: (delta: number) => void;
 }
 
 export const useBackendUserStore = create<
@@ -45,68 +72,60 @@ export const useBackendUserStore = create<
   error: null,
   balances: null,
   loadingBalances: false,
+  profileUser: null,
+  profileUserId: null,
+  profileTweets: [],
+  profileCompositeLoading: false,
+  profileCompositeError: null,
   createUser: async (user: User) => {
     set({ isLoading: true, error: null });
     try {
-      const response = await fetch(`${API_BASE_URL}/users`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          supabase_id: user.id,
-          username: user.user_metadata?.username || user.email?.split("@")[0],
-          display_name:
-            user.user_metadata?.display_name || user.email?.split("@")[0],
-          email: user.email,
-          avatar_url: user.user_metadata?.avatar_url || null,
-          bio: null,
-        }),
-      });
+      const data = await graphqlRequest<CreateUserMutationResult>(
+        CREATE_USER_MUTATION,
+        {
+          input: {
+            supabaseId: user.id,
+            username: user.user_metadata?.username || user.email?.split("@")[0],
+            displayName:
+              user.user_metadata?.display_name || user.email?.split("@")[0],
+            email: user.email,
+            avatarUrl: user.user_metadata?.avatar_url || null,
+            bio: null,
+          },
+        }
+      );
 
-      if (response.ok) {
-        const newUser = await response.json();
-        set({ user: newUser, isLoading: false });
-      } else if (response.status === 409) {
-        // User already exists, fetch them instead
+      const newUser = mapGraphUserToBackend(data.userCreate.user);
+      set({ user: newUser, isLoading: false });
+    } catch (error) {
+      // If user already exists, fetch them instead
+      if (
+        error instanceof Error &&
+        (error.message.includes("already exists") ||
+          error.message.includes("409") ||
+          error.message.includes("Conflict"))
+      ) {
         console.log("User already exists, fetching...");
         await get().fetchUser(user.id);
       } else {
-        const errorText = await response.text();
-        throw new Error(
-          `Failed to create user: ${response.status} ${errorText}`
-        );
+        set({
+          error: error instanceof Error ? error.message : "An error occurred",
+          isLoading: false,
+        });
       }
-    } catch (error) {
-      set({
-        error: error instanceof Error ? error.message : "An error occurred",
-        isLoading: false,
-      });
     }
   },
+
   fetchUser: async (supabaseId: string) => {
     set({ isLoading: true, error: null });
     try {
-      const response = await fetch(
-        `${API_BASE_URL}/users?supabase_id=${encodeURIComponent(supabaseId)}`
+      const data = await graphqlRequest<UserBySupabaseIdQueryResult>(
+        USER_BY_SUPABASE_ID_QUERY,
+        { supabaseId }
       );
-      if (!response.ok) {
-        if (response.status === 404) {
-          set({
-            user: null,
-            isLoading: false,
-            error: "User not found in backend",
-          });
-          return;
-        }
-        throw new Error(`Failed to fetch backend user: ${response.status}`);
-      }
-
-      const data = await response.json();
-      const users = data.users || [];
-
-      if (users.length > 0) {
-        set({ user: users[0], isLoading: false });
+      if (data.userBySupabaseId) {
+        const backendUser = mapGraphUserToBackend(data.userBySupabaseId);
+        set({ user: backendUser, isLoading: false });
       } else {
         set({
           user: null,
@@ -125,21 +144,21 @@ export const useBackendUserStore = create<
   fetchUserById: async (userId: string) => {
     set({ isLoading: true, error: null });
     try {
-      const response = await fetch(`${API_BASE_URL}/users/${userId}`);
-      if (!response.ok) {
-        if (response.status === 404) {
-          set({
-            user: null,
-            isLoading: false,
-            error: "User not found",
-          });
-          return;
-        }
-        throw new Error(`Failed to fetch user: ${response.status}`);
+      // Use the existing PROFILE_QUERY to fetch the user
+      const data = await graphqlRequest<ProfileQueryResult>(PROFILE_QUERY, {
+        userId: userId,
+        viewerId: null,
+      });
+      if (data.user) {
+        const backendUser = mapGraphUserToBackend(data.user);
+        set({ user: backendUser, isLoading: false });
+      } else {
+        set({
+          user: null,
+          isLoading: false,
+          error: "User not found in backend",
+        });
       }
-
-      const user = await response.json();
-      set({ user, isLoading: false });
     } catch (error) {
       set({
         error: error instanceof Error ? error.message : "An error occurred",
@@ -183,16 +202,78 @@ export const useBackendUserStore = create<
   fetchBalances: async (userId: string) => {
     set({ loadingBalances: true });
     try {
-      const response = await fetch(`${API_BASE_URL}/users/${userId}/balances`);
-      if (response.ok) {
-        const data = await response.json();
-        set({ balances: data.balances || {}, loadingBalances: false });
+      const data = await graphqlRequest<ProfileQueryResult>(PROFILE_QUERY, {
+        userId,
+        viewerId: null,
+      });
+
+      if (data.user?.balances) {
+        const balances: { [key: string]: number } = {
+          dooler: data.user.balances.dooler || 0,
+          usdc: data.user.balances.usdc || 0,
+          bling: data.user.balances.bling || 0,
+          sol: data.user.balances.sol || 0,
+        };
+        set({ balances, loadingBalances: false });
       } else {
-        set({ loadingBalances: false });
+        set({ balances: null, loadingBalances: false });
       }
     } catch (error) {
-      console.error("Failed to fetch balances:", error);
-      set({ loadingBalances: false });
+      set({
+        error:
+          error instanceof Error ? error.message : "Failed to fetch balances",
+        loadingBalances: false,
+      });
+    }
+  },
+
+  fetchProfileComposite: async (userId: string, viewerId?: string) => {
+    set({
+      profileCompositeLoading: true,
+      profileCompositeError: null,
+      profileUserId: userId,
+    });
+
+    try {
+      const data = await graphqlRequest<ProfileQueryResult>(PROFILE_QUERY, {
+        userId,
+        viewerId,
+      });
+
+      if (!data.user) {
+        throw new Error("User not found");
+      }
+
+      const normalizedUser = mapGraphUserToBackend(data.user);
+      const tweets =
+        data.user.tweets?.edges?.map((edge) =>
+          normalizeTweet(mapGraphTweetNode(edge.node))
+        ) ?? [];
+      const balances = mapGraphBalances(data.user.balances);
+
+      set({
+        profileCompositeLoading: false,
+        profileCompositeError: null,
+        profileUser: normalizedUser,
+        profileUserId: userId,
+        profileTweets: tweets,
+        balances,
+        loadingBalances: false,
+      });
+
+      useTweetsStore.getState().setUserTweets(tweets);
+
+      return { user: normalizedUser, tweets };
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : "Failed to load profile";
+      set({
+        profileCompositeLoading: false,
+        profileCompositeError: message,
+        profileUser: null,
+        profileUserId: null,
+      });
+      return null;
     }
   },
 
@@ -208,7 +289,28 @@ export const useBackendUserStore = create<
     }
   },
 
+  adjustProfileFollowers: (delta: number) => {
+    set((state) => {
+      if (!state.profileUser) {
+        return state;
+      }
+      return {
+        profileUser: {
+          ...state.profileUser,
+          followers_count: state.profileUser.followers_count + delta,
+        },
+      };
+    });
+  },
+
   clearUser: () => {
-    set({ user: null, error: null, balances: null });
+    set({
+      user: null,
+      error: null,
+      balances: null,
+      profileUser: null,
+      profileUserId: null,
+      profileTweets: [],
+    });
   },
 }));

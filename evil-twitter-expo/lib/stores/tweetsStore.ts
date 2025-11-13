@@ -1,7 +1,27 @@
 import { create } from "zustand";
 import { API_BASE_URL } from "../config/api";
-
-type ObjectIdRef = { $oid: string };
+import { getAuthHeaders } from "../api/auth";
+import { graphqlRequest } from "../graphql/client";
+import {
+  TWEET_THREAD_QUERY,
+  TweetThreadQueryResult,
+  GraphQLTweetNode,
+  TIMELINE_QUERY,
+  TimelineQueryResult,
+  ProfileQueryResult,
+  PROFILE_QUERY,
+  TWEET_QUERY,
+  TweetQueryResult,
+} from "../graphql/queries";
+import {
+  CREATE_TWEET_MUTATION,
+  LIKE_TWEET_MUTATION,
+  QUOTE_TWEET_MUTATION,
+  REPLY_TWEET_MUTATION,
+  RETWEET_MUTATION,
+  SMACK_TWEET_MUTATION,
+} from "../graphql/mutations";
+import { ObjectIdRef } from "./utils";
 
 export type TweetType = "original" | "retweet" | "quote" | "reply";
 
@@ -116,24 +136,6 @@ interface TweetListResponse {
   total: number;
 }
 
-const getAuthHeaders = async (
-  includeJson: boolean = true
-): Promise<Record<string, string>> => {
-  const { supabase } = await import("../supabase");
-  const {
-    data: { session },
-  } = await supabase.auth.getSession();
-
-  const headers: Record<string, string> = {};
-  if (includeJson) {
-    headers["Content-Type"] = "application/json";
-  }
-  if (session?.access_token) {
-    headers["Authorization"] = `Bearer ${session.access_token}`;
-  }
-  return headers;
-};
-
 const flattenTweetPayload = (raw: any) => {
   if (raw && typeof raw === "object" && "tweet" in raw && raw.tweet) {
     const { tweet, ...rest } = raw;
@@ -161,7 +163,7 @@ const parseJson = async <T>(response: Response): Promise<T> => {
   return (data ?? {}) as T;
 };
 
-function normalizeTweet(raw: any): Tweet {
+export function normalizeTweet(raw: any): Tweet {
   const base = flattenTweetPayload(raw);
 
   if (!base) {
@@ -268,7 +270,7 @@ function normalizeTweet(raw: any): Tweet {
   return normalized;
 }
 
-const normalizeTweetList = (rawTweets: any[] | undefined): Tweet[] =>
+export const normalizeTweetList = (rawTweets: any[] | undefined): Tweet[] =>
   (rawTweets ?? []).map(normalizeTweet);
 
 interface TweetsState {
@@ -309,18 +311,15 @@ interface TweetsState {
     content: string,
     repliedToTweetId: string
   ) => Promise<{ success: boolean; error?: string }>;
-  attackTweet: (
-    tweetId: string,
-    toolId: string
-  ) => Promise<{ success: boolean; error?: string }>;
-  supportTweet: (
-    tweetId: string,
-    toolId: string
-  ) => Promise<{ success: boolean; error?: string }>;
+
   smackTweet: (
     tweetId: string
   ) => Promise<{ success: boolean; error?: string }>;
+  likeTweet: (
+    tweetId: string
+  ) => Promise<{ success: boolean; liked?: boolean; error?: string }>;
   updateTweet: (tweetId: string, updater: (tweet: Tweet) => Tweet) => void;
+  setUserTweets: (tweets: Tweet[]) => void;
   clearError: () => void;
 
   openQuoteModal: (tweetId: string) => void;
@@ -365,9 +364,15 @@ export const useTweetsStore = create<TweetsState>((set, get) => ({
   fetchTweets: async () => {
     set({ loading: true, error: null });
     try {
-      const response = await fetch(`${API_BASE_URL}/tweets`);
-      const data = await parseJson<TweetListResponse>(response);
-      const tweets = normalizeTweetList(data.tweets);
+      const data = await graphqlRequest<TimelineQueryResult>(TIMELINE_QUERY, {
+        first: 20,
+        after: "", // Pass empty string to match backend default
+      });
+
+      const tweets = data.timeline.edges.map((edge) =>
+        normalizeTweet(mapGraphTweetNode(edge.node))
+      );
+      console.log("using graphql to fetch timeline", tweets);
       set({ tweets, loading: false });
     } catch (error) {
       set({
@@ -381,10 +386,19 @@ export const useTweetsStore = create<TweetsState>((set, get) => ({
   fetchUserTweets: async (userId: string) => {
     set({ loading: true, error: null });
     try {
-      const response = await fetch(`${API_BASE_URL}/users/${userId}/wall`);
-      const data = await parseJson<TweetListResponse>(response);
-      const userTweets = normalizeTweetList(data.tweets);
-      set({ userTweets, loading: false });
+      const data = await graphqlRequest<ProfileQueryResult>(PROFILE_QUERY, {
+        userId,
+        viewerId: null,
+      });
+
+      if (data.user?.tweets) {
+        const userTweets = data.user.tweets.edges.map((edge) =>
+          normalizeTweet(mapGraphTweetNode(edge.node))
+        );
+        set({ userTweets, loading: false });
+      } else {
+        set({ userTweets: [], loading: false });
+      }
     } catch (error) {
       set({
         error:
@@ -398,9 +412,14 @@ export const useTweetsStore = create<TweetsState>((set, get) => ({
 
   fetchTweet: async (tweetId: string) => {
     try {
-      const response = await fetch(`${API_BASE_URL}/tweets/${tweetId}`);
-      const data = await parseJson<any>(response);
-      return normalizeTweet(data);
+      const data = await graphqlRequest<TweetQueryResult>(TWEET_QUERY, {
+        id: tweetId,
+      });
+
+      if (data.tweet) {
+        return normalizeTweet(mapGraphTweetNode(data.tweet));
+      }
+      return null;
     } catch (error) {
       console.error("Failed to fetch tweet:", error);
       return null;
@@ -409,14 +428,17 @@ export const useTweetsStore = create<TweetsState>((set, get) => ({
 
   createTweet: async (content: string) => {
     try {
-      const headers = await getAuthHeaders();
-      const response = await fetch(`${API_BASE_URL}/tweets`, {
-        method: "POST",
-        headers,
-        body: JSON.stringify({ content }),
+      const data = await graphqlRequest<{
+        tweetCreate: {
+          tweet: GraphQLTweetNode;
+        };
+      }>(CREATE_TWEET_MUTATION, {
+        input: { content: content.trim() },
       });
-      const data = await parseJson<any>(response);
-      const newTweet = normalizeTweet(data);
+
+      const newTweet = normalizeTweet(
+        mapGraphTweetNode(data.tweetCreate.tweet)
+      );
       set((state) => ({
         tweets: [newTweet, ...state.tweets],
       }));
@@ -431,21 +453,23 @@ export const useTweetsStore = create<TweetsState>((set, get) => ({
 
   quoteTweet: async (content: string, quotedTweetId: string) => {
     try {
-      const headers = await getAuthHeaders();
-      const response = await fetch(
-        `${API_BASE_URL}/tweets/${quotedTweetId}/quote`,
-        {
-          method: "POST",
-          headers,
-          body: JSON.stringify({ content }),
-        }
-      );
-      const data = await parseJson<any>(response);
-      const newTweet = normalizeTweet(data);
+      const data = await graphqlRequest<{
+        tweetQuote: {
+          tweet: GraphQLTweetNode;
+        };
+      }>(QUOTE_TWEET_MUTATION, {
+        input: {
+          content: content.trim(),
+          quotedTweetId,
+        },
+      });
+
+      const newTweet = normalizeTweet(mapGraphTweetNode(data.tweetQuote.tweet));
       set((state) => ({
         tweets: [newTweet, ...state.tweets],
       }));
 
+      // Update quoted tweet's quote count
       get().updateTweet(quotedTweetId, (tweet) => ({
         ...tweet,
         metrics: {
@@ -466,20 +490,22 @@ export const useTweetsStore = create<TweetsState>((set, get) => ({
 
   retweetTweet: async (tweetId: string) => {
     try {
-      const headers = await getAuthHeaders();
-      const response = await fetch(
-        `${API_BASE_URL}/tweets/${tweetId}/retweet`,
-        {
-          method: "POST",
-          headers,
-        }
+      const data = await graphqlRequest<{
+        tweetRetweet: {
+          tweet: GraphQLTweetNode;
+        };
+      }>(RETWEET_MUTATION, {
+        id: tweetId,
+      });
+
+      const newTweet = normalizeTweet(
+        mapGraphTweetNode(data.tweetRetweet.tweet)
       );
-      const data = await parseJson<any>(response);
-      const newTweet = normalizeTweet(data);
       set((state) => ({
         tweets: [newTweet, ...state.tweets],
       }));
 
+      // Update retweet count
       get().updateTweet(tweetId, (tweet) => ({
         ...tweet,
         metrics: {
@@ -500,17 +526,18 @@ export const useTweetsStore = create<TweetsState>((set, get) => ({
 
   replyTweet: async (content: string, repliedToTweetId: string) => {
     try {
-      const headers = await getAuthHeaders();
-      const response = await fetch(
-        `${API_BASE_URL}/tweets/${repliedToTweetId}/reply`,
-        {
-          method: "POST",
-          headers,
-          body: JSON.stringify({ content }),
-        }
-      );
-      const data = await parseJson<any>(response);
-      const newTweet = normalizeTweet(data);
+      const data = await graphqlRequest<{
+        tweetReply: {
+          tweet: GraphQLTweetNode;
+        };
+      }>(REPLY_TWEET_MUTATION, {
+        input: {
+          content: content.trim(),
+          repliedToId: repliedToTweetId,
+        },
+      });
+
+      const newTweet = normalizeTweet(mapGraphTweetNode(data.tweetReply.tweet));
 
       set((state) => {
         const updatedThreads: Record<string, ThreadData> = {
@@ -556,6 +583,7 @@ export const useTweetsStore = create<TweetsState>((set, get) => ({
         };
       });
 
+      // Update reply counts
       get().updateTweet(repliedToTweetId, (tweet) => ({
         ...tweet,
         metrics: {
@@ -586,98 +614,85 @@ export const useTweetsStore = create<TweetsState>((set, get) => ({
     }
   },
 
-  attackTweet: async (tweetId: string, toolId: string) => {
-    try {
-      const headers = await getAuthHeaders();
-      const response = await fetch(`${API_BASE_URL}/tweets/${tweetId}/attack`, {
-        method: "POST",
-        headers,
-        body: JSON.stringify({ tool_id: toolId }),
-      });
-      const data = await parseJson<any>(response);
-
-      get().updateTweet(tweetId, (tweet) => ({
-        ...tweet,
-        energy_state: {
-          ...tweet.energy_state,
-          energy: data.energy_after ?? tweet.energy_state.energy,
-          energy_lost_from_attacks:
-            tweet.energy_state.energy_lost_from_attacks + (data.damage ?? 0),
-          last_update_timestamp: new Date().toISOString(),
-        },
-      }));
-
-      return { success: true };
-    } catch (error) {
-      const message =
-        error instanceof Error ? error.message : "Failed to attack tweet";
-      set({ error: message });
-      return { success: false, error: message };
-    }
-  },
-
-  supportTweet: async (tweetId: string, toolId: string) => {
-    try {
-      const headers = await getAuthHeaders();
-      const response = await fetch(
-        `${API_BASE_URL}/tweets/${tweetId}/support`,
-        {
-          method: "POST",
-          headers,
-          body: JSON.stringify({ tool_id: toolId }),
-        }
-      );
-      const data = await parseJson<any>(response);
-
-      get().updateTweet(tweetId, (tweet) => ({
-        ...tweet,
-        energy_state: {
-          ...tweet.energy_state,
-          energy: data.energy_after ?? tweet.energy_state.energy,
-          energy_gained_from_support:
-            tweet.energy_state.energy_gained_from_support + (data.support ?? 0),
-          last_update_timestamp: new Date().toISOString(),
-        },
-      }));
-
-      return { success: true };
-    } catch (error) {
-      const message =
-        error instanceof Error ? error.message : "Failed to support tweet";
-      set({ error: message });
-      return { success: false, error: message };
-    }
-  },
-
   smackTweet: async (tweetId: string) => {
     try {
-      const headers = await getAuthHeaders();
-      const response = await fetch(`${API_BASE_URL}/tweets/${tweetId}/smack`, {
-        method: "POST",
-        headers,
-        body: JSON.stringify({}),
+      const data = await graphqlRequest<{
+        tweetSmack: {
+          id: string;
+          energy: number;
+          tokensCharged: number;
+          tokensPaidToAuthor: number;
+        };
+      }>(SMACK_TWEET_MUTATION, {
+        id: tweetId,
+        idempotencyKey: `smack-${tweetId}-${Date.now()}`,
       });
-      const data = await parseJson<any>(response);
 
-      get().updateTweet(tweetId, (tweet) => ({
-        ...tweet,
-        metrics: {
-          ...tweet.metrics,
-          smacks: (tweet.metrics.smacks || 0) + 1,
-        },
-        energy_state: {
-          ...tweet.energy_state,
-          energy: data.energy ?? tweet.energy_state.energy,
-          energy_lost_from_attacks:
-            tweet.energy_state.energy_lost_from_attacks + 1.0,
-          last_update_timestamp: new Date().toISOString(),
-        },
+      // Update tweet in store
+      set((state) => ({
+        tweets: state.tweets.map((tweet) =>
+          tweet._id.$oid === tweetId
+            ? {
+                ...tweet,
+                metrics: {
+                  ...tweet.metrics,
+                  smacks: tweet.metrics.smacks + 1,
+                },
+                energy_state: {
+                  ...tweet.energy_state,
+                  energy: data.tweetSmack.energy,
+                },
+              }
+            : tweet
+        ),
+      }));
+
+      return { success: true };
+    } catch (error) {
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : "Failed to smack tweet",
+      };
+    }
+  },
+
+  likeTweet: async (tweetId: string) => {
+    try {
+      const data = await graphqlRequest<{
+        tweetLike: {
+          id: string;
+          likeCount: number;
+          likedByViewer: boolean;
+          energy: number;
+        };
+      }>(LIKE_TWEET_MUTATION, {
+        id: tweetId,
+        idempotencyKey: `like-${tweetId}-${Date.now()}`,
+      });
+
+      // Update tweet in store
+      set((state) => ({
+        tweets: state.tweets.map((tweet) =>
+          tweet._id.$oid === tweetId
+            ? {
+                ...tweet,
+                metrics: {
+                  ...tweet.metrics,
+                  likes: data.tweetLike.likeCount,
+                },
+                viewer_context: {
+                  ...tweet.viewer_context,
+                  is_liked: data.tweetLike.likedByViewer,
+                },
+              }
+            : tweet
+        ),
       }));
 
       return { success: true };
     } catch (error) {
       const message =
-        error instanceof Error ? error.message : "Failed to smack tweet";
+        error instanceof Error ? error.message : "Failed to like tweet";
       set({ error: message });
       return { success: false, error: message };
     }
@@ -710,6 +725,10 @@ export const useTweetsStore = create<TweetsState>((set, get) => ({
         threads: updatedThreads,
       };
     });
+  },
+
+  setUserTweets: (tweets: Tweet[]) => {
+    set({ userTweets: tweets });
   },
 
   clearError: () => {
@@ -777,17 +796,29 @@ export const useTweetsStore = create<TweetsState>((set, get) => ({
       threadLoading: true,
       threadError: null,
     });
+    console.log("trying to fetch thread", tweetId);
     try {
-      const headers = await getAuthHeaders(false);
-      const response = await fetch(`${API_BASE_URL}/tweets/${tweetId}/thread`, {
-        method: "GET",
-        headers,
-      });
-      const data = await parseJson<ThreadApiResponse>(response);
+      // Call GraphQL instead of REST
+
+      const data = await graphqlRequest<TweetThreadQueryResult>(
+        TWEET_THREAD_QUERY,
+        { tweetId }
+      );
+      if (!data.tweetThread) {
+        throw new Error("Tweet thread not found");
+      }
+
+      console.log("using graphql to fetch thread", data.tweetThread);
+
+      // Map GraphQL response to your threadData format
       const normalizedThread: ThreadData = {
-        tweet: normalizeTweet(data.tweet),
-        parents: normalizeTweetList(data.parents),
-        replies: normalizeTweetList(data.replies),
+        tweet: normalizeTweet(mapGraphTweetNode(data.tweetThread.tweet)),
+        parents: data.tweetThread.parents.map((parent) =>
+          normalizeTweet(mapGraphTweetNode(parent))
+        ),
+        replies: data.tweetThread.replies.map((reply) =>
+          normalizeTweet(mapGraphTweetNode(reply))
+        ),
       };
 
       set((state) => ({
@@ -832,3 +863,65 @@ export const useTweetsStore = create<TweetsState>((set, get) => ({
     });
   },
 }));
+
+// Helper function to map GraphQL tweet node to your app's format
+const mapGraphTweetNode = (node: GraphQLTweetNode): any => {
+  const metrics = node.metrics ?? {
+    likes: 0,
+    smacks: 0,
+    retweets: 0,
+    quotes: 0,
+    replies: 0,
+    impressions: 0,
+  };
+
+  return {
+    _id: { $oid: node.id },
+    owner_id: { $oid: node.ownerId },
+    content: node.content,
+    tweet_type: (node.tweetType ?? "original").toLowerCase(),
+    reply_depth: node.replyDepth,
+    root_tweet_id: node.rootTweetId ? { $oid: node.rootTweetId } : null,
+    quoted_tweet_id: node.quotedTweetId ? { $oid: node.quotedTweetId } : null,
+    replied_to_tweet_id: node.repliedToTweetId
+      ? { $oid: node.repliedToTweetId }
+      : null,
+    created_at: { $date: { $numberLong: String(Date.parse(node.createdAt)) } },
+    updated_at: node.updatedAt
+      ? { $date: { $numberLong: String(Date.parse(node.updatedAt)) } }
+      : null,
+    metrics: {
+      likes: metrics.likes,
+      smacks: metrics.smacks,
+      retweets: metrics.retweets,
+      quotes: metrics.quotes,
+      replies: metrics.replies,
+      impressions: metrics.impressions,
+    },
+    energy_state: node.energyState
+      ? {
+          energy: node.energyState.energy,
+          kinetic_energy: node.energyState.kineticEnergy,
+          potential_energy: node.energyState.potentialEnergy,
+          energy_gained_from_support: node.energyState.energyGainedFromSupport,
+          energy_lost_from_attacks: node.energyState.energyLostFromAttacks,
+          mass: node.energyState.mass,
+          velocity_initial: node.energyState.velocityInitial,
+          height_initial: node.energyState.heightInitial,
+        }
+      : undefined,
+    author_snapshot: node.author
+      ? {
+          username: node.author.username,
+          display_name: node.author.displayName,
+          avatar_url: node.author.avatarUrl,
+        }
+      : undefined,
+    quoted_tweet: node.quotedTweet
+      ? mapGraphTweetNode(node.quotedTweet as any)
+      : undefined,
+    replied_to_tweet: node.repliedToTweet
+      ? mapGraphTweetNode(node.repliedToTweet as any)
+      : undefined,
+  };
+};
