@@ -1,9 +1,9 @@
 import React, { useEffect } from 'react';
 import { StyleSheet, View, FlatList, ScrollView } from 'react-native';
-import { Card, Button, Chip, ActivityIndicator } from 'react-native-paper';
+import { Chip, ActivityIndicator } from 'react-native-paper';
 import { useBackendUserStore } from '@/lib/stores/backendUserStore';
 import { useShopStore, WeaponCatalogItem } from '@/lib/stores/shopStore';
-import { AppText, AppButton } from '@/components/ui';
+import { AppText, AppButton, AppCard, AppScreen, Row, Column } from '@/components/ui';
 import { colors, spacing, radii, typography } from '@/theme';
 
 export default function ShopScreen() {
@@ -71,25 +71,30 @@ export default function ShopScreen() {
         const rarity = metadata?.tool_type === 'Weapon' ? 'rare' : 'uncommon'; // Default rarity
 
         return (
-            <Card style={[styles.weaponCard, { borderColor: getRarityColor(rarity) }]}>
-                <Card.Content>
-                    <View style={styles.weaponHeader}>
-                        <AppText variant="body" style={{ fontSize: 48 }}>{weaponItem?.image_url || '⚔️'}</AppText>
-                    </View>
+            <AppCard
+                padding
+                bordered
+                style={[
+                    styles.weaponCard,
+                    { borderColor: getRarityColor(rarity), borderWidth: 2 }
+                ]}
+            >
+                <Column gap="sm">
+                    <AppText variant="body" style={{ fontSize: 48 }}>{weaponItem?.image_url || '⚔️'}</AppText>
 
-                    <AppText variant="h4" style={{ marginBottom: spacing.sm }}>{weaponItem?.name || 'Unknown Weapon'}</AppText>
-                    <AppText variant="body" color="secondary" style={{ marginBottom: spacing.md }}>{weaponItem?.description || ''}</AppText>
+                    <AppText variant="h4">{weaponItem?.name || 'Unknown Weapon'}</AppText>
+                    <AppText variant="body" color="secondary">{weaponItem?.description || ''}</AppText>
 
                     {metadata && (
-                        <View style={styles.weaponStats}>
+                        <Column gap="xs">
                             <AppText variant="small" color="tertiary">Type: {metadata.tool_type}</AppText>
                             <AppText variant="small" color="tertiary">Impact: {metadata.impact}</AppText>
                             <AppText variant="small" color="tertiary">Durability: {metadata.health}/{metadata.max_health}</AppText>
                             <AppText variant="small" color="tertiary">Degrade/use: {metadata.degrade_per_use}</AppText>
-                        </View>
+                        </Column>
                     )}
 
-                    <View style={styles.weaponFooter}>
+                    <Row justify="space-between" align="center">
                         <AppText variant="h4" color="accent">${item.price}</AppText>
                         <AppButton
                             variant="primary"
@@ -100,91 +105,78 @@ export default function ShopScreen() {
                         >
                             Buy
                         </AppButton>
-                    </View>
-                </Card.Content>
-            </Card>
+                    </Row>
+                </Column>
+            </AppCard>
         );
     };
 
     if (loading) {
         return (
-            <View style={styles.content}>
-                <View style={styles.loadingContainer}>
+            <AppScreen padding>
+                <Column justify="center" align="center" style={{ flex: 1 }}>
                     <ActivityIndicator size="large" color={colors.accent} />
                     <AppText variant="bodyLarge" style={{ marginTop: spacing.lg }}>Loading weapons...</AppText>
-                </View>
-            </View>
+                </Column>
+            </AppScreen>
         );
     }
 
     return (
-        <View style={styles.content}>
-            <AppText variant="bodyLarge" color="secondary" style={{ marginBottom: spacing.xl, lineHeight: 22 }}>
-                Select from our arsenal of offensive weapons, defensive gear, support tools, and utility gadgets.
-                Each item has unique stats and abilities to enhance your Twitter battles.
-            </AppText>
+        <AppScreen padding>
+            <Column gap="xl" style={{ maxWidth: 600, width: '100%', alignSelf: 'center' }}>
+                <AppText variant="bodyLarge" color="secondary" style={{ lineHeight: 22 }}>
+                    Select from our arsenal of offensive weapons, defensive gear, support tools, and utility gadgets.
+                    Each item has unique stats and abilities to enhance your Twitter battles.
+                </AppText>
 
-            {error && (
-                <Card style={styles.errorCard}>
-                    <Card.Content>
-                        <AppText variant="body" color="inverse" style={{ marginBottom: spacing.sm }}>{error}</AppText>
-                        <AppButton variant="primary" size="sm" onPress={clearError}>Dismiss</AppButton>
-                    </Card.Content>
-                </Card>
-            )}
+                {error && (
+                    <AppCard padding style={{ backgroundColor: colors.danger }}>
+                        <Column gap="sm">
+                            <AppText variant="body" color="inverse">{error}</AppText>
+                            <AppButton variant="primary" size="sm" onPress={clearError}>Dismiss</AppButton>
+                        </Column>
+                    </AppCard>
+                )}
 
-            {/* Category Tabs */}
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.categoryScroll}>
-                {categories.map((cat) => (
-                    <Chip
-                        key={cat}
-                        selected={selectedCategory === cat}
-                        onPress={() => setSelectedCategory(cat)}
-                        style={styles.categoryChip}
-                    >
-                        {cat.charAt(0).toUpperCase() + cat.slice(1)}
-                    </Chip>
-                ))}
-            </ScrollView>
+                {/* Category Tabs */}
+                <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.categoryScroll}>
+                    {categories.map((cat) => (
+                        <Chip
+                            key={cat}
+                            selected={selectedCategory === cat}
+                            onPress={() => setSelectedCategory(cat)}
+                            style={styles.categoryChip}
+                        >
+                            {cat.charAt(0).toUpperCase() + cat.slice(1)}
+                        </Chip>
+                    ))}
+                </ScrollView>
 
-            {/* Weapons Grid */}
-            {filteredCatalog.length > 0 ? (
-                <FlatList
-                    data={filteredCatalog}
-                    renderItem={renderWeapon}
-                    keyExtractor={(item) => item.catalog_id}
-                    numColumns={2}
-                    scrollEnabled={true}
-                    contentContainerStyle={styles.weaponsGrid}
-                    showsVerticalScrollIndicator={false}
-                />
-            ) : (
-                <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', paddingVertical: spacing['2xl'] }}>
-                    <AppText variant="bodyLarge" color="secondary" style={{ textAlign: 'center' }}>
-                        {catalog.length === 0 ? "No weapons available" : "No weapons in this category"}
-                    </AppText>
-                </View>
-            )}
-        </View>
+                {/* Weapons Grid */}
+                {filteredCatalog.length > 0 ? (
+                    <FlatList
+                        data={filteredCatalog}
+                        renderItem={renderWeapon}
+                        keyExtractor={(item) => item.catalog_id}
+                        numColumns={2}
+                        scrollEnabled={true}
+                        contentContainerStyle={styles.weaponsGrid}
+                        showsVerticalScrollIndicator={false}
+                    />
+                ) : (
+                    <Column justify="center" align="center" style={{ flex: 1, paddingVertical: spacing['2xl'] }}>
+                        <AppText variant="bodyLarge" color="secondary" style={{ textAlign: 'center' }}>
+                            {catalog.length === 0 ? "No weapons available" : "No weapons in this category"}
+                        </AppText>
+                    </Column>
+                )}
+            </Column>
+        </AppScreen>
     );
 }
 
 const styles = StyleSheet.create({
-    content: {
-        padding: spacing.lg,
-        maxWidth: 600,
-        width: '100%',
-        alignSelf: 'center',
-    },
-    loadingContainer: {
-        flex: 1,
-        justifyContent: 'center',
-        alignItems: 'center',
-    },
-    errorCard: {
-        backgroundColor: colors.danger,
-        marginBottom: spacing.lg,
-    },
     categoryScroll: {
         marginBottom: spacing.lg,
     },
@@ -197,22 +189,5 @@ const styles = StyleSheet.create({
     weaponCard: {
         flex: 1,
         margin: spacing.sm,
-        backgroundColor: colors.bgElevated,
-        borderWidth: 2,
-    },
-    weaponHeader: {
-        flexDirection: 'row',
-        justifyContent: 'space-between',
-        alignItems: 'center',
-        marginBottom: spacing.sm,
-    },
-    weaponStats: {
-        marginBottom: spacing.lg,
-        gap: spacing.xs,
-    },
-    weaponFooter: {
-        flexDirection: 'row',
-        justifyContent: 'space-between',
-        alignItems: 'center',
     },
 });

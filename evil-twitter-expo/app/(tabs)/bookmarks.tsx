@@ -1,6 +1,6 @@
 import React from 'react';
 import { ScrollView, StyleSheet, View } from 'react-native';
-import { AppText } from '@/components/ui';
+import { AppText, AppScreen, Row, Column } from '@/components/ui';
 import { colors, spacing, radii, typography } from '@/theme';
 
 export default function Bookmarks() {
@@ -26,71 +26,67 @@ export default function Bookmarks() {
     ];
 
     return (
-        <View style={styles.container}>
+        <AppScreen>
             {/* Header */}
-            <View style={styles.header}>
+            <Column gap="xs" style={styles.header}>
                 <AppText variant="h4">Bookmarks</AppText>
-                <AppText variant="caption" color="secondary" style={{ marginTop: spacing.xs }}>@username</AppText>
-            </View>
+                <AppText variant="caption" color="secondary">@username</AppText>
+            </Column>
 
             {/* Bookmarked Tweets */}
             <ScrollView style={styles.tweetsList}>
                 {bookmarkedTweets.length > 0 ? (
                     bookmarkedTweets.map((tweet) => (
-                        <View key={tweet.id} style={styles.tweetItem}>
+                        <Row key={tweet.id} gap="md" style={styles.tweetItem}>
                             <View style={styles.userAvatar}>
                                 <AppText variant="h4">
                                     {tweet.user.avatar}
                                 </AppText>
                             </View>
 
-                            <View style={styles.tweetContent}>
-                                <View style={styles.tweetHeader}>
+                            <Column style={{ flex: 1 }} gap="md">
+                                <Row gap="xs" align="center">
                                     <AppText variant="bodyBold">{tweet.user.name}</AppText>
                                     <AppText variant="body" color="secondary">@{tweet.user.username}</AppText>
                                     <AppText variant="body" color="secondary">· {tweet.time}</AppText>
-                                </View>
+                                </Row>
 
-                                <AppText variant="body" style={{ marginBottom: spacing.md }}>{tweet.content}</AppText>
+                                <AppText variant="body">{tweet.content}</AppText>
 
-                                <View style={styles.tweetActions}>
-                                    <View style={styles.actionButton}>
-                                        <AppText variant="caption" style={{ fontSize: 18, marginRight: spacing.xs }}>💬</AppText>
+                                <Row justify="space-between" style={{ maxWidth: 425 }}>
+                                    <Row gap="xs" align="center" style={styles.actionButton}>
+                                        <AppText variant="caption" style={{ fontSize: 18 }}>💬</AppText>
                                         <AppText variant="caption" color="secondary">12</AppText>
-                                    </View>
-                                    <View style={styles.actionButton}>
-                                        <AppText variant="caption" style={{ fontSize: 18, marginRight: spacing.xs }}>🔄</AppText>
+                                    </Row>
+                                    <Row gap="xs" align="center" style={styles.actionButton}>
+                                        <AppText variant="caption" style={{ fontSize: 18 }}>🔄</AppText>
                                         <AppText variant="caption" color="secondary">8</AppText>
-                                    </View>
-                                    <View style={styles.actionButton}>
-                                        <AppText variant="caption" style={{ fontSize: 18, marginRight: spacing.xs }}>❤️</AppText>
+                                    </Row>
+                                    <Row gap="xs" align="center" style={styles.actionButton}>
+                                        <AppText variant="caption" style={{ fontSize: 18 }}>❤️</AppText>
                                         <AppText variant="caption" color="secondary">24</AppText>
-                                    </View>
+                                    </Row>
                                     <View style={styles.actionButton}>
                                         <AppText variant="caption" style={{ fontSize: 18 }}>🔖</AppText>
                                     </View>
-                                </View>
-                            </View>
-                        </View>
+                                </Row>
+                            </Column>
+                        </Row>
                     ))
                 ) : (
-                    <View style={styles.emptyState}>
+                    <Column justify="center" align="center" style={styles.emptyState}>
                         <AppText variant="h2" style={{ marginBottom: spacing.lg, textAlign: 'center' }}>Save Tweets for later</AppText>
                         <AppText variant="body" color="secondary" style={{ textAlign: 'center', lineHeight: 20 }}>
                             Don't let the good Tweets get away! Bookmark Tweets to easily find them again in the future.
                         </AppText>
-                    </View>
+                    </Column>
                 )}
             </ScrollView>
-        </View>
+        </AppScreen>
     );
 }
 
 const styles = StyleSheet.create({
-    container: {
-        flex: 1,
-        backgroundColor: colors.bg,
-    },
     header: {
         paddingHorizontal: spacing.lg,
         paddingVertical: spacing.lg,
@@ -105,7 +101,6 @@ const styles = StyleSheet.create({
         flex: 1,
     },
     tweetItem: {
-        flexDirection: 'row',
         paddingHorizontal: spacing.lg,
         paddingVertical: spacing.md,
         borderBottomWidth: 1,
@@ -118,25 +113,8 @@ const styles = StyleSheet.create({
         backgroundColor: colors.borderStrong,
         justifyContent: 'center',
         alignItems: 'center',
-        marginRight: spacing.md,
-    },
-    tweetContent: {
-        flex: 1,
-    },
-    tweetHeader: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        marginBottom: spacing.xs,
-        gap: spacing.xs,
-    },
-    tweetActions: {
-        flexDirection: 'row',
-        justifyContent: 'space-between',
-        maxWidth: 425,
     },
     actionButton: {
-        flexDirection: 'row',
-        alignItems: 'center',
         paddingVertical: spacing.sm,
         paddingHorizontal: spacing.sm,
         borderRadius: radii.pill,
@@ -144,8 +122,6 @@ const styles = StyleSheet.create({
     },
     emptyState: {
         flex: 1,
-        justifyContent: 'center',
-        alignItems: 'center',
         paddingHorizontal: spacing['2xl'],
         paddingVertical: spacing['4xl'],
     },

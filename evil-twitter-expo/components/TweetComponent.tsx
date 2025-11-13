@@ -1,13 +1,12 @@
 import { useBackendUserStore } from '@/lib/stores/backendUserStore';
 import { Tweet, useTweetsStore } from '@/lib/stores/tweetsStore';
-import { AppText } from '@/components/ui';
+import { AppText, Row, Column } from '@/components/ui';
 import { colors, spacing, radii, typography } from '@/theme';
 import { router } from 'expo-router';
 import React, { useState } from 'react';
 import {
     Alert,
     StyleSheet,
-    Text,
     TouchableOpacity,
     View,
 } from 'react-native';
@@ -118,13 +117,13 @@ export function TweetComponent({
     const TweetContent = () => (
         <View style={[styles.tweetContainer, isReply && styles.replyContainer]}>
             {isRetweet && (
-                <View style={styles.retweetBanner}>
+                <Row gap="sm" align="center" style={styles.retweetBanner}>
                     <AppText variant="small" color="accent">🔁</AppText>
                     <AppText variant="small" color="accent" style={{ textTransform: 'uppercase', letterSpacing: 0.8 }}>{retweeterName} retweeted</AppText>
-                </View>
+                </Row>
             )}
             {/* Header */}
-            <View style={styles.header}>
+            <Row>
                 <TouchableOpacity
                     style={styles.avatar}
                     onPress={(e) => {
@@ -136,8 +135,8 @@ export function TweetComponent({
                         {avatarInitial}
                     </AppText>
                 </TouchableOpacity>
-                <View style={styles.tweetContent}>
-                    <View style={styles.tweetHeader}>
+                <Column style={{ flex: 1 }}>
+                    <Row gap="xs" align="center" style={styles.tweetHeader}>
                         <TouchableOpacity
                             onPress={(e) => {
                                 e.stopPropagation(); // Prevent tweet click when clicking name
@@ -162,11 +161,11 @@ export function TweetComponent({
                                 <AppText variant="h4" color="secondary">⋯</AppText>
                             </TouchableOpacity>
                         )}
-                    </View>
+                    </Row>
 
                     {/* Replying to indicator */}
                     {displayTweet.tweet_type === 'reply' && displayTweet.replied_to_tweet && (
-                        <View style={styles.replyingToContainer}>
+                        <Row gap="xs" align="center" style={{ marginBottom: spacing.sm }}>
                             <AppText variant="caption" color="secondary">
                                 Replying to{' '}
                             </AppText>
@@ -178,12 +177,12 @@ export function TweetComponent({
                             >
                                 <AppText variant="caption" color="accent" style={{ fontWeight: '500' }}>@{displayTweet.replied_to_tweet?.author_username || 'user'}</AppText>
                             </TouchableOpacity>
-                        </View>
+                        </Row>
                     )}
 
                     {/* Quoting indicator */}
                     {!isRetweet && tweet.tweet_type === 'quote' && tweet.quoted_tweet && (
-                        <View style={styles.replyingToContainer}>
+                        <Row gap="xs" align="center" style={{ marginBottom: spacing.sm }}>
                             <AppText variant="caption" color="secondary">
                                 Quoting{' '}
                             </AppText>
@@ -195,7 +194,7 @@ export function TweetComponent({
                             >
                                 <AppText variant="caption" color="accent" style={{ fontWeight: '500' }}>@{tweet.quoted_tweet?.author_username || 'user'}</AppText>
                             </TouchableOpacity>
-                        </View>
+                        </Row>
                     )}
 
                     {/* Tweet Content */}
@@ -204,7 +203,7 @@ export function TweetComponent({
                     {/* Quoted Tweet */}
                     {!isRetweet && tweet.quoted_tweet && (
                         <View style={styles.quotedCard}>
-                            <View style={styles.quotedHeader}>
+                            <Row gap="sm" align="center" style={{ marginBottom: spacing.sm }}>
                                 <TouchableOpacity
                                     style={styles.quotedAvatar}
                                     onPress={(e) => {
@@ -217,7 +216,7 @@ export function TweetComponent({
                                             tweet.quoted_tweet?.author_username?.charAt(0).toUpperCase() || '😈'}
                                     </AppText>
                                 </TouchableOpacity>
-                                <View style={styles.quotedInfo}>
+                                <Row gap="xs" align="center">
                                     <TouchableOpacity
                                         onPress={(e) => {
                                             e.stopPropagation(); // Prevent tweet click when clicking name
@@ -237,8 +236,8 @@ export function TweetComponent({
                                     >
                                         <AppText variant="caption" color="tertiary">@{tweet.quoted_tweet?.author_username || 'user'}</AppText>
                                     </TouchableOpacity>
-                                </View>
-                            </View>
+                                </Row>
+                            </Row>
                             <AppText variant="caption">{tweet.quoted_tweet.content}</AppText>
                         </View>
                     )}
@@ -252,27 +251,27 @@ export function TweetComponent({
                         >
                             {tweet.energy_state.energy.toFixed(1)} J
                         </AppText>
-                        <View style={styles.energyBreakdownRow}>
+                        <Row justify="space-between">
                             <AppText variant="small" color="tertiary">
                                 Kinetic: {tweet.energy_state.kinetic_energy.toFixed(1)} J
                             </AppText>
                             <AppText variant="small" color="tertiary">
                                 Potential: {tweet.energy_state.potential_energy.toFixed(1)} J
                             </AppText>
-                        </View>
-                        <View style={styles.energyBreakdownRow}>
+                        </Row>
+                        <Row justify="space-between">
                             <AppText variant="small" style={{ color: colors.energySupport }}>
                                 Support +{tweet.energy_state.energy_gained_from_support.toFixed(1)} J
                             </AppText>
                             <AppText variant="small" style={{ color: colors.energyAttack }}>
                                 Damage -{tweet.energy_state.energy_lost_from_attacks.toFixed(1)} J
                             </AppText>
-                        </View>
+                        </Row>
                     </View>
 
                     {/* Actions */}
                     {showActions && (
-                        <View style={styles.actions}>
+                        <Row justify="space-around" style={styles.actions}>
                             <TouchableOpacity
                                 style={styles.actionButton}
                                 onPress={(e) => {
@@ -280,8 +279,10 @@ export function TweetComponent({
                                     handleReply();
                                 }}
                             >
-                                <AppText variant="caption" style={{ fontSize: 16, marginRight: spacing.xs }}>💬</AppText>
-                                <AppText variant="caption" color="secondary" style={{ fontWeight: '500' }}>{tweet.replies_count || 0}</AppText>
+                                <Row gap="xs" align="center">
+                                    <AppText variant="caption" style={{ fontSize: 16 }}>💬</AppText>
+                                    <AppText variant="caption" color="secondary" style={{ fontWeight: '500' }}>{tweet.replies_count || 0}</AppText>
+                                </Row>
                             </TouchableOpacity>
 
                             <TouchableOpacity
@@ -291,8 +292,10 @@ export function TweetComponent({
                                     handleRetweet();
                                 }}
                             >
-                                <AppText variant="caption" style={{ fontSize: 16, marginRight: spacing.xs }}>🔄</AppText>
-                                <AppText variant="caption" color="secondary" style={{ fontWeight: '500' }}>{tweet.retweets_count || 0}</AppText>
+                                <Row gap="xs" align="center">
+                                    <AppText variant="caption" style={{ fontSize: 16 }}>🔄</AppText>
+                                    <AppText variant="caption" color="secondary" style={{ fontWeight: '500' }}>{tweet.retweets_count || 0}</AppText>
+                                </Row>
                             </TouchableOpacity>
 
                             <TouchableOpacity
@@ -302,8 +305,10 @@ export function TweetComponent({
                                     handleQuote();
                                 }}
                             >
-                                <AppText variant="caption" style={{ fontSize: 16, marginRight: spacing.xs }}>💬</AppText>
-                                <AppText variant="caption" color="secondary" style={{ fontWeight: '500' }}>{tweet.quote_count || 0}</AppText>
+                                <Row gap="xs" align="center">
+                                    <AppText variant="caption" style={{ fontSize: 16 }}>💬</AppText>
+                                    <AppText variant="caption" color="secondary" style={{ fontWeight: '500' }}>{tweet.quote_count || 0}</AppText>
+                                </Row>
                             </TouchableOpacity>
 
                             <TouchableOpacity
@@ -313,25 +318,26 @@ export function TweetComponent({
                                     handleLike();
                                 }}
                             >
-                                <AppText
-                                    variant="caption"
-                                    style={{
-                                        fontSize: 16,
-                                        marginRight: spacing.xs,
-                                        color: tweet.viewer_context?.is_liked ? colors.likeActive : colors.textSecondary
-                                    }}
-                                >
-                                    ❤️
-                                </AppText>
-                                <AppText
-                                    variant="caption"
-                                    style={{
-                                        fontWeight: '500',
-                                        color: tweet.viewer_context?.is_liked ? colors.likeActive : colors.textSecondary
-                                    }}
-                                >
-                                    {tweet.likes_count || 0}
-                                </AppText>
+                                <Row gap="xs" align="center">
+                                    <AppText
+                                        variant="caption"
+                                        style={{
+                                            fontSize: 16,
+                                            color: tweet.viewer_context?.is_liked ? colors.likeActive : colors.textSecondary
+                                        }}
+                                    >
+                                        ❤️
+                                    </AppText>
+                                    <AppText
+                                        variant="caption"
+                                        style={{
+                                            fontWeight: '500',
+                                            color: tweet.viewer_context?.is_liked ? colors.likeActive : colors.textSecondary
+                                        }}
+                                    >
+                                        {tweet.likes_count || 0}
+                                    </AppText>
+                                </Row>
                             </TouchableOpacity>
 
                             <TouchableOpacity
@@ -341,14 +347,16 @@ export function TweetComponent({
                                     handleSmack();
                                 }}
                             >
-                                <AppText variant="caption" style={{ fontSize: 16, marginRight: spacing.xs }}>👊</AppText>
-                                <AppText variant="caption" color="secondary" style={{ fontWeight: '500' }}>{tweet.metrics?.smacks || 0}</AppText>
+                                <Row gap="xs" align="center">
+                                    <AppText variant="caption" style={{ fontSize: 16 }}>👊</AppText>
+                                    <AppText variant="caption" color="secondary" style={{ fontWeight: '500' }}>{tweet.metrics?.smacks || 0}</AppText>
+                                </Row>
                             </TouchableOpacity>
 
-                        </View>
+                        </Row>
                     )}
-                </View>
-            </View>
+                </Column>
+            </Row>
         </View>
     );
 
@@ -389,14 +397,8 @@ const styles = StyleSheet.create({
         paddingLeft: spacing.lg,
     },
     retweetBanner: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: spacing.sm,
         marginBottom: spacing.sm,
         marginLeft: 60,
-    },
-    header: {
-        flexDirection: 'row',
     },
     avatar: {
         width: 48,
@@ -407,25 +409,13 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         marginRight: spacing.md,
     },
-    tweetContent: {
-        flex: 1,
-    },
     tweetHeader: {
-        flexDirection: 'row',
-        alignItems: 'center',
         marginBottom: spacing.xs,
-        gap: spacing.xs,
     },
     moreButton: {
         marginLeft: 'auto',
         padding: spacing.sm,
         borderRadius: radii.pill,
-    },
-    replyingToContainer: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        marginBottom: spacing.sm,
-        gap: spacing.xs,
     },
     quotedCard: {
         backgroundColor: colors.bgCard,
@@ -434,11 +424,6 @@ const styles = StyleSheet.create({
         marginBottom: spacing.md,
         borderWidth: 1,
         borderColor: colors.border,
-    },
-    quotedHeader: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        marginBottom: spacing.sm,
     },
     quotedAvatar: {
         width: 30,
@@ -449,11 +434,6 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         marginRight: spacing.sm,
     },
-    quotedInfo: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: spacing.xs,
-    },
     energyContainer: {
         marginBottom: spacing.md,
         backgroundColor: colors.energyBg,
@@ -463,20 +443,12 @@ const styles = StyleSheet.create({
         padding: spacing.md,
         gap: spacing.sm,
     },
-    energyBreakdownRow: {
-        flexDirection: 'row',
-        justifyContent: 'space-between',
-    },
     actions: {
-        flexDirection: 'row',
-        justifyContent: 'space-around',
         paddingTop: spacing.sm,
         borderTopWidth: 1,
         borderTopColor: colors.border,
     },
     actionButton: {
-        flexDirection: 'row',
-        alignItems: 'center',
         paddingVertical: spacing.sm,
         paddingHorizontal: spacing.md,
         borderRadius: radii.pill,

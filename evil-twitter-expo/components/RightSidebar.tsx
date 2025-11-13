@@ -2,7 +2,7 @@ import { useBackendUserStore } from '@/lib/stores/backendUserStore';
 import React, { useEffect, useState } from 'react';
 import { ScrollView, StyleSheet, TextInput, TouchableOpacity, View } from 'react-native';
 import { WeaponsPanel } from './WeaponsPanel';
-import { AppText, AppButton } from '@/components/ui';
+import { AppText, AppButton, AppCard, Row, Column } from '@/components/ui';
 import { colors, spacing, radii, typography } from '@/theme';
 
 interface TrendingTopic {
@@ -88,83 +88,89 @@ export function RightSidebar() {
             )}
 
             {/* What's happening */}
-            <View style={styles.section}>
-                <View style={styles.sectionHeader}>
-                    <AppText variant="h4">What's happening</AppText>
-                </View>
-                <View style={styles.sectionContent}>
-                    {trendingTopics.map((topic, index) => (
-                        <TouchableOpacity key={topic.id} style={styles.trendingItem}>
-                            <View style={styles.trendingContent}>
-                                <AppText variant="small" color="secondary" style={{ textTransform: 'uppercase', letterSpacing: 0.5 }}>
-                                    {topic.category} · Trending
-                                </AppText>
-                                <AppText variant="bodyBold">
-                                    {topic.topic}
-                                </AppText>
-                                <AppText variant="small" color="secondary">
-                                    {topic.tweets_count.toLocaleString()} Tweets
-                                </AppText>
-                            </View>
-                            <AppText variant="h4" color="secondary">⋯</AppText>
-                        </TouchableOpacity>
-                    ))}
-                </View>
-                <AppButton variant="ghost" size="sm" onPress={() => { }} style={{ margin: spacing.md }}>
-                    Show more
-                </AppButton>
-            </View>
+            <AppCard bordered>
+                <Column gap="md">
+                    <View style={styles.sectionHeader}>
+                        <AppText variant="h4">What's happening</AppText>
+                    </View>
+                    <Column style={{ gap: 0 }}>
+                        {trendingTopics.map((topic, index) => (
+                            <TouchableOpacity key={topic.id} style={styles.trendingItem}>
+                                <Row justify="space-between" align="flex-start">
+                                    <Column gap="xs" style={{ flex: 1 }}>
+                                        <AppText variant="small" color="secondary" style={{ textTransform: 'uppercase', letterSpacing: 0.5 }}>
+                                            {topic.category} · Trending
+                                        </AppText>
+                                        <AppText variant="bodyBold">
+                                            {topic.topic}
+                                        </AppText>
+                                        <AppText variant="small" color="secondary">
+                                            {topic.tweets_count.toLocaleString()} Tweets
+                                        </AppText>
+                                    </Column>
+                                    <AppText variant="h4" color="secondary">⋯</AppText>
+                                </Row>
+                            </TouchableOpacity>
+                        ))}
+                    </Column>
+                    <AppButton variant="ghost" size="sm" onPress={() => { }} style={{ margin: spacing.md }}>
+                        Show more
+                    </AppButton>
+                </Column>
+            </AppCard>
 
             {/* Who to follow */}
-            <View style={styles.section}>
-                <View style={styles.sectionHeader}>
-                    <AppText variant="h4">Who to follow</AppText>
-                </View>
-                <View style={styles.sectionContent}>
-                    {suggestedUsers.map((user) => (
-                        <View key={user.id} style={styles.suggestedUser}>
-                            <View style={styles.userAvatar}>
-                                <AppText variant="bodyBold">
-                                    {user.display_name.charAt(0).toUpperCase()}
-                                </AppText>
-                            </View>
-                            <View style={styles.userInfo}>
-                                <View style={styles.userNameRow}>
-                                    <AppText variant="bodyBold">{user.display_name}</AppText>
-                                    {user.is_verified && (
-                                        <AppText variant="body" color="accent">✓</AppText>
-                                    )}
-                                </View>
-                                <AppText variant="body" color="secondary">@{user.username}</AppText>
-                                {user.bio && (
-                                    <AppText variant="small" color="secondary" numberOfLines={2} style={{ marginTop: spacing.xs }}>
-                                        {user.bio}
+            <AppCard bordered>
+                <Column gap="md">
+                    <View style={styles.sectionHeader}>
+                        <AppText variant="h4">Who to follow</AppText>
+                    </View>
+                    <Column style={{ gap: 0 }}>
+                        {suggestedUsers.map((user) => (
+                            <Row key={user.id} gap="md" align="center" style={styles.suggestedUser}>
+                                <View style={styles.userAvatar}>
+                                    <AppText variant="bodyBold">
+                                        {user.display_name.charAt(0).toUpperCase()}
                                     </AppText>
-                                )}
-                            </View>
-                            <AppButton variant="primary" size="sm" onPress={() => { }}>
-                                Follow
-                            </AppButton>
-                        </View>
-                    ))}
-                </View>
-                <AppButton variant="ghost" size="sm" onPress={() => { }} style={{ margin: spacing.md }}>
-                    Show more
-                </AppButton>
-            </View>
+                                </View>
+                                <Column style={{ flex: 1, minWidth: 0 }} gap="xs">
+                                    <Row gap="xs" align="center">
+                                        <AppText variant="bodyBold">{user.display_name}</AppText>
+                                        {user.is_verified && (
+                                            <AppText variant="body" color="accent">✓</AppText>
+                                        )}
+                                    </Row>
+                                    <AppText variant="body" color="secondary">@{user.username}</AppText>
+                                    {user.bio && (
+                                        <AppText variant="small" color="secondary" numberOfLines={2}>
+                                            {user.bio}
+                                        </AppText>
+                                    )}
+                                </Column>
+                                <AppButton variant="primary" size="sm" onPress={() => { }}>
+                                    Follow
+                                </AppButton>
+                            </Row>
+                        ))}
+                    </Column>
+                    <AppButton variant="ghost" size="sm" onPress={() => { }} style={{ margin: spacing.md }}>
+                        Show more
+                    </AppButton>
+                </Column>
+            </AppCard>
 
             {/* Footer */}
-            <View style={styles.footer}>
-                <View style={styles.footerLinks}>
+            <Column gap="sm" style={styles.footer}>
+                <Row wrap gap="sm">
                     <AppText variant="small" color="secondary">Terms of Service</AppText>
                     <AppText variant="small" color="secondary">Privacy Policy</AppText>
                     <AppText variant="small" color="secondary">Cookie Policy</AppText>
                     <AppText variant="small" color="secondary">Accessibility</AppText>
                     <AppText variant="small" color="secondary">Ads info</AppText>
                     <AppText variant="small" color="secondary">More</AppText>
-                </View>
+                </Row>
                 <AppText variant="small" color="secondary">© 2024 Evil Twitter, Inc.</AppText>
-            </View>
+            </Column>
         </ScrollView>
     );
 }
@@ -198,34 +204,20 @@ const styles = StyleSheet.create({
     weaponsSection: {
         marginTop: spacing.lg,
     },
-    section: {
-        backgroundColor: colors.bgElevated,
-        borderRadius: radii.lg,
-        overflow: 'hidden',
-    },
     sectionHeader: {
         padding: spacing.lg,
         borderBottomWidth: 1,
         borderBottomColor: colors.border,
     },
-    sectionContent: {
-        gap: 0,
-    },
     trendingItem: {
-        flexDirection: 'row',
-        alignItems: 'flex-start',
-        justifyContent: 'space-between',
         padding: spacing.lg,
-    },
-    trendingContent: {
-        flex: 1,
-        gap: spacing.xs,
+        borderBottomWidth: 1,
+        borderBottomColor: colors.border,
     },
     suggestedUser: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: spacing.md,
         padding: spacing.lg,
+        borderBottomWidth: 1,
+        borderBottomColor: colors.border,
     },
     userAvatar: {
         width: 40,
@@ -235,22 +227,7 @@ const styles = StyleSheet.create({
         justifyContent: 'center',
         alignItems: 'center',
     },
-    userInfo: {
-        flex: 1,
-        minWidth: 0,
-    },
-    userNameRow: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: spacing.xs,
-    },
     footer: {
         paddingTop: spacing.lg,
-        gap: spacing.sm,
-    },
-    footerLinks: {
-        flexDirection: 'row',
-        flexWrap: 'wrap',
-        gap: spacing.sm,
     },
 });

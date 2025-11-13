@@ -1,14 +1,12 @@
 import React, { useEffect } from "react";
-import { StyleSheet, View, ScrollView, TextInput } from "react-native";
+import { StyleSheet, ScrollView, TextInput } from "react-native";
 import {
-    Card,
-    Button,
     ActivityIndicator,
     SegmentedButtons,
     Chip,
 } from "react-native-paper";
 import { useExchangeStore, TokenType } from "@/lib/stores/exchangeStore";
-import { AppText, AppButton } from '@/components/ui';
+import { AppText, AppButton, AppCard, AppScreen, Row, Column } from '@/components/ui';
 import { colors, spacing, radii, typography } from '@/theme';
 
 const TOKEN_OPTIONS: { label: string; value: TokenType }[] = [
@@ -61,181 +59,159 @@ export default function ExchangeScreen() {
     };
 
     return (
-        <ScrollView style={styles.container}>
-            <View style={styles.content}>
-                <AppText variant="h2" style={{ marginBottom: spacing.sm }}>Token Exchange</AppText>
-                <AppText variant="bodyLarge" color="secondary" style={{ marginBottom: spacing.xl, lineHeight: 22 }}>
-                    Exchange tokens with predatory NPC rates. Prices update in real-time.
-                </AppText>
+        <AppScreen>
+            <ScrollView>
+                <Column gap="xl" style={styles.content}>
+                    <AppText variant="h2">Token Exchange</AppText>
+                    <AppText variant="bodyLarge" color="secondary" style={{ lineHeight: 22 }}>
+                        Exchange tokens with predatory NPC rates. Prices update in real-time.
+                    </AppText>
 
-                {error && (
-                    <Card style={styles.errorCard}>
-                        <Card.Content>
-                            <AppText variant="body" color="inverse" style={{ marginBottom: spacing.sm }}>{error}</AppText>
-                            <AppButton variant="primary" size="sm" onPress={clearError}>Dismiss</AppButton>
-                        </Card.Content>
-                    </Card>
-                )}
+                    {error && (
+                        <AppCard padding style={{ backgroundColor: colors.danger }}>
+                            <Column gap="sm">
+                                <AppText variant="body" color="inverse">{error}</AppText>
+                                <AppButton variant="primary" size="sm" onPress={clearError}>Dismiss</AppButton>
+                            </Column>
+                        </AppCard>
+                    )}
 
-                {/* Current Prices Section */}
-                {prices && (
-                    <Card style={styles.pricesCard}>
-                        <Card.Content>
-                            <AppText variant="h4" style={{ marginBottom: spacing.lg }}>Current Prices & Spreads</AppText>
-                            <View style={styles.pricesGrid}>
-                                {Object.entries(prices).map(([key, entry]) => (
-                                    <View key={key} style={styles.priceItem}>
-                                        <AppText variant="bodyBold" color="accent" style={{ marginBottom: spacing.xs }}>
-                                            {key.toUpperCase()}
-                                        </AppText>
-                                        <AppText variant="small" color="secondary" style={{ marginBottom: spacing.xs }}>
-                                            {entry.ratio.tokenUnits} : {entry.ratio.usdcUnits}
-                                        </AppText>
-                                        <Chip
-                                            style={styles.spreadChip}
-                                            textStyle={styles.spreadText}
-                                        >
-                                            {formatSpread(entry.spread)} spread
-                                        </Chip>
-                                    </View>
-                                ))}
-                            </View>
-                        </Card.Content>
-                    </Card>
-                )}
+                    {/* Current Prices Section */}
+                    {prices && (
+                        <AppCard padding bordered>
+                            <Column gap="lg">
+                                <AppText variant="h4">Current Prices & Spreads</AppText>
+                                <Row justify="space-between" wrap gap="md">
+                                    {Object.entries(prices).map(([key, entry]) => (
+                                        <AppCard key={key} padding bordered style={styles.priceItem}>
+                                            <Column gap="xs">
+                                                <AppText variant="bodyBold" color="accent">
+                                                    {key.toUpperCase()}
+                                                </AppText>
+                                                <AppText variant="small" color="secondary">
+                                                    {entry.ratio.tokenUnits} : {entry.ratio.usdcUnits}
+                                                </AppText>
+                                                <Chip
+                                                    style={styles.spreadChip}
+                                                    textStyle={styles.spreadText}
+                                                >
+                                                    {formatSpread(entry.spread)} spread
+                                                </Chip>
+                                            </Column>
+                                        </AppCard>
+                                    ))}
+                                </Row>
+                            </Column>
+                        </AppCard>
+                    )}
 
-                {/* Exchange Input Section */}
-                <Card style={styles.exchangeCard}>
-                    <Card.Content>
-                        <AppText variant="h4" style={{ marginBottom: spacing.lg }}>Exchange Tokens</AppText>
+                    {/* Exchange Input Section */}
+                    <AppCard padding bordered>
+                        <Column gap="xl">
+                            <AppText variant="h4">Exchange Tokens</AppText>
 
-                        {/* From Token Selection */}
-                        <View style={styles.inputSection}>
-                            <AppText variant="bodyBold" style={{ marginBottom: spacing.sm }}>From</AppText>
-                            <SegmentedButtons
-                                value={fromToken}
-                                onValueChange={(value) =>
-                                    setFromToken(value as TokenType)
-                                }
-                                buttons={TOKEN_OPTIONS.map((opt) => ({
-                                    value: opt.value,
-                                    label: opt.label,
-                                }))}
-                                style={styles.segmentedButtons}
-                            />
-                        </View>
+                            {/* From Token Selection */}
+                            <Column gap="sm">
+                                <AppText variant="bodyBold">From</AppText>
+                                <SegmentedButtons
+                                    value={fromToken}
+                                    onValueChange={(value) =>
+                                        setFromToken(value as TokenType)
+                                    }
+                                    buttons={TOKEN_OPTIONS.map((opt) => ({
+                                        value: opt.value,
+                                        label: opt.label,
+                                    }))}
+                                    style={styles.segmentedButtons}
+                                />
+                            </Column>
 
-                        {/* Amount Input */}
-                        <View style={styles.inputSection}>
-                            <AppText variant="bodyBold" style={{ marginBottom: spacing.sm }}>Amount</AppText>
-                            <TextInput
-                                style={styles.amountInput}
-                                value={amount}
-                                onChangeText={setAmount}
-                                placeholder="Enter amount"
-                                placeholderTextColor={colors.textTertiary}
-                                keyboardType="numeric"
-                                editable={!loading}
-                            />
-                        </View>
+                            {/* Amount Input */}
+                            <Column gap="sm">
+                                <AppText variant="bodyBold">Amount</AppText>
+                                <TextInput
+                                    style={styles.amountInput}
+                                    value={amount}
+                                    onChangeText={setAmount}
+                                    placeholder="Enter amount"
+                                    placeholderTextColor={colors.textTertiary}
+                                    keyboardType="numeric"
+                                    editable={!loading}
+                                />
+                            </Column>
 
-                        {/* To Token Selection */}
-                        <View style={styles.inputSection}>
-                            <AppText variant="bodyBold" style={{ marginBottom: spacing.sm }}>To</AppText>
-                            <SegmentedButtons
-                                value={toToken}
-                                onValueChange={(value) => setToToken(value as TokenType)}
-                                buttons={TOKEN_OPTIONS.map((opt) => ({
-                                    value: opt.value,
-                                    label: opt.label,
-                                }))}
-                                style={styles.segmentedButtons}
-                            />
-                        </View>
+                            {/* To Token Selection */}
+                            <Column gap="sm">
+                                <AppText variant="bodyBold">To</AppText>
+                                <SegmentedButtons
+                                    value={toToken}
+                                    onValueChange={(value) => setToToken(value as TokenType)}
+                                    buttons={TOKEN_OPTIONS.map((opt) => ({
+                                        value: opt.value,
+                                        label: opt.label,
+                                    }))}
+                                    style={styles.segmentedButtons}
+                                />
+                            </Column>
 
-                        {/* Exchange Rate & Output */}
-                        {calculatedOutput !== null && (
-                            <Card style={styles.resultCard}>
-                                <Card.Content>
-                                    <View style={styles.resultRow}>
-                                        <AppText variant="body" color="secondary">
-                                            You will receive:
-                                        </AppText>
-                                        <AppText variant="h3" color="accent">
-                                            {formatAmount(calculatedOutput)}{" "}
-                                            {toToken.toUpperCase()}
-                                        </AppText>
-                                    </View>
-                                    {rate !== null && (
-                                        <View style={styles.resultRow}>
-                                            <AppText variant="small" color="tertiary">
-                                                Exchange Rate:
+                            {/* Exchange Rate & Output */}
+                            {calculatedOutput !== null && (
+                                <AppCard padding bordered style={{ borderColor: colors.accent }}>
+                                    <Column gap="sm">
+                                        <Row justify="space-between" align="center">
+                                            <AppText variant="body" color="secondary">
+                                                You will receive:
                                             </AppText>
-                                            <AppText variant="small" color="secondary" style={{ fontFamily: 'monospace' }}>
-                                                {formatRate(rate)}{" "}
-                                                {toToken.toUpperCase()} /{" "}
-                                                {fromToken.toUpperCase()}
+                                            <AppText variant="h3" color="accent">
+                                                {formatAmount(calculatedOutput)}{" "}
+                                                {toToken.toUpperCase()}
                                             </AppText>
-                                        </View>
-                                    )}
-                                </Card.Content>
-                            </Card>
-                        )}
+                                        </Row>
+                                        {rate !== null && (
+                                            <Row justify="space-between" align="center">
+                                                <AppText variant="small" color="tertiary">
+                                                    Exchange Rate:
+                                                </AppText>
+                                                <AppText variant="small" color="secondary" style={{ fontFamily: 'monospace' }}>
+                                                    {formatRate(rate)}{" "}
+                                                    {toToken.toUpperCase()} /{" "}
+                                                    {fromToken.toUpperCase()}
+                                                </AppText>
+                                            </Row>
+                                        )}
+                                    </Column>
+                                </AppCard>
+                            )}
 
-                        {loading && (
-                            <View style={styles.loadingContainer}>
-                                <ActivityIndicator size="small" color={colors.accent} />
-                                <AppText variant="caption" color="secondary" style={{ marginLeft: spacing.sm }}>Calculating...</AppText>
-                            </View>
-                        )}
+                            {loading && (
+                                <Row align="center" justify="center" gap="sm">
+                                    <ActivityIndicator size="small" color={colors.accent} />
+                                    <AppText variant="caption" color="secondary">Calculating...</AppText>
+                                </Row>
+                            )}
 
-                        {!amount || parseFloat(amount) <= 0 ? (
-                            <AppText variant="small" color="tertiary" style={{ textAlign: 'center', marginTop: spacing.lg, fontStyle: 'italic' }}>
-                                Enter an amount to see the exchange rate
-                            </AppText>
-                        ) : null}
-                    </Card.Content>
-                </Card>
-            </View>
-        </ScrollView>
+                            {!amount || parseFloat(amount) <= 0 ? (
+                                <AppText variant="small" color="tertiary" style={{ textAlign: 'center', fontStyle: 'italic' }}>
+                                    Enter an amount to see the exchange rate
+                                </AppText>
+                            ) : null}
+                        </Column>
+                    </AppCard>
+                </Column>
+            </ScrollView>
+        </AppScreen>
     );
 }
 
 const styles = StyleSheet.create({
-    container: {
-        flex: 1,
-        backgroundColor: colors.bg,
-    },
     content: {
         padding: spacing.lg,
         maxWidth: 600,
         width: "100%",
         alignSelf: "center",
     },
-    pricesCard: {
-        backgroundColor: colors.bgElevated,
-        marginBottom: spacing.lg,
-        borderWidth: 1,
-        borderColor: colors.border,
-    },
-    exchangeCard: {
-        backgroundColor: colors.bgElevated,
-        borderWidth: 1,
-        borderColor: colors.border,
-    },
-    pricesGrid: {
-        flexDirection: "row",
-        flexWrap: "wrap",
-        justifyContent: "space-between",
-    },
     priceItem: {
         width: "48%",
-        marginBottom: spacing.md,
-        padding: spacing.md,
-        backgroundColor: colors.bgSubtle,
-        borderRadius: radii.md,
-        borderWidth: 1,
-        borderColor: colors.border,
     },
     spreadChip: {
         marginTop: spacing.xs,
@@ -244,9 +220,6 @@ const styles = StyleSheet.create({
     spreadText: {
         color: colors.textPrimary,
         fontSize: 10,
-    },
-    inputSection: {
-        marginBottom: spacing.xl,
     },
     segmentedButtons: {
         backgroundColor: colors.bgSubtle,
@@ -259,30 +232,6 @@ const styles = StyleSheet.create({
         padding: spacing.md,
         ...typography.body,
         color: colors.textPrimary,
-        marginTop: spacing.sm,
-    },
-    resultCard: {
-        backgroundColor: colors.bgSubtle,
-        borderWidth: 1,
-        borderColor: colors.accent,
-        marginTop: spacing.lg,
-        marginBottom: spacing.lg,
-    },
-    resultRow: {
-        flexDirection: "row",
-        justifyContent: "space-between",
-        alignItems: "center",
-        marginBottom: spacing.sm,
-    },
-    loadingContainer: {
-        flexDirection: "row",
-        alignItems: "center",
-        justifyContent: "center",
-        marginTop: spacing.lg,
-    },
-    errorCard: {
-        backgroundColor: colors.danger,
-        marginBottom: spacing.lg,
     },
 });
 

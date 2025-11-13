@@ -13,7 +13,7 @@ import {
   useTweetsStore,
 } from '@/lib/stores/tweetsStore';
 import { TweetComponent } from '@/components/TweetComponent';
-import { AppText } from '@/components/ui';
+import { AppText, AppScreen, Row, Column } from '@/components/ui';
 import { colors, spacing, radii } from '@/theme';
 
 const groupRepliesByParent = (replies: Tweet[]): Map<string, Tweet[]> => {
@@ -110,94 +110,81 @@ export default function TweetPage() {
 
   if (loading && !anchorTweet) {
     return (
-      <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color={colors.accent} />
-        <AppText variant="bodyLarge" style={{ marginTop: spacing.md }}>Loading tweet...</AppText>
-      </View>
+      <AppScreen>
+        <Column justify="center" align="center" style={{ flex: 1 }}>
+          <ActivityIndicator size="large" color={colors.accent} />
+          <AppText variant="bodyLarge" style={{ marginTop: spacing.md }}>Loading tweet...</AppText>
+        </Column>
+      </AppScreen>
     );
   }
 
   if (!tweetId || typeof tweetId !== 'string' || (!anchorTweet && !tweet)) {
     return (
-      <View style={styles.errorContainer}>
-        <AppText variant="h3">Tweet not found</AppText>
-      </View>
+      <AppScreen padding>
+        <Column justify="center" align="center" style={{ flex: 1 }}>
+          <AppText variant="h3">Tweet not found</AppText>
+        </Column>
+      </AppScreen>
     );
   }
 
   return (
-    <ScrollView
-      style={styles.container}
-      refreshControl={
-        <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
-      }
-      showsVerticalScrollIndicator={false}
-    >
-      {parents.length > 0 && (
-        <View style={styles.parentChain}>
-          {parents.map((parent) => (
-            <View key={parent._id.$oid} style={styles.parentItem}>
-              <TweetComponent tweet={parent} showActions={false} />
+    <AppScreen>
+      <ScrollView
+        refreshControl={
+          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+        }
+        showsVerticalScrollIndicator={false}
+      >
+        {parents.length > 0 && (
+          <Column gap="md" style={styles.parentChain}>
+            {parents.map((parent) => (
+              <View key={parent._id.$oid} style={styles.parentItem}>
+                <TweetComponent tweet={parent} showActions={false} />
+              </View>
+            ))}
+            <View style={styles.divider} />
+          </Column>
+        )}
+
+        {anchorTweet && (
+          <View style={styles.anchorWrapper}>
+            <TweetComponent tweet={anchorTweet} />
+          </View>
+        )}
+
+        <Column gap="md" style={styles.repliesSection}>
+          {threadLoading && (
+            <Row gap="sm" align="center">
+              <ActivityIndicator size="small" color={colors.accent} />
+              <AppText variant="caption" color="secondary">Loading replies...</AppText>
+            </Row>
+          )}
+
+          {threadError && (
+            <View style={styles.threadError}>
+              <AppText variant="caption" color="danger" style={{ textAlign: 'center' }}>{threadError}</AppText>
             </View>
-          ))}
-          <View style={styles.divider} />
-        </View>
-      )}
+          )}
 
-      {anchorTweet && (
-        <View style={styles.anchorWrapper}>
-          <TweetComponent tweet={anchorTweet} />
-        </View>
-      )}
-
-      <View style={styles.repliesSection}>
-        {threadLoading && (
-          <View style={styles.threadLoading}>
-            <ActivityIndicator size="small" color={colors.accent} />
-            <AppText variant="caption" color="secondary">Loading replies...</AppText>
-          </View>
-        )}
-
-        {threadError && (
-          <View style={styles.threadError}>
-            <AppText variant="caption" color="danger" style={{ textAlign: 'center' }}>{threadError}</AppText>
-          </View>
-        )}
-
-        {!threadLoading && replies.length > 0 && (
-          <>
-            <AppText variant="h4">
-              {replies.length} {replies.length === 1 ? 'Reply' : 'Replies'}
-            </AppText>
-            <View>{renderReplies(anchorId)}</View>
-          </>
-        )}
-      </View>
-    </ScrollView>
+          {!threadLoading && replies.length > 0 && (
+            <>
+              <AppText variant="h4">
+                {replies.length} {replies.length === 1 ? 'Reply' : 'Replies'}
+              </AppText>
+              <View>{renderReplies(anchorId)}</View>
+            </>
+          )}
+        </Column>
+      </ScrollView>
+    </AppScreen>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: colors.bg,
-  },
-  loadingContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: colors.bg,
-  },
-  errorContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: colors.bg,
-    padding: spacing.xl,
-  },
   parentChain: {
     padding: spacing.lg,
-    gap: spacing.md,
   },
   parentItem: {
     marginBottom: spacing.md,
@@ -214,15 +201,9 @@ const styles = StyleSheet.create({
   repliesSection: {
     paddingHorizontal: spacing.lg,
     paddingBottom: spacing.xl,
-    gap: spacing.md,
   },
   replyContainer: {
     marginBottom: spacing.md,
-  },
-  threadLoading: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.sm,
   },
   threadError: {
     padding: spacing.md,
