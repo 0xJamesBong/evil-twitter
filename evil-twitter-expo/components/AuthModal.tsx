@@ -1,6 +1,8 @@
 import React, { useState } from 'react';
-import { View, StyleSheet, Text, TextInput, TouchableOpacity, Modal, Alert, ScrollView } from 'react-native';
+import { View, StyleSheet, TextInput, TouchableOpacity, Modal, Alert, ScrollView } from 'react-native';
 import { useAuthStore } from '@/lib/stores/authStore';
+import { AppText, AppButton } from '@/components/ui';
+import { colors, spacing, radii, typography } from '@/theme';
 
 interface AuthModalProps {
     isOpen: boolean;
@@ -99,22 +101,22 @@ export function AuthModal({ isOpen, onClose, onAuthSuccess }: AuthModalProps) {
             <View style={styles.overlay}>
                 <View style={styles.modal}>
                     <View style={styles.header}>
-                        <Text style={styles.title}>
+                        <AppText variant="h2">
                             {isLogin ? 'Sign In' : 'Sign Up'}
-                        </Text>
+                        </AppText>
                         <TouchableOpacity onPress={onClose} style={styles.closeButton}>
-                            <Text style={styles.closeText}>✕</Text>
+                            <AppText variant="h4" color="secondary">✕</AppText>
                         </TouchableOpacity>
                     </View>
 
                     <ScrollView style={styles.content} contentContainerStyle={styles.contentContainer}>
                         {!isLogin && (
                             <View style={styles.inputContainer}>
-                                <Text style={styles.inputIcon}>👤</Text>
+                                <AppText variant="body" style={{ paddingLeft: spacing.md }}>👤</AppText>
                                 <TextInput
                                     style={styles.input}
                                     placeholder="Full Name"
-                                    placeholderTextColor="#666"
+                                    placeholderTextColor={colors.textTertiary}
                                     value={fullName}
                                     onChangeText={setFullName}
                                     autoCapitalize="words"
@@ -123,11 +125,11 @@ export function AuthModal({ isOpen, onClose, onAuthSuccess }: AuthModalProps) {
                         )}
 
                         <View style={styles.inputContainer}>
-                            <Text style={styles.inputIcon}>📧</Text>
+                            <AppText variant="body" style={{ paddingLeft: spacing.md }}>📧</AppText>
                             <TextInput
                                 style={styles.input}
                                 placeholder="Email"
-                                placeholderTextColor="#666"
+                                placeholderTextColor={colors.textTertiary}
                                 value={email}
                                 onChangeText={setEmail}
                                 keyboardType="email-address"
@@ -136,11 +138,11 @@ export function AuthModal({ isOpen, onClose, onAuthSuccess }: AuthModalProps) {
                         </View>
 
                         <View style={styles.inputContainer}>
-                            <Text style={styles.inputIcon}>🔒</Text>
+                            <AppText variant="body" style={{ paddingLeft: spacing.md }}>🔒</AppText>
                             <TextInput
                                 style={[styles.input, styles.inputWithIcon]}
                                 placeholder="Password"
-                                placeholderTextColor="#666"
+                                placeholderTextColor={colors.textTertiary}
                                 value={password}
                                 onChangeText={setPassword}
                                 secureTextEntry={!showPassword}
@@ -150,38 +152,38 @@ export function AuthModal({ isOpen, onClose, onAuthSuccess }: AuthModalProps) {
                                 style={styles.eyeButton}
                                 onPress={() => setShowPassword(!showPassword)}
                             >
-                                <Text style={styles.eyeIcon}>{showPassword ? '👁️' : '🙈'}</Text>
+                                <AppText variant="body">{showPassword ? '👁️' : '🙈'}</AppText>
                             </TouchableOpacity>
                         </View>
 
                         {error && (
                             <View style={styles.errorContainer}>
-                                <Text style={styles.errorText}>{error}</Text>
+                                <AppText variant="caption" color="danger" style={{ textAlign: 'center' }}>{error}</AppText>
                             </View>
                         )}
 
-                        <TouchableOpacity
-                            style={[styles.submitButton, isLoading && styles.submitButtonDisabled]}
+                        <AppButton
+                            variant="primary"
                             onPress={handleSubmit}
                             disabled={isLoading}
+                            loading={isLoading}
+                            style={{ marginTop: spacing.sm }}
                         >
-                            <Text style={styles.submitButtonText}>
-                                {isLoading ? 'Loading...' : (isLogin ? 'Sign In' : 'Sign Up')}
-                            </Text>
-                        </TouchableOpacity>
+                            {isLoading ? 'Loading...' : (isLogin ? 'Sign In' : 'Sign Up')}
+                        </AppButton>
 
                         <TouchableOpacity onPress={toggleMode} style={styles.toggleButton}>
-                            <Text style={styles.toggleText}>
+                            <AppText variant="caption" color="accent">
                                 {isLogin
                                     ? "Don't have an account? Sign Up"
                                     : "Already have an account? Sign In"
                                 }
-                            </Text>
+                            </AppText>
                         </TouchableOpacity>
 
                         {isLogin && (
                             <TouchableOpacity onPress={handleResetPassword} style={styles.resetButton}>
-                                <Text style={styles.resetText}>Forgot your password?</Text>
+                                <AppText variant="caption" color="secondary">Forgot your password?</AppText>
                             </TouchableOpacity>
                         )}
                     </ScrollView>
@@ -194,13 +196,13 @@ export function AuthModal({ isOpen, onClose, onAuthSuccess }: AuthModalProps) {
 const styles = StyleSheet.create({
     overlay: {
         flex: 1,
-        backgroundColor: 'rgba(0, 0, 0, 0.8)',
+        backgroundColor: colors.overlayStrong,
         justifyContent: 'center',
         alignItems: 'center',
     },
     modal: {
-        backgroundColor: '#1a1a1a',
-        borderRadius: 16,
+        backgroundColor: colors.bgElevated,
+        borderRadius: radii.lg,
         width: '90%',
         maxWidth: 400,
         maxHeight: '80%',
@@ -209,106 +211,61 @@ const styles = StyleSheet.create({
         flexDirection: 'row',
         justifyContent: 'space-between',
         alignItems: 'center',
-        padding: 20,
+        padding: spacing.xl,
         borderBottomWidth: 1,
-        borderBottomColor: '#333',
-    },
-    title: {
-        fontSize: 24,
-        fontWeight: 'bold',
-        color: '#fff',
+        borderBottomColor: colors.border,
     },
     closeButton: {
         width: 32,
         height: 32,
         borderRadius: 16,
-        backgroundColor: '#333',
+        backgroundColor: colors.bgSubtle,
         justifyContent: 'center',
         alignItems: 'center',
-    },
-    closeText: {
-        color: '#fff',
-        fontSize: 18,
     },
     content: {
         maxHeight: 500,
     },
     contentContainer: {
-        padding: 20,
-        gap: 16,
+        padding: spacing.xl,
+        gap: spacing.lg,
     },
     inputContainer: {
         flexDirection: 'row',
         alignItems: 'center',
-        backgroundColor: '#333',
-        borderRadius: 8,
+        backgroundColor: colors.bgSubtle,
+        borderRadius: radii.md,
         borderWidth: 1,
-        borderColor: '#444',
-    },
-    inputIcon: {
-        fontSize: 20,
-        paddingLeft: 12,
+        borderColor: colors.border,
     },
     input: {
         flex: 1,
-        color: '#fff',
-        paddingVertical: 12,
-        paddingHorizontal: 12,
-        fontSize: 16,
+        color: colors.textPrimary,
+        paddingVertical: spacing.md,
+        paddingHorizontal: spacing.md,
+        ...typography.body,
     },
     inputWithIcon: {
-        paddingRight: 40,
+        paddingRight: spacing['2xl'],
     },
     eyeButton: {
         position: 'absolute',
         right: 0,
-        padding: 12,
-    },
-    eyeIcon: {
-        fontSize: 20,
+        padding: spacing.md,
     },
     errorContainer: {
-        backgroundColor: '#ff444420',
-        borderRadius: 8,
-        padding: 12,
+        backgroundColor: colors.bgSubtle,
+        borderRadius: radii.md,
+        padding: spacing.md,
         borderWidth: 1,
-        borderColor: '#ff4444',
-    },
-    errorText: {
-        color: '#ff4444',
-        fontSize: 14,
-        textAlign: 'center',
-    },
-    submitButton: {
-        backgroundColor: '#8B5CF6',
-        borderRadius: 8,
-        paddingVertical: 14,
-        alignItems: 'center',
-        marginTop: 8,
-    },
-    submitButtonDisabled: {
-        backgroundColor: '#666',
-        opacity: 0.5,
-    },
-    submitButtonText: {
-        color: '#fff',
-        fontSize: 16,
-        fontWeight: 'bold',
+        borderColor: colors.danger,
     },
     toggleButton: {
         alignItems: 'center',
-        paddingVertical: 12,
-    },
-    toggleText: {
-        color: '#8B5CF6',
-        fontSize: 14,
+        paddingVertical: spacing.md,
     },
     resetButton: {
         alignItems: 'center',
-        paddingVertical: 8,
-    },
-    resetText: {
-        color: '#888',
-        fontSize: 14,
+        paddingVertical: spacing.sm,
     },
 });

@@ -1,5 +1,7 @@
 import React from 'react';
-import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
+import { AppText } from '@/components/ui';
+import { colors, spacing, radii, typography } from '@/theme';
 
 export default function Notifications() {
     const notifications = [
@@ -57,16 +59,16 @@ export default function Notifications() {
         <View style={styles.container}>
             {/* Header */}
             <View style={styles.header}>
-                <Text style={styles.headerTitle}>Notifications</Text>
+                <AppText variant="h4">Notifications</AppText>
             </View>
 
             {/* Filter Tabs */}
             <View style={styles.filterTabs}>
                 <TouchableOpacity style={[styles.filterTab, styles.activeTab]}>
-                    <Text style={[styles.filterTabText, styles.activeTabText]}>All</Text>
+                    <AppText variant="bodyBold" color="primary">All</AppText>
                 </TouchableOpacity>
                 <TouchableOpacity style={styles.filterTab}>
-                    <Text style={styles.filterTabText}>Mentions</Text>
+                    <AppText variant="bodyBold" color="secondary">Mentions</AppText>
                 </TouchableOpacity>
             </View>
 
@@ -75,29 +77,29 @@ export default function Notifications() {
                 {notifications.map((notification) => (
                     <TouchableOpacity key={notification.id} style={styles.notificationItem}>
                         <View style={styles.notificationIcon}>
-                            <Text style={styles.iconText}>
+                            <AppText variant="body" style={{ fontSize: 16 }}>
                                 {getNotificationIcon(notification.type)}
-                            </Text>
+                            </AppText>
                         </View>
 
                         <View style={styles.notificationContent}>
                             <View style={styles.userAvatar}>
-                                <Text style={styles.avatarText}>
+                                <AppText variant="bodyBold">
                                     {notification.user.avatar}
-                                </Text>
+                                </AppText>
                             </View>
 
                             <View style={styles.notificationText}>
-                                <Text style={styles.notificationMain}>
-                                    <Text style={styles.userName}>{notification.user.name}</Text>
-                                    <Text style={styles.userHandle}> @{notification.user.username}</Text>
-                                    <Text style={styles.actionText}> {getNotificationText(notification.type, notification.user)}</Text>
-                                </Text>
-                                <Text style={styles.timeText}>{notification.time}</Text>
+                                <AppText variant="body" style={{ marginBottom: spacing.xs }}>
+                                    <AppText variant="bodyBold">{notification.user.name}</AppText>
+                                    <AppText variant="body" color="secondary"> @{notification.user.username}</AppText>
+                                    <AppText variant="body" color="secondary"> {getNotificationText(notification.type, notification.user)}</AppText>
+                                </AppText>
+                                <AppText variant="caption" color="secondary" style={{ marginBottom: spacing.sm }}>{notification.time}</AppText>
 
                                 {notification.tweet && (
                                     <View style={styles.tweetPreview}>
-                                        <Text style={styles.tweetText}>{notification.tweet}</Text>
+                                        <AppText variant="body">{notification.tweet}</AppText>
                                     </View>
                                 )}
                             </View>
@@ -112,66 +114,50 @@ export default function Notifications() {
 const styles = StyleSheet.create({
     container: {
         flex: 1,
-        backgroundColor: '#000',
+        backgroundColor: colors.bg,
     },
     header: {
-        paddingHorizontal: 16,
-        paddingVertical: 16,
+        paddingHorizontal: spacing.lg,
+        paddingVertical: spacing.lg,
         borderBottomWidth: 1,
-        borderBottomColor: '#2f3336',
+        borderBottomColor: colors.border,
         position: 'sticky',
         top: 0,
-        backgroundColor: '#000',
+        backgroundColor: colors.bg,
         zIndex: 10,
-    },
-    headerTitle: {
-        fontSize: 20,
-        fontWeight: 'bold',
-        color: '#fff',
     },
     filterTabs: {
         flexDirection: 'row',
         borderBottomWidth: 1,
-        borderBottomColor: '#2f3336',
+        borderBottomColor: colors.border,
     },
     filterTab: {
         flex: 1,
-        paddingVertical: 16,
+        paddingVertical: spacing.lg,
         alignItems: 'center',
     },
     activeTab: {
         borderBottomWidth: 2,
-        borderBottomColor: '#1d9bf0',
-    },
-    filterTabText: {
-        fontSize: 15,
-        color: '#71767b',
-        fontWeight: 'bold',
-    },
-    activeTabText: {
-        color: '#1d9bf0',
+        borderBottomColor: colors.accent,
     },
     notificationsList: {
         flex: 1,
     },
     notificationItem: {
         flexDirection: 'row',
-        paddingHorizontal: 16,
-        paddingVertical: 12,
+        paddingHorizontal: spacing.lg,
+        paddingVertical: spacing.md,
         borderBottomWidth: 1,
-        borderBottomColor: '#2f3336',
+        borderBottomColor: colors.border,
     },
     notificationIcon: {
         width: 32,
         height: 32,
         borderRadius: 16,
-        backgroundColor: '#1d9bf0',
+        backgroundColor: colors.accent,
         justifyContent: 'center',
         alignItems: 'center',
-        marginRight: 12,
-    },
-    iconText: {
-        fontSize: 16,
+        marginRight: spacing.md,
     },
     notificationContent: {
         flex: 1,
@@ -181,49 +167,20 @@ const styles = StyleSheet.create({
         width: 40,
         height: 40,
         borderRadius: 20,
-        backgroundColor: '#536471',
+        backgroundColor: colors.borderStrong,
         justifyContent: 'center',
         alignItems: 'center',
-        marginRight: 12,
-    },
-    avatarText: {
-        color: '#fff',
-        fontSize: 16,
-        fontWeight: 'bold',
+        marginRight: spacing.md,
     },
     notificationText: {
         flex: 1,
     },
-    notificationMain: {
-        fontSize: 15,
-        lineHeight: 20,
-        marginBottom: 4,
-    },
-    userName: {
-        color: '#fff',
-        fontWeight: 'bold',
-    },
-    userHandle: {
-        color: '#71767b',
-    },
-    actionText: {
-        color: '#71767b',
-    },
-    timeText: {
-        fontSize: 13,
-        color: '#71767b',
-        marginBottom: 8,
-    },
     tweetPreview: {
-        backgroundColor: '#16181c',
-        borderRadius: 12,
-        padding: 12,
+        backgroundColor: colors.bgElevated,
+        borderRadius: radii.md,
+        padding: spacing.md,
         borderWidth: 1,
-        borderColor: '#2f3336',
-    },
-    tweetText: {
-        color: '#e7e9ea',
-        fontSize: 15,
-        lineHeight: 20,
+        borderColor: colors.border,
+        marginTop: spacing.sm,
     },
 });

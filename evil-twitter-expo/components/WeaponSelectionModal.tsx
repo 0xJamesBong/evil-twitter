@@ -4,10 +4,11 @@ import {
     FlatList,
     Modal,
     StyleSheet,
-    Text,
     TouchableOpacity,
     View,
 } from 'react-native';
+import { AppText } from '@/components/ui';
+import { colors, spacing, radii, typography } from '@/theme';
 
 interface WeaponSelectionModalProps {
     visible: boolean;
@@ -37,7 +38,7 @@ export function WeaponSelectionModal({
         onClose();
     };
 
-    const renderWeapon = ({ item }: { item: any }) => (
+    const renderWeapon = ({ item }: { item: Weapon }) => (
         <TouchableOpacity
             style={[
                 styles.weaponItem,
@@ -46,20 +47,20 @@ export function WeaponSelectionModal({
             onPress={() => handleSelectWeapon(item)}
         >
             <View style={styles.weaponInfo}>
-                <Text style={styles.weaponEmoji}>{item.image_url}</Text>
+                <AppText variant="body" style={{ fontSize: 32, marginRight: spacing.lg }}>{item.image_url}</AppText>
                 <View style={styles.weaponDetails}>
-                    <Text style={styles.weaponName}>{item.name}</Text>
-                    <Text style={styles.weaponDescription}>{item.description}</Text>
+                    <AppText variant="bodyBold" style={{ marginBottom: spacing.xs }}>{item.name}</AppText>
+                    <AppText variant="small" color="secondary" style={{ marginBottom: spacing.sm }}>{item.description}</AppText>
                     <View style={styles.weaponStats}>
-                        <Text style={styles.statText}>
+                        <AppText variant="small" color="tertiary">
                             Impact: {item.impact}
-                        </Text>
-                        <Text style={styles.statText}>
+                        </AppText>
+                        <AppText variant="small" color="tertiary">
                             Durability: {item.health}/{item.max_health}
-                        </Text>
-                        <Text style={styles.statText}>
+                        </AppText>
+                        <AppText variant="small" color="tertiary">
                             Degrade/use: {item.degrade_per_use}
-                        </Text>
+                        </AppText>
                     </View>
                 </View>
             </View>
@@ -76,24 +77,24 @@ export function WeaponSelectionModal({
             <View style={styles.overlay}>
                 <View style={styles.modalContainer}>
                     <View style={styles.header}>
-                        <Text style={styles.title}>
+                        <AppText variant="h4" style={{ flex: 1 }}>
                             Select Tool to {actionType === 'attack' ? 'Attack' : 'Support'}
-                        </Text>
+                        </AppText>
                         <TouchableOpacity onPress={onClose} style={styles.closeButton}>
-                            <Text style={styles.closeText}>✕</Text>
+                            <AppText variant="h4" color="secondary">✕</AppText>
                         </TouchableOpacity>
                     </View>
 
                     {loading ? (
                         <View style={styles.loadingContainer}>
-                            <Text style={styles.loadingText}>Loading weapons...</Text>
+                            <AppText variant="bodyLarge" color="secondary">Loading weapons...</AppText>
                         </View>
                     ) : filteredWeapons.length === 0 ? (
                         <View style={styles.emptyContainer}>
-                            <Text style={styles.emptyText}>No tools available</Text>
-                            <Text style={styles.emptySubtext}>
+                            <AppText variant="bodyBold" style={{ marginBottom: spacing.sm }}>No tools available</AppText>
+                            <AppText variant="caption" color="secondary" style={{ textAlign: 'center' }}>
                                 Visit the shop to purchase more {actionType === 'attack' ? 'weapons' : 'support tools'}.
-                            </Text>
+                            </AppText>
                         </View>
                     ) : (
                         <FlatList
@@ -113,107 +114,66 @@ export function WeaponSelectionModal({
 const styles = StyleSheet.create({
     overlay: {
         flex: 1,
-        backgroundColor: 'rgba(0, 0, 0, 0.8)',
+        backgroundColor: colors.overlayStrong,
         justifyContent: 'center',
         alignItems: 'center',
     },
     modalContainer: {
-        backgroundColor: '#1a1a1a',
-        borderRadius: 16,
+        backgroundColor: colors.bgElevated,
+        borderRadius: radii.lg,
         width: '90%',
         maxHeight: '80%',
         borderWidth: 1,
-        borderColor: '#333',
+        borderColor: colors.border,
     },
     header: {
         flexDirection: 'row',
         justifyContent: 'space-between',
         alignItems: 'center',
-        padding: 16,
+        padding: spacing.lg,
         borderBottomWidth: 1,
-        borderBottomColor: '#333',
-    },
-    title: {
-        fontSize: 18,
-        fontWeight: 'bold',
-        color: '#fff',
-        flex: 1,
+        borderBottomColor: colors.border,
     },
     closeButton: {
-        padding: 8,
-        borderRadius: 20,
-        backgroundColor: '#333',
-    },
-    closeText: {
-        color: '#fff',
-        fontSize: 16,
-        fontWeight: 'bold',
+        padding: spacing.sm,
+        borderRadius: radii.pill,
+        backgroundColor: colors.bgSubtle,
     },
     loadingContainer: {
-        padding: 32,
+        padding: spacing['2xl'],
         alignItems: 'center',
-    },
-    loadingText: {
-        color: '#888',
-        fontSize: 16,
     },
     emptyContainer: {
-        padding: 32,
+        padding: spacing['2xl'],
         alignItems: 'center',
-    },
-    emptyText: {
-        color: '#fff',
-        fontSize: 16,
-        fontWeight: 'bold',
-        marginBottom: 8,
-    },
-    emptySubtext: {
-        color: '#888',
-        fontSize: 14,
-        textAlign: 'center',
+        gap: spacing.sm,
     },
     weaponList: {
         maxHeight: 400,
     },
     weaponItem: {
         flexDirection: 'row',
-        padding: 16,
+        padding: spacing.lg,
         borderBottomWidth: 1,
-        borderBottomColor: '#333',
-        backgroundColor: '#1a1a1a',
+        borderBottomColor: colors.border,
+        backgroundColor: colors.bgElevated,
     },
     selectedWeapon: {
-        backgroundColor: '#2a2a2a',
+        backgroundColor: colors.bgCardSecondary,
     },
     weaponInfo: {
         flexDirection: 'row',
         alignItems: 'center',
         flex: 1,
     },
-    weaponEmoji: {
-        fontSize: 32,
-        marginRight: 16,
-    },
     weaponDetails: {
         flex: 1,
-    },
-    weaponName: {
-        fontSize: 16,
-        fontWeight: 'bold',
-        color: '#fff',
-        marginBottom: 4,
-    },
-    weaponDescription: {
-        fontSize: 14,
-        color: '#888',
-        marginBottom: 8,
+        gap: spacing.xs,
     },
     weaponStats: {
         flexDirection: 'row',
         justifyContent: 'space-between',
-    },
-    statText: {
-        fontSize: 12,
-        color: '#666',
+        flexWrap: 'wrap',
+        gap: spacing.xs,
     },
 });

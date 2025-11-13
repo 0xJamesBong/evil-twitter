@@ -4,7 +4,6 @@ import {
   RefreshControl,
   ScrollView,
   StyleSheet,
-  Text,
   View,
 } from 'react-native';
 import { useLocalSearchParams } from 'expo-router';
@@ -14,6 +13,8 @@ import {
   useTweetsStore,
 } from '@/lib/stores/tweetsStore';
 import { TweetComponent } from '@/components/TweetComponent';
+import { AppText } from '@/components/ui';
+import { colors, spacing, radii } from '@/theme';
 
 const groupRepliesByParent = (replies: Tweet[]): Map<string, Tweet[]> => {
   const map = new Map<string, Tweet[]>();
@@ -110,8 +111,8 @@ export default function TweetPage() {
   if (loading && !anchorTweet) {
     return (
       <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color="#1DA1F2" />
-        <Text style={styles.loadingText}>Loading tweet...</Text>
+        <ActivityIndicator size="large" color={colors.accent} />
+        <AppText variant="bodyLarge" style={{ marginTop: spacing.md }}>Loading tweet...</AppText>
       </View>
     );
   }
@@ -119,7 +120,7 @@ export default function TweetPage() {
   if (!tweetId || typeof tweetId !== 'string' || (!anchorTweet && !tweet)) {
     return (
       <View style={styles.errorContainer}>
-        <Text style={styles.errorText}>Tweet not found</Text>
+        <AppText variant="h3">Tweet not found</AppText>
       </View>
     );
   }
@@ -152,22 +153,22 @@ export default function TweetPage() {
       <View style={styles.repliesSection}>
         {threadLoading && (
           <View style={styles.threadLoading}>
-            <ActivityIndicator size="small" color="#1DA1F2" />
-            <Text style={styles.threadLoadingText}>Loading replies...</Text>
+            <ActivityIndicator size="small" color={colors.accent} />
+            <AppText variant="caption" color="secondary">Loading replies...</AppText>
           </View>
         )}
 
         {threadError && (
           <View style={styles.threadError}>
-            <Text style={styles.threadErrorText}>{threadError}</Text>
+            <AppText variant="caption" color="danger" style={{ textAlign: 'center' }}>{threadError}</AppText>
           </View>
         )}
 
         {!threadLoading && replies.length > 0 && (
           <>
-            <Text style={styles.repliesHeader}>
+            <AppText variant="h4">
               {replies.length} {replies.length === 1 ? 'Reply' : 'Replies'}
-            </Text>
+            </AppText>
             <View>{renderReplies(anchorId)}</View>
           </>
         )}
@@ -179,75 +180,53 @@ export default function TweetPage() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#000',
+    backgroundColor: colors.bg,
   },
   loadingContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: '#000',
-  },
-  loadingText: {
-    color: '#fff',
-    marginTop: 10,
-    fontSize: 16,
+    backgroundColor: colors.bg,
   },
   errorContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: '#000',
-    padding: 20,
-  },
-  errorText: {
-    color: '#fff',
-    fontSize: 18,
-    textAlign: 'center',
+    backgroundColor: colors.bg,
+    padding: spacing.xl,
   },
   parentChain: {
-    padding: 16,
-    gap: 12,
+    padding: spacing.lg,
+    gap: spacing.md,
   },
   parentItem: {
-    marginBottom: 12,
+    marginBottom: spacing.md,
   },
   divider: {
     height: 1,
-    backgroundColor: '#2f3336',
-    marginTop: 8,
+    backgroundColor: colors.border,
+    marginTop: spacing.sm,
   },
   anchorWrapper: {
-    paddingHorizontal: 16,
-    paddingBottom: 16,
+    paddingHorizontal: spacing.lg,
+    paddingBottom: spacing.lg,
   },
   repliesSection: {
-    paddingHorizontal: 16,
-    paddingBottom: 24,
-    gap: 12,
-  },
-  repliesHeader: {
-    color: '#fff',
-    fontSize: 18,
-    fontWeight: 'bold',
+    paddingHorizontal: spacing.lg,
+    paddingBottom: spacing.xl,
+    gap: spacing.md,
   },
   replyContainer: {
-    marginBottom: 12,
+    marginBottom: spacing.md,
   },
   threadLoading: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
-  },
-  threadLoadingText: {
-    color: '#71767b',
+    gap: spacing.sm,
   },
   threadError: {
-    padding: 12,
-    borderRadius: 12,
-    backgroundColor: '#2a1a1a',
-  },
-  threadErrorText: {
-    color: '#F44336',
-    textAlign: 'center',
+    padding: spacing.md,
+    borderRadius: radii.md,
+    backgroundColor: colors.bgSubtle,
   },
 });

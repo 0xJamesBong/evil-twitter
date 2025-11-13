@@ -1,12 +1,13 @@
 import { ReplyModal } from "@/components/ReplyModal";
 import { Sidebar } from "@/components/Sidebar";
+import { RightSidebar } from "@/components/RightSidebar";
 import { API_BASE_URL } from "@/lib/config/api";
 import { useAuthStore } from "@/lib/stores/authStore";
 import { DarkTheme, DefaultTheme, ThemeProvider } from "@react-navigation/native";
 import { Stack } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import { useEffect } from "react";
-import { Platform, SafeAreaView, StyleSheet, Text, TouchableOpacity, useColorScheme, useWindowDimensions, View } from "react-native";
+import { Platform, SafeAreaView, StyleSheet, useColorScheme, useWindowDimensions, View } from "react-native";
 import { MD3DarkTheme, MD3LightTheme, PaperProvider } from "react-native-paper";
 
 export const unstable_settings = {
@@ -147,147 +148,4 @@ const styles = StyleSheet.create({
 });
 
 
-// RightSidebar Component
-function RightSidebar() {
-  const trends = [
-    { label: 'Trending in Villainy', topic: 'World Domination', volume: '120K' },
-    { label: 'Trending in Tech', topic: 'Diabolical AI', volume: '89K' },
-    { label: 'Trending Near You', topic: 'Secret Lairs', volume: '54K' },
-    { label: 'Trending in Entertainment', topic: 'Hero Downfalls', volume: '33K' },
-  ];
-
-  return (
-    <View style={rightSidebarStyles.rightSidebar}>
-      <View style={rightSidebarStyles.searchCard}>
-        <Text style={rightSidebarStyles.searchInput}>Search Evil Twitter</Text>
-      </View>
-
-      <View style={rightSidebarStyles.trendsCard}>
-        <Text style={rightSidebarStyles.trendsTitle}>What's happening</Text>
-        {trends.map((trend) => (
-          <View key={trend.topic} style={rightSidebarStyles.trendItem}>
-            <Text style={rightSidebarStyles.trendLabel}>{trend.label}</Text>
-            <Text style={rightSidebarStyles.trendTopic}>{trend.topic}</Text>
-            <Text style={rightSidebarStyles.trendVolume}>{trend.volume} posts</Text>
-          </View>
-        ))}
-      </View>
-
-      <View style={rightSidebarStyles.followCard}>
-        <Text style={rightSidebarStyles.followTitle}>Who to follow</Text>
-        {[1, 2, 3].map((index) => (
-          <View key={index} style={rightSidebarStyles.followItem}>
-            <View style={rightSidebarStyles.followAvatar}>
-              <Text style={rightSidebarStyles.followAvatarText}>C{index}</Text>
-            </View>
-            <View style={rightSidebarStyles.followMeta}>
-              <Text style={rightSidebarStyles.followName}>Chaos Maker {index}</Text>
-              <Text style={rightSidebarStyles.followHandle}>@chaos{index}</Text>
-            </View>
-            <TouchableOpacity style={rightSidebarStyles.followButton}>
-              <Text style={rightSidebarStyles.followButtonText}>Follow</Text>
-            </TouchableOpacity>
-          </View>
-        ))}
-      </View>
-    </View>
-  );
-}
-
-
-// RightSidebar Styles
-const rightSidebarStyles = StyleSheet.create({
-  rightSidebar: {
-    gap: 20,
-  },
-  searchCard: {
-    borderRadius: 24,
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.08)',
-    paddingVertical: 16,
-    paddingHorizontal: 20,
-    backgroundColor: 'rgba(255,255,255,0.03)',
-  },
-  searchInput: {
-    color: '#9ca3af',
-  },
-  trendsCard: {
-    borderRadius: 24,
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.08)',
-    backgroundColor: 'rgba(255,255,255,0.03)',
-    padding: 20,
-    gap: 16,
-  },
-  trendsTitle: {
-    color: '#fff',
-    fontWeight: '700',
-    fontSize: 20,
-  },
-  trendItem: {
-    gap: 6,
-  },
-  trendLabel: {
-    color: '#9ca3af',
-    fontSize: 12,
-    textTransform: 'uppercase',
-    letterSpacing: 1,
-  },
-  trendTopic: {
-    color: '#fff',
-    fontWeight: '700',
-    fontSize: 18,
-  },
-  trendVolume: {
-    color: '#9ca3af',
-  },
-  followCard: {
-    borderRadius: 24,
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.08)',
-    backgroundColor: 'rgba(255,255,255,0.03)',
-    padding: 20,
-    gap: 16,
-  },
-  followTitle: {
-    color: '#fff',
-    fontWeight: '700',
-    fontSize: 20,
-  },
-  followItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-  },
-  followAvatar: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: '#1f2937',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  followAvatarText: {
-    color: '#fff',
-    fontWeight: '600',
-  },
-  followMeta: {
-    flex: 1,
-  },
-  followName: {
-    color: '#fff',
-    fontWeight: '600',
-  },
-  followHandle: {
-    color: '#9ca3af',
-  },
-  followButton: {
-    paddingVertical: 8,
-    paddingHorizontal: 16,
-    borderRadius: 999,
-    backgroundColor: '#fff',
-  },
-  followButtonText: {
-    fontWeight: '600',
-  },
-});
+// RightSidebar Component - Using the imported component instead

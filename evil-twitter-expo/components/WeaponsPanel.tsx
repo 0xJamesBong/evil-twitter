@@ -1,6 +1,8 @@
 import React, { useEffect } from 'react';
-import { View, StyleSheet, Text, TouchableOpacity, ScrollView } from 'react-native';
+import { View, StyleSheet, TouchableOpacity, ScrollView } from 'react-native';
 import { useWeaponsStore } from '@/lib/stores/weaponsStore';
+import { AppText, AppButton } from '@/components/ui';
+import { colors, spacing, radii, typography } from '@/theme';
 
 interface WeaponsPanelProps {
     userId?: string;
@@ -21,33 +23,33 @@ export function WeaponsPanel({ userId, maxDisplay = 5 }: WeaponsPanelProps) {
     if (loading) {
         return (
             <View style={styles.container}>
-                <Text style={styles.title}>⚔️ My Arsenal</Text>
-                <Text style={styles.loadingText}>Loading weapons...</Text>
+                <AppText variant="h4">⚔️ My Arsenal</AppText>
+                <AppText variant="body" color="secondary" style={{ textAlign: 'center', padding: spacing.xl }}>Loading weapons...</AppText>
             </View>
         );
     }
 
     return (
         <View style={styles.container}>
-            <Text style={styles.title}>⚔️ My Arsenal ({weapons.length})</Text>
+            <AppText variant="h4">⚔️ My Arsenal ({weapons.length})</AppText>
 
             {displayWeapons.length > 0 ? (
                 <ScrollView style={styles.weaponsList} showsVerticalScrollIndicator={false}>
                     {displayWeapons.map((weapon) => (
                         <View key={weapon._id.$oid} style={styles.weaponItem}>
-                            <Text style={styles.weaponEmoji}>{weapon.image_url}</Text>
+                            <AppText variant="body" style={{ fontSize: 24 }}>{weapon.image_url}</AppText>
                             <View style={styles.weaponInfo}>
-                                <Text style={styles.weaponName}>{weapon.name}</Text>
-                                <Text style={styles.weaponDescription} numberOfLines={2}>
+                                <AppText variant="bodyBold">{weapon.name}</AppText>
+                                <AppText variant="small" color="secondary" numberOfLines={2} style={{ marginBottom: spacing.xs }}>
                                     {weapon.description}
-                                </Text>
+                                </AppText>
                                 <View style={styles.weaponStats}>
-                                    <Text style={styles.statText}>
+                                    <AppText variant="small" color="tertiary">
                                         Type: {weapon.tool_type === 'Weapon' ? 'Attack' : 'Support'}
-                                    </Text>
-                                    <Text style={styles.statText}>Impact: {weapon.impact}</Text>
-                                    <Text style={styles.statText}>Durability: {weapon.health}/{weapon.max_health}</Text>
-                                    <Text style={styles.statText}>Degrade/use: {weapon.degrade_per_use}</Text>
+                                    </AppText>
+                                    <AppText variant="small" color="tertiary">Impact: {weapon.impact}</AppText>
+                                    <AppText variant="small" color="tertiary">Durability: {weapon.health}/{weapon.max_health}</AppText>
+                                    <AppText variant="small" color="tertiary">Degrade/use: {weapon.degrade_per_use}</AppText>
                                 </View>
                             </View>
                         </View>
@@ -55,15 +57,15 @@ export function WeaponsPanel({ userId, maxDisplay = 5 }: WeaponsPanelProps) {
                 </ScrollView>
             ) : (
                 <View style={styles.emptyState}>
-                    <Text style={styles.emptyText}>No weapons yet</Text>
-                    <Text style={styles.emptySubtext}>Visit the shop to buy some weapons!</Text>
+                    <AppText variant="bodyLarge" color="secondary">No weapons yet</AppText>
+                    <AppText variant="caption" color="tertiary" style={{ textAlign: 'center' }}>Visit the shop to buy some weapons!</AppText>
                 </View>
             )}
 
             {maxDisplay && weapons.length > maxDisplay && (
-                <TouchableOpacity style={styles.showMoreButton}>
-                    <Text style={styles.showMoreText}>Show all weapons</Text>
-                </TouchableOpacity>
+                <AppButton variant="ghost" size="sm" onPress={() => { }} style={{ marginTop: spacing.md }}>
+                    Show all weapons
+                </AppButton>
             )}
         </View>
     );
@@ -71,22 +73,10 @@ export function WeaponsPanel({ userId, maxDisplay = 5 }: WeaponsPanelProps) {
 
 const styles = StyleSheet.create({
     container: {
-        backgroundColor: '#1a1a1a',
-        borderRadius: 16,
-        padding: 16,
-        marginBottom: 16,
-    },
-    title: {
-        fontSize: 18,
-        fontWeight: 'bold',
-        color: '#fff',
-        marginBottom: 12,
-    },
-    loadingText: {
-        color: '#888',
-        fontSize: 14,
-        textAlign: 'center',
-        padding: 20,
+        backgroundColor: colors.bgElevated,
+        borderRadius: radii.lg,
+        padding: spacing.lg,
+        marginBottom: spacing.lg,
     },
     weaponsList: {
         maxHeight: 300,
@@ -94,58 +84,23 @@ const styles = StyleSheet.create({
     weaponItem: {
         flexDirection: 'row',
         alignItems: 'center',
-        gap: 12,
-        paddingVertical: 8,
+        gap: spacing.md,
+        paddingVertical: spacing.sm,
         borderBottomWidth: 1,
-        borderBottomColor: '#333',
-    },
-    weaponEmoji: {
-        fontSize: 24,
+        borderBottomColor: colors.border,
     },
     weaponInfo: {
         flex: 1,
-    },
-    weaponName: {
-        fontSize: 14,
-        fontWeight: 'bold',
-        color: '#fff',
-        marginBottom: 4,
-    },
-    weaponDescription: {
-        fontSize: 12,
-        color: '#888',
-        marginBottom: 6,
-        lineHeight: 16,
+        gap: spacing.xs,
     },
     weaponStats: {
         flexDirection: 'row',
-        gap: 12,
-    },
-    statText: {
-        fontSize: 10,
-        color: '#666',
+        gap: spacing.md,
+        flexWrap: 'wrap',
     },
     emptyState: {
         alignItems: 'center',
-        padding: 20,
-    },
-    emptyText: {
-        color: '#888',
-        fontSize: 16,
-        marginBottom: 8,
-    },
-    emptySubtext: {
-        color: '#666',
-        fontSize: 14,
-        textAlign: 'center',
-    },
-    showMoreButton: {
-        marginTop: 12,
-        paddingVertical: 8,
-        alignItems: 'center',
-    },
-    showMoreText: {
-        color: '#1DA1F2',
-        fontSize: 14,
+        padding: spacing.xl,
+        gap: spacing.sm,
     },
 });

@@ -1,5 +1,7 @@
 import React from 'react';
-import { ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ScrollView, StyleSheet, View } from 'react-native';
+import { AppText } from '@/components/ui';
+import { colors, spacing, radii, typography } from '@/theme';
 
 export default function Bookmarks() {
     const bookmarkedTweets = [
@@ -27,8 +29,8 @@ export default function Bookmarks() {
         <View style={styles.container}>
             {/* Header */}
             <View style={styles.header}>
-                <Text style={styles.headerTitle}>Bookmarks</Text>
-                <Text style={styles.headerSubtitle}>@username</Text>
+                <AppText variant="h4">Bookmarks</AppText>
+                <AppText variant="caption" color="secondary" style={{ marginTop: spacing.xs }}>@username</AppText>
             </View>
 
             {/* Bookmarked Tweets */}
@@ -37,35 +39,35 @@ export default function Bookmarks() {
                     bookmarkedTweets.map((tweet) => (
                         <View key={tweet.id} style={styles.tweetItem}>
                             <View style={styles.userAvatar}>
-                                <Text style={styles.avatarText}>
+                                <AppText variant="h4">
                                     {tweet.user.avatar}
-                                </Text>
+                                </AppText>
                             </View>
 
                             <View style={styles.tweetContent}>
                                 <View style={styles.tweetHeader}>
-                                    <Text style={styles.userName}>{tweet.user.name}</Text>
-                                    <Text style={styles.userHandle}>@{tweet.user.username}</Text>
-                                    <Text style={styles.timeText}>· {tweet.time}</Text>
+                                    <AppText variant="bodyBold">{tweet.user.name}</AppText>
+                                    <AppText variant="body" color="secondary">@{tweet.user.username}</AppText>
+                                    <AppText variant="body" color="secondary">· {tweet.time}</AppText>
                                 </View>
 
-                                <Text style={styles.tweetText}>{tweet.content}</Text>
+                                <AppText variant="body" style={{ marginBottom: spacing.md }}>{tweet.content}</AppText>
 
                                 <View style={styles.tweetActions}>
                                     <View style={styles.actionButton}>
-                                        <Text style={styles.actionIcon}>💬</Text>
-                                        <Text style={styles.actionText}>12</Text>
+                                        <AppText variant="caption" style={{ fontSize: 18, marginRight: spacing.xs }}>💬</AppText>
+                                        <AppText variant="caption" color="secondary">12</AppText>
                                     </View>
                                     <View style={styles.actionButton}>
-                                        <Text style={styles.actionIcon}>🔄</Text>
-                                        <Text style={styles.actionText}>8</Text>
+                                        <AppText variant="caption" style={{ fontSize: 18, marginRight: spacing.xs }}>🔄</AppText>
+                                        <AppText variant="caption" color="secondary">8</AppText>
                                     </View>
                                     <View style={styles.actionButton}>
-                                        <Text style={styles.actionIcon}>❤️</Text>
-                                        <Text style={styles.actionText}>24</Text>
+                                        <AppText variant="caption" style={{ fontSize: 18, marginRight: spacing.xs }}>❤️</AppText>
+                                        <AppText variant="caption" color="secondary">24</AppText>
                                     </View>
                                     <View style={styles.actionButton}>
-                                        <Text style={styles.actionIcon}>🔖</Text>
+                                        <AppText variant="caption" style={{ fontSize: 18 }}>🔖</AppText>
                                     </View>
                                 </View>
                             </View>
@@ -73,10 +75,10 @@ export default function Bookmarks() {
                     ))
                 ) : (
                     <View style={styles.emptyState}>
-                        <Text style={styles.emptyTitle}>Save Tweets for later</Text>
-                        <Text style={styles.emptyText}>
+                        <AppText variant="h2" style={{ marginBottom: spacing.lg, textAlign: 'center' }}>Save Tweets for later</AppText>
+                        <AppText variant="body" color="secondary" style={{ textAlign: 'center', lineHeight: 20 }}>
                             Don't let the good Tweets get away! Bookmark Tweets to easily find them again in the future.
-                        </Text>
+                        </AppText>
                     </View>
                 )}
             </ScrollView>
@@ -87,51 +89,36 @@ export default function Bookmarks() {
 const styles = StyleSheet.create({
     container: {
         flex: 1,
-        backgroundColor: '#000',
+        backgroundColor: colors.bg,
     },
     header: {
-        paddingHorizontal: 16,
-        paddingVertical: 16,
+        paddingHorizontal: spacing.lg,
+        paddingVertical: spacing.lg,
         borderBottomWidth: 1,
-        borderBottomColor: '#2f3336',
+        borderBottomColor: colors.border,
         position: 'sticky',
         top: 0,
-        backgroundColor: '#000',
+        backgroundColor: colors.bg,
         zIndex: 10,
-    },
-    headerTitle: {
-        fontSize: 20,
-        fontWeight: 'bold',
-        color: '#fff',
-    },
-    headerSubtitle: {
-        fontSize: 13,
-        color: '#71767b',
-        marginTop: 2,
     },
     tweetsList: {
         flex: 1,
     },
     tweetItem: {
         flexDirection: 'row',
-        paddingHorizontal: 16,
-        paddingVertical: 12,
+        paddingHorizontal: spacing.lg,
+        paddingVertical: spacing.md,
         borderBottomWidth: 1,
-        borderBottomColor: '#2f3336',
+        borderBottomColor: colors.border,
     },
     userAvatar: {
         width: 48,
         height: 48,
         borderRadius: 24,
-        backgroundColor: '#536471',
+        backgroundColor: colors.borderStrong,
         justifyContent: 'center',
         alignItems: 'center',
-        marginRight: 12,
-    },
-    avatarText: {
-        color: '#fff',
-        fontSize: 20,
-        fontWeight: 'bold',
+        marginRight: spacing.md,
     },
     tweetContent: {
         flex: 1,
@@ -139,28 +126,8 @@ const styles = StyleSheet.create({
     tweetHeader: {
         flexDirection: 'row',
         alignItems: 'center',
-        marginBottom: 4,
-    },
-    userName: {
-        fontSize: 15,
-        fontWeight: 'bold',
-        color: '#fff',
-        marginRight: 4,
-    },
-    userHandle: {
-        fontSize: 15,
-        color: '#71767b',
-        marginRight: 4,
-    },
-    timeText: {
-        fontSize: 15,
-        color: '#71767b',
-    },
-    tweetText: {
-        fontSize: 15,
-        color: '#fff',
-        lineHeight: 20,
-        marginBottom: 12,
+        marginBottom: spacing.xs,
+        gap: spacing.xs,
     },
     tweetActions: {
         flexDirection: 'row',
@@ -170,37 +137,16 @@ const styles = StyleSheet.create({
     actionButton: {
         flexDirection: 'row',
         alignItems: 'center',
-        paddingVertical: 8,
-        paddingHorizontal: 8,
-        borderRadius: 20,
+        paddingVertical: spacing.sm,
+        paddingHorizontal: spacing.sm,
+        borderRadius: radii.pill,
         minWidth: 40,
-    },
-    actionIcon: {
-        fontSize: 18,
-        marginRight: 4,
-    },
-    actionText: {
-        color: '#71767b',
-        fontSize: 13,
     },
     emptyState: {
         flex: 1,
         justifyContent: 'center',
         alignItems: 'center',
-        paddingHorizontal: 32,
-        paddingVertical: 64,
-    },
-    emptyTitle: {
-        fontSize: 24,
-        fontWeight: 'bold',
-        color: '#fff',
-        marginBottom: 16,
-        textAlign: 'center',
-    },
-    emptyText: {
-        fontSize: 15,
-        color: '#71767b',
-        textAlign: 'center',
-        lineHeight: 20,
+        paddingHorizontal: spacing['2xl'],
+        paddingVertical: spacing['4xl'],
     },
 });

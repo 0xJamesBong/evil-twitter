@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
-import { TouchableOpacity, Text, StyleSheet, ViewStyle, TextStyle } from 'react-native';
+import { TouchableOpacity, StyleSheet, ViewStyle, TextStyle } from 'react-native';
 import { AuthModal } from './AuthModal';
+import { AppButton } from '@/components/ui';
 
 interface SignInButtonProps {
     style?: ViewStyle;
@@ -24,12 +25,13 @@ export function SignInButton({
 
     return (
         <>
-            <TouchableOpacity
-                style={[styles.button, style]}
+            <AppButton
+                variant="primary"
                 onPress={() => setShowAuthModal(true)}
+                style={style}
             >
-                <Text style={[styles.text, textStyle]}>{text}</Text>
-            </TouchableOpacity>
+                {text}
+            </AppButton>
 
             <AuthModal
                 isOpen={showAuthModal}
@@ -39,20 +41,4 @@ export function SignInButton({
         </>
     );
 }
-
-const styles = StyleSheet.create({
-    button: {
-        backgroundColor: '#1DA1F2',
-        paddingVertical: 12,
-        paddingHorizontal: 32,
-        borderRadius: 24,
-        alignItems: 'center',
-        justifyContent: 'center',
-    },
-    text: {
-        color: '#fff',
-        fontSize: 16,
-        fontWeight: 'bold',
-    },
-});
 

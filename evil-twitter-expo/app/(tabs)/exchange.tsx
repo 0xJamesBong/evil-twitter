@@ -2,13 +2,14 @@ import React, { useEffect } from "react";
 import { StyleSheet, View, ScrollView, TextInput } from "react-native";
 import {
     Card,
-    Text,
     Button,
     ActivityIndicator,
     SegmentedButtons,
     Chip,
 } from "react-native-paper";
 import { useExchangeStore, TokenType } from "@/lib/stores/exchangeStore";
+import { AppText, AppButton } from '@/components/ui';
+import { colors, spacing, radii, typography } from '@/theme';
 
 const TOKEN_OPTIONS: { label: string; value: TokenType }[] = [
     { label: "DOOLER", value: "Dooler" },
@@ -62,18 +63,16 @@ export default function ExchangeScreen() {
     return (
         <ScrollView style={styles.container}>
             <View style={styles.content}>
-                <Text style={styles.title}>Token Exchange</Text>
-                <Text style={styles.description}>
+                <AppText variant="h2" style={{ marginBottom: spacing.sm }}>Token Exchange</AppText>
+                <AppText variant="bodyLarge" color="secondary" style={{ marginBottom: spacing.xl, lineHeight: 22 }}>
                     Exchange tokens with predatory NPC rates. Prices update in real-time.
-                </Text>
+                </AppText>
 
                 {error && (
                     <Card style={styles.errorCard}>
                         <Card.Content>
-                            <Text style={styles.errorText}>{error}</Text>
-                            <Button onPress={clearError} mode="text">
-                                Dismiss
-                            </Button>
+                            <AppText variant="body" color="inverse" style={{ marginBottom: spacing.sm }}>{error}</AppText>
+                            <AppButton variant="primary" size="sm" onPress={clearError}>Dismiss</AppButton>
                         </Card.Content>
                     </Card>
                 )}
@@ -82,16 +81,16 @@ export default function ExchangeScreen() {
                 {prices && (
                     <Card style={styles.pricesCard}>
                         <Card.Content>
-                            <Text style={styles.sectionTitle}>Current Prices & Spreads</Text>
+                            <AppText variant="h4" style={{ marginBottom: spacing.lg }}>Current Prices & Spreads</AppText>
                             <View style={styles.pricesGrid}>
                                 {Object.entries(prices).map(([key, entry]) => (
                                     <View key={key} style={styles.priceItem}>
-                                        <Text style={styles.priceLabel}>
+                                        <AppText variant="bodyBold" color="accent" style={{ marginBottom: spacing.xs }}>
                                             {key.toUpperCase()}
-                                        </Text>
-                                        <Text style={styles.priceRatio}>
+                                        </AppText>
+                                        <AppText variant="small" color="secondary" style={{ marginBottom: spacing.xs }}>
                                             {entry.ratio.tokenUnits} : {entry.ratio.usdcUnits}
-                                        </Text>
+                                        </AppText>
                                         <Chip
                                             style={styles.spreadChip}
                                             textStyle={styles.spreadText}
@@ -108,11 +107,11 @@ export default function ExchangeScreen() {
                 {/* Exchange Input Section */}
                 <Card style={styles.exchangeCard}>
                     <Card.Content>
-                        <Text style={styles.sectionTitle}>Exchange Tokens</Text>
+                        <AppText variant="h4" style={{ marginBottom: spacing.lg }}>Exchange Tokens</AppText>
 
                         {/* From Token Selection */}
                         <View style={styles.inputSection}>
-                            <Text style={styles.inputLabel}>From</Text>
+                            <AppText variant="bodyBold" style={{ marginBottom: spacing.sm }}>From</AppText>
                             <SegmentedButtons
                                 value={fromToken}
                                 onValueChange={(value) =>
@@ -128,13 +127,13 @@ export default function ExchangeScreen() {
 
                         {/* Amount Input */}
                         <View style={styles.inputSection}>
-                            <Text style={styles.inputLabel}>Amount</Text>
+                            <AppText variant="bodyBold" style={{ marginBottom: spacing.sm }}>Amount</AppText>
                             <TextInput
                                 style={styles.amountInput}
                                 value={amount}
                                 onChangeText={setAmount}
                                 placeholder="Enter amount"
-                                placeholderTextColor="#666"
+                                placeholderTextColor={colors.textTertiary}
                                 keyboardType="numeric"
                                 editable={!loading}
                             />
@@ -142,7 +141,7 @@ export default function ExchangeScreen() {
 
                         {/* To Token Selection */}
                         <View style={styles.inputSection}>
-                            <Text style={styles.inputLabel}>To</Text>
+                            <AppText variant="bodyBold" style={{ marginBottom: spacing.sm }}>To</AppText>
                             <SegmentedButtons
                                 value={toToken}
                                 onValueChange={(value) => setToToken(value as TokenType)}
@@ -159,24 +158,24 @@ export default function ExchangeScreen() {
                             <Card style={styles.resultCard}>
                                 <Card.Content>
                                     <View style={styles.resultRow}>
-                                        <Text style={styles.resultLabel}>
+                                        <AppText variant="body" color="secondary">
                                             You will receive:
-                                        </Text>
-                                        <Text style={styles.resultAmount}>
+                                        </AppText>
+                                        <AppText variant="h3" color="accent">
                                             {formatAmount(calculatedOutput)}{" "}
                                             {toToken.toUpperCase()}
-                                        </Text>
+                                        </AppText>
                                     </View>
                                     {rate !== null && (
                                         <View style={styles.resultRow}>
-                                            <Text style={styles.rateLabel}>
+                                            <AppText variant="small" color="tertiary">
                                                 Exchange Rate:
-                                            </Text>
-                                            <Text style={styles.rateValue}>
+                                            </AppText>
+                                            <AppText variant="small" color="secondary" style={{ fontFamily: 'monospace' }}>
                                                 {formatRate(rate)}{" "}
                                                 {toToken.toUpperCase()} /{" "}
                                                 {fromToken.toUpperCase()}
-                                            </Text>
+                                            </AppText>
                                         </View>
                                     )}
                                 </Card.Content>
@@ -185,15 +184,15 @@ export default function ExchangeScreen() {
 
                         {loading && (
                             <View style={styles.loadingContainer}>
-                                <ActivityIndicator size="small" />
-                                <Text style={styles.loadingText}>Calculating...</Text>
+                                <ActivityIndicator size="small" color={colors.accent} />
+                                <AppText variant="caption" color="secondary" style={{ marginLeft: spacing.sm }}>Calculating...</AppText>
                             </View>
                         )}
 
                         {!amount || parseFloat(amount) <= 0 ? (
-                            <Text style={styles.hintText}>
+                            <AppText variant="small" color="tertiary" style={{ textAlign: 'center', marginTop: spacing.lg, fontStyle: 'italic' }}>
                                 Enter an amount to see the exchange rate
-                            </Text>
+                            </AppText>
                         ) : null}
                     </Card.Content>
                 </Card>
@@ -205,42 +204,24 @@ export default function ExchangeScreen() {
 const styles = StyleSheet.create({
     container: {
         flex: 1,
-        backgroundColor: "#000",
+        backgroundColor: colors.bg,
     },
     content: {
-        padding: 16,
+        padding: spacing.lg,
         maxWidth: 600,
         width: "100%",
         alignSelf: "center",
     },
-    title: {
-        fontSize: 28,
-        fontWeight: "bold",
-        color: "#fff",
-        marginBottom: 8,
-    },
-    description: {
-        color: "#888",
-        fontSize: 16,
-        marginBottom: 24,
-        lineHeight: 22,
-    },
     pricesCard: {
-        backgroundColor: "#1a1a1a",
-        marginBottom: 16,
+        backgroundColor: colors.bgElevated,
+        marginBottom: spacing.lg,
         borderWidth: 1,
-        borderColor: "#333",
+        borderColor: colors.border,
     },
     exchangeCard: {
-        backgroundColor: "#1a1a1a",
+        backgroundColor: colors.bgElevated,
         borderWidth: 1,
-        borderColor: "#333",
-    },
-    sectionTitle: {
-        fontSize: 20,
-        fontWeight: "bold",
-        color: "#fff",
-        marginBottom: 16,
+        borderColor: colors.border,
     },
     pricesGrid: {
         flexDirection: "row",
@@ -249,109 +230,59 @@ const styles = StyleSheet.create({
     },
     priceItem: {
         width: "48%",
-        marginBottom: 12,
-        padding: 12,
-        backgroundColor: "#0f0f0f",
-        borderRadius: 8,
+        marginBottom: spacing.md,
+        padding: spacing.md,
+        backgroundColor: colors.bgSubtle,
+        borderRadius: radii.md,
         borderWidth: 1,
-        borderColor: "#333",
-    },
-    priceLabel: {
-        fontSize: 14,
-        fontWeight: "bold",
-        color: "#1DA1F2",
-        marginBottom: 4,
-    },
-    priceRatio: {
-        fontSize: 12,
-        color: "#ccc",
-        marginBottom: 4,
+        borderColor: colors.border,
     },
     spreadChip: {
-        marginTop: 4,
-        backgroundColor: "#333",
+        marginTop: spacing.xs,
+        backgroundColor: colors.bgElevated,
     },
     spreadText: {
-        color: "#fff",
+        color: colors.textPrimary,
         fontSize: 10,
     },
     inputSection: {
-        marginBottom: 20,
-    },
-    inputLabel: {
-        fontSize: 14,
-        fontWeight: "600",
-        color: "#fff",
-        marginBottom: 8,
+        marginBottom: spacing.xl,
     },
     segmentedButtons: {
-        backgroundColor: "#0f0f0f",
+        backgroundColor: colors.bgSubtle,
     },
     amountInput: {
-        backgroundColor: "#0f0f0f",
+        backgroundColor: colors.bgSubtle,
         borderWidth: 1,
-        borderColor: "#333",
-        borderRadius: 8,
-        padding: 12,
-        fontSize: 16,
-        color: "#fff",
-        marginTop: 8,
+        borderColor: colors.border,
+        borderRadius: radii.md,
+        padding: spacing.md,
+        ...typography.body,
+        color: colors.textPrimary,
+        marginTop: spacing.sm,
     },
     resultCard: {
-        backgroundColor: "#0f0f0f",
+        backgroundColor: colors.bgSubtle,
         borderWidth: 1,
-        borderColor: "#1DA1F2",
-        marginTop: 16,
-        marginBottom: 16,
+        borderColor: colors.accent,
+        marginTop: spacing.lg,
+        marginBottom: spacing.lg,
     },
     resultRow: {
         flexDirection: "row",
         justifyContent: "space-between",
         alignItems: "center",
-        marginBottom: 8,
-    },
-    resultLabel: {
-        fontSize: 16,
-        color: "#ccc",
-    },
-    resultAmount: {
-        fontSize: 24,
-        fontWeight: "bold",
-        color: "#1DA1F2",
-    },
-    rateLabel: {
-        fontSize: 14,
-        color: "#888",
-    },
-    rateValue: {
-        fontSize: 14,
-        color: "#ccc",
-        fontFamily: "monospace",
+        marginBottom: spacing.sm,
     },
     loadingContainer: {
         flexDirection: "row",
         alignItems: "center",
         justifyContent: "center",
-        marginTop: 16,
-    },
-    loadingText: {
-        marginLeft: 8,
-        color: "#888",
-    },
-    hintText: {
-        color: "#666",
-        fontSize: 14,
-        textAlign: "center",
-        marginTop: 16,
-        fontStyle: "italic",
+        marginTop: spacing.lg,
     },
     errorCard: {
-        backgroundColor: "#ff4444",
-        marginBottom: 16,
-    },
-    errorText: {
-        color: "#fff",
-        marginBottom: 8,
+        backgroundColor: colors.danger,
+        marginBottom: spacing.lg,
     },
 });
 

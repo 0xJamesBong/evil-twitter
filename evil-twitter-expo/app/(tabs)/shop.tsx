@@ -1,8 +1,10 @@
 import React, { useEffect } from 'react';
 import { StyleSheet, View, FlatList, ScrollView } from 'react-native';
-import { Card, Text, Button, Chip, ActivityIndicator } from 'react-native-paper';
+import { Card, Button, Chip, ActivityIndicator } from 'react-native-paper';
 import { useBackendUserStore } from '@/lib/stores/backendUserStore';
-import { useShopStore } from '@/lib/stores/shopStore';
+import { useShopStore, WeaponCatalogItem } from '@/lib/stores/shopStore';
+import { AppText, AppButton } from '@/components/ui';
+import { colors, spacing, radii, typography } from '@/theme';
 
 export default function ShopScreen() {
     const { user } = useBackendUserStore();
@@ -63,52 +65,53 @@ export default function ShopScreen() {
         error
     });
 
-    const renderWeapon = ({ item }: { item: any }) => (
-        <Card style={[styles.weaponCard, { borderColor: getRarityColor(item.rarity) }]}>
-            <Card.Content>
-                <View style={styles.weaponHeader}>
-                    <Text style={styles.weaponEmoji}>{item.emoji}</Text>
-                    {/* <Chip
-                        mode="outlined"
-                        textStyle={{ color: getRarityColor(item.rarity), fontSize: 10 }}
-                        style={{ borderColor: getRarityColor(item.rarity) }}
-                    >
-                        {item.rarity.toUpperCase()}
-                    </Chip> */}
-                </View>
+    const renderWeapon = ({ item }: { item: WeaponCatalogItem }) => {
+        const weaponItem = item.item;
+        const metadata = weaponItem?.item_type_metadata?.data;
+        const rarity = metadata?.tool_type === 'Weapon' ? 'rare' : 'uncommon'; // Default rarity
 
-                <Text style={styles.weaponName}>{item.name}</Text>
-                <Text style={styles.weaponDescription}>{item.description}</Text>
+        return (
+            <Card style={[styles.weaponCard, { borderColor: getRarityColor(rarity) }]}>
+                <Card.Content>
+                    <View style={styles.weaponHeader}>
+                        <AppText variant="body" style={{ fontSize: 48 }}>{weaponItem?.image_url || '⚔️'}</AppText>
+                    </View>
 
-                <View style={styles.weaponStats}>
-                    <Text style={styles.statText}>Type: {item.tool_type}</Text>
-                    <Text style={styles.statText}>Impact: {item.impact}</Text>
-                    <Text style={styles.statText}>Durability: {item.health}/{item.max_health}</Text>
-                    <Text style={styles.statText}>Degrade/use: {item.degrade_per_use}</Text>
-                </View>
+                    <AppText variant="h4" style={{ marginBottom: spacing.sm }}>{weaponItem?.name || 'Unknown Weapon'}</AppText>
+                    <AppText variant="body" color="secondary" style={{ marginBottom: spacing.md }}>{weaponItem?.description || ''}</AppText>
 
-                <View style={styles.weaponFooter}>
-                    <Text style={styles.price}>${item.price}</Text>
-                    <Button
-                        mode="contained"
-                        onPress={() => handleBuyWeapon(item.id)}
-                        disabled={buying === item.id || !user}
-                        loading={buying === item.id}
-                        compact
-                    >
-                        Buy
-                    </Button>
-                </View>
-            </Card.Content>
-        </Card>
-    );
+                    {metadata && (
+                        <View style={styles.weaponStats}>
+                            <AppText variant="small" color="tertiary">Type: {metadata.tool_type}</AppText>
+                            <AppText variant="small" color="tertiary">Impact: {metadata.impact}</AppText>
+                            <AppText variant="small" color="tertiary">Durability: {metadata.health}/{metadata.max_health}</AppText>
+                            <AppText variant="small" color="tertiary">Degrade/use: {metadata.degrade_per_use}</AppText>
+                        </View>
+                    )}
+
+                    <View style={styles.weaponFooter}>
+                        <AppText variant="h4" color="accent">${item.price}</AppText>
+                        <AppButton
+                            variant="primary"
+                            size="sm"
+                            onPress={() => handleBuyWeapon(item.catalog_id)}
+                            disabled={buying === item.catalog_id || !user}
+                            loading={buying === item.catalog_id}
+                        >
+                            Buy
+                        </AppButton>
+                    </View>
+                </Card.Content>
+            </Card>
+        );
+    };
 
     if (loading) {
         return (
             <View style={styles.content}>
                 <View style={styles.loadingContainer}>
-                    <ActivityIndicator size="large" />
-                    <Text style={styles.loadingText}>Loading weapons...</Text>
+                    <ActivityIndicator size="large" color={colors.accent} />
+                    <AppText variant="bodyLarge" style={{ marginTop: spacing.lg }}>Loading weapons...</AppText>
                 </View>
             </View>
         );
@@ -116,16 +119,16 @@ export default function ShopScreen() {
 
     return (
         <View style={styles.content}>
-            <Text style={styles.description}>
+            <AppText variant="bodyLarge" color="secondary" style={{ marginBottom: spacing.xl, lineHeight: 22 }}>
                 Select from our arsenal of offensive weapons, defensive gear, support tools, and utility gadgets.
                 Each item has unique stats and abilities to enhance your Twitter battles.
-            </Text>
+            </AppText>
 
             {error && (
                 <Card style={styles.errorCard}>
                     <Card.Content>
-                        <Text style={styles.errorText}>{error}</Text>
-                        <Button onPress={clearError}>Dismiss</Button>
+                        <AppText variant="body" color="inverse" style={{ marginBottom: spacing.sm }}>{error}</AppText>
+                        <AppButton variant="primary" size="sm" onPress={clearError}>Dismiss</AppButton>
                     </Card.Content>
                 </Card>
             )}
@@ -149,17 +152,17 @@ export default function ShopScreen() {
                 <FlatList
                     data={filteredCatalog}
                     renderItem={renderWeapon}
-                    keyExtractor={(item) => item.id}
+                    keyExtractor={(item) => item.catalog_id}
                     numColumns={2}
                     scrollEnabled={true}
                     contentContainerStyle={styles.weaponsGrid}
                     showsVerticalScrollIndicator={false}
                 />
             ) : (
-                <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', paddingVertical: 40 }}>
-                    <Text style={{ color: '#888', fontSize: 16, textAlign: 'center' }}>
+                <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', paddingVertical: spacing['2xl'] }}>
+                    <AppText variant="bodyLarge" color="secondary" style={{ textAlign: 'center' }}>
                         {catalog.length === 0 ? "No weapons available" : "No weapons in this category"}
-                    </Text>
+                    </AppText>
                 </View>
             )}
         </View>
@@ -168,102 +171,48 @@ export default function ShopScreen() {
 
 const styles = StyleSheet.create({
     content: {
-        padding: 16,
+        padding: spacing.lg,
         maxWidth: 600,
         width: '100%',
         alignSelf: 'center',
-    },
-    // Mobile layout styles (kept for compatibility)
-    container: {
-        flex: 1,
-        backgroundColor: '#000',
     },
     loadingContainer: {
         flex: 1,
         justifyContent: 'center',
         alignItems: 'center',
     },
-    loadingText: {
-        marginTop: 16,
-        color: '#fff',
-    },
-    description: {
-        color: '#888',
-        fontSize: 16,
-        marginBottom: 24,
-        lineHeight: 22,
-    },
     errorCard: {
-        backgroundColor: '#ff4444',
-        marginBottom: 16,
-    },
-    errorText: {
-        color: '#fff',
-        marginBottom: 8,
+        backgroundColor: colors.danger,
+        marginBottom: spacing.lg,
     },
     categoryScroll: {
-        marginBottom: 16,
+        marginBottom: spacing.lg,
     },
     categoryChip: {
-        marginRight: 8,
+        marginRight: spacing.sm,
     },
     weaponsGrid: {
         paddingBottom: 100,
     },
     weaponCard: {
         flex: 1,
-        margin: 8,
-        backgroundColor: '#1a1a1a',
+        margin: spacing.sm,
+        backgroundColor: colors.bgElevated,
         borderWidth: 2,
     },
     weaponHeader: {
         flexDirection: 'row',
         justifyContent: 'space-between',
         alignItems: 'center',
-        marginBottom: 8,
-    },
-    weaponEmoji: {
-        fontSize: 48,
-    },
-    weaponName: {
-        fontSize: 18,
-        fontWeight: 'bold',
-        color: '#fff',
-        marginBottom: 8,
-    },
-    weaponDescription: {
-        color: '#888',
-        fontSize: 14,
-        marginBottom: 12,
-        lineHeight: 20,
+        marginBottom: spacing.sm,
     },
     weaponStats: {
-        marginBottom: 16,
-    },
-    statText: {
-        color: '#ccc',
-        fontSize: 12,
-        marginBottom: 2,
+        marginBottom: spacing.lg,
+        gap: spacing.xs,
     },
     weaponFooter: {
         flexDirection: 'row',
         justifyContent: 'space-between',
         alignItems: 'center',
-    },
-    price: {
-        fontSize: 18,
-        fontWeight: 'bold',
-        color: '#1DA1F2',
-    },
-    emptyContainer: {
-        flex: 1,
-        justifyContent: 'center',
-        alignItems: 'center',
-        paddingVertical: 40,
-    },
-    emptyText: {
-        color: '#888',
-        fontSize: 16,
-        textAlign: 'center',
     },
 });
