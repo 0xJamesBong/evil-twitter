@@ -8,3 +8,5 @@ pub mod weapon_catalog;
 
 pub mod assets;
 pub mod tokens;
+
+pub mod pump_smack;

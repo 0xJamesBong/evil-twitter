@@ -1,8 +1,13 @@
+use std::collections::HashMap;
+
 use mongodb::bson::{DateTime, oid::ObjectId};
 use serde::{Deserialize, Serialize};
 use utoipa::ToSchema;
 
-use crate::models::tool::Tool;
+use crate::models::{
+    tokens::{enums::TokenType, token_balance::TokenBalance},
+    tool::Tool,
+};
 
 /// Core tweet variants supported by the platform.
 #[derive(Debug, Serialize, Deserialize, Clone, Copy, PartialEq, Eq, ToSchema)]
@@ -364,78 +369,4 @@ impl Tweet {
     pub fn thread_root_id(&self) -> Option<ObjectId> {
         self.root_tweet_id.or(self.id)
     }
-
-    // pub fn attack_tweet(&mut self, attacker_user_id: ObjectId, weapon: Option<Tool>) {
-    //     // For now, use a default attack amount
-
-    //     // TODO: Implement weapon system to get actual attack values
-    //     let attack_amount = if weapon.is_some() {
-    //         weapon.clone().unwrap().damage as f64
-    //     } else {
-    //         1.0 // Basic attack without weapon
-    //     };
-
-    //     let action = AttackAction {
-    //         timestamp: mongodb::bson::DateTime::now(),
-    //         amount: attack_amount,
-    //         user_id: attacker_user_id,
-    //         weapon: weapon.clone(),
-    //     };
-
-    //     // Update energy state
-    //     self.energy_state.record_attack(action);
-    // }
-
-    // pub fn support_tweet(&mut self, supporter_user_id: ObjectId, weapon: Option<Tool>) {
-    //     // For now, use a default attack amount
-    //     // TODO: Implement weapon system to get actual attack values
-    //     let support_amount = if weapon.is_some() {
-    //         weapon.clone().unwrap().damage as f64
-    //     } else {
-    //         0.0 // Basic attack without weapon
-    //     };
-    //     let action = SupportAction {
-    //         timestamp: mongodb::bson::DateTime::now(),
-    //         amount: support_amount,
-    //         user_id: supporter_user_id,
-    //         weapon: weapon.clone(),
-    //     };
-    //     self.energy_state.record_support(action);
-    // }
-
-    // pub async fn record_energy_change(
-    //     &mut self,
-    //     db: &mongodb::Database,
-    //     action_type: EnergyActionType,
-    //     energy_change: f64,
-    //     user_id: ObjectId,
-    //     weapon_used: Option<String>,
-    // ) -> Result<(), Box<dyn std::error::Error>> {
-    //     // Update tweet energy state and record the action
-    //     match action_type.clone() {
-    //         EnergyActionType::Attack => {
-    //             let attack_action = AttackAction {
-    //                 timestamp: mongodb::bson::DateTime::now(),
-    //                 amount: energy_change.abs(), // Store as positive value
-    //                 user_id,
-    //                 weapon_used,
-    //             };
-    //             self.energy.record_attack(attack_action);
-    //         }
-    //         EnergyActionType::Support => {
-    //             let support_action = SupportAction {
-
-    //     self.energy.update_energy();
-
-    //     // Save to database
-    //     let collection: mongodb::Collection<Tweet> = db.collection("tweets");
-    //     collection
-    //         .update_one(
-    //             mongodb::bson::doc! {"_id": self.id},
-    //             mongodb::bson::doc! {"$set": {"energy": mongodb::bson::to_bson(&self.energy)?}},
-    //         )
-    //         .await?;
-
-    //     Ok(())
-    // }
 }
