@@ -76,9 +76,14 @@ export const useAuthStore = create<AuthState & AuthActions>((set, get) => ({
         });
       }
 
-      // create the user in the backend
+      // Fetch backend user if session exists
       if (session?.user) {
-        useBackendUserStore.getState().syncWithSupabase(session.user);
+        try {
+          await useBackendUserStore.getState().fetchUser(session.user.id);
+        } catch (error) {
+          console.error("Failed to fetch backend user:", error);
+          // Don't block initialization if backend fetch fails
+        }
       }
 
       // Set up auth state listener
@@ -90,8 +95,16 @@ export const useAuthStore = create<AuthState & AuthActions>((set, get) => ({
             session,
             isAuthenticated: true,
           });
-          // Sync with backend when auth state changes
-          useBackendUserStore.getState().syncWithSupabase(session.user);
+          // Fetch backend user when auth state changes
+          useBackendUserStore
+            .getState()
+            .fetchUser(session.user.id)
+            .catch((error) => {
+              console.error(
+                "Auth store: Backend fetch on state change failed (non-fatal):",
+                error
+              );
+            });
         } else {
           set({
             user: null,
@@ -136,9 +149,14 @@ export const useAuthStore = create<AuthState & AuthActions>((set, get) => ({
         isLoading: false,
       });
 
-      // Sync with backend user data
+      // Fetch backend user data
       if (data.user) {
-        useBackendUserStore.getState().syncWithSupabase(data.user);
+        try {
+          await useBackendUserStore.getState().fetchUser(data.user.id);
+        } catch (error) {
+          console.error("Failed to fetch backend user:", error);
+          // Don't throw - Supabase login was successful, backend fetch is secondary
+        }
       }
     } catch (error: any) {
       console.error("Auth store: Login failed:", error);
@@ -165,42 +183,16 @@ export const useAuthStore = create<AuthState & AuthActions>((set, get) => ({
 
       if (error) throw error;
 
-      // If user was created successfully, create user in backend database
+      // Create user in backend database via GraphQL
       if (data.user) {
         try {
-          const username =
-            fullName?.toLowerCase().replace(/\s+/g, "_") || email.split("@")[0];
-          const displayName = fullName || email.split("@")[0];
-
-          const response = await fetch(`${API_BASE_URL}/users`, {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-            },
-            body: JSON.stringify({
-              supabase_id: data.user.id,
-              username,
-              display_name: displayName,
-              email,
-              password: "", // We don't store password in backend since Supabase handles auth
-              avatar_url: null,
-              bio: null,
-            }),
-          });
-
-          if (!response.ok) {
-            console.warn(
-              "Failed to create user in backend database:",
-              await response.text()
-            );
-            // Don't throw error here - Supabase user was created successfully
-          } else {
-            // Sync with backend user data after successful creation
-            useBackendUserStore.getState().syncWithSupabase(data.user);
-          }
+          console.log("🔄 Creating user in backend...");
+          await useBackendUserStore.getState().createUser(data.user);
+          console.log("✅ Backend user created");
         } catch (backendError) {
-          console.warn("Error creating user in backend:", backendError);
+          console.error("❌ Error creating user in backend:", backendError);
           // Don't throw error here - Supabase user was created successfully
+          // The user can still sign in and the backend user will be fetched on login
         }
       }
 
