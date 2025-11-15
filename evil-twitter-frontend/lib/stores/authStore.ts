@@ -132,11 +132,6 @@ export const useAuthStore = create<AuthState & AuthActions>((set, get) => ({
         isAuthenticated: true,
         isLoading: false,
       });
-
-      // Sync with backend user data
-      if (data.user) {
-        useBackendUserStore.getState().syncWithSupabase(data.user);
-      }
     } catch (error: any) {
       console.error("Auth store: Login failed:", error);
       set({ error: error.message, isLoading: false });

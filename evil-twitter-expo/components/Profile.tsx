@@ -35,7 +35,6 @@ export function Profile({
     const {
         user: currentBackendUser,
         fetchUser: fetchCurrentUser,
-        syncWithSupabase,
         balances,
         adjustFollowersCount,
         profileUser,
@@ -116,17 +115,6 @@ export function Profile({
         checkFollowStatus,
     ]);
 
-    const handleSyncWithSupabase = async () => {
-        if (authUser) {
-            try {
-                await syncWithSupabase(authUser);
-                Alert.alert('Success', 'Profile synced with Supabase!');
-            } catch (error) {
-                console.error('Sync error:', error);
-                Alert.alert('Error', 'Failed to sync profile');
-            }
-        }
-    };
 
     const handleFollowToggle = async () => {
         const viewerId = currentBackendUser?._id?.$oid;
@@ -351,14 +339,11 @@ export function Profile({
                                     </AppText>
                                 </Column>
 
-                                {/* Sync button for own profile */}
-                                {isOwnProfile && (
-                                    <AppButton variant="primary" size="sm" onPress={handleSyncWithSupabase}>
-                                        🔄 Sync
-                                    </AppButton>
-                                )}
+
+
                             </Row>
                         </Column>
+
 
                         {/* Follow Button for other users */}
                         {!isOwnProfile && currentBackendUser?._id?.$oid && userId && currentBackendUser._id.$oid !== userId && (
