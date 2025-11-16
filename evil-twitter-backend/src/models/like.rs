@@ -13,3 +13,7 @@ pub struct Like {
     pub tweet_id: ObjectId,
     pub created_at: mongodb::bson::DateTime,
 }
+
+impl Like {
+    pub const COLLECTION_NAME: &str = "likes";
+}

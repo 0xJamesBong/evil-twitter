@@ -21,10 +21,6 @@ pub use queries::{
 
 // Re-export mutations
 pub use mutations::{
-    TweetAttackInput, TweetCreateInput, TweetEnergyPayload, TweetMetricsPayload, TweetMutation,
-    TweetPayload, TweetQuoteInput, TweetReplyInput, TweetSmackPayload, TweetSupportInput,
-    tweet_attack_resolver as tweet_attack, tweet_create_resolver as tweet_create,
-    tweet_like_resolver as tweet_like, tweet_quote_resolver as tweet_quote,
-    tweet_reply_resolver as tweet_reply, tweet_retweet_resolver as tweet_retweet,
-    tweet_smack_resolver as tweet_smack, tweet_support_resolver as tweet_support,
+    TweetCreateInput, TweetMetricsPayload, TweetMutation, TweetPayload, TweetQuoteInput,
+    TweetReplyInput,
 };

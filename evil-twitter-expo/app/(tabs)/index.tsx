@@ -10,13 +10,14 @@ import { useComposeStore } from '@/lib/stores/composeStore';
 
 export default function Home() {
   const { user, initialized } = useAuthStore();
-  const { user: backendUser, fetchUser, createUser } = useBackendUserStore();
+  const { user: backendUser } = useBackendUserStore();
   const { isSubmitting, clearCompose } = useComposeStore();
   const [composeVisible, setComposeVisible] = useState(false);
 
   useEffect(() => {
     if (initialized && user && !backendUser) {
       // Try to fetch existing user first
+      const { fetchUser, createUser } = useBackendUserStore.getState();
       fetchUser(user.id).catch(async () => {
         // User doesn't exist, create them
         try {
@@ -26,7 +27,7 @@ export default function Home() {
         }
       });
     }
-  }, [initialized, user, backendUser, fetchUser, createUser]);
+  }, [initialized, user, backendUser]);
 
   const handleComposePress = () => {
     setComposeVisible(true);

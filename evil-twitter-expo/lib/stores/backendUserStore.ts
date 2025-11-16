@@ -55,7 +55,6 @@ interface BackendUserActions {
   fetchUserById: (userId: string) => Promise<void>;
   fetchBalances: (userId: string) => Promise<void>;
   adjustFollowersCount: (delta: number) => void;
-  syncWithSupabase: (supabaseUser: any) => Promise<void>;
   clearUser: () => void;
   fetchProfileComposite: (
     userId: string,
@@ -162,38 +161,6 @@ export const useBackendUserStore = create<
     } catch (error) {
       set({
         error: error instanceof Error ? error.message : "An error occurred",
-        isLoading: false,
-      });
-    }
-  },
-
-  syncWithSupabase: async (supabaseUser: any) => {
-    set({ isLoading: true, error: null });
-    try {
-      // First try to fetch existing user
-      await get().fetchUser(supabaseUser.id);
-
-      // If user doesn't exist, create them
-      if (!get().user) {
-        console.log("Creating user in backend", supabaseUser);
-        try {
-          await get().createUser(supabaseUser as User);
-        } catch (createError: any) {
-          // If user already exists (409), just fetch them
-          if (
-            createError.message.includes("409") ||
-            createError.message.includes("Conflict")
-          ) {
-            console.log("User already exists, fetching...");
-            await get().fetchUser(supabaseUser.id);
-          } else {
-            throw createError;
-          }
-        }
-      }
-    } catch (error) {
-      set({
-        error: error instanceof Error ? error.message : "Sync failed",
         isLoading: false,
       });
     }

@@ -1,17 +1,8 @@
 use async_graphql::{Context, InputObject, Object, Result, SimpleObject};
-use mongodb::{
-    Collection,
-    bson::{doc, oid::ObjectId},
-};
 
-use crate::{
-    graphql::GraphQLState,
-    graphql::user::types::UserNode,
-    models::{
-        tokens::{enums::TokenType, token_balance::TokenBalance},
-        user::User,
-    },
-};
+use std::sync::Arc;
+
+use crate::{app_state::AppState, graphql::user::types::UserNode};
 
 // ============================================================================
 // UserMutation Object
@@ -69,79 +60,20 @@ pub async fn user_create_resolver(
     ctx: &Context<'_>,
     input: UserCreateInput,
 ) -> Result<UserCreatePayload> {
-    let state = ctx.data::<GraphQLState>()?;
-    let user_collection: Collection<User> = state.db.collection("users");
-    let token_balance_collection: Collection<TokenBalance> = state.db.collection("token_balances");
+    let app_state = ctx.data::<Arc<AppState>>()?;
 
-    // Check if user already exists
-    let existing_user = user_collection
-        .find_one(doc! {
-            "$or": [
-                {"supabase_id": &input.supabase_id},
-                {"username": &input.username},
-                {"email": &input.email}
-            ]
-        })
-        .await
-        .map_err(|e| async_graphql::Error::new(format!("Database error: {}", e)))?;
-
-    if existing_user.is_some() {
-        return Err(async_graphql::Error::new(
-            "User with this supabase_id, username, or email already exists",
-        ));
-    }
-
-    // Create user
-    let now = mongodb::bson::DateTime::now();
-    let user_id = ObjectId::new();
-
-    let user = User {
-        id: Some(user_id),
-        supabase_id: input.supabase_id,
-        username: input.username,
-        display_name: input.display_name,
-        email: input.email,
-        avatar_url: input.avatar_url,
-        bio: input.bio,
-        created_at: now,
-        followers_count: 0,
-        following_count: 0,
-        tweets_count: 0,
-        dollar_conversion_rate: 10000,
-        weapon_ids: Vec::new(),
-    };
-
-    user_collection
-        .insert_one(&user)
-        .await
-        .map_err(|e| async_graphql::Error::new(format!("Failed to create user: {}", e)))?;
-
-    // Give new user 10k BLING tokens
-    let initial_bling = 10_000_i64;
-    let bling_balance = TokenBalance {
-        user_id,
-        token: TokenType::Bling,
-        amount: initial_bling,
-    };
-
-    // Check if balance already exists, if not insert
-    let existing_balance = token_balance_collection
-        .find_one(doc! {
-            "user_id": user_id,
-            "token": mongodb::bson::to_bson(&TokenType::Bling)
-                .map_err(|e| async_graphql::Error::new(format!("Serialization error: {}", e)))?,
-        })
-        .await
-        .map_err(|e| async_graphql::Error::new(format!("Database error: {}", e)))?;
-
-    if existing_balance.is_none() {
-        token_balance_collection
-            .insert_one(&bling_balance)
-            .await
-            .map_err(|e| {
-                async_graphql::Error::new(format!("Failed to create token balance: {}", e))
-            })?;
-    }
+    let user = app_state
+        .mongo_service
+        .users
+        .create_user_with_validation(
+            input.supabase_id,
+            input.username,
+            input.display_name,
+            input.email,
+            input.avatar_url,
+            input.bio,
+        )
+        .await?;
 
     Ok(UserCreatePayload {
         user: UserNode::from(user),
