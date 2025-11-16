@@ -1,38 +1,14 @@
 use async_graphql::{Context, ID, Object, Result};
-use futures::TryStreamExt;
-use mongodb::{Collection, bson::doc};
+use mongodb::bson::oid::ObjectId;
 
 use std::sync::Arc;
 
 use crate::app_state::AppState;
 use crate::graphql::tweet::types::{TweetConnection, TweetEdge, TweetNode, TweetThreadNode};
-use crate::models::{tweet::Tweet, user::User};
-use crate::utils::auth::get_authenticated_user;
-use crate::utils::tweet::{ApiError, assemble_thread_response, enrich_tweets_with_references};
-use axum::Json;
-use mongodb::bson::oid::ObjectId;
 
 // Helper functions
 fn parse_object_id(id: &ID) -> Result<ObjectId> {
     ObjectId::parse_str(id.as_str()).map_err(|_| async_graphql::Error::new("Invalid ObjectId"))
-}
-
-fn map_mongo_error(err: mongodb::error::Error) -> async_graphql::Error {
-    async_graphql::Error::new(err.to_string())
-}
-
-fn map_api_error(err: ApiError) -> async_graphql::Error {
-    let (status, Json(body)) = err;
-    let message = body
-        .get("error")
-        .and_then(|value| value.as_str())
-        .or_else(|| body.get("message").and_then(|value| value.as_str()))
-        .unwrap_or("Unknown error");
-    async_graphql::Error::new(format!("{message} (status {status})"))
-}
-
-fn api_error_to_graphql(err: ApiError) -> async_graphql::Error {
-    map_api_error(err)
 }
 
 // ============================================================================
@@ -73,20 +49,19 @@ impl TweetQuery {
 pub async fn tweet_resolver(ctx: &Context<'_>, id: ID) -> Result<Option<TweetNode>> {
     let app_state = ctx.data::<Arc<AppState>>()?;
     let object_id = parse_object_id(&id)?;
-    let tweet_collection: Collection<Tweet> = app_state.mongo_service.tweet_collection();
-    let user_collection: Collection<User> = app_state.mongo_service.user_collection();
 
-    let tweet = tweet_collection
-        .find_one(doc! {"_id": object_id})
-        .await
-        .map_err(map_mongo_error)?;
+    let tweet = app_state
+        .mongo_service
+        .tweets
+        .get_tweet_by_id(object_id)
+        .await?;
 
     if let Some(tweet) = tweet {
-        let enriched =
-            enrich_tweets_with_references(vec![tweet], &tweet_collection, &user_collection)
-                .await
-                .map_err(map_api_error)?;
-
+        let enriched = app_state
+            .mongo_service
+            .tweets
+            .enrich_tweets(vec![tweet])
+            .await?;
         Ok(enriched.into_iter().next().map(TweetNode::from))
     } else {
         Ok(None)
@@ -98,9 +73,11 @@ pub async fn tweet_thread_resolver(ctx: &Context<'_>, tweet_id: ID) -> Result<Tw
     let app_state = ctx.data::<Arc<AppState>>()?;
     let object_id = parse_object_id(&tweet_id)?;
 
-    let response = assemble_thread_response(app_state.mongo_service.db(), object_id)
-        .await
-        .map_err(api_error_to_graphql)?;
+    let response = app_state
+        .mongo_service
+        .tweets
+        .get_tweet_thread(object_id)
+        .await?;
 
     Ok(TweetThreadNode::from(response))
 }
@@ -113,24 +90,12 @@ pub async fn timeline_resolver(
 ) -> Result<TweetConnection> {
     let limit = first.clamp(1, 50);
     let app_state = ctx.data::<Arc<AppState>>()?;
-    let tweet_collection: Collection<Tweet> = app_state.mongo_service.tweet_collection();
-    let user_collection: Collection<User> = app_state.mongo_service.user_collection();
 
-    let mut cursor = tweet_collection
-        .find(doc! {})
-        .sort(doc! {"created_at": -1})
-        .limit(i64::from(limit))
-        .await
-        .map_err(map_mongo_error)?;
-
-    let mut tweets = Vec::new();
-    while let Some(tweet) = cursor.try_next().await.map_err(map_mongo_error)? {
-        tweets.push(tweet);
-    }
-
-    let enriched = enrich_tweets_with_references(tweets, &tweet_collection, &user_collection)
-        .await
-        .map_err(map_api_error)?;
+    let enriched = app_state
+        .mongo_service
+        .tweets
+        .get_timeline(i64::from(limit))
+        .await?;
 
     let edges = enriched
         .into_iter()

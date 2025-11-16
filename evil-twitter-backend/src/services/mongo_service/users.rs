@@ -1,9 +1,29 @@
 use async_graphql::Result;
-use mongodb::bson::{doc, oid::ObjectId};
+use mongodb::{
+    Collection, Database,
+    bson::{doc, oid::ObjectId},
+};
 
 use crate::models::user::User;
 
-impl super::MongoService {
+/// Service for user-related database operations
+#[derive(Clone)]
+pub struct UserService {
+    db: Database,
+}
+
+impl UserService {
+    pub fn new(db: Database) -> Self {
+        Self { db }
+    }
+
+    /// Get the users collection
+    fn user_collection(&self) -> Collection<User> {
+        self.db.collection(User::COLLECTION_NAME)
+    }
+}
+
+impl UserService {
     /// Get a user by ID
     pub async fn get_user_by_id(&self, id: ObjectId) -> Result<Option<User>> {
         let collection = self.user_collection();
@@ -24,7 +44,62 @@ impl super::MongoService {
         Ok(user)
     }
 
-    /// Create a new user
+    /// Check if user exists by supabase_id, username, or email
+    pub async fn user_exists(
+        &self,
+        supabase_id: &str,
+        username: &str,
+        email: &str,
+    ) -> Result<bool> {
+        let collection = self.user_collection();
+        let existing = collection
+            .find_one(doc! {
+                "$or": [
+                    {"supabase_id": supabase_id},
+                    {"username": username},
+                    {"email": email}
+                ]
+            })
+            .await
+            .map_err(|e| async_graphql::Error::new(format!("Database error: {}", e)))?;
+        Ok(existing.is_some())
+    }
+
+    /// Create a new user with validation
+    pub async fn create_user_with_validation(
+        &self,
+        supabase_id: String,
+        username: String,
+        display_name: String,
+        email: String,
+        avatar_url: Option<String>,
+        bio: Option<String>,
+    ) -> Result<User> {
+        // Check if user already exists
+        if self.user_exists(&supabase_id, &username, &email).await? {
+            return Err(async_graphql::Error::new(
+                "User with this supabase_id, username, or email already exists",
+            ));
+        }
+
+        let now = mongodb::bson::DateTime::now();
+        let user_id = ObjectId::new();
+
+        let user = User {
+            id: Some(user_id),
+            supabase_id,
+            username,
+            display_name,
+            email,
+            avatar_url,
+            bio,
+            created_at: now,
+        };
+
+        self.create_user(user).await
+    }
+
+    /// Create a new user (no validation)
     pub async fn create_user(&self, user: User) -> Result<User> {
         let collection = self.user_collection();
         collection

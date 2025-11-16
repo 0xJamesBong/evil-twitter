@@ -6,16 +6,30 @@ use crate::models::{follow::Follow, like::Like, tweet::Tweet, user::User};
 pub mod tweets;
 pub mod users;
 
+use tweets::TweetService;
+use users::UserService;
+
 /// Unified MongoDB service for all database operations
 #[derive(Clone)]
 pub struct MongoService {
     client: Client,
     db: Database,
+    /// Tweet-related database operations
+    pub tweets: TweetService,
+    /// User-related database operations
+    pub users: UserService,
 }
 
 impl MongoService {
     pub fn new(client: Client, db: Database) -> Self {
-        Self { client, db }
+        let tweet_service = TweetService::new(db.clone());
+        let user_service = UserService::new(db.clone());
+        Self {
+            client,
+            db,
+            tweets: tweet_service,
+            users: user_service,
+        }
     }
 
     /// Get the database (for utility functions that need it)

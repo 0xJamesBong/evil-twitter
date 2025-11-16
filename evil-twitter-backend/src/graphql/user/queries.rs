@@ -5,7 +5,7 @@ use mongodb::{Collection, bson::doc};
 use std::sync::Arc;
 
 use crate::app_state::AppState;
-use crate::graphql::user::types::{DiscoverFilters, UserNode};
+use crate::graphql::user::types::UserNode;
 use crate::models::user::User;
 
 // Helper functions
@@ -69,12 +69,12 @@ impl UserQuery {
 pub async fn user_resolver(ctx: &Context<'_>, id: ID) -> Result<Option<UserNode>> {
     let app_state = ctx.data::<Arc<AppState>>()?;
     let object_id = parse_object_id(&id)?;
-    let collection: Collection<User> = app_state.mongo_service.user_collection();
 
-    let user = collection
-        .find_one(doc! {"_id": object_id})
-        .await
-        .map_err(map_mongo_error)?;
+    let user = app_state
+        .mongo_service
+        .users
+        .get_user_by_id(object_id)
+        .await?;
 
     Ok(user.map(UserNode::from))
 }
@@ -85,12 +85,12 @@ pub async fn user_by_supabase_id_resolver(
     supabase_id: String,
 ) -> Result<Option<UserNode>> {
     let app_state = ctx.data::<Arc<AppState>>()?;
-    let collection: Collection<User> = app_state.mongo_service.user_collection();
 
-    let user = collection
-        .find_one(doc! {"supabase_id": supabase_id})
-        .await
-        .map_err(map_mongo_error)?;
+    let user = app_state
+        .mongo_service
+        .users
+        .get_user_by_supabase_id(&supabase_id)
+        .await?;
 
     Ok(user.map(UserNode::from))
 }

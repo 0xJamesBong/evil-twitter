@@ -1,25 +1,12 @@
 use async_graphql::{Context, ID, InputObject, Object, Result, SimpleObject};
 use axum::http::HeaderMap;
-use mongodb::{
-    Collection,
-    bson::{doc, oid::ObjectId},
-};
+use mongodb::bson::oid::ObjectId;
 
 use std::sync::Arc;
 
 use crate::{
-    app_state::AppState,
-    graphql::tweet::types::TweetNode,
-    models::{
-        like::Like,
-        tweet::{
-            Tweet, TweetAuthorSnapshot, TweetEnergyState, TweetMetrics, TweetType, TweetView,
-            TweetViewerContext,
-        },
-        user::User,
-    },
+    app_state::AppState, graphql::tweet::types::TweetNode, models::user::User,
     utils::auth::get_authenticated_user,
-    utils::tweet::enrich_tweets_with_references,
 };
 
 // ============================================================================
@@ -91,8 +78,6 @@ pub struct TweetSmackPayload {
 // ============================================================================
 // Helper Functions
 // ============================================================================
-
-const LIKE_IMPACT: f64 = 10.0;
 
 async fn get_authenticated_user_from_ctx(ctx: &Context<'_>) -> Result<User> {
     let headers = ctx
@@ -170,56 +155,13 @@ pub async fn tweet_create_resolver(
     input: TweetCreateInput,
 ) -> Result<TweetPayload> {
     let app_state = ctx.data::<Arc<AppState>>()?;
-    let tweet_collection: Collection<Tweet> = app_state.mongo_service.tweet_collection();
-    let user_collection: Collection<User> = app_state.mongo_service.user_collection();
-
     let user = get_authenticated_user_from_ctx(ctx).await?;
-    let owner_id = user
-        .id
-        .ok_or_else(|| async_graphql::Error::new("User record missing identifier"))?;
-    let username = user.username;
-    let display_name = user.display_name;
-    let avatar_url = user.avatar_url;
 
-    let now = mongodb::bson::DateTime::now();
-    let tweet_id = ObjectId::new();
-
-    let tweet = Tweet {
-        id: Some(tweet_id),
-        owner_id,
-        content: input.content,
-        tweet_type: TweetType::Original,
-        quoted_tweet_id: None,
-        replied_to_tweet_id: None,
-        root_tweet_id: Some(tweet_id),
-        reply_depth: 0,
-        created_at: now,
-        updated_at: Some(now),
-        metrics: TweetMetrics::default(),
-        author_snapshot: TweetAuthorSnapshot {
-            username: Some(username),
-            display_name: Some(display_name),
-            avatar_url,
-        },
-        viewer_context: TweetViewerContext::default(),
-        energy_state: TweetEnergyState::default(),
-    };
-
-    tweet_collection
-        .insert_one(&tweet)
-        .await
-        .map_err(|e| async_graphql::Error::new(format!("Failed to create tweet: {}", e)))?;
-
-    let views = enrich_tweets_with_references(vec![tweet], &tweet_collection, &user_collection)
-        .await
-        .map_err(|(status, _)| {
-            async_graphql::Error::new(format!("Failed to hydrate tweet (status {})", status))
-        })?;
-
-    let view = views
-        .into_iter()
-        .next()
-        .ok_or_else(|| async_graphql::Error::new("Failed to hydrate tweet"))?;
+    let view = app_state
+        .mongo_service
+        .tweets
+        .create_tweet_with_author(user, input.content)
+        .await?;
 
     Ok(TweetPayload {
         tweet: TweetNode::from(view),
@@ -233,8 +175,6 @@ pub async fn tweet_like_resolver(
     _idempotency_key: Option<String>,
 ) -> Result<TweetMetricsPayload> {
     let app_state = ctx.data::<Arc<AppState>>()?;
-    let collection: Collection<Tweet> = app_state.mongo_service.tweet_collection();
-    let like_collection: Collection<Like> = app_state.mongo_service.like_collection();
     let object_id = parse_object_id(&id)?;
 
     let user = get_authenticated_user_from_ctx(ctx).await?;
@@ -242,89 +182,18 @@ pub async fn tweet_like_resolver(
         .id
         .ok_or_else(|| async_graphql::Error::new("User record missing identifier"))?;
 
-    let mut tweet = collection
-        .find_one(doc! {"_id": object_id})
-        .await
-        .map_err(|e| async_graphql::Error::new(format!("Database error: {}", e)))?
-        .ok_or_else(|| async_graphql::Error::new("Tweet not found"))?;
-
-    let like_filter = doc! {"user_id": user_id, "tweet_id": object_id};
-    let existing_like = like_collection
-        .find_one(like_filter.clone())
-        .await
-        .map_err(|e| async_graphql::Error::new(format!("Database error: {}", e)))?;
-
-    let is_liking = existing_like.is_none();
-
-    if is_liking {
-        // Like the tweet
-        tweet.energy_state.energy_gained_from_support += LIKE_IMPACT;
-        tweet.metrics.inc_like();
-
-        let like = Like {
-            id: None,
-            user_id,
-            tweet_id: object_id,
-            created_at: mongodb::bson::DateTime::now(),
-        };
-
-        like_collection
-            .insert_one(&like)
-            .await
-            .map_err(|e| async_graphql::Error::new(format!("Database error: {}", e)))?;
-
-        collection
-            .update_one(
-                doc! {"_id": object_id},
-                doc! {
-                    "$inc": {"metrics.likes": 1},
-                    "$set": {
-                        "energy_state": mongodb::bson::to_bson(&tweet.energy_state)
-                            .map_err(|e| async_graphql::Error::new(format!("Serialization error: {}", e)))?,
-                        "metrics.smacks": tweet.metrics.smacks
-                    }
-                },
-            )
-            .await
-            .map_err(|e| async_graphql::Error::new(format!("Database error: {}", e)))?;
-    } else {
-        // Unlike the tweet
-        like_collection
-            .delete_one(like_filter)
-            .await
-            .map_err(|e| async_graphql::Error::new(format!("Database error: {}", e)))?;
-
-        tweet.energy_state.energy_gained_from_support -= LIKE_IMPACT;
-
-        collection
-            .update_one(
-                doc! {"_id": object_id},
-                doc! {
-                    "$inc": {"metrics.likes": -1},
-                    "$set": {
-                        "energy_state": mongodb::bson::to_bson(&tweet.energy_state)
-                            .map_err(|e| async_graphql::Error::new(format!("Serialization error: {}", e)))?,
-                        "metrics.smacks": tweet.metrics.smacks
-                    }
-                },
-            )
-            .await
-            .map_err(|e| async_graphql::Error::new(format!("Database error: {}", e)))?;
-    }
-
-    // Fetch updated tweet to get accurate counts
-    let updated_tweet = collection
-        .find_one(doc! {"_id": object_id})
-        .await
-        .map_err(|e| async_graphql::Error::new(format!("Database error: {}", e)))?
-        .ok_or_else(|| async_graphql::Error::new("Tweet not found after update"))?;
+    let (like_count, smack_count, liked_by_viewer, energy) = app_state
+        .mongo_service
+        .tweets
+        .toggle_like(user_id, object_id)
+        .await?;
 
     Ok(TweetMetricsPayload {
         id,
-        like_count: updated_tweet.metrics.likes,
-        smack_count: updated_tweet.metrics.smacks,
-        liked_by_viewer: is_liking,
-        energy: updated_tweet.energy_state.energy,
+        like_count,
+        smack_count,
+        liked_by_viewer,
+        energy,
     })
 }
 
@@ -334,76 +203,14 @@ pub async fn tweet_reply_resolver(
     input: TweetReplyInput,
 ) -> Result<TweetPayload> {
     let app_state = ctx.data::<Arc<AppState>>()?;
-    let collection: Collection<Tweet> = app_state.mongo_service.tweet_collection();
-    let user_collection: Collection<User> = app_state.mongo_service.user_collection();
-
     let user = get_authenticated_user_from_ctx(ctx).await?;
-    let owner_id = user
-        .id
-        .ok_or_else(|| async_graphql::Error::new("User record missing identifier"))?;
-
     let replied_id = parse_object_id(&input.replied_to_id)?;
-    let replied_tweet = collection
-        .find_one(doc! {"_id": replied_id})
-        .await
-        .map_err(|e| async_graphql::Error::new(format!("Database error: {}", e)))?
-        .ok_or_else(|| async_graphql::Error::new("Tweet not found"))?;
 
-    let now = mongodb::bson::DateTime::now();
-    let username = user.username;
-    let display_name = user.display_name;
-    let avatar_url = user.avatar_url;
-
-    let reply_id = ObjectId::new();
-    let root_id = replied_tweet
-        .root_tweet_id
-        .or(replied_tweet.id)
-        .unwrap_or(replied_id);
-
-    let reply = Tweet {
-        id: Some(reply_id),
-        owner_id,
-        content: input.content,
-        tweet_type: TweetType::Reply,
-        quoted_tweet_id: None,
-        replied_to_tweet_id: Some(replied_id),
-        root_tweet_id: Some(root_id),
-        reply_depth: replied_tweet.reply_depth + 1,
-        created_at: now,
-        updated_at: Some(now),
-        metrics: TweetMetrics::default(),
-        author_snapshot: TweetAuthorSnapshot {
-            username: Some(username),
-            display_name: Some(display_name),
-            avatar_url,
-        },
-        viewer_context: TweetViewerContext::default(),
-        energy_state: TweetEnergyState::default(),
-    };
-
-    collection
-        .insert_one(&reply)
-        .await
-        .map_err(|e| async_graphql::Error::new(format!("Failed to create reply: {}", e)))?;
-
-    collection
-        .update_one(
-            doc! {"_id": replied_id},
-            doc! {"$inc": {"metrics.replies": 1}},
-        )
-        .await
-        .map_err(|e| async_graphql::Error::new(format!("Database error: {}", e)))?;
-
-    let hydrated = enrich_tweets_with_references(vec![reply], &collection, &user_collection)
-        .await
-        .map_err(|(status, _)| {
-            async_graphql::Error::new(format!("Failed to hydrate reply (status {})", status))
-        })?;
-
-    let view = hydrated
-        .into_iter()
-        .next()
-        .ok_or_else(|| async_graphql::Error::new("Failed to hydrate reply"))?;
+    let view = app_state
+        .mongo_service
+        .tweets
+        .create_reply(user, input.content, replied_id)
+        .await?;
 
     Ok(TweetPayload {
         tweet: TweetNode::from(view),
@@ -416,72 +223,14 @@ pub async fn tweet_quote_resolver(
     input: TweetQuoteInput,
 ) -> Result<TweetPayload> {
     let app_state = ctx.data::<Arc<AppState>>()?;
-    let tweet_collection: Collection<Tweet> = app_state.mongo_service.tweet_collection();
-    let user_collection: Collection<User> = app_state.mongo_service.user_collection();
-
     let user = get_authenticated_user_from_ctx(ctx).await?;
     let quoted_id = parse_object_id(&input.quoted_tweet_id)?;
 
-    let _quoted_tweet = tweet_collection
-        .find_one(doc! {"_id": quoted_id})
-        .await
-        .map_err(|e| async_graphql::Error::new(format!("Database error: {}", e)))?
-        .ok_or_else(|| async_graphql::Error::new("Original tweet not found"))?;
-
-    let now = mongodb::bson::DateTime::now();
-    let owner_id = user
-        .id
-        .ok_or_else(|| async_graphql::Error::new("User record missing identifier"))?;
-    let username = user.username;
-    let display_name = user.display_name;
-    let avatar_url = user.avatar_url;
-
-    let quote_id = ObjectId::new();
-
-    let quote = Tweet {
-        id: Some(quote_id),
-        owner_id,
-        content: input.content,
-        tweet_type: TweetType::Quote,
-        quoted_tweet_id: Some(quoted_id),
-        replied_to_tweet_id: None,
-        root_tweet_id: Some(quote_id),
-        reply_depth: 0,
-        created_at: now,
-        updated_at: Some(now),
-        metrics: TweetMetrics::default(),
-        author_snapshot: TweetAuthorSnapshot {
-            username: Some(username),
-            display_name: Some(display_name),
-            avatar_url,
-        },
-        viewer_context: TweetViewerContext::default(),
-        energy_state: TweetEnergyState::default(),
-    };
-
-    tweet_collection
-        .insert_one(&quote)
-        .await
-        .map_err(|e| async_graphql::Error::new(format!("Failed to create quote: {}", e)))?;
-
-    tweet_collection
-        .update_one(
-            doc! {"_id": quoted_id},
-            doc! {"$inc": {"metrics.quotes": 1}},
-        )
-        .await
-        .map_err(|e| async_graphql::Error::new(format!("Database error: {}", e)))?;
-
-    let hydrated = enrich_tweets_with_references(vec![quote], &tweet_collection, &user_collection)
-        .await
-        .map_err(|(status, _)| {
-            async_graphql::Error::new(format!("Failed to hydrate quote (status {})", status))
-        })?;
-
-    let view = hydrated
-        .into_iter()
-        .next()
-        .ok_or_else(|| async_graphql::Error::new("Failed to hydrate quote"))?;
+    let view = app_state
+        .mongo_service
+        .tweets
+        .create_quote(user, input.content, quoted_id)
+        .await?;
 
     Ok(TweetPayload {
         tweet: TweetNode::from(view),
@@ -491,73 +240,14 @@ pub async fn tweet_quote_resolver(
 /// Retweet a tweet
 pub async fn tweet_retweet_resolver(ctx: &Context<'_>, id: ID) -> Result<TweetPayload> {
     let app_state = ctx.data::<Arc<AppState>>()?;
-    let tweet_collection: Collection<Tweet> = app_state.mongo_service.tweet_collection();
-    let user_collection: Collection<User> = app_state.mongo_service.db().collection("users");
-
     let user = get_authenticated_user_from_ctx(ctx).await?;
-    let owner_id = user
-        .id
-        .ok_or_else(|| async_graphql::Error::new("User record missing identifier"))?;
-
     let original_id = parse_object_id(&id)?;
-    let original_tweet = tweet_collection
-        .find_one(doc! {"_id": original_id})
-        .await
-        .map_err(|e| async_graphql::Error::new(format!("Database error: {}", e)))?
-        .ok_or_else(|| async_graphql::Error::new("Original tweet not found"))?;
 
-    let now = mongodb::bson::DateTime::now();
-    let username = user.username;
-    let display_name = user.display_name;
-    let avatar_url = user.avatar_url;
-
-    let retweet_id = ObjectId::new();
-
-    let retweet = Tweet {
-        id: Some(retweet_id),
-        owner_id,
-        content: original_tweet.content.clone(),
-        tweet_type: TweetType::Retweet,
-        quoted_tweet_id: Some(original_id),
-        replied_to_tweet_id: None,
-        root_tweet_id: Some(retweet_id),
-        reply_depth: 0,
-        created_at: now,
-        updated_at: Some(now),
-        metrics: TweetMetrics::default(),
-        author_snapshot: TweetAuthorSnapshot {
-            username: Some(username),
-            display_name: Some(display_name),
-            avatar_url,
-        },
-        viewer_context: TweetViewerContext::default(),
-        energy_state: TweetEnergyState::default(),
-    };
-
-    tweet_collection
-        .insert_one(&retweet)
-        .await
-        .map_err(|e| async_graphql::Error::new(format!("Failed to create retweet: {}", e)))?;
-
-    tweet_collection
-        .update_one(
-            doc! {"_id": original_id},
-            doc! {"$inc": {"metrics.retweets": 1}},
-        )
-        .await
-        .map_err(|e| async_graphql::Error::new(format!("Database error: {}", e)))?;
-
-    let hydrated =
-        enrich_tweets_with_references(vec![retweet], &tweet_collection, &user_collection)
-            .await
-            .map_err(|(status, _)| {
-                async_graphql::Error::new(format!("Failed to hydrate retweet (status {})", status))
-            })?;
-
-    let view = hydrated
-        .into_iter()
-        .next()
-        .ok_or_else(|| async_graphql::Error::new("Failed to hydrate retweet"))?;
+    let view = app_state
+        .mongo_service
+        .tweets
+        .create_retweet(user, original_id)
+        .await?;
 
     Ok(TweetPayload {
         tweet: TweetNode::from(view),

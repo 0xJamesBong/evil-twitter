@@ -1,12 +1,8 @@
 use async_graphql::{Context, InputObject, Object, Result, SimpleObject};
-use mongodb::{
-    Collection,
-    bson::{doc, oid::ObjectId},
-};
 
 use std::sync::Arc;
 
-use crate::{app_state::AppState, graphql::user::types::UserNode, models::user::User};
+use crate::{app_state::AppState, graphql::user::types::UserNode};
 
 // ============================================================================
 // UserMutation Object
@@ -65,45 +61,19 @@ pub async fn user_create_resolver(
     input: UserCreateInput,
 ) -> Result<UserCreatePayload> {
     let app_state = ctx.data::<Arc<AppState>>()?;
-    let user_collection: Collection<User> = app_state.mongo_service.user_collection();
 
-    // Check if user already exists
-    let existing_user = user_collection
-        .find_one(doc! {
-            "$or": [
-                {"supabase_id": &input.supabase_id},
-                {"username": &input.username},
-                {"email": &input.email}
-            ]
-        })
-        .await
-        .map_err(|e| async_graphql::Error::new(format!("Database error: {}", e)))?;
-
-    if existing_user.is_some() {
-        return Err(async_graphql::Error::new(
-            "User with this supabase_id, username, or email already exists",
-        ));
-    }
-
-    // Create user
-    let now = mongodb::bson::DateTime::now();
-    let user_id = ObjectId::new();
-
-    let user = User {
-        id: Some(user_id),
-        supabase_id: input.supabase_id,
-        username: input.username,
-        display_name: input.display_name,
-        email: input.email,
-        avatar_url: input.avatar_url,
-        bio: input.bio,
-        created_at: now,
-    };
-
-    user_collection
-        .insert_one(&user)
-        .await
-        .map_err(|e| async_graphql::Error::new(format!("Failed to create user: {}", e)))?;
+    let user = app_state
+        .mongo_service
+        .users
+        .create_user_with_validation(
+            input.supabase_id,
+            input.username,
+            input.display_name,
+            input.email,
+            input.avatar_url,
+            input.bio,
+        )
+        .await?;
 
     Ok(UserCreatePayload {
         user: UserNode::from(user),
