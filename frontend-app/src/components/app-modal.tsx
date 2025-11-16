@@ -1,6 +1,5 @@
-import { Button } from '@/components/ui/button'
-import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
-import { ReactNode } from 'react'
+import { Button, Dialog, DialogTitle, DialogContent, DialogActions, Box } from '@mui/material'
+import { ReactNode, useState } from 'react'
 
 export function AppModal({
   children,
@@ -15,24 +14,34 @@ export function AppModal({
   submitDisabled?: boolean
   submitLabel?: string
 }) {
+  const [open, setOpen] = useState(false)
+
+  const handleSubmit = () => {
+    if (submit) {
+      submit()
+      setOpen(false)
+    }
+  }
+
   return (
-    <Dialog modal={false}>
-      <DialogTrigger asChild>
-        <Button variant="outline">{title}</Button>
-      </DialogTrigger>
-      <DialogContent className="sm:max-w-[525px]">
-        <DialogHeader>
-          <DialogTitle>{title}</DialogTitle>
-        </DialogHeader>
-        <div className="grid gap-4 py-4">{children}</div>
-        <DialogFooter>
-          {submit ? (
-            <Button type="submit" onClick={submit} disabled={submitDisabled}>
+    <>
+      <Button variant="outlined" onClick={() => setOpen(true)}>
+        {title}
+      </Button>
+      <Dialog open={open} onClose={() => setOpen(false)} maxWidth="sm" fullWidth>
+        <DialogTitle>{title}</DialogTitle>
+        <DialogContent>
+          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, pt: 2 }}>{children}</Box>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setOpen(false)}>Cancel</Button>
+          {submit && (
+            <Button onClick={handleSubmit} disabled={submitDisabled} variant="contained">
               {submitLabel || 'Save'}
             </Button>
-          ) : null}
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+          )}
+        </DialogActions>
+      </Dialog>
+    </>
   )
 }

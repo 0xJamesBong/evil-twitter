@@ -3,8 +3,8 @@ import { usePathname } from 'next/navigation'
 import { useState } from 'react'
 import dynamic from 'next/dynamic'
 import Link from 'next/link'
-import { Button } from '@/components/ui/button'
-import { Menu, X } from 'lucide-react'
+import { IconButton, Box, AppBar, Toolbar, Typography, Link as MuiLink } from '@mui/material'
+import { Menu as MenuIcon, X } from 'lucide-react'
 import { ThemeSelect } from '@/components/theme-select'
 import { WalletDropdown } from '@/components/wallet-dropdown'
 
@@ -21,63 +21,87 @@ export function AppHeader({ links = [] }: { links: { label: string; path: string
   }
 
   return (
-    <header className="relative z-50 px-4 py-2 bg-card/50">
-      <div className="mx-auto flex justify-between items-center">
-        <div className="flex items-baseline gap-4">
-          <Link className="text-xl hover:text-neutral-500 dark:hover:text-white" href="/">
-            <span>Gillsupabasetemplate</span>
-          </Link>
-          <div className="hidden md:flex items-center">
-            <ul className="flex gap-4 flex-nowrap items-center">
-              {links.map(({ label, path }) => (
-                <li key={path}>
-                  <Link
-                    className={`hover:text-neutral-500 dark:hover:text-white ${isActive(path) ? 'text-neutral-500 dark:text-white' : ''}`}
-                    href={path}
-                  >
-                    {label}
-                  </Link>
-                </li>
-              ))}
-            </ul>
-          </div>
-        </div>
+    <AppBar position="sticky" sx={{ bgcolor: 'background.paper', color: 'text.primary', boxShadow: 1 }}>
+      <Toolbar sx={{ justifyContent: 'space-between', px: { xs: 2, sm: 3 } }}>
+        <Box sx={{ display: 'flex', alignItems: 'baseline', gap: 2 }}>
+          <MuiLink component={Link} href="/" sx={{ textDecoration: 'none', color: 'text.primary' }}>
+            <Typography variant="h6" component="span" sx={{ fontWeight: 600 }}>
+              Gillsupabasetemplate
+            </Typography>
+          </MuiLink>
+          <Box sx={{ display: { xs: 'none', md: 'flex' }, gap: 2, alignItems: 'center' }}>
+            {links.map(({ label, path }) => (
+              <MuiLink
+                key={path}
+                component={Link}
+                href={path}
+                sx={{
+                  textDecoration: 'none',
+                  color: isActive(path) ? 'primary.main' : 'text.secondary',
+                  '&:hover': { color: 'primary.main' },
+                }}
+              >
+                {label}
+              </MuiLink>
+            ))}
+          </Box>
+        </Box>
 
-        <Button variant="ghost" size="icon" className="md:hidden" onClick={() => setShowMenu(!showMenu)}>
-          {showMenu ? <X className="h-6 w-6" /> : <Menu className="h-6 w-6" />}
-        </Button>
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+          <Box sx={{ display: { xs: 'none', md: 'flex' }, gap: 1, alignItems: 'center' }}>
+            <WalletDropdown />
+            <ClusterDropdown />
+            <ThemeSelect />
+          </Box>
+          <IconButton
+            sx={{ display: { xs: 'flex', md: 'none' } }}
+            onClick={() => setShowMenu(!showMenu)}
+            size="small"
+          >
+            {showMenu ? <X size={24} /> : <MenuIcon size={24} />}
+          </IconButton>
+        </Box>
+      </Toolbar>
 
-        <div className="hidden md:flex items-center gap-4">
-          <WalletDropdown />
-          <ClusterDropdown />
-          <ThemeSelect />
-        </div>
-
-        {showMenu && (
-          <div className="md:hidden fixed inset-x-0 top-[52px] bottom-0 bg-neutral-100/95 dark:bg-neutral-900/95 backdrop-blur-sm">
-            <div className="flex flex-col p-4 gap-4 border-t dark:border-neutral-800">
-              <div className="flex justify-end items-center gap-4">
-                <WalletDropdown />
-                <ClusterDropdown />
-                <ThemeSelect />
-              </div>
-              <ul className="flex flex-col gap-4">
-                {links.map(({ label, path }) => (
-                  <li key={path}>
-                    <Link
-                      className={`block text-lg py-2  ${isActive(path) ? 'text-foreground' : 'text-muted-foreground'} hover:text-foreground`}
-                      href={path}
-                      onClick={() => setShowMenu(false)}
-                    >
-                      {label}
-                    </Link>
-                  </li>
-                ))}
-              </ul>
-            </div>
-          </div>
-        )}
-      </div>
-    </header>
+      {showMenu && (
+        <Box
+          sx={{
+            display: { xs: 'flex', md: 'none' },
+            flexDirection: 'column',
+            p: 2,
+            gap: 2,
+            borderTop: 1,
+            borderColor: 'divider',
+            bgcolor: 'background.paper',
+          }}
+        >
+          <Box sx={{ display: 'flex', justifyContent: 'flex-end', gap: 1, alignItems: 'center' }}>
+            <WalletDropdown />
+            <ClusterDropdown />
+            <ThemeSelect />
+          </Box>
+          <Box component="ul" sx={{ listStyle: 'none', p: 0, m: 0, display: 'flex', flexDirection: 'column', gap: 2 }}>
+            {links.map(({ label, path }) => (
+              <Box component="li" key={path}>
+                <MuiLink
+                  component={Link}
+                  href={path}
+                  onClick={() => setShowMenu(false)}
+                  sx={{
+                    textDecoration: 'none',
+                    color: isActive(path) ? 'primary.main' : 'text.secondary',
+                    display: 'block',
+                    py: 1,
+                    '&:hover': { color: 'primary.main' },
+                  }}
+                >
+                  {label}
+                </MuiLink>
+              </Box>
+            ))}
+          </Box>
+        </Box>
+      )}
+    </AppBar>
   )
 }

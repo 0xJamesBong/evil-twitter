@@ -2,8 +2,7 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { Button } from '@/components/ui/button'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { Button, Card, CardContent, Typography, Box } from '@mui/material'
 import { useSolana } from '@/components/solana/use-solana'
 import { supabase } from '@/lib/supabase'
 import { useAuth } from './auth-provider'
@@ -72,63 +71,72 @@ export default function WalletLogin() {
 
   if (user) {
     return (
-      <Card className="w-full max-w-md">
-        <CardHeader>
-          <CardTitle>Welcome Back!</CardTitle>
-          <CardDescription>You are signed in with your Solana wallet</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="space-y-4">
-            <div className="space-y-2">
-              <p className="text-sm text-green-600">
-                Wallet: {user.user_metadata?.wallet_address?.slice(0, 8) || 'Connected'}...
-              </p>
-              <Button onClick={() => router.push('/account')} className="w-full">
-                View Account Details
-              </Button>
-              <Button onClick={handleSignOutAndDisconnect} variant="outline" className="w-full">
-                Sign Out
-              </Button>
-            </div>
-          </div>
+      <Card sx={{ width: '100%', maxWidth: '28rem', p: 3 }}>
+        <Box sx={{ mb: 3 }}>
+          <Typography variant="h5" component="h2" gutterBottom>
+            Welcome Back!
+          </Typography>
+          <Typography variant="body2" color="text.secondary">
+            You are signed in with your Solana wallet
+          </Typography>
+        </Box>
+        <CardContent sx={{ p: 0, '&:last-child': { pb: 0 } }}>
+          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+            <Typography variant="body2" color="success.main">
+              Wallet: {user.user_metadata?.wallet_address?.slice(0, 8) || 'Connected'}...
+            </Typography>
+            <Button variant="contained" onClick={() => router.push('/account')} fullWidth>
+              View Account Details
+            </Button>
+            <Button variant="outlined" onClick={handleSignOutAndDisconnect} fullWidth>
+              Sign Out
+            </Button>
+          </Box>
         </CardContent>
       </Card>
     )
   }
 
   return (
-    <Card className="w-full max-w-md">
-      <CardHeader>
-        <CardTitle>Sign in with Solana</CardTitle>
-        <CardDescription>Connect and authenticate with your Solana wallet</CardDescription>
-      </CardHeader>
-      <CardContent>
-        <div className="space-y-4">
+    <Card sx={{ width: '100%', maxWidth: '28rem', p: 3 }}>
+      <Box sx={{ mb: 3 }}>
+        <Typography variant="h5" component="h2" gutterBottom>
+          Sign in with Solana
+        </Typography>
+        <Typography variant="body2" color="text.secondary">
+          Connect and authenticate with your Solana wallet
+        </Typography>
+      </Box>
+      <CardContent sx={{ p: 0, '&:last-child': { pb: 0 } }}>
+        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
           {!connected || !account ? (
-            <div className="text-center space-y-2">
-              <p className="text-sm text-gray-600">
+            <Box sx={{ textAlign: 'center', display: 'flex', flexDirection: 'column', gap: 1 }}>
+              <Typography variant="body2" color="text.secondary">
                 No wallet connected. Please use the wallet connection from the header.
-              </p>
-              <Button disabled className="w-full">
+              </Typography>
+              <Button disabled fullWidth>
                 Connect Wallet First
               </Button>
-            </div>
+            </Box>
           ) : (
-            <div className="space-y-2">
-              <p className="text-sm text-green-600">Wallet Connected: {account.address.slice(0, 8)}...</p>
-              <Button onClick={handleWalletAuth} className="w-full">
+            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+              <Typography variant="body2" color="success.main">
+                Wallet Connected: {account.address.slice(0, 8)}...
+              </Typography>
+              <Button variant="contained" onClick={handleWalletAuth} fullWidth>
                 Sign in with Solana
               </Button>
-            </div>
+            </Box>
           )}
           {message && (
-            <p
-              className={`text-sm ${message.includes('error') || message.includes('failed') ? 'text-red-500' : 'text-green-500'}`}
+            <Typography
+              variant="body2"
+              color={message.includes('error') || message.includes('failed') ? 'error.main' : 'success.main'}
             >
               {message}
-            </p>
+            </Typography>
           )}
-        </div>
+        </Box>
       </CardContent>
     </Card>
   )

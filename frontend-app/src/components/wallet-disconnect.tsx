@@ -2,11 +2,11 @@
 
 import * as React from 'react'
 import { useWalletUi } from '@wallet-ui/react'
-import { Button } from '@/components/ui/button'
+import { Button, ButtonProps } from '@mui/material'
 import { useAuth } from '@/components/auth/auth-provider'
 import { useRouter } from 'next/navigation'
 
-function WalletDisconnect(props: React.ComponentProps<typeof Button>) {
+function WalletDisconnect(props: ButtonProps) {
   const { connected, disconnect } = useWalletUi()
   const { signOut } = useAuth()
   const router = useRouter()
@@ -55,7 +55,7 @@ function WalletDisconnect(props: React.ComponentProps<typeof Button>) {
   }
 
   return (
-    <Button variant="outline" className="cursor-pointer" {...props} onClick={handleDisconnect} disabled={!connected}>
+    <Button variant="outlined" {...props} onClick={handleDisconnect} disabled={!connected}>
       Disconnect
     </Button>
   )

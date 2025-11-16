@@ -1,8 +1,7 @@
 import { Address } from 'gill'
 import { useState } from 'react'
 import { AppModal } from '@/components/app-modal'
-import { Label } from '@/components/ui/label'
-import { Input } from '@/components/ui/input'
+import { TextField } from '@mui/material'
 import { useRequestAirdropMutation } from '../data-access/use-request-airdrop-mutation'
 
 export function AccountUiModalAirdrop({ address }: { address: Address }) {
@@ -16,16 +15,16 @@ export function AccountUiModalAirdrop({ address }: { address: Address }) {
       submitLabel="Request Airdrop"
       submit={() => mutation.mutateAsync(parseFloat(amount))}
     >
-      <Label htmlFor="amount">Amount</Label>
-      <Input
+      <TextField
+        label="Amount"
         disabled={mutation.isPending}
         id="amount"
-        min="1"
+        inputProps={{ min: '1', step: 'any' }}
         onChange={(e) => setAmount(e.target.value)}
         placeholder="Amount"
-        step="any"
         type="number"
         value={amount}
+        fullWidth
       />
     </AppModal>
   )

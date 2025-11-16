@@ -1,5 +1,5 @@
 import { AlertCircle } from 'lucide-react'
-import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
+import { Alert, AlertTitle, Box } from '@mui/material'
 import { ReactNode } from 'react'
 
 export function AppAlert({
@@ -12,10 +12,9 @@ export function AppAlert({
   className?: string
 }) {
   return (
-    <Alert variant="warning" className={className}>
-      <AlertCircle className="h-4 w-4" />
+    <Alert severity="warning" className={className} icon={<AlertCircle size={16} />}>
       <AlertTitle>{children}</AlertTitle>
-      <AlertDescription className="flex justify-end">{action}</AlertDescription>
+      <Box sx={{ display: 'flex', justifyContent: 'flex-end', mt: 1 }}>{action}</Box>
     </Alert>
   )
 }

@@ -1,5 +1,5 @@
 import { ReactNode } from 'react'
-import { Button } from '@/components/ui/button'
+import { Button } from '@mui/material'
 import { AppAlert } from '@/components/app-alert'
 import { useSolana } from '@/components/solana/use-solana'
 import { useClusterVersion } from '../data-access/use-cluster-version'
@@ -16,7 +16,7 @@ export function ClusterUiChecker({ children }: { children: ReactNode }) {
     return (
       <AppAlert
         action={
-          <Button variant="outline" onClick={() => query.refetch()}>
+          <Button variant="outlined" onClick={() => query.refetch()}>
             Refresh
           </Button>
         }

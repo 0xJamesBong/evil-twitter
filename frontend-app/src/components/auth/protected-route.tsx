@@ -3,8 +3,7 @@
 import { useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { useAuth } from './auth-provider'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
-import { Button } from '@/components/ui/button'
+import { Card, CardContent, Typography, Button, Box, CircularProgress } from '@mui/material'
 
 interface ProtectedRouteProps {
   children: React.ReactNode
@@ -24,38 +23,44 @@ export function ProtectedRoute({ children, fallback }: ProtectedRouteProps) {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center min-h-screen">
-        <Card className="w-full max-w-md">
-          <CardHeader>
-            <CardTitle>Loading...</CardTitle>
-            <CardDescription>Checking authentication status</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="flex items-center justify-center py-4">
-              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
-            </div>
+      <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '100vh' }}>
+        <Card sx={{ width: '100%', maxWidth: '28rem', p: 3 }}>
+          <Box sx={{ mb: 2 }}>
+            <Typography variant="h5" component="h2" gutterBottom>
+              Loading...
+            </Typography>
+            <Typography variant="body2" color="text.secondary">
+              Checking authentication status
+            </Typography>
+          </Box>
+          <CardContent sx={{ display: 'flex', justifyContent: 'center', py: 4 }}>
+            <CircularProgress />
           </CardContent>
         </Card>
-      </div>
+      </Box>
     )
   }
 
   if (!user) {
     return (
       fallback || (
-        <div className="flex items-center justify-center min-h-screen">
-          <Card className="w-full max-w-md">
-            <CardHeader>
-              <CardTitle>Authentication Required</CardTitle>
-              <CardDescription>Please sign in with your Solana wallet to access this page</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <Button onClick={() => router.replace('/')} className="w-full">
+        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '100vh' }}>
+          <Card sx={{ width: '100%', maxWidth: '28rem', p: 3 }}>
+            <Box sx={{ mb: 2 }}>
+              <Typography variant="h5" component="h2" gutterBottom>
+                Authentication Required
+              </Typography>
+              <Typography variant="body2" color="text.secondary">
+                Please sign in with your Solana wallet to access this page
+              </Typography>
+            </Box>
+            <CardContent sx={{ p: 0, '&:last-child': { pb: 0 } }}>
+              <Button variant="contained" onClick={() => router.replace('/')} fullWidth>
                 Go to Home
               </Button>
             </CardContent>
           </Card>
-        </div>
+        </Box>
       )
     )
   }
