@@ -32,3 +32,7 @@ pub struct FollowStats {
     pub following_count: i32,
     pub is_following: bool,
 }
+
+impl Follow {
+    pub const COLLECTION_NAME: &str = "follows";
+}

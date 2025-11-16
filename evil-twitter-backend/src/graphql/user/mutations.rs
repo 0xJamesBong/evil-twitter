@@ -4,7 +4,9 @@ use mongodb::{
     bson::{doc, oid::ObjectId},
 };
 
-use crate::{graphql::GraphQLState, graphql::user::types::UserNode, models::user::User};
+use std::sync::Arc;
+
+use crate::{app_state::AppState, graphql::user::types::UserNode, models::user::User};
 
 // ============================================================================
 // UserMutation Object
@@ -62,8 +64,8 @@ pub async fn user_create_resolver(
     ctx: &Context<'_>,
     input: UserCreateInput,
 ) -> Result<UserCreatePayload> {
-    let state = ctx.data::<GraphQLState>()?;
-    let user_collection: Collection<User> = state.db.collection("users");
+    let app_state = ctx.data::<Arc<AppState>>()?;
+    let user_collection: Collection<User> = app_state.mongo_service.user_collection();
 
     // Check if user already exists
     let existing_user = user_collection

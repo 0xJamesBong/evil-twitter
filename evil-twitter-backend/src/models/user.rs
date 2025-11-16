@@ -51,14 +51,6 @@ pub struct CreateUser {
     pub bio: Option<String>,
 }
 
-#[derive(Debug, Deserialize, ToSchema)]
-pub struct ImproveRateRequest {
-    #[schema(example = "100", minimum = 1, maximum = 1000)]
-    pub amount: i32,
-}
-
-#[derive(Debug, Deserialize, ToSchema)]
-pub struct AttackRateRequest {
-    #[schema(example = "50", minimum = 1, maximum = 1000)]
-    pub amount: i32,
+impl User {
+    pub const COLLECTION_NAME: &str = "users";
 }

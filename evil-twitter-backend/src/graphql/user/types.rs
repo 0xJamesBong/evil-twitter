@@ -2,7 +2,9 @@ use async_graphql::{Context, Enum, ID, InputObject, Object, Result, SimpleObject
 use futures::TryStreamExt;
 use mongodb::{Collection, bson::doc};
 
-use crate::graphql::GraphQLState;
+use std::sync::Arc;
+
+use crate::app_state::AppState;
 use crate::graphql::tweet::types::{TweetConnection, TweetEdge, TweetNode};
 use crate::models::{follow::Follow, tweet::Tweet, user::User};
 use crate::utils::tweet::enrich_tweets_with_references;
@@ -93,15 +95,15 @@ impl UserNode {
         ctx: &Context<'_>,
         #[graphql(default = 20)] first: i32,
     ) -> Result<TweetConnection> {
-        let state = ctx.data::<GraphQLState>()?;
+        let app_state = ctx.data::<Arc<AppState>>()?;
         let user_id = self
             .inner
             .id
             .ok_or_else(|| async_graphql::Error::new("User missing identifier"))?;
 
         let limit = first.clamp(1, 50);
-        let tweet_collection: Collection<Tweet> = state.db.collection("tweets");
-        let user_collection: Collection<User> = state.db.collection("users");
+        let tweet_collection: Collection<Tweet> = app_state.mongo_service.tweet_collection();
+        let user_collection: Collection<User> = app_state.mongo_service.user_collection();
         let mut cursor = tweet_collection
             .find(doc! {"owner_id": user_id})
             .sort(doc! {"created_at": -1})
@@ -156,8 +158,8 @@ impl UserNode {
             .id
             .ok_or_else(|| async_graphql::Error::new("User missing identifier"))?;
 
-        let state = ctx.data::<GraphQLState>()?;
-        let collection: Collection<Follow> = state.db.collection("follows");
+        let app_state = ctx.data::<Arc<AppState>>()?;
+        let collection: Collection<Follow> = app_state.mongo_service.follow_collection();
 
         let exists = collection
             .find_one(doc! {"follower_id": viewer_object_id, "following_id": user_id})

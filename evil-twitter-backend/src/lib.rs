@@ -5,6 +5,7 @@ pub mod app_state;
 pub mod graphql;
 pub mod models;
 pub mod routes;
+pub mod services;
 pub mod utils;
 
 use crate::app_state::AppState;
@@ -27,8 +28,6 @@ use crate::routes::ping::ping_handler;
     components(
         schemas(
             models::user::User,
-            models::user::ImproveRateRequest,
-            models::user::AttackRateRequest,    
             models::follow::Follow,
             models::follow::FollowRequest,
             models::follow::FollowResponse,
@@ -59,7 +58,6 @@ pub async fn app(app_state: Arc<AppState>) -> Router {
         .split_for_parts();
 
     let app = app
-        .with_state(app_state.db.clone())
         .merge(graphql_routes)
         .merge(SwaggerUi::new("/doc").url("/api-docs/openapi.json", api))
         .layer(cors);

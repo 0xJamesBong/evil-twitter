@@ -135,3 +135,7 @@ pub struct NotificationStats {
     #[schema(example = "0")]
     pub mentions_count: i32,
 }
+
+impl Notification {
+    pub const COLLECTION_NAME: &str = "notifications";
+}

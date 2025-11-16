@@ -2,7 +2,9 @@ use async_graphql::{Context, ID, Object, Result};
 use futures::TryStreamExt;
 use mongodb::{Collection, bson::doc};
 
-use crate::graphql::GraphQLState;
+use std::sync::Arc;
+
+use crate::app_state::AppState;
 use crate::graphql::tweet::types::{TweetConnection, TweetEdge, TweetNode, TweetThreadNode};
 use crate::models::{tweet::Tweet, user::User};
 use crate::utils::auth::get_authenticated_user;
@@ -69,10 +71,10 @@ impl TweetQuery {
 
 /// Fetch a single tweet by ID
 pub async fn tweet_resolver(ctx: &Context<'_>, id: ID) -> Result<Option<TweetNode>> {
-    let state = ctx.data::<GraphQLState>()?;
+    let app_state = ctx.data::<Arc<AppState>>()?;
     let object_id = parse_object_id(&id)?;
-    let tweet_collection: Collection<Tweet> = state.db.collection("tweets");
-    let user_collection: Collection<User> = state.db.collection("users");
+    let tweet_collection: Collection<Tweet> = app_state.mongo_service.tweet_collection();
+    let user_collection: Collection<User> = app_state.mongo_service.user_collection();
 
     let tweet = tweet_collection
         .find_one(doc! {"_id": object_id})
@@ -93,10 +95,10 @@ pub async fn tweet_resolver(ctx: &Context<'_>, id: ID) -> Result<Option<TweetNod
 
 /// Hydrated tweet thread with parents and replies.
 pub async fn tweet_thread_resolver(ctx: &Context<'_>, tweet_id: ID) -> Result<TweetThreadNode> {
-    let state = ctx.data::<GraphQLState>()?;
+    let app_state = ctx.data::<Arc<AppState>>()?;
     let object_id = parse_object_id(&tweet_id)?;
 
-    let response = assemble_thread_response(&state.db, object_id)
+    let response = assemble_thread_response(app_state.mongo_service.db(), object_id)
         .await
         .map_err(api_error_to_graphql)?;
 
@@ -110,9 +112,9 @@ pub async fn timeline_resolver(
     _after: String, // Reserved for future cursor pagination
 ) -> Result<TweetConnection> {
     let limit = first.clamp(1, 50);
-    let state = ctx.data::<GraphQLState>()?;
-    let tweet_collection: Collection<Tweet> = state.db.collection("tweets");
-    let user_collection: Collection<User> = state.db.collection("users");
+    let app_state = ctx.data::<Arc<AppState>>()?;
+    let tweet_collection: Collection<Tweet> = app_state.mongo_service.tweet_collection();
+    let user_collection: Collection<User> = app_state.mongo_service.user_collection();
 
     let mut cursor = tweet_collection
         .find(doc! {})

@@ -12,19 +12,9 @@ pub mod tweet;
 pub mod types;
 pub mod user;
 
-use mongodb::Database;
-
-#[derive(Clone)]
-pub struct GraphQLState {
-    pub db: Database,
-}
-
-// Re-export schema building function (used internally)
-use schema::build_schema;
-
 /// Create GraphQL routes with the given application state
 pub fn graphql_routes(app_state: Arc<AppState>) -> Router {
-    let schema = schema::build_schema(app_state.db.clone());
+    let schema = schema::build_schema(app_state.clone());
 
     Router::new()
         .route(

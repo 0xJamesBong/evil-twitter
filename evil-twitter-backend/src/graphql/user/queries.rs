@@ -2,7 +2,9 @@ use async_graphql::{Context, ID, Object, Result};
 use futures::TryStreamExt;
 use mongodb::{Collection, bson::doc};
 
-use crate::graphql::GraphQLState;
+use std::sync::Arc;
+
+use crate::app_state::AppState;
 use crate::graphql::user::types::{DiscoverFilters, UserNode};
 use crate::models::user::User;
 
@@ -65,9 +67,9 @@ impl UserQuery {
 
 /// Fetch a single user by identifier with optional nested resources.
 pub async fn user_resolver(ctx: &Context<'_>, id: ID) -> Result<Option<UserNode>> {
-    let state = ctx.data::<GraphQLState>()?;
+    let app_state = ctx.data::<Arc<AppState>>()?;
     let object_id = parse_object_id(&id)?;
-    let collection: Collection<User> = state.db.collection("users");
+    let collection: Collection<User> = app_state.mongo_service.user_collection();
 
     let user = collection
         .find_one(doc! {"_id": object_id})
@@ -82,8 +84,8 @@ pub async fn user_by_supabase_id_resolver(
     ctx: &Context<'_>,
     supabase_id: String,
 ) -> Result<Option<UserNode>> {
-    let state = ctx.data::<GraphQLState>()?;
-    let collection: Collection<User> = state.db.collection("users");
+    let app_state = ctx.data::<Arc<AppState>>()?;
+    let collection: Collection<User> = app_state.mongo_service.user_collection();
 
     let user = collection
         .find_one(doc! {"supabase_id": supabase_id})
@@ -104,8 +106,8 @@ pub async fn search_users_resolver(
     }
 
     let limit = limit.clamp(1, 50);
-    let state = ctx.data::<GraphQLState>()?;
-    let collection: Collection<User> = state.db.collection("users");
+    let app_state = ctx.data::<Arc<AppState>>()?;
+    let collection: Collection<User> = app_state.mongo_service.user_collection();
 
     let filter = doc! {
         "$or": [
@@ -135,8 +137,8 @@ pub async fn discover_users_resolver(
     filters: Option<crate::graphql::user::types::DiscoverFilters>,
 ) -> Result<Vec<UserNode>> {
     let filters = filters.unwrap_or_default();
-    let state = ctx.data::<GraphQLState>()?;
-    let collection: Collection<User> = state.db.collection("users");
+    let app_state = ctx.data::<Arc<AppState>>()?;
+    let user_collection: Collection<User> = app_state.mongo_service.user_collection();
 
     let mut filter_doc = doc! {};
     if let Some(min_followers) = filters.min_followers {
@@ -153,7 +155,7 @@ pub async fn discover_users_resolver(
 
     let limit = filters.limit.unwrap_or(10).clamp(1, 50);
 
-    let mut cursor = collection
+    let mut cursor = user_collection
         .find(filter_doc)
         .sort(doc! {sort_field: -1})
         .limit(i64::from(limit))
