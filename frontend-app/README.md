@@ -31,7 +31,7 @@ You'll also need your Supabase project URL and anon key, which you can find in y
 
 ```bash
 git clone https://github.com/solana-foundation/templates.git
-cd templates/community/supabase-auth
+cd templates/community/frontend-app
 ```
 
 This gets you the template code locally.
@@ -196,7 +196,7 @@ If you're still stuck, check the browser console (F12) and the terminal where `n
 ## Folder Structure
 
 ```text
-supabase-auth/
+frontend-app/
 ├── src/
 │   ├── app/                          # Next.js App Router pages
 │   │   ├── account/                  # Protected account routes
