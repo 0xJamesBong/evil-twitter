@@ -28,23 +28,6 @@ pub struct User {
 
     #[schema(example = "2024-01-01T00:00:00Z")]
     pub created_at: DateTime,
-
-    #[schema(example = "0")]
-    pub followers_count: i32,
-
-    #[schema(example = "0")]
-    pub following_count: i32,
-
-    #[schema(example = "0")]
-    pub tweets_count: i32,
-
-    #[schema(example = "10000")]
-    pub dollar_conversion_rate: i32,
-
-    // optional: you can store weapon ids for fast lookup
-    #[serde(default)]
-    #[schema(value_type = Vec<String>)]
-    pub weapon_ids: Vec<ObjectId>,
 }
 
 #[derive(Debug, Deserialize, ToSchema)]

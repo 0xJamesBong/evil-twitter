@@ -4,13 +4,7 @@ use mongodb::{Collection, bson::doc};
 
 use crate::graphql::GraphQLState;
 use crate::graphql::tweet::types::{TweetConnection, TweetEdge, TweetNode};
-use crate::models::{
-    assets::asset::Asset,
-    follow::Follow,
-    tokens::{enums::TokenType, token_balance::TokenBalance},
-    tweet::Tweet,
-    user::User,
-};
+use crate::models::{follow::Follow, tweet::Tweet, user::User};
 use crate::utils::tweet::enrich_tweets_with_references;
 
 // ============================================================================
@@ -90,79 +84,8 @@ impl UserNode {
         self.inner.avatar_url.as_deref()
     }
 
-    async fn followers_count(&self) -> i32 {
-        self.inner.followers_count
-    }
-
-    async fn following_count(&self) -> i32 {
-        self.inner.following_count
-    }
-
-    async fn tweets_count(&self) -> i32 {
-        self.inner.tweets_count
-    }
-
-    async fn dollar_conversion_rate(&self) -> i32 {
-        self.inner.dollar_conversion_rate
-    }
-
     async fn created_at(&self) -> String {
         self.inner.created_at.to_chrono().to_rfc3339()
-    }
-
-    async fn balances(&self, ctx: &Context<'_>) -> Result<TokenBalancesSummary> {
-        let state = ctx.data::<GraphQLState>()?;
-        let user_id = self
-            .inner
-            .id
-            .ok_or_else(|| async_graphql::Error::new("User missing identifier"))?;
-
-        let collection: Collection<TokenBalance> = state.db.collection("token_balances");
-        let mut cursor = collection
-            .find(doc! {"user_id": user_id})
-            .await
-            .map_err(|e| async_graphql::Error::new(e.to_string()))?;
-
-        let mut summary = TokenBalancesSummary::default();
-        while let Some(balance) = cursor
-            .try_next()
-            .await
-            .map_err(|e| async_graphql::Error::new(e.to_string()))?
-        {
-            match balance.token {
-                TokenType::Dooler => summary.dooler = balance.amount,
-                TokenType::Usdc => summary.usdc = balance.amount,
-                TokenType::Bling => summary.bling = balance.amount,
-                TokenType::Sol => summary.sol = balance.amount,
-            }
-        }
-
-        Ok(summary)
-    }
-
-    async fn assets(&self, ctx: &Context<'_>) -> Result<Vec<AssetNode>> {
-        let state = ctx.data::<GraphQLState>()?;
-        let user_id = self
-            .inner
-            .id
-            .ok_or_else(|| async_graphql::Error::new("User missing identifier"))?;
-
-        let collection: Collection<Asset> = state.db.collection("assets");
-        let mut cursor = collection
-            .find(doc! {"owner_id": user_id})
-            .await
-            .map_err(|e| async_graphql::Error::new(e.to_string()))?;
-
-        let mut assets = Vec::new();
-        while let Some(asset) = cursor
-            .try_next()
-            .await
-            .map_err(|e| async_graphql::Error::new(e.to_string()))?
-        {
-            assets.push(AssetNode { inner: asset });
-        }
-
-        Ok(assets)
     }
 
     async fn tweets(
@@ -213,7 +136,7 @@ impl UserNode {
 
         Ok(TweetConnection {
             edges,
-            total_count: self.inner.tweets_count.into(),
+            total_count: 0 as i64,
         })
     }
 
@@ -242,64 +165,5 @@ impl UserNode {
             .map_err(|e| async_graphql::Error::new(e.to_string()))?;
 
         Ok(exists.is_some())
-    }
-}
-
-// ============================================================================
-// Supporting Types
-// ============================================================================
-
-#[derive(SimpleObject, Default, Clone)]
-pub struct TokenBalancesSummary {
-    pub dooler: i64,
-    pub usdc: i64,
-    pub bling: i64,
-    pub sol: i64,
-}
-
-#[derive(Clone)]
-pub struct AssetNode {
-    pub inner: Asset,
-}
-
-#[Object]
-impl AssetNode {
-    async fn id(&self) -> Option<ID> {
-        self.inner.id.map(|id| ID::from(id.to_hex()))
-    }
-
-    async fn owner_id(&self) -> ID {
-        ID::from(self.inner.owner_id.to_hex())
-    }
-
-    async fn name(&self) -> Option<&str> {
-        self.inner.item.as_ref().map(|item| item.name.as_str())
-    }
-
-    async fn description(&self) -> Option<&str> {
-        self.inner
-            .item
-            .as_ref()
-            .map(|item| item.description.as_str())
-    }
-
-    async fn image_url(&self) -> Option<&str> {
-        self.inner.item.as_ref().map(|item| item.image_url.as_str())
-    }
-
-    async fn item_type(&self) -> Option<String> {
-        self.inner
-            .item
-            .as_ref()
-            .and_then(|item| item.item_type_metadata.as_ref())
-            .map(|metadata| match metadata {
-                crate::models::assets::enums::ItemTypeMetadata::Tool(_) => "Tool",
-                crate::models::assets::enums::ItemTypeMetadata::Collectible(_) => "Collectible",
-                crate::models::assets::enums::ItemTypeMetadata::Cosmetic(_) => "Cosmetic",
-                crate::models::assets::enums::ItemTypeMetadata::Badge(_) => "Badge",
-                crate::models::assets::enums::ItemTypeMetadata::Membership(_) => "Membership",
-                crate::models::assets::enums::ItemTypeMetadata::Rafflebox(_) => "Rafflebox",
-            })
-            .map(str::to_string)
     }
 }

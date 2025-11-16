@@ -2,8 +2,6 @@ use mongodb::bson::{DateTime, oid::ObjectId};
 use serde::{Deserialize, Serialize};
 use utoipa::ToSchema;
 
-use crate::models::tool::Tool;
-
 /// Core tweet variants supported by the platform.
 #[derive(Debug, Serialize, Deserialize, Clone, Copy, PartialEq, Eq, ToSchema)]
 pub enum TweetType {
@@ -195,8 +193,6 @@ pub struct TweetEnergyState {
     pub height_initial: f64, // y_0 (initial) - this will never change in the liftime of a tweet
     #[schema(example = "2024-01-01T00:00:00Z")]
     pub last_update_timestamp: DateTime,
-    #[serde(default)]
-    pub history: TweetEnergyStateHistory,
 }
 
 impl Default for TweetEnergyState {
@@ -212,7 +208,6 @@ impl Default for TweetEnergyState {
             velocity_initial: 0.0,
             height_initial: 0.0,
             last_update_timestamp: DateTime::now(),
-            history: TweetEnergyStateHistory::default(),
         }
     }
 }
@@ -230,69 +225,6 @@ impl TweetEnergyState {
             - self.energy_lost_from_attacks;
         self.last_update_timestamp = DateTime::now();
     }
-
-    pub fn record_support(&mut self, action: TweetSupportAction) {
-        self.energy_gained_from_support += action.impact;
-        self.history.support_history.push(action);
-        self.update_energy();
-    }
-
-    pub fn revert_support(&mut self, impact: f64) {
-        self.energy_gained_from_support -= impact;
-        if self.energy_gained_from_support < 0.0 {
-            self.energy_gained_from_support = 0.0;
-        }
-        self.update_energy();
-    }
-
-    pub fn record_attack(&mut self, action: TweetAttackAction) {
-        self.energy_lost_from_attacks += action.impact;
-        self.history.attack_history.push(action);
-        self.update_energy();
-    }
-}
-
-#[derive(Debug, Serialize, Deserialize, Clone, ToSchema)]
-pub struct TweetEnergyStateHistory {
-    #[serde(default)]
-    pub support_history: Vec<TweetSupportAction>,
-    #[serde(default)]
-    pub attack_history: Vec<TweetAttackAction>,
-}
-
-impl Default for TweetEnergyStateHistory {
-    fn default() -> Self {
-        Self {
-            support_history: Vec::new(),
-            attack_history: Vec::new(),
-        }
-    }
-}
-
-#[derive(Debug, Serialize, Deserialize, Clone, ToSchema)]
-pub enum EnergyActionType {
-    Attack,
-    Support,
-}
-
-#[derive(Debug, Serialize, Deserialize, Clone, ToSchema)]
-pub struct TweetSupportAction {
-    pub timestamp: DateTime,
-    pub impact: f64, // Energy amount
-    #[schema(value_type = String, example = "507f1f77bcf86cd799439011")]
-    pub user_id: ObjectId, // Who did the action
-    #[serde(default)]
-    pub tool: Option<Tool>, // Optional: what weapon/gadget was used
-}
-
-#[derive(Debug, Serialize, Deserialize, Clone, ToSchema)]
-pub struct TweetAttackAction {
-    pub timestamp: DateTime,
-    pub impact: f64, // Energy amount
-    #[schema(value_type = String, example = "507f1f77bcf86cd799439011")]
-    pub user_id: ObjectId, // Who did the action
-    #[serde(default)]
-    pub tool: Option<Tool>, // Optional: what weapon/gadget was used
 }
 
 #[derive(Debug, Deserialize, ToSchema)]

@@ -4,14 +4,7 @@ use mongodb::{
     bson::{doc, oid::ObjectId},
 };
 
-use crate::{
-    graphql::GraphQLState,
-    graphql::user::types::UserNode,
-    models::{
-        tokens::{enums::TokenType, token_balance::TokenBalance},
-        user::User,
-    },
-};
+use crate::{graphql::GraphQLState, graphql::user::types::UserNode, models::user::User};
 
 // ============================================================================
 // UserMutation Object
@@ -71,7 +64,6 @@ pub async fn user_create_resolver(
 ) -> Result<UserCreatePayload> {
     let state = ctx.data::<GraphQLState>()?;
     let user_collection: Collection<User> = state.db.collection("users");
-    let token_balance_collection: Collection<TokenBalance> = state.db.collection("token_balances");
 
     // Check if user already exists
     let existing_user = user_collection
@@ -104,44 +96,12 @@ pub async fn user_create_resolver(
         avatar_url: input.avatar_url,
         bio: input.bio,
         created_at: now,
-        followers_count: 0,
-        following_count: 0,
-        tweets_count: 0,
-        dollar_conversion_rate: 10000,
-        weapon_ids: Vec::new(),
     };
 
     user_collection
         .insert_one(&user)
         .await
         .map_err(|e| async_graphql::Error::new(format!("Failed to create user: {}", e)))?;
-
-    // Give new user 10k BLING tokens
-    let initial_bling = 10_000_i64;
-    let bling_balance = TokenBalance {
-        user_id,
-        token: TokenType::Bling,
-        amount: initial_bling,
-    };
-
-    // Check if balance already exists, if not insert
-    let existing_balance = token_balance_collection
-        .find_one(doc! {
-            "user_id": user_id,
-            "token": mongodb::bson::to_bson(&TokenType::Bling)
-                .map_err(|e| async_graphql::Error::new(format!("Serialization error: {}", e)))?,
-        })
-        .await
-        .map_err(|e| async_graphql::Error::new(format!("Database error: {}", e)))?;
-
-    if existing_balance.is_none() {
-        token_balance_collection
-            .insert_one(&bling_balance)
-            .await
-            .map_err(|e| {
-                async_graphql::Error::new(format!("Failed to create token balance: {}", e))
-            })?;
-    }
 
     Ok(UserCreatePayload {
         user: UserNode::from(user),
