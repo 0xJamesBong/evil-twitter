@@ -6,7 +6,7 @@ import {
 } from "@privy-io/react-auth";
 import { useCreateWallet as useCreateWalletExtendedChains } from "@privy-io/react-auth/extended-chains";
 import Section from "../reusables/section";
-import { showSuccessToast, showErrorToast } from "../ui/custom-toast";
+import { useToast } from "../ui/custom-toast";
 
 type SupportedExtendedChains =
   | "cosmos"
@@ -20,17 +20,18 @@ type SupportedExtendedChains =
   | "spark";
 
 const CreateAWallet = () => {
+  const { showSuccess, showError } = useToast();
   const { createWallet: createWalletExtendedChains } =
     useCreateWalletExtendedChains();
   const { createWallet: createWalletSolana } = useSolanaWallets();
   const { createWallet: createWalletEvm } = useCreateEvmWallet({
     onSuccess: ({ wallet }) => {
-      showSuccessToast("EVM wallet created successfully.");
+      showSuccess("EVM wallet created successfully.");
       console.log("Created wallet ", wallet);
     },
     onError: (error) => {
       console.log(error);
-      showErrorToast("EVM wallet creation failed.");
+      showError("EVM wallet creation failed.");
     },
   });
 
@@ -44,10 +45,10 @@ const CreateAWallet = () => {
       await createWalletSolana({
         createAdditional: true,
       });
-      showSuccessToast("Solana wallet created successfully.");
+      showSuccess("Solana wallet created successfully.");
     } catch (error) {
       console.log(error);
-      showErrorToast("Solana wallet creation failed.");
+      showError("Solana wallet creation failed.");
     }
   };
   const createWalletExtendedChainHandler = async (
@@ -57,10 +58,10 @@ const CreateAWallet = () => {
       await createWalletExtendedChains({
         chainType: chain,
       });
-      showSuccessToast(`${chain} wallet successfully created`);
+      showSuccess(`${chain} wallet successfully created`);
     } catch (error) {
       console.log(error);
-      showErrorToast(`${chain} wallet creation failed.`);
+      showError(`${chain} wallet creation failed.`);
     }
   };
 
@@ -86,9 +87,8 @@ const CreateAWallet = () => {
       function: createWalletSolanaHandler,
     },
     ...supportedChains.map((chain) => ({
-      name: `Create ${
-        chain.charAt(0).toUpperCase() + chain.slice(1).replace("-", " ")
-      } wallet`,
+      name: `Create ${chain.charAt(0).toUpperCase() + chain.slice(1).replace("-", " ")
+        } wallet`,
       function: () => createWalletExtendedChainHandler(chain),
     })),
   ];

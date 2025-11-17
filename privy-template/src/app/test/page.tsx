@@ -2,13 +2,24 @@
 
 import { usePrivy } from "@privy-io/react-auth";
 import Image from "next/image";
-import { ToastContainer } from "react-toastify";
+import {
+    Box,
+    Button,
+    Card,
+    CardContent,
+    Typography,
+    Alert,
+    CircularProgress,
+    Paper,
+    Stack,
+    Chip,
+} from "@mui/material";
+import { ArrowBack as ArrowLeftIcon } from "@mui/icons-material";
 
 import { FullScreenLoader } from "@/components/ui/fullscreen-loader";
 import { Header } from "@/components/ui/header";
 import CreateAWallet from "@/components/sections/create-a-wallet";
 import UserObject from "@/components/sections/user-object";
-import { ArrowLeftIcon } from "@heroicons/react/16/solid";
 import FundWallet from "@/components/sections/fund-wallet";
 import LinkAccounts from "@/components/sections/link-accounts";
 import UnlinkAccounts from "@/components/sections/unlink-accounts";
@@ -16,89 +27,184 @@ import WalletActions from "@/components/sections/wallet-actions";
 import SessionSigners from "@/components/sections/session-signers";
 import WalletManagement from "@/components/sections/wallet-management";
 import MFA from "@/components/sections/mfa";
-import { SyncPrivy } from "@/components/auth/SyncPrivy";
 
 import { useBackendUserStore } from "@/lib/stores/backendUserStore";
 import { usePingStore } from "@/lib/stores/pingStore";
 import { API_BASE_URL } from "@/lib/config";
 
-function Test() {
+function TestContent() {
     const { ready, authenticated, logout, login, user: privyUser } = usePrivy();
     const { user: backendUser, isLoading, error } = useBackendUserStore();
     const { ping, response, isLoading: isPinging, error: pingError } = usePingStore();
 
-    console.log("Home, backendUser:", backendUser);
-    console.log("Home, privyUser:", privyUser);
+    console.log("Test, backendUser:", backendUser);
+    console.log("Test, privyUser:", privyUser);
     console.log("API_BASE_URL: ", API_BASE_URL);
+
     if (!ready) {
         return <FullScreenLoader />;
     }
 
     return (
-        <div className="bg-[#E0E7FF66] md:max-h-[100vh] md:overflow-hidden">
+        <Box
+            sx={{
+                backgroundColor: "grey.50",
+                minHeight: "100vh",
+                maxHeight: { md: "100vh" },
+                overflow: { md: "hidden" },
+            }}
+        >
             <Header />
             {authenticated ? (
+                <Box
+                    sx={{
+                        display: "flex",
+                        flexDirection: { xs: "column", md: "row" },
+                        height: { md: "calc(100vh - 60px)" },
+                    }}
+                >
+                    <Box
+                        sx={{
+                            flexGrow: 1,
+                            overflowY: "auto",
+                            p: 2,
+                            pl: { md: 4 },
+                        }}
+                    >
+                        <Button
+                            startIcon={<ArrowLeftIcon />}
+                            onClick={logout}
+                            sx={{ mb: 2 }}
+                        >
+                            Logout
+                        </Button>
 
-                <section className="w-full flex flex-col md:flex-row md:h-[calc(100vh-60px)]">
-                    <div className="flex-grow overflow-y-auto h-full p-4 pl-8">
-                        <button className="button" onClick={logout}>
-                            <ArrowLeftIcon className="h-4 w-4" strokeWidth={2} /> Logout
-                        </button>
-
-                        <div>
-                            <div className="mb-4 p-4 bg-white rounded-lg border">
-                                <h3 className="text-lg font-semibold mb-2">Backend Connection Test</h3>
-                                <button
-                                    className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 disabled:bg-gray-400"
-                                    onClick={ping}
-                                    disabled={isPinging}
-                                >
-                                    {isPinging ? "Pinging..." : "Ping Backend"}
-                                </button>
-                                {response && (
-                                    <div className="mt-2 p-2 bg-green-100 rounded">
-                                        <strong>Response:</strong> {response}
-                                    </div>
-                                )}
-                                {pingError && (
-                                    <div className="mt-2 p-2 bg-red-100 rounded text-red-700">
-                                        <strong>Error:</strong> {pingError}
-                                    </div>
-                                )}
-                            </div>
+                        <Stack spacing={2}>
+                            {/* Backend Connection Test */}
+                            <Card>
+                                <CardContent>
+                                    <Typography variant="h6" gutterBottom>
+                                        Backend Connection Test
+                                    </Typography>
+                                    <Button
+                                        variant="contained"
+                                        onClick={ping}
+                                        disabled={isPinging}
+                                        sx={{ mb: 2 }}
+                                    >
+                                        {isPinging ? (
+                                            <>
+                                                <CircularProgress size={16} sx={{ mr: 1 }} />
+                                                Pinging...
+                                            </>
+                                        ) : (
+                                            "Ping Backend"
+                                        )}
+                                    </Button>
+                                    {response && (
+                                        <Alert severity="success" sx={{ mt: 2 }}>
+                                            <strong>Response:</strong> {response}
+                                        </Alert>
+                                    )}
+                                    {pingError && (
+                                        <Alert severity="error" sx={{ mt: 2 }}>
+                                            <strong>Error:</strong> {pingError}
+                                        </Alert>
+                                    )}
+                                </CardContent>
+                            </Card>
 
                             {/* User Data Display */}
-                            <div className="mb-4 p-4 bg-white rounded-lg border">
-                                <h3 className="text-lg font-semibold mb-4">User Data</h3>
+                            <Card>
+                                <CardContent>
+                                    <Typography variant="h6" gutterBottom>
+                                        User Data
+                                    </Typography>
 
-                                {/* Privy User Data */}
-                                <div className="mb-4">
-                                    <h4 className="text-md font-semibold mb-2 text-blue-600">Privy User Data</h4>
-                                    <div className="bg-gray-50 p-3 rounded border overflow-auto max-h-96">
-                                        <pre className="text-xs whitespace-pre-wrap break-words">
-                                            {privyUser ? JSON.stringify(privyUser, null, 2) : "No Privy user data (not authenticated)"}
-                                        </pre>
-                                    </div>
-                                </div>
+                                    {/* Privy User Data */}
+                                    <Box sx={{ mb: 3 }}>
+                                        <Typography
+                                            variant="subtitle1"
+                                            sx={{ mb: 1, color: "primary.main", fontWeight: 600 }}
+                                        >
+                                            Privy User Data
+                                        </Typography>
+                                        <Paper
+                                            variant="outlined"
+                                            sx={{
+                                                p: 2,
+                                                bgcolor: "grey.50",
+                                                maxHeight: 384,
+                                                overflow: "auto",
+                                            }}
+                                        >
+                                            <Typography
+                                                component="pre"
+                                                sx={{
+                                                    fontSize: "0.75rem",
+                                                    whiteSpace: "pre-wrap",
+                                                    wordBreak: "break-word",
+                                                    fontFamily: "monospace",
+                                                    m: 0,
+                                                }}
+                                            >
+                                                {privyUser
+                                                    ? JSON.stringify(privyUser, null, 2)
+                                                    : "No Privy user data (not authenticated)"}
+                                            </Typography>
+                                        </Paper>
+                                    </Box>
 
-                                {/* Backend User Data */}
-                                <div>
-                                    <h4 className="text-md font-semibold mb-2 text-green-600">Backend User Data</h4>
-                                    {isLoading && (
-                                        <div className="text-sm text-gray-500 mb-2">Loading backend user...</div>
-                                    )}
-                                    {error && (
-                                        <div className="text-sm text-red-500 mb-2">Error: {error}</div>
-                                    )}
-                                    <div className="bg-gray-50 p-3 rounded border overflow-auto max-h-96">
-                                        <pre className="text-xs whitespace-pre-wrap break-words">
-                                            {backendUser ? JSON.stringify(backendUser, null, 2) : "No backend user data (not onboarded)"}
-                                        </pre>
-                                    </div>
-                                </div>
-                            </div>
+                                    {/* Backend User Data */}
+                                    <Box>
+                                        <Typography
+                                            variant="subtitle1"
+                                            sx={{ mb: 1, color: "success.main", fontWeight: 600 }}
+                                        >
+                                            Backend User Data
+                                        </Typography>
+                                        {isLoading && (
+                                            <Box sx={{ mb: 1, display: "flex", alignItems: "center", gap: 1 }}>
+                                                <CircularProgress size={16} />
+                                                <Typography variant="body2" color="text.secondary">
+                                                    Loading backend user...
+                                                </Typography>
+                                            </Box>
+                                        )}
+                                        {error && (
+                                            <Alert severity="error" sx={{ mb: 1 }}>
+                                                Error: {error}
+                                            </Alert>
+                                        )}
+                                        <Paper
+                                            variant="outlined"
+                                            sx={{
+                                                p: 2,
+                                                bgcolor: "grey.50",
+                                                maxHeight: 384,
+                                                overflow: "auto",
+                                            }}
+                                        >
+                                            <Typography
+                                                component="pre"
+                                                sx={{
+                                                    fontSize: "0.75rem",
+                                                    whiteSpace: "pre-wrap",
+                                                    wordBreak: "break-word",
+                                                    fontFamily: "monospace",
+                                                    m: 0,
+                                                }}
+                                            >
+                                                {backendUser
+                                                    ? JSON.stringify(backendUser, null, 2)
+                                                    : "No backend user data (not onboarded)"}
+                                            </Typography>
+                                        </Paper>
+                                    </Box>
+                                </CardContent>
+                            </Card>
 
-
+                            {/* Section Components */}
                             <CreateAWallet />
                             <FundWallet />
                             <LinkAccounts />
@@ -107,12 +213,21 @@ function Test() {
                             <SessionSigners />
                             <WalletManagement />
                             <MFA />
-                        </div>
-                    </div>
+                        </Stack>
+                    </Box>
                     <UserObject />
-                </section>
+                </Box>
             ) : (
-                <section className="w-full flex flex-row justify-center items-center h-[calc(100vh-60px)] relative">
+                <Box
+                    sx={{
+                        position: "relative",
+                        width: "100%",
+                        height: "calc(100vh - 60px)",
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                    }}
+                >
                     <Image
                         src="./BG.svg"
                         alt="Background"
@@ -120,47 +235,91 @@ function Test() {
                         style={{ objectFit: "cover", zIndex: 0 }}
                         priority
                     />
-                    <div className="z-10 flex flex-col items-center justify-center w-full h-full">
-                        <div className="flex h-10 items-center justify-center rounded-[20px] border border-white px-6 text-lg text-white font-abc-favorit">
-                            Next.js Demo
-                        </div>
-                        <div className="text-center mt-4 text-white text-7xl font-medium font-abc-favorit leading-[81.60px]">
+                    <Box
+                        sx={{
+                            position: "relative",
+                            zIndex: 10,
+                            display: "flex",
+                            flexDirection: "column",
+                            alignItems: "center",
+                            justifyContent: "center",
+                            width: "100%",
+                            height: "100%",
+                            textAlign: "center",
+                        }}
+                    >
+                        <Chip
+                            label="Next.js Demo"
+                            sx={{
+                                height: 40,
+                                px: 3,
+                                borderColor: "white",
+                                color: "white",
+                                borderWidth: 1,
+                                borderStyle: "solid",
+                                backgroundColor: "transparent",
+                                fontSize: "1.125rem",
+                                mb: 2,
+                            }}
+                        />
+                        <Typography
+                            variant="h1"
+                            sx={{
+                                color: "white",
+                                fontSize: { xs: "3rem", md: "4.5rem" },
+                                fontWeight: 500,
+                                lineHeight: 1.2,
+                                mb: 2,
+                            }}
+                        >
                             EVIL TWITTER
-                        </div>
-                        <div className="text-center text-white text-xl font-normal leading-loose mt-8">
+                        </Typography>
+                        <Typography
+                            variant="h6"
+                            sx={{
+                                color: "white",
+                                mb: 4,
+                                maxWidth: "md",
+                            }}
+                        >
                             Try to create an account with privy and put it in our backend
-                        </div>
-                        <button
-                            className="bg-white text-brand-off-black mt-15 w-full max-w-md rounded-full px-4 py-2 hover:bg-gray-100 lg:px-8 lg:py-4 lg:text-xl"
+                        </Typography>
+                        <Button
+                            variant="contained"
+                            size="large"
                             onClick={() => {
                                 login();
                                 setTimeout(() => {
-                                    (document.querySelector('input[type="email"]') as HTMLInputElement)?.focus();
+                                    (
+                                        document.querySelector(
+                                            'input[type="email"]'
+                                        ) as HTMLInputElement
+                                    )?.focus();
                                 }, 150);
+                            }}
+                            sx={{
+                                borderRadius: "9999px",
+                                px: { xs: 4, lg: 8 },
+                                py: { xs: 2, lg: 4 },
+                                fontSize: { xs: "1rem", lg: "1.25rem" },
+                                maxWidth: "md",
+                                width: "100%",
+                                bgcolor: "white",
+                                color: "grey.900",
+                                "&:hover": {
+                                    bgcolor: "grey.100",
+                                },
                             }}
                         >
                             login
-                        </button>
-                    </div>
-                </section>
+                        </Button>
+                    </Box>
+                </Box>
             )}
-
-            <ToastContainer
-                position="top-center"
-                autoClose={5000}
-                hideProgressBar
-                newestOnTop={false}
-                closeOnClick={false}
-                rtl={false}
-                pauseOnFocusLoss
-                draggable={false}
-                pauseOnHover
-                limit={1}
-                aria-label="Toast notifications"
-                style={{ top: 58 }}
-            />
-        </div>
+        </Box>
     );
 }
 
-export default Test;
+export default function Test() {
+    return <TestContent />;
+}

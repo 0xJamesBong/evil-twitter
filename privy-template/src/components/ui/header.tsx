@@ -1,39 +1,89 @@
-import { ArrowRightIcon, ArrowUpRightIcon } from "@heroicons/react/16/solid";
+"use client";
+
+import { Box, AppBar, Toolbar, Typography, Button, Chip, Link } from "@mui/material";
+import { OpenInNew as ArrowUpRightIcon, ArrowForward as ArrowRightIcon } from "@mui/icons-material";
 import { PrivyLogo } from "./privy-logo";
 
 export function Header() {
   return (
-    <header className="h-[60px] flex flex-row justify-between items-center px-6 border-b bg-white border-[#E2E3F0]">
-      <div className="flex flex-row items-center gap-2 h-[26px]">
-        <PrivyLogo className="w-[103.48px] h-[23.24px]" />
+    <AppBar
+      position="static"
+      elevation={0}
+      sx={{
+        backgroundColor: "background.paper",
+        borderBottom: 1,
+        borderColor: "grey.200",
+        height: 60,
+      }}
+    >
+      <Toolbar
+        sx={{
+          justifyContent: "space-between",
+          px: 3,
+          minHeight: "60px !important",
+        }}
+      >
+        <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+          <PrivyLogo className="w-[103.48px] h-[23.24px]" />
+          <Chip
+            label="Next.js Demo"
+            size="small"
+            sx={{
+              height: 22,
+              fontSize: "0.75rem",
+              borderColor: "primary.main",
+              color: "primary.main",
+              borderWidth: 1,
+              borderStyle: "solid",
+              backgroundColor: "transparent",
+            }}
+          />
+        </Box>
 
-        <div className="text-medium flex h-[22px] items-center justify-center rounded-[11px] border border-primary px-[0.375rem] text-[0.75rem] text-primary">
-          Next.js Demo
-        </div>
-      </div>
-
-      <div className="flex flex-row justify-end items-center gap-4 h-9">
-        <a
-          className="text-primary flex flex-row items-center gap-1 cursor-pointer"
-          href="https://docs.privy.io/basics/react/installation"
-          target="_blank"
-          rel="noreferrer"
-        >
-          Docs <ArrowUpRightIcon className="h-4 w-4" strokeWidth={2} />
-        </a>
-
-        <button className="button-primary rounded-full hidden md:block">
-          <a
-            className="flex flex-row items-center gap-2"
-            href="https://dashboard.privy.io/"
+        <Box sx={{ display: "flex", alignItems: "center", gap: 2 }}>
+          <Link
+            href="https://docs.privy.io/basics/react/installation"
             target="_blank"
             rel="noreferrer"
+            sx={{
+              color: "primary.main",
+              display: "flex",
+              alignItems: "center",
+              gap: 0.5,
+              textDecoration: "none",
+              "&:hover": {
+                textDecoration: "underline",
+              },
+            }}
           >
-            <span> Go to dashboard</span>
-            <ArrowRightIcon className="h-4 w-4" strokeWidth={2} />
-          </a>
-        </button>
-      </div>
-    </header>
+            Docs <ArrowUpRightIcon sx={{ fontSize: 16 }} />
+          </Link>
+
+          <Button
+            variant="contained"
+            sx={{
+              borderRadius: "9999px",
+              display: { xs: "none", md: "flex" },
+            }}
+          >
+            <Link
+              href="https://dashboard.privy.io/"
+              target="_blank"
+              rel="noreferrer"
+              sx={{
+                display: "flex",
+                alignItems: "center",
+                gap: 1,
+                color: "inherit",
+                textDecoration: "none",
+              }}
+            >
+              <span>Go to dashboard</span>
+              <ArrowRightIcon sx={{ fontSize: 16 }} />
+            </Link>
+          </Button>
+        </Box>
+      </Toolbar>
+    </AppBar>
   );
 }

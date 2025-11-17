@@ -3,6 +3,7 @@
 import { usePrivy, useIdentityToken } from "@privy-io/react-auth";
 import { useEffect, useRef } from "react";
 import { useBackendUserStore } from "@/lib/stores/backendUserStore";
+import { Alert, Snackbar } from "@mui/material";
 
 export function SyncPrivy() {
     const { authenticated, user } = usePrivy();
@@ -127,21 +128,26 @@ export function SyncPrivy() {
     const displayLoading = isLoading;
     const displayError = error;
 
-    if (displayLoading) {
-        return (
-            <div className="fixed top-4 right-4 bg-blue-500 text-white px-4 py-2 rounded z-50">
-                Connecting your account…
-            </div>
-        );
-    }
-
-    if (displayError) {
-        return (
-            <div className="fixed top-4 right-4 bg-red-500 text-white px-4 py-2 rounded z-50">
-                {error || "Failed to connect account"}
-            </div>
-        );
-    }
-
-    return null;
+    return (
+        <>
+            <Snackbar
+                open={displayLoading}
+                anchorOrigin={{ vertical: "top", horizontal: "right" }}
+                sx={{ mt: 8 }}
+            >
+                <Alert severity="info" sx={{ width: "100%" }}>
+                    Connecting your account…
+                </Alert>
+            </Snackbar>
+            <Snackbar
+                open={!!displayError}
+                anchorOrigin={{ vertical: "top", horizontal: "right" }}
+                sx={{ mt: 8 }}
+            >
+                <Alert severity="error" sx={{ width: "100%" }}>
+                    {error || "Failed to connect account"}
+                </Alert>
+            </Snackbar>
+        </>
+    );
 }
