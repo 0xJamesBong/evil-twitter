@@ -1,35 +1,92 @@
 "use client";
 
 import { usePrivy } from "@privy-io/react-auth";
-import { useEffect, useState } from "react";
+import { useEffect, useRef } from "react";
 import { useBackendUserStore } from "@/lib/stores/backendUserStore";
 
 export function SyncPrivy() {
     const { authenticated, getAccessToken, user } = usePrivy();
-    const { onboardUser, fetchMe, isLoading, error } = useBackendUserStore();
-    const [status, setStatus] = useState<"idle" | "loading" | "done" | "error">(
-        "idle"
-    );
+    const backendUser = useBackendUserStore((state) => state.user);
+    const isLoading = useBackendUserStore((state) => state.isLoading);
+    const error = useBackendUserStore((state) => state.error);
+
+    const hasAttemptedRef = useRef(false);
+    const isProcessingRef = useRef(false);
 
     useEffect(() => {
         const run = async () => {
-            if (!authenticated || status !== "idle") return;
+            // Get store functions directly to avoid dependency issues
+            const { onboardUser, fetchMe } = useBackendUserStore.getState();
 
-            setStatus("loading");
+            // Reset when not authenticated
+            if (!authenticated) {
+                hasAttemptedRef.current = false;
+                isProcessingRef.current = false;
+                return;
+            }
+
+            // Don't run if already processing
+            if (isProcessingRef.current) {
+                return;
+            }
+
+            // If we already attempted and user exists, we're done
+            if (hasAttemptedRef.current && backendUser) {
+                return;
+            }
+
+            // If we attempted but no user, allow retry
+            if (hasAttemptedRef.current && !backendUser) {
+                hasAttemptedRef.current = false;
+            }
+
+            if (hasAttemptedRef.current) {
+                return;
+            }
+
+            hasAttemptedRef.current = true;
+            isProcessingRef.current = true;
+
             try {
                 const token = await getAccessToken();
-                if (!token) throw new Error("Missing access token");
+                if (!token) {
+                    console.error("SyncPrivy: Missing access token");
+                    hasAttemptedRef.current = false;
+                    isProcessingRef.current = false;
+                    return;
+                }
 
-                // 1) Derive handle/display_name (for first-time users)
+                console.log("SyncPrivy: Starting sync process...");
+
+                // First, try to fetch existing user
+                try {
+                    await fetchMe(token);
+                    const currentUser = useBackendUserStore.getState().user;
+                    console.log("SyncPrivy: User already exists in backend", currentUser);
+                    isProcessingRef.current = false;
+                    return; // User exists, we're done
+                } catch (fetchError: any) {
+                    // User doesn't exist, need to onboard
+                    console.log("SyncPrivy: User not found, will onboard. Error:", fetchError?.message);
+                }
+
+                // Derive handle/display_name from Privy user
                 let handle = "";
                 let displayName = "";
+
+                // Get Solana wallet address from Privy user
+                // Privy user object structure may vary, so we use type assertion
+                const privyUserAny = user as any;
+                const solanaWallet = privyUserAny?.wallets?.find(
+                    (w: any) => w.chainType === "solana" || w.chain_type === "solana"
+                ) || privyUserAny?.wallet;
 
                 if (user?.email?.address) {
                     const prefix = user.email.address.split("@")[0];
                     handle = prefix;
                     displayName = prefix;
-                } else if ((user as any)?.wallet?.address) {
-                    const addr = (user as any).wallet.address as string;
+                } else if (solanaWallet?.address) {
+                    const addr = solanaWallet.address as string;
                     handle = `user_${addr.slice(0, 8)}`;
                     displayName = "User";
                 } else {
@@ -37,25 +94,29 @@ export function SyncPrivy() {
                     displayName = "User";
                 }
 
-                // 2) Call store method - handles GraphQL internally
+                console.log("SyncPrivy: Onboarding user with handle:", handle, "displayName:", displayName);
+
+                // Onboard new user
                 await onboardUser(token, handle, displayName);
+                console.log("SyncPrivy: Onboarding successful");
 
-                // 3) Fetch "me" from backend - store method handles GraphQL
+                // Fetch the newly created user
                 await fetchMe(token);
-
-                setStatus("done");
-            } catch (e) {
-                console.error("Session bootstrap error:", e);
-                setStatus("error");
+                console.log("SyncPrivy: User profile fetched successfully");
+            } catch (e: any) {
+                console.error("SyncPrivy error:", e);
+                hasAttemptedRef.current = false; // Allow retry on error
+            } finally {
+                isProcessingRef.current = false;
             }
         };
 
         run();
-    }, [authenticated, getAccessToken, status, user, onboardUser, fetchMe]);
+    }, [authenticated, user, backendUser, getAccessToken]);
 
     // Use store's loading/error state
-    const displayLoading = isLoading || status === "loading";
-    const displayError = error || status === "error";
+    const displayLoading = isLoading;
+    const displayError = error;
 
     if (displayLoading) {
         return (
