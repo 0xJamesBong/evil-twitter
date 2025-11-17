@@ -81,15 +81,49 @@ pub async fn onboard_user_resolver(
                 .get("error")
                 .and_then(|v| v.as_str())
                 .unwrap_or("Authentication failed");
+            eprintln!(
+                "onboard_user: Token verification failed: {} (status {})",
+                error_msg, status
+            );
             async_graphql::Error::new(format!("{} (status {})", error_msg, status))
         })?;
 
-    // Fetch full user data from Privy
+    eprintln!("onboard_user: Verified Privy ID: {}", privy_id);
+
+    // Extract identity token from headers (supports both privy-id-token and Authorization Bearer)
+    let id_token = if let Some(id_token_header) = headers.get("privy-id-token") {
+        id_token_header
+            .to_str()
+            .map_err(|_| async_graphql::Error::new("Invalid privy-id-token header"))?
+            .to_string()
+    } else if let Some(auth_header) = headers.get("authorization") {
+        let auth_str = auth_header
+            .to_str()
+            .map_err(|_| async_graphql::Error::new("Invalid authorization header"))?;
+        auth_str
+            .strip_prefix("Bearer ")
+            .ok_or_else(|| async_graphql::Error::new("Authorization header is not Bearer"))?
+            .to_string()
+    } else {
+        return Err(async_graphql::Error::new(
+            "Missing identity token: provide either privy-id-token header or Authorization Bearer header",
+        ));
+    };
+
+    // Parse user data from identity token (no API call needed!)
     let privy_user = app_state
         .privy_service
-        .get_user_by_id(&privy_id)
-        .await
-        .map_err(|e| async_graphql::Error::new(format!("Failed to fetch Privy user: {}", e)))?;
+        .parse_user_from_identity_token(&id_token)
+        .map_err(|e| {
+            eprintln!("onboard_user: Failed to parse identity token: {}", e);
+            async_graphql::Error::new(format!("Failed to parse identity token: {}", e))
+        })?;
+
+    eprintln!(
+        "onboard_user: Parsed user from identity token, email: {:?}, wallets: {}",
+        privy_user.email.as_ref().map(|e| &e.address),
+        privy_user.wallets.len()
+    );
 
     // Determine login type
     let login_type = app_state
@@ -154,29 +188,57 @@ pub async fn onboard_user_resolver(
         }
 
         // Create new user
+        eprintln!(
+            "onboard_user: Creating new user with privy_id: {}, wallet: {}, login_type: {:?}",
+            privy_id, wallet, login_type
+        );
         let user = app_state
             .mongo_service
             .users
-            .create_user_with_validation(privy_id, wallet, login_type, email)
-            .await?;
+            .create_user_with_validation(
+                privy_id.clone(),
+                wallet.clone(),
+                login_type,
+                email.clone(),
+            )
+            .await
+            .map_err(|e| {
+                eprintln!("onboard_user: Failed to create user: {:?}", e);
+                e
+            })?;
+
+        eprintln!(
+            "onboard_user: User created successfully with ID: {:?}",
+            user.id
+        );
 
         // Create profile
         let profile = crate::models::profile::Profile {
             id: Some(mongodb::bson::oid::ObjectId::new()),
             user_id: user.privy_id.clone(),
-            handle: input.handle,
-            display_name: input.display_name,
+            handle: input.handle.clone(),
+            display_name: input.display_name.clone(),
             avatar_url: None,
             bio: None,
             status: crate::models::profile::ProfileStatus::Active,
             created_at: mongodb::bson::DateTime::now(),
         };
 
+        eprintln!(
+            "onboard_user: Creating profile with handle: {}, display_name: {}",
+            input.handle, input.display_name
+        );
         app_state
             .mongo_service
             .profiles
             .create_profile(profile)
-            .await?;
+            .await
+            .map_err(|e| {
+                eprintln!("onboard_user: Failed to create profile: {:?}", e);
+                e
+            })?;
+
+        eprintln!("onboard_user: Profile created successfully");
 
         user
     };

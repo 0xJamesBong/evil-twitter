@@ -1,11 +1,12 @@
 "use client";
 
-import { usePrivy } from "@privy-io/react-auth";
+import { usePrivy, useIdentityToken } from "@privy-io/react-auth";
 import { useEffect, useRef } from "react";
 import { useBackendUserStore } from "@/lib/stores/backendUserStore";
 
 export function SyncPrivy() {
-    const { authenticated, getAccessToken, user } = usePrivy();
+    const { authenticated, user } = usePrivy();
+    const { identityToken } = useIdentityToken();
     const backendUser = useBackendUserStore((state) => state.user);
     const isLoading = useBackendUserStore((state) => state.isLoading);
     const error = useBackendUserStore((state) => state.error);
@@ -48,26 +49,34 @@ export function SyncPrivy() {
             isProcessingRef.current = true;
 
             try {
-                const token = await getAccessToken();
-                if (!token) {
-                    console.error("SyncPrivy: Missing access token");
+                // Get identity token (contains user data in JWT)
+                if (!identityToken) {
+                    console.error("SyncPrivy: Missing identity token");
                     hasAttemptedRef.current = false;
                     isProcessingRef.current = false;
                     return;
                 }
 
-                console.log("SyncPrivy: Starting sync process...");
+                console.log("SyncPrivy: Starting sync process with identity token...");
 
                 // First, try to fetch existing user
                 try {
-                    await fetchMe(token);
+                    await fetchMe(identityToken);
                     const currentUser = useBackendUserStore.getState().user;
-                    console.log("SyncPrivy: User already exists in backend", currentUser);
-                    isProcessingRef.current = false;
-                    return; // User exists, we're done
+                    console.log("SyncPrivy: fetchMe result", currentUser);
+
+                    // Only return early if user actually exists (not null)
+                    if (currentUser) {
+                        console.log("SyncPrivy: User already exists in backend", currentUser);
+                        isProcessingRef.current = false;
+                        return; // User exists, we're done
+                    }
+
+                    // User is null, continue to onboarding
+                    console.log("SyncPrivy: User not found (null), will onboard");
                 } catch (fetchError: any) {
                     // User doesn't exist, need to onboard
-                    console.log("SyncPrivy: User not found, will onboard. Error:", fetchError?.message);
+                    console.log("SyncPrivy: User not found (error), will onboard. Error:", fetchError?.message);
                 }
 
                 // Derive handle/display_name from Privy user
@@ -97,11 +106,11 @@ export function SyncPrivy() {
                 console.log("SyncPrivy: Onboarding user with handle:", handle, "displayName:", displayName);
 
                 // Onboard new user
-                await onboardUser(token, handle, displayName);
+                await onboardUser(identityToken, handle, displayName);
                 console.log("SyncPrivy: Onboarding successful");
 
                 // Fetch the newly created user
-                await fetchMe(token);
+                await fetchMe(identityToken);
                 console.log("SyncPrivy: User profile fetched successfully");
             } catch (e: any) {
                 console.error("SyncPrivy error:", e);
@@ -112,7 +121,7 @@ export function SyncPrivy() {
         };
 
         run();
-    }, [authenticated, user, backendUser, getAccessToken]);
+    }, [authenticated, user, backendUser, identityToken]);
 
     // Use store's loading/error state
     const displayLoading = isLoading;

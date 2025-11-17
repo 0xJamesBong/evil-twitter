@@ -28,6 +28,21 @@ impl AppState {
         let app_secret = std::env::var("PRIVY_APP_SECRET")
             .expect("PRIVY_APP_SECRET environment variable must be set");
 
+        // Validate that values are not empty
+        if app_id.is_empty() {
+            panic!("PRIVY_APP_ID is set but empty");
+        }
+        if app_secret.is_empty() {
+            panic!("PRIVY_APP_SECRET is set but empty");
+        }
+
+        // Log that Privy is configured (without exposing secrets)
+        println!(
+            "✅ Privy configured with App ID: {}...{}",
+            &app_id[..app_id.len().min(8)],
+            &app_id[app_id.len().saturating_sub(4)..]
+        );
+
         Self {
             mongo_service: Arc::new(MongoService::new(client.clone(), db.clone())),
             privy_service: Arc::new(PrivyService::new(app_id, app_secret)),

@@ -17,11 +17,11 @@ type BackendUserState = {
 type BackendUserActions = {
   // Actions that handle GraphQL calls
   onboardUser: (
-    accessToken: string,
+    identityToken: string,
     handle: string,
     displayName: string
   ) => Promise<void>;
-  fetchMe: (accessToken: string) => Promise<void>;
+  fetchMe: (identityToken: string) => Promise<void>;
   clear: () => void;
 };
 
@@ -32,7 +32,7 @@ export const useBackendUserStore = create<
   isLoading: false,
   error: null,
   onboardUser: async (
-    accessToken: string,
+    identityToken: string,
     handle: string,
     displayName: string
   ) => {
@@ -47,7 +47,7 @@ export const useBackendUserStore = create<
       const data = await graphqlRequest<OnboardUserResult>(
         ONBOARD_USER_MUTATION,
         { input: { handle, displayName } },
-        accessToken
+        identityToken
       );
       // OnboardUser returns user, but we'll fetch full profile with fetchMe
       set({ isLoading: false });
@@ -59,13 +59,13 @@ export const useBackendUserStore = create<
       throw e;
     }
   },
-  fetchMe: async (accessToken: string) => {
+  fetchMe: async (identityToken: string) => {
     set({ isLoading: true, error: null });
     try {
       const data = await graphqlRequest<MeQueryResult>(
         ME_QUERY,
         undefined,
-        accessToken
+        identityToken
       );
       set({ user: data.me, isLoading: false });
     } catch (e) {

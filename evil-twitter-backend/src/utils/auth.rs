@@ -21,8 +21,22 @@ fn not_found(message: &str) -> ApiError {
     json_error(StatusCode::NOT_FOUND, message)
 }
 
-/// Extract Privy access token from authorization header
-fn extract_privy_token(auth_header: &str) -> Result<String, String> {
+/// Extract Privy identity token from headers
+/// Supports both Authorization Bearer and privy-id-token header
+fn extract_identity_token(headers: &HeaderMap) -> Result<String, String> {
+    // First try privy-id-token header (preferred for identity tokens)
+    if let Some(id_token_header) = headers.get("privy-id-token") {
+        if let Ok(token) = id_token_header.to_str() {
+            return Ok(token.to_string());
+        }
+    }
+
+    // Fallback to Authorization Bearer header
+    let auth_header = headers
+        .get("authorization")
+        .and_then(|h| h.to_str().ok())
+        .ok_or_else(|| "Missing authorization header or privy-id-token header".to_string())?;
+
     let token = match auth_header.strip_prefix("Bearer ") {
         Some(t) => t.trim(),
         None => return Err("Authorization header is not Bearer".into()),
@@ -30,32 +44,27 @@ fn extract_privy_token(auth_header: &str) -> Result<String, String> {
     Ok(token.to_string())
 }
 
-/// Extract the authenticated user from the authorization header using Privy
+/// Extract the authenticated user from the identity token in headers using Privy
 pub async fn get_authenticated_user(
     mongo_service: &MongoService,
     privy_service: &PrivyService,
     headers: &HeaderMap,
 ) -> Result<User, ApiError> {
-    let auth_header = headers
-        .get("authorization")
-        .and_then(|h| h.to_str().ok())
-        .ok_or_else(|| json_error(StatusCode::UNAUTHORIZED, "Missing authorization header"))?;
-
-    let token = extract_privy_token(auth_header).map_err(|err| {
+    let token = extract_identity_token(headers).map_err(|err| {
         json_error(
             StatusCode::UNAUTHORIZED,
             format!("Invalid authorization header: {err}"),
         )
     })?;
 
-    // Verify token with Privy and get user ID (DID)
+    // Extract user ID (DID) from identity token
     let privy_id = privy_service
-        .verify_access_token(&token)
+        .extract_user_id_from_token(&token)
         .await
         .map_err(|err| {
             json_error(
                 StatusCode::UNAUTHORIZED,
-                format!("Invalid Privy token: {}", err),
+                format!("Invalid Privy identity token: {}", err),
             )
         })?;
 
@@ -81,30 +90,26 @@ pub async fn get_authenticated_user_id(
         .ok_or_else(|| internal_error("User record missing identifier"))
 }
 
-/// Get Privy ID from authorization header (for GraphQL context)
+/// Get Privy ID from identity token in headers (for GraphQL context)
 pub async fn get_privy_id_from_header(
     privy_service: &PrivyService,
     headers: &HeaderMap,
 ) -> Result<String, ApiError> {
-    let auth_header = headers
-        .get("authorization")
-        .and_then(|h| h.to_str().ok())
-        .ok_or_else(|| json_error(StatusCode::UNAUTHORIZED, "Missing authorization header"))?;
-
-    let token = extract_privy_token(auth_header).map_err(|err| {
+    let token = extract_identity_token(headers).map_err(|err| {
         json_error(
             StatusCode::UNAUTHORIZED,
             format!("Invalid authorization header: {err}"),
         )
     })?;
 
+    // Identity tokens are JWTs - extract user ID from "sub" claim
     privy_service
-        .verify_access_token(&token)
+        .extract_user_id_from_token(&token)
         .await
         .map_err(|err| {
             json_error(
                 StatusCode::UNAUTHORIZED,
-                format!("Invalid Privy token: {}", err),
+                format!("Invalid Privy identity token: {}", err),
             )
         })
 }

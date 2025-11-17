@@ -8,14 +8,18 @@ interface GraphQLResponse<T> {
 export async function graphqlRequest<T>(
   query: string,
   variables?: Record<string, unknown>,
-  accessToken?: string
+  identityToken?: string
 ): Promise<T> {
   const headers: HeadersInit = {
     "Content-Type": "application/json",
   };
 
-  if (accessToken) {
-    headers["Authorization"] = `Bearer ${accessToken}`;
+  if (identityToken) {
+    // Send identity token in Authorization Bearer header
+    // Backend supports both Authorization Bearer and privy-id-token header
+    headers["Authorization"] = `Bearer ${identityToken}`;
+    // Also send as privy-id-token header for clarity
+    headers["privy-id-token"] = identityToken;
   }
 
   const response = await fetch(`${API_BASE_URL}/graphql`, {
