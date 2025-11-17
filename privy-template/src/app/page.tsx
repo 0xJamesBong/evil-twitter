@@ -19,12 +19,16 @@ import MFA from "@/components/sections/mfa";
 import { SyncPrivy } from "@/components/auth/SyncPrivy";
 
 import { useBackendUserStore } from "@/lib/stores/backendUserStore";
+import { usePingStore } from "@/lib/stores/pingStore";
+import { API_BASE_URL } from "../lib/config";
 
 function Home() {
   const { ready, authenticated, logout, login } = usePrivy();
   const { user, isLoading, error } = useBackendUserStore();
+  const { ping, response, isLoading: isPinging, error: pingError } = usePingStore();
 
   console.log("Home, user:", user);
+  console.log("API_BASE_URL: ", API_BASE_URL);
   if (!ready) {
     return <FullScreenLoader />;
   }
@@ -41,6 +45,26 @@ function Home() {
             </button>
 
             <div>
+              <div className="mb-4 p-4 bg-white rounded-lg border">
+                <h3 className="text-lg font-semibold mb-2">Backend Connection Test</h3>
+                <button
+                  className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 disabled:bg-gray-400"
+                  onClick={ping}
+                  disabled={isPinging}
+                >
+                  {isPinging ? "Pinging..." : "Ping Backend"}
+                </button>
+                {response && (
+                  <div className="mt-2 p-2 bg-green-100 rounded">
+                    <strong>Response:</strong> {response}
+                  </div>
+                )}
+                {pingError && (
+                  <div className="mt-2 p-2 bg-red-100 rounded text-red-700">
+                    <strong>Error:</strong> {pingError}
+                  </div>
+                )}
+              </div>
               <SyncPrivy />
               <CreateAWallet />
               <FundWallet />
