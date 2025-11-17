@@ -23,11 +23,12 @@ import { usePingStore } from "@/lib/stores/pingStore";
 import { API_BASE_URL } from "../lib/config";
 
 function Home() {
-  const { ready, authenticated, logout, login } = usePrivy();
-  const { user, isLoading, error } = useBackendUserStore();
+  const { ready, authenticated, logout, login, user: privyUser } = usePrivy();
+  const { user: backendUser, isLoading, error } = useBackendUserStore();
   const { ping, response, isLoading: isPinging, error: pingError } = usePingStore();
 
-  console.log("Home, user:", user);
+  console.log("Home, backendUser:", backendUser);
+  console.log("Home, privyUser:", privyUser);
   console.log("API_BASE_URL: ", API_BASE_URL);
   if (!ready) {
     return <FullScreenLoader />;
@@ -65,7 +66,39 @@ function Home() {
                   </div>
                 )}
               </div>
-              <SyncPrivy />
+
+              {/* User Data Display */}
+              <div className="mb-4 p-4 bg-white rounded-lg border">
+                <h3 className="text-lg font-semibold mb-4">User Data</h3>
+
+                {/* Privy User Data */}
+                <div className="mb-4">
+                  <h4 className="text-md font-semibold mb-2 text-blue-600">Privy User Data</h4>
+                  <div className="bg-gray-50 p-3 rounded border overflow-auto max-h-96">
+                    <pre className="text-xs whitespace-pre-wrap break-words">
+                      {privyUser ? JSON.stringify(privyUser, null, 2) : "No Privy user data (not authenticated)"}
+                    </pre>
+                  </div>
+                </div>
+
+                {/* Backend User Data */}
+                <div>
+                  <h4 className="text-md font-semibold mb-2 text-green-600">Backend User Data</h4>
+                  {isLoading && (
+                    <div className="text-sm text-gray-500 mb-2">Loading backend user...</div>
+                  )}
+                  {error && (
+                    <div className="text-sm text-red-500 mb-2">Error: {error}</div>
+                  )}
+                  <div className="bg-gray-50 p-3 rounded border overflow-auto max-h-96">
+                    <pre className="text-xs whitespace-pre-wrap break-words">
+                      {backendUser ? JSON.stringify(backendUser, null, 2) : "No backend user data (not onboarded)"}
+                    </pre>
+                  </div>
+                </div>
+              </div>
+
+              {/* <SyncPrivy /> */}
               <CreateAWallet />
               <FundWallet />
               <LinkAccounts />
@@ -74,10 +107,6 @@ function Home() {
               <SessionSigners />
               <WalletManagement />
               <MFA />
-            </div>
-
-            <div>
-              <pre>{JSON.stringify(user, null, 2)}</pre>
             </div>
           </div>
           <UserObject />

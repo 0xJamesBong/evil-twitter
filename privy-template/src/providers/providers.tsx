@@ -1,5 +1,6 @@
 "use client";
 
+import { SyncPrivy } from "@/components/auth/SyncPrivy";
 import { PrivyProvider } from "@privy-io/react-auth";
 import { toSolanaWalletConnectors } from "@privy-io/react-auth/solana";
 
@@ -64,7 +65,9 @@ export default function Providers({ children }: { children: React.ReactNode }) {
 
       }}
     >
+      <SyncPrivy />
       {children}
+
     </PrivyProvider>
   );
 }
