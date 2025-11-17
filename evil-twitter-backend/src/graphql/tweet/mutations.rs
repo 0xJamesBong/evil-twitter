@@ -4,10 +4,7 @@ use mongodb::bson::oid::ObjectId;
 
 use std::sync::Arc;
 
-use crate::{
-    app_state::AppState, graphql::tweet::types::TweetNode, models::user::User,
-    utils::auth::get_authenticated_user,
-};
+use crate::{app_state::AppState, graphql::tweet::types::TweetNode, models::user::User};
 
 // ============================================================================
 // Input Types
@@ -85,15 +82,19 @@ async fn get_authenticated_user_from_ctx(ctx: &Context<'_>) -> Result<User> {
         .map_err(|_| async_graphql::Error::new("Failed to get headers from context"))?;
 
     let app_state = ctx.data::<Arc<AppState>>()?;
-    get_authenticated_user(app_state.mongo_service.db(), headers)
-        .await
-        .map_err(|(status, json)| {
-            let error_msg = json
-                .get("error")
-                .and_then(|v| v.as_str())
-                .unwrap_or("Authentication failed");
-            async_graphql::Error::new(format!("{} (status {})", error_msg, status))
-        })
+    crate::utils::auth::get_authenticated_user(
+        &app_state.mongo_service,
+        &app_state.privy_service,
+        headers,
+    )
+    .await
+    .map_err(|(status, json)| {
+        let error_msg = json
+            .get("error")
+            .and_then(|v| v.as_str())
+            .unwrap_or("Authentication failed");
+        async_graphql::Error::new(format!("{} (status {})", error_msg, status))
+    })
 }
 
 fn parse_object_id(id: &ID) -> Result<ObjectId> {

@@ -34,32 +34,48 @@ impl UserService {
         Ok(user)
     }
 
-    /// Get a user by supabase_id
-    pub async fn get_user_by_supabase_id(&self, supabase_id: &str) -> Result<Option<User>> {
+    /// Get a user by Privy ID (DID)
+    pub async fn get_user_by_privy_id(&self, privy_id: &str) -> Result<Option<User>> {
         let collection = self.user_collection();
         let user = collection
-            .find_one(doc! { "supabase_id": supabase_id })
+            .find_one(doc! { "privy_id": privy_id })
             .await
             .map_err(|e| async_graphql::Error::new(format!("Failed to get user: {}", e)))?;
         Ok(user)
     }
 
-    /// Check if user exists by supabase_id, username, or email
-    pub async fn user_exists(
-        &self,
-        supabase_id: &str,
-        username: &str,
-        email: &str,
-    ) -> Result<bool> {
+    /// Get a user by wallet address
+    pub async fn get_user_by_wallet(&self, wallet: &str) -> Result<Option<User>> {
+        let collection = self.user_collection();
+        let user = collection
+            .find_one(doc! { "wallet": wallet })
+            .await
+            .map_err(|e| {
+                async_graphql::Error::new(format!("Failed to get user by wallet: {}", e))
+            })?;
+        Ok(user)
+    }
+
+    /// Check if user exists by privy_id or wallet
+    pub async fn user_exists(&self, privy_id: &str, wallet: &str) -> Result<bool> {
         let collection = self.user_collection();
         let existing = collection
             .find_one(doc! {
                 "$or": [
-                    {"supabase_id": supabase_id},
-                    {"username": username},
-                    {"email": email}
+                    {"privy_id": privy_id},
+                    {"wallet": wallet}
                 ]
             })
+            .await
+            .map_err(|e| async_graphql::Error::new(format!("Database error: {}", e)))?;
+        Ok(existing.is_some())
+    }
+
+    /// Check if wallet is already in use
+    pub async fn wallet_exists(&self, wallet: &str) -> Result<bool> {
+        let collection = self.user_collection();
+        let existing = collection
+            .find_one(doc! { "wallet": wallet })
             .await
             .map_err(|e| async_graphql::Error::new(format!("Database error: {}", e)))?;
         Ok(existing.is_some())
@@ -68,17 +84,29 @@ impl UserService {
     /// Create a new user with validation
     pub async fn create_user_with_validation(
         &self,
-        supabase_id: String,
-        username: String,
-        display_name: String,
-        email: String,
-        avatar_url: Option<String>,
-        bio: Option<String>,
+        privy_id: String,
+        wallet: String,
+        login_type: crate::models::user::LoginType,
+        email: Option<String>,
     ) -> Result<User> {
         // Check if user already exists
-        if self.user_exists(&supabase_id, &username, &email).await? {
+        if self.user_exists(&privy_id, &wallet).await? {
             return Err(async_graphql::Error::new(
-                "User with this supabase_id, username, or email already exists",
+                "User with this privy_id or wallet already exists",
+            ));
+        }
+
+        // Check if wallet is already in use
+        if self.wallet_exists(&wallet).await? {
+            return Err(async_graphql::Error::new(
+                "Wallet address is already associated with another user",
+            ));
+        }
+
+        // Enforce invariant: no email for Phantom users
+        if login_type == crate::models::user::LoginType::PhantomExternal && email.is_some() {
+            return Err(async_graphql::Error::new(
+                "Phantom users cannot have an email address",
             ));
         }
 
@@ -87,16 +115,44 @@ impl UserService {
 
         let user = User {
             id: Some(user_id),
-            supabase_id,
-            username,
-            display_name,
+            privy_id,
+            wallet,
+            login_type,
             email,
-            avatar_url,
-            bio,
+            status: crate::models::user::UserStatus::Active,
             created_at: now,
         };
 
         self.create_user(user).await
+    }
+
+    /// Ensure unique indexes on privy_id and wallet
+    pub async fn ensure_indexes(&self) -> Result<()> {
+        let collection = self.user_collection();
+        let indexes = vec![
+            mongodb::IndexModel::builder()
+                .keys(doc! { "privy_id": 1 })
+                .options(
+                    mongodb::options::IndexOptions::builder()
+                        .unique(true)
+                        .build(),
+                )
+                .build(),
+            mongodb::IndexModel::builder()
+                .keys(doc! { "wallet": 1 })
+                .options(
+                    mongodb::options::IndexOptions::builder()
+                        .unique(true)
+                        .build(),
+                )
+                .build(),
+        ];
+        collection
+            .create_indexes(indexes)
+            .await
+            .map_err(|e| async_graphql::Error::new(format!("Failed to create indexes: {}", e)))?;
+
+        Ok(())
     }
 
     /// Create a new user (no validation)

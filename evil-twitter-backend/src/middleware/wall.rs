@@ -79,6 +79,7 @@ pub async fn compose_wall(
         all_tweets,
         &tweet_collection,
         &user_collection,
+        &db,
     )
     .await?;
 

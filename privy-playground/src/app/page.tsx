@@ -6,6 +6,9 @@ import { ToastContainer } from "react-toastify";
 
 import { FullScreenLoader } from "@/components/ui/fullscreen-loader";
 import { Header } from "@/components/ui/header";
+import { EmailLoginButton } from "@/components/auth/EmailLoginButton";
+import { PhantomLoginButton } from "@/components/auth/PhantomLoginButton";
+import { OnboardingHandler } from "@/components/auth/OnboardingHandler";
 import CreateAWallet from "@/components/sections/create-a-wallet";
 import UserObject from "@/components/sections/user-object";
 import { ArrowLeftIcon } from "@heroicons/react/16/solid";
@@ -47,39 +50,35 @@ function Home() {
           <UserObject />
         </section>
       ) : (
-        <section className="w-full flex flex-row justify-center items-center h-[calc(100vh-60px)] relative">
-          <Image
-            src="./BG.svg"
-            alt="Background"
-            fill
-            style={{ objectFit: "cover", zIndex: 0 }}
-            priority
-          />
-          <div className="z-10 flex flex-col items-center justify-center w-full h-full">
-          <div className="flex h-10 items-center justify-center rounded-[20px] border border-white px-6 text-lg text-white font-abc-favorit">
-            Next.js Demo
-          </div>
-        <div className="text-center mt-4 text-white text-7xl font-medium font-abc-favorit leading-[81.60px]">
-          Starter repo
-        </div>
-            <div className="text-center text-white text-xl font-normal leading-loose mt-8">
-              Get started developing with Privy using our Next.js starter repo
+        <>
+          <OnboardingHandler />
+          <section className="w-full flex flex-row justify-center items-center h-[calc(100vh-60px)] relative">
+            <Image
+              src="./BG.svg"
+              alt="Background"
+              fill
+              style={{ objectFit: "cover", zIndex: 0 }}
+              priority
+            />
+            <div className="z-10 flex flex-col items-center justify-center w-full h-full">
+              <div className="flex h-10 items-center justify-center rounded-[20px] border border-white px-6 text-lg text-white font-abc-favorit">
+                Evil Twitter
+              </div>
+              <div className="text-center mt-4 text-white text-7xl font-medium font-abc-favorit leading-[81.60px]">
+                Welcome
+              </div>
+              <div className="text-center text-white text-xl font-normal leading-loose mt-8">
+                Choose how you want to sign in
+              </div>
+              <div className="flex flex-col items-center mt-8 w-full max-w-md">
+                <EmailLoginButton />
+                <PhantomLoginButton />
+              </div>
             </div>
-            <button
-              className="bg-white text-brand-off-black mt-15 w-full max-w-md rounded-full px-4 py-2 hover:bg-gray-100 lg:px-8 lg:py-4 lg:text-xl"
-              onClick={() => {
-                login();
-                setTimeout(() => {
-                  (document.querySelector('input[type="email"]') as HTMLInputElement)?.focus();
-                }, 150);
-              }}
-            >
-              Get started
-            </button>
-          </div>
-        </section>
+          </section>
+        </>
       )}
-  
+
       <ToastContainer
         position="top-center"
         autoClose={5000}

@@ -32,13 +32,13 @@ impl UserQuery {
         user_resolver(ctx, id).await
     }
 
-    /// Find user by Supabase ID
-    async fn user_by_supabase_id(
+    /// Find user by Privy ID (DID)
+    async fn user_by_privy_id(
         &self,
         ctx: &Context<'_>,
-        supabase_id: String,
+        privy_id: String,
     ) -> Result<Option<UserNode>> {
-        user_by_supabase_id_resolver(ctx, supabase_id).await
+        user_by_privy_id_resolver(ctx, privy_id).await
     }
 
     /// Flexible user search for discovery surfaces.
@@ -79,17 +79,17 @@ pub async fn user_resolver(ctx: &Context<'_>, id: ID) -> Result<Option<UserNode>
     Ok(user.map(UserNode::from))
 }
 
-/// Find user by Supabase ID
-pub async fn user_by_supabase_id_resolver(
+/// Find user by Privy ID (DID)
+pub async fn user_by_privy_id_resolver(
     ctx: &Context<'_>,
-    supabase_id: String,
+    privy_id: String,
 ) -> Result<Option<UserNode>> {
     let app_state = ctx.data::<Arc<AppState>>()?;
 
     let user = app_state
         .mongo_service
         .users
-        .get_user_by_supabase_id(&supabase_id)
+        .get_user_by_privy_id(&privy_id)
         .await?;
 
     Ok(user.map(UserNode::from))

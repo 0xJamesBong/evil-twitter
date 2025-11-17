@@ -1,5 +1,8 @@
-use async_graphql::{Enum, ID, Object, SimpleObject};
+use async_graphql::{Context, Enum, ID, Object, Result, SimpleObject};
+use std::sync::Arc;
 
+use crate::app_state::AppState;
+use crate::graphql::user::types::ProfileNode;
 use crate::models::tweet::{TweetMetrics, TweetType, TweetView};
 use crate::utils::tweet::TweetThreadResponse;
 
@@ -60,8 +63,30 @@ impl TweetNode {
         TweetEnergyStateObject::from(self.view.tweet.energy_state.clone())
     }
 
-    async fn author(&self) -> AuthorSnapshotObject {
-        AuthorSnapshotObject::from(self.view.tweet.author_snapshot.clone())
+    /// Get the author's profile (fetched on demand)
+    async fn author(&self, ctx: &Context<'_>) -> Result<Option<ProfileNode>> {
+        let app_state = ctx.data::<Arc<AppState>>()?;
+
+        // Get the user by owner_id
+        let user = app_state
+            .mongo_service
+            .users
+            .get_user_by_id(self.view.tweet.owner_id)
+            .await?;
+
+        let user = match user {
+            Some(u) => u,
+            None => return Ok(None),
+        };
+
+        // Get the profile by privy_id
+        let profile = app_state
+            .mongo_service
+            .profiles
+            .get_profile_by_user_id(&user.privy_id)
+            .await?;
+
+        Ok(profile.map(ProfileNode::from))
     }
 
     async fn quoted_tweet(&self) -> Option<TweetNode> {
@@ -188,23 +213,6 @@ impl From<crate::models::tweet::TweetEnergyState> for TweetEnergyStateObject {
             mass: state.mass,
             velocity_initial: state.velocity_initial,
             height_initial: state.height_initial,
-        }
-    }
-}
-
-#[derive(SimpleObject, Clone)]
-pub struct AuthorSnapshotObject {
-    pub username: Option<String>,
-    pub display_name: Option<String>,
-    pub avatar_url: Option<String>,
-}
-
-impl From<crate::models::tweet::TweetAuthorSnapshot> for AuthorSnapshotObject {
-    fn from(snapshot: crate::models::tweet::TweetAuthorSnapshot) -> Self {
-        Self {
-            username: snapshot.username,
-            display_name: snapshot.display_name,
-            avatar_url: snapshot.avatar_url,
         }
     }
 }

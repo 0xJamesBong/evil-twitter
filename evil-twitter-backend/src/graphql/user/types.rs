@@ -1,4 +1,4 @@
-use async_graphql::{Context, Enum, ID, InputObject, Object, Result, SimpleObject};
+use async_graphql::{Context, Enum, ID, InputObject, Object, Result};
 use futures::TryStreamExt;
 use mongodb::{Collection, bson::doc};
 
@@ -6,7 +6,7 @@ use std::sync::Arc;
 
 use crate::app_state::AppState;
 use crate::graphql::tweet::types::{TweetConnection, TweetEdge, TweetNode};
-use crate::models::{follow::Follow, tweet::Tweet, user::User};
+use crate::models::{follow::Follow, profile::Profile, tweet::Tweet, user::User};
 use crate::utils::tweet::enrich_tweets_with_references;
 
 // ============================================================================
@@ -62,32 +62,46 @@ impl UserNode {
         self.inner.id.map(|id| ID::from(id.to_hex()))
     }
 
-    async fn username(&self) -> &str {
-        &self.inner.username
+    async fn privy_id(&self) -> &str {
+        &self.inner.privy_id
     }
 
-    async fn display_name(&self) -> &str {
-        &self.inner.display_name
+    async fn wallet(&self) -> &str {
+        &self.inner.wallet
     }
 
-    async fn supabase_id(&self) -> &str {
-        &self.inner.supabase_id
+    async fn login_type(&self) -> String {
+        match self.inner.login_type {
+            crate::models::user::LoginType::EmailEmbedded => "email_embedded".to_string(),
+            crate::models::user::LoginType::PhantomExternal => "phantom_external".to_string(),
+        }
     }
 
-    async fn email(&self) -> &str {
-        &self.inner.email
+    async fn email(&self) -> Option<&str> {
+        self.inner.email.as_deref()
     }
 
-    async fn bio(&self) -> Option<&str> {
-        self.inner.bio.as_deref()
-    }
-
-    async fn avatar_url(&self) -> Option<&str> {
-        self.inner.avatar_url.as_deref()
+    async fn status(&self) -> String {
+        match self.inner.status {
+            crate::models::user::UserStatus::Active => "active".to_string(),
+            crate::models::user::UserStatus::Banned => "banned".to_string(),
+            crate::models::user::UserStatus::ShadowBanned => "shadow_banned".to_string(),
+        }
     }
 
     async fn created_at(&self) -> String {
         self.inner.created_at.to_chrono().to_rfc3339()
+    }
+
+    /// Get the user's profile
+    async fn profile(&self, ctx: &Context<'_>) -> Result<Option<ProfileNode>> {
+        let app_state = ctx.data::<Arc<AppState>>()?;
+        let profile = app_state
+            .mongo_service
+            .profiles
+            .get_profile_by_user_id(&self.inner.privy_id)
+            .await?;
+        Ok(profile.map(ProfileNode::from))
     }
 
     async fn tweets(
@@ -120,11 +134,16 @@ impl UserNode {
             tweets.push(tweet);
         }
 
-        let enriched = enrich_tweets_with_references(tweets, &tweet_collection, &user_collection)
-            .await
-            .map_err(|(status, _)| {
-                async_graphql::Error::new(format!("Failed to enrich tweets (status {})", status))
-            })?;
+        let enriched = enrich_tweets_with_references(
+            tweets,
+            &tweet_collection,
+            &user_collection,
+            app_state.mongo_service.db(),
+        )
+        .await
+        .map_err(|(status, _)| {
+            async_graphql::Error::new(format!("Failed to enrich tweets (status {})", status))
+        })?;
 
         let edges = enriched
             .into_iter()
@@ -167,5 +186,58 @@ impl UserNode {
             .map_err(|e| async_graphql::Error::new(e.to_string()))?;
 
         Ok(exists.is_some())
+    }
+}
+
+// ============================================================================
+// Profile Node
+// ============================================================================
+
+#[derive(Clone)]
+pub struct ProfileNode {
+    inner: Profile,
+}
+
+impl From<Profile> for ProfileNode {
+    fn from(inner: Profile) -> Self {
+        Self { inner }
+    }
+}
+
+#[Object]
+impl ProfileNode {
+    async fn id(&self) -> Option<ID> {
+        self.inner.id.map(|id| ID::from(id.to_hex()))
+    }
+
+    async fn user_id(&self) -> &str {
+        &self.inner.user_id
+    }
+
+    async fn handle(&self) -> &str {
+        &self.inner.handle
+    }
+
+    async fn display_name(&self) -> &str {
+        &self.inner.display_name
+    }
+
+    async fn avatar_url(&self) -> Option<&str> {
+        self.inner.avatar_url.as_deref()
+    }
+
+    async fn bio(&self) -> Option<&str> {
+        self.inner.bio.as_deref()
+    }
+
+    async fn status(&self) -> String {
+        match self.inner.status {
+            crate::models::profile::ProfileStatus::Active => "active".to_string(),
+            crate::models::profile::ProfileStatus::Suspended => "suspended".to_string(),
+        }
+    }
+
+    async fn created_at(&self) -> String {
+        self.inner.created_at.to_chrono().to_rfc3339()
     }
 }

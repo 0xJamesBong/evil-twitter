@@ -53,9 +53,6 @@ pub struct Tweet {
     pub metrics: TweetMetrics,
 
     #[serde(default)]
-    pub author_snapshot: TweetAuthorSnapshot,
-
-    #[serde(default)]
     pub viewer_context: TweetViewerContext,
 
     #[serde(default)]
@@ -120,32 +117,6 @@ impl Default for TweetMetrics {
             replies: 0,
             impressions: 0,
             smacks: 0,
-        }
-    }
-}
-
-/// Snapshot of author metadata stored with the tweet for quick access.
-#[derive(Debug, Serialize, Deserialize, Clone, ToSchema)]
-pub struct TweetAuthorSnapshot {
-    #[serde(default)]
-    #[schema(example = "johndoe")]
-    pub username: Option<String>,
-
-    #[serde(default)]
-    #[schema(example = "John Doe")]
-    pub display_name: Option<String>,
-
-    #[serde(default)]
-    #[schema(example = "https://example.com/avatar.jpg")]
-    pub avatar_url: Option<String>,
-}
-
-impl Default for TweetAuthorSnapshot {
-    fn default() -> Self {
-        Self {
-            username: None,
-            display_name: None,
-            avatar_url: None,
         }
     }
 }

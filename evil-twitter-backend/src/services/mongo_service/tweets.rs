@@ -8,10 +8,7 @@ use mongodb::{
 use crate::{
     models::{
         like::Like,
-        tweet::{
-            Tweet, TweetAuthorSnapshot, TweetEnergyState, TweetMetrics, TweetType, TweetView,
-            TweetViewerContext,
-        },
+        tweet::{Tweet, TweetEnergyState, TweetMetrics, TweetType, TweetView, TweetViewerContext},
         user::User,
     },
     utils::tweet::TweetThreadResponse,
@@ -50,16 +47,13 @@ impl TweetService {
 }
 
 impl TweetService {
-    /// Create a new original tweet with author snapshot and return enriched view
+    /// Create a new original tweet and return enriched view
     pub async fn create_tweet_with_author(&self, user: User, content: String) -> Result<TweetView> {
         let tweet_collection = self.tweet_collection();
 
         let owner_id = user
             .id
             .ok_or_else(|| async_graphql::Error::new("User record missing identifier"))?;
-        let username = user.username;
-        let display_name = user.display_name;
-        let avatar_url = user.avatar_url;
 
         let now = mongodb::bson::DateTime::now();
         let tweet_id = ObjectId::new();
@@ -76,11 +70,6 @@ impl TweetService {
             created_at: now,
             updated_at: Some(now),
             metrics: TweetMetrics::default(),
-            author_snapshot: TweetAuthorSnapshot {
-                username: Some(username),
-                display_name: Some(display_name),
-                avatar_url,
-            },
             viewer_context: TweetViewerContext::default(),
             energy_state: TweetEnergyState::default(),
         };
@@ -200,6 +189,7 @@ impl TweetService {
             tweets,
             &tweet_collection,
             &user_collection,
+            &self.db,
         )
         .await
         .map_err(|(status, json)| {
@@ -281,11 +271,6 @@ impl TweetService {
             created_at: now,
             updated_at: Some(now),
             metrics: TweetMetrics::default(),
-            author_snapshot: TweetAuthorSnapshot {
-                username: Some(user.username),
-                display_name: Some(user.display_name),
-                avatar_url: user.avatar_url,
-            },
             viewer_context: TweetViewerContext::default(),
             energy_state: TweetEnergyState::default(),
         };
@@ -341,11 +326,6 @@ impl TweetService {
             created_at: now,
             updated_at: Some(now),
             metrics: TweetMetrics::default(),
-            author_snapshot: TweetAuthorSnapshot {
-                username: Some(user.username),
-                display_name: Some(user.display_name),
-                avatar_url: user.avatar_url,
-            },
             viewer_context: TweetViewerContext::default(),
             energy_state: TweetEnergyState::default(),
         };
@@ -400,11 +380,6 @@ impl TweetService {
             created_at: now,
             updated_at: Some(now),
             metrics: TweetMetrics::default(),
-            author_snapshot: TweetAuthorSnapshot {
-                username: Some(user.username),
-                display_name: Some(user.display_name),
-                avatar_url: user.avatar_url,
-            },
             viewer_context: TweetViewerContext::default(),
             energy_state: TweetEnergyState::default(),
         };
