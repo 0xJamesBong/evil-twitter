@@ -18,7 +18,7 @@ export default function Providers({ children }: { children: React.ReactNode }) {
               theme: "#FFFFFF",
               showWalletLoginFirst: false,
               logo: "https://auth.privy.io/logos/privy-logo.png",
-              walletChainType: "ethereum-and-solana",
+              walletChainType: "solana-only",
               walletList: [
                 // "detected_ethereum_wallets",
                 "detected_solana_wallets",
@@ -41,9 +41,9 @@ export default function Providers({ children }: { children: React.ReactNode }) {
             },
             embeddedWallets: {
               showWalletUIs: true,
-              ethereum: {
-                createOnLogin: "off",
-              },
+              // ethereum: {
+              //   createOnLogin: "off",
+              // },
               solana: {
                 createOnLogin: "users-without-wallets",
               },
