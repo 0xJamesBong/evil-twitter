@@ -1,0 +1,927 @@
+import { create } from "zustand";
+import { API_BASE_URL } from "../config/api";
+import { getAuthHeaders } from "../api/auth";
+import { graphqlRequest } from "../graphql/client";
+import {
+  TWEET_THREAD_QUERY,
+  TweetThreadQueryResult,
+  GraphQLTweetNode,
+  TIMELINE_QUERY,
+  TimelineQueryResult,
+  ProfileQueryResult,
+  PROFILE_QUERY,
+  TWEET_QUERY,
+  TweetQueryResult,
+} from "../graphql/queries";
+import {
+  CREATE_TWEET_MUTATION,
+  LIKE_TWEET_MUTATION,
+  QUOTE_TWEET_MUTATION,
+  REPLY_TWEET_MUTATION,
+  RETWEET_MUTATION,
+  SMACK_TWEET_MUTATION,
+} from "../graphql/mutations";
+import { ObjectIdRef } from "./utils";
+
+export type TweetType = "original" | "retweet" | "quote" | "reply";
+
+export interface TweetMetrics {
+  likes: number;
+  smacks: number;
+  retweets: number;
+  quotes: number;
+  replies: number;
+  impressions: number;
+}
+
+export interface TweetAuthorSnapshot {
+  username?: string;
+  display_name?: string;
+  avatar_url?: string;
+}
+
+export interface TweetAuthor {
+  username?: string | null;
+  display_name?: string | null;
+  avatar_url?: string | null;
+}
+
+export interface TweetViewerContext {
+  is_liked: boolean;
+  is_retweeted: boolean;
+  is_quoted: boolean;
+}
+
+export interface ToolSnapshot {
+  _id?: ObjectIdRef;
+  name?: string;
+  image_url?: string;
+  impact?: number;
+  tool_type?: string;
+}
+
+export interface TweetEnergyAction {
+  timestamp: string;
+  impact: number;
+  user_id: ObjectIdRef;
+  tool?: ToolSnapshot | null;
+}
+
+export interface TweetEnergyStateHistory {
+  support_history: TweetEnergyAction[];
+  attack_history: TweetEnergyAction[];
+}
+
+export interface TweetEnergyState {
+  energy: number;
+  kinetic_energy: number;
+  potential_energy: number;
+  energy_gained_from_support: number;
+  energy_lost_from_attacks: number;
+  mass: number;
+  velocity_initial: number;
+  height_initial: number;
+  last_update_timestamp: string;
+  history: TweetEnergyStateHistory;
+}
+
+export interface TweetViralitySnapshot {
+  score: number;
+  momentum: number;
+  health_multiplier: number;
+}
+
+export interface Tweet {
+  _id: ObjectIdRef;
+  owner_id: ObjectIdRef;
+  content: string;
+  tweet_type: TweetType;
+  quoted_tweet_id?: ObjectIdRef;
+  replied_to_tweet_id?: ObjectIdRef;
+  root_tweet_id?: ObjectIdRef;
+  reply_depth: number;
+  created_at: string;
+  updated_at?: string;
+  metrics: TweetMetrics;
+  author_snapshot: TweetAuthorSnapshot;
+  author?: TweetAuthor;
+  viewer_context: TweetViewerContext;
+  energy_state: TweetEnergyState;
+  virality: TweetViralitySnapshot;
+  quoted_tweet?: Tweet;
+  replied_to_tweet?: Tweet;
+  author_display_name?: string;
+  author_username?: string;
+  author_avatar_url?: string | null;
+  likes_count: number;
+  retweets_count: number;
+  replies_count: number;
+  quote_count: number;
+}
+
+export interface ThreadApiResponse {
+  tweet: any;
+  parents: any[];
+  replies: any[];
+}
+
+export interface ThreadData {
+  tweet: Tweet;
+  parents: Tweet[];
+  replies: Tweet[];
+}
+
+interface TweetListResponse {
+  tweets: any[];
+  total: number;
+}
+
+const flattenTweetPayload = (raw: any) => {
+  if (raw && typeof raw === "object" && "tweet" in raw && raw.tweet) {
+    const { tweet, ...rest } = raw;
+    return { ...tweet, ...rest };
+  }
+  return raw;
+};
+
+const parseJson = async <T>(response: Response): Promise<T> => {
+  let data: any = null;
+  try {
+    data = await response.json();
+  } catch {
+    data = null;
+  }
+
+  if (!response.ok) {
+    const message =
+      (data && typeof data === "object" && "error" in data && data.error) ||
+      response.statusText ||
+      "Request failed";
+    throw new Error(String(message));
+  }
+
+  return (data ?? {}) as T;
+};
+
+export function normalizeTweet(raw: any): Tweet {
+  const base = flattenTweetPayload(raw);
+
+  if (!base) {
+    throw new Error("Cannot normalise empty tweet payload");
+  }
+
+  const metrics: TweetMetrics = {
+    likes: base.metrics?.likes ?? base.likes_count ?? 0,
+    smacks: base.metrics?.smacks ?? 0,
+    retweets: base.metrics?.retweets ?? base.retweets_count ?? 0,
+    quotes: base.metrics?.quotes ?? base.quote_count ?? 0,
+    replies: base.metrics?.replies ?? base.replies_count ?? 0,
+    impressions: base.metrics?.impressions ?? 0,
+  };
+
+  const rawEnergy = base.energy_state ?? {};
+  const energy_state: TweetEnergyState = {
+    energy: rawEnergy.energy ?? 0,
+    kinetic_energy: rawEnergy.kinetic_energy ?? 0,
+    potential_energy: rawEnergy.potential_energy ?? 0,
+    energy_gained_from_support: rawEnergy.energy_gained_from_support ?? 0,
+    energy_lost_from_attacks: rawEnergy.energy_lost_from_attacks ?? 0,
+    mass: rawEnergy.mass ?? 0,
+    velocity_initial: rawEnergy.velocity_initial ?? 0,
+    height_initial: rawEnergy.height_initial ?? 0,
+    last_update_timestamp:
+      rawEnergy.last_update_timestamp ?? new Date().toISOString(),
+    history: {
+      support_history: (rawEnergy.history?.support_history ?? []).map(
+        (entry: any) => ({
+          timestamp: entry.timestamp ?? new Date().toISOString(),
+          impact: entry.impact ?? 0,
+          user_id: entry.user_id ?? { $oid: "" },
+          tool: entry.tool ?? null,
+        })
+      ),
+      attack_history: (rawEnergy.history?.attack_history ?? []).map(
+        (entry: any) => ({
+          timestamp: entry.timestamp ?? new Date().toISOString(),
+          impact: entry.impact ?? 0,
+          user_id: entry.user_id ?? { $oid: "" },
+          tool: entry.tool ?? null,
+        })
+      ),
+    },
+  };
+
+  const author_snapshot: TweetAuthorSnapshot = {
+    username:
+      base.author_snapshot?.username ?? base.author_username ?? undefined,
+    display_name:
+      base.author_snapshot?.display_name ??
+      base.author_display_name ??
+      undefined,
+    avatar_url:
+      base.author_snapshot?.avatar_url ?? base.author_avatar_url ?? undefined,
+  };
+
+  const author: TweetAuthor = {
+    username: author_snapshot.username ?? null,
+    display_name: author_snapshot.display_name ?? null,
+    avatar_url: author_snapshot.avatar_url ?? null,
+  };
+
+  const viewer_context: TweetViewerContext = {
+    is_liked: base.viewer_context?.is_liked ?? base.is_liked ?? false,
+    is_retweeted:
+      base.viewer_context?.is_retweeted ?? base.is_retweeted ?? false,
+    is_quoted: base.viewer_context?.is_quoted ?? false,
+  };
+
+  const virality: TweetViralitySnapshot = {
+    score: base.virality?.score ?? 0,
+    momentum: base.virality?.momentum ?? 0,
+    health_multiplier: base.virality?.health_multiplier ?? 1,
+  };
+
+  const normalized: Tweet = {
+    ...base,
+    tweet_type: (base.tweet_type ?? "original")
+      .toString()
+      .toLowerCase() as TweetType,
+    metrics,
+    author_snapshot,
+    author,
+    viewer_context,
+    energy_state,
+    virality,
+    quoted_tweet: base.quoted_tweet
+      ? normalizeTweet(base.quoted_tweet)
+      : undefined,
+    replied_to_tweet: base.replied_to_tweet
+      ? normalizeTweet(base.replied_to_tweet)
+      : undefined,
+    author_display_name: author.display_name ?? undefined,
+    author_username: author.username ?? undefined,
+    author_avatar_url: author.avatar_url ?? undefined,
+    likes_count: metrics.likes,
+    retweets_count: metrics.retweets,
+    replies_count: metrics.replies,
+    quote_count: metrics.quotes,
+  };
+
+  return normalized;
+}
+
+export const normalizeTweetList = (rawTweets: any[] | undefined): Tweet[] =>
+  (rawTweets ?? []).map(normalizeTweet);
+
+interface TweetsState {
+  tweets: Tweet[];
+  userTweets: Tweet[];
+  loading: boolean;
+  error: string | null;
+
+  showQuoteModal: boolean;
+  quoteTweetId: string | null;
+  quoteContent: string;
+
+  showReplyModal: boolean;
+  replyTweetId: string | null;
+  replyContent: string;
+
+  threads: Record<string, ThreadData>;
+  threadLoading: boolean;
+  threadError: string | null;
+
+  showReplyThreadModal: boolean;
+  replyThreadTweetId: string | null;
+
+  fetchTweets: () => Promise<void>;
+  fetchUserTweets: (userId: string) => Promise<void>;
+  fetchTweet: (tweetId: string) => Promise<Tweet | null>;
+  createTweet: (
+    content: string
+  ) => Promise<{ success: boolean; error?: string }>;
+  quoteTweet: (
+    content: string,
+    quotedTweetId: string
+  ) => Promise<{ success: boolean; error?: string }>;
+  retweetTweet: (
+    tweetId: string
+  ) => Promise<{ success: boolean; error?: string }>;
+  replyTweet: (
+    content: string,
+    repliedToTweetId: string
+  ) => Promise<{ success: boolean; error?: string }>;
+
+  smackTweet: (
+    tweetId: string
+  ) => Promise<{ success: boolean; error?: string }>;
+  likeTweet: (
+    tweetId: string
+  ) => Promise<{ success: boolean; liked?: boolean; error?: string }>;
+  updateTweet: (tweetId: string, updater: (tweet: Tweet) => Tweet) => void;
+  setUserTweets: (tweets: Tweet[]) => void;
+  clearError: () => void;
+
+  openQuoteModal: (tweetId: string) => void;
+  closeQuoteModal: () => void;
+  setQuoteContent: (content: string) => void;
+  clearQuoteData: () => void;
+
+  openReplyModal: (tweetId: string) => void;
+  closeReplyModal: () => void;
+  setReplyContent: (content: string) => void;
+  clearReplyData: () => void;
+
+  fetchThread: (tweetId: string) => Promise<void>;
+  clearThread: (tweetId: string) => void;
+  clearAllThreads: () => void;
+
+  openReplyThreadModal: (tweetId: string) => void;
+  closeReplyThreadModal: () => void;
+}
+
+export const useTweetsStore = create<TweetsState>((set, get) => ({
+  tweets: [],
+  userTweets: [],
+  loading: false,
+  error: null,
+
+  showQuoteModal: false,
+  quoteTweetId: null,
+  quoteContent: "",
+
+  showReplyModal: false,
+  replyTweetId: null,
+  replyContent: "",
+
+  threads: {},
+  threadLoading: false,
+  threadError: null,
+
+  showReplyThreadModal: false,
+  replyThreadTweetId: null,
+
+  fetchTweets: async () => {
+    set({ loading: true, error: null });
+    try {
+      const data = await graphqlRequest<TimelineQueryResult>(TIMELINE_QUERY, {
+        first: 20,
+        after: "", // Pass empty string to match backend default
+      });
+
+      const tweets = data.timeline.edges.map((edge) =>
+        normalizeTweet(mapGraphTweetNode(edge.node))
+      );
+      console.log("using graphql to fetch timeline", tweets);
+      set({ tweets, loading: false });
+    } catch (error) {
+      set({
+        error:
+          error instanceof Error ? error.message : "Failed to fetch tweets",
+        loading: false,
+      });
+    }
+  },
+
+  fetchUserTweets: async (userId: string) => {
+    set({ loading: true, error: null });
+    try {
+      const data = await graphqlRequest<ProfileQueryResult>(PROFILE_QUERY, {
+        userId,
+        viewerId: null,
+      });
+
+      if (data.user?.tweets) {
+        const userTweets = data.user.tweets.edges.map((edge) =>
+          normalizeTweet(mapGraphTweetNode(edge.node))
+        );
+        set({ userTweets, loading: false });
+      } else {
+        set({ userTweets: [], loading: false });
+      }
+    } catch (error) {
+      set({
+        error:
+          error instanceof Error
+            ? error.message
+            : "Failed to fetch user tweets",
+        loading: false,
+      });
+    }
+  },
+
+  fetchTweet: async (tweetId: string) => {
+    try {
+      const data = await graphqlRequest<TweetQueryResult>(TWEET_QUERY, {
+        id: tweetId,
+      });
+
+      if (data.tweet) {
+        return normalizeTweet(mapGraphTweetNode(data.tweet));
+      }
+      return null;
+    } catch (error) {
+      console.error("Failed to fetch tweet:", error);
+      return null;
+    }
+  },
+
+  createTweet: async (content: string) => {
+    try {
+      const data = await graphqlRequest<{
+        tweetCreate: {
+          tweet: GraphQLTweetNode;
+        };
+      }>(CREATE_TWEET_MUTATION, {
+        input: { content: content.trim() },
+      });
+
+      const newTweet = normalizeTweet(
+        mapGraphTweetNode(data.tweetCreate.tweet)
+      );
+      set((state) => ({
+        tweets: [newTweet, ...state.tweets],
+      }));
+      return { success: true };
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : "Failed to create tweet";
+      set({ error: message });
+      return { success: false, error: message };
+    }
+  },
+
+  quoteTweet: async (content: string, quotedTweetId: string) => {
+    try {
+      const data = await graphqlRequest<{
+        tweetQuote: {
+          tweet: GraphQLTweetNode;
+        };
+      }>(QUOTE_TWEET_MUTATION, {
+        input: {
+          content: content.trim(),
+          quotedTweetId,
+        },
+      });
+
+      const newTweet = normalizeTweet(mapGraphTweetNode(data.tweetQuote.tweet));
+      set((state) => ({
+        tweets: [newTweet, ...state.tweets],
+      }));
+
+      // Update quoted tweet's quote count
+      get().updateTweet(quotedTweetId, (tweet) => ({
+        ...tweet,
+        metrics: {
+          ...tweet.metrics,
+          quotes: tweet.metrics.quotes + 1,
+        },
+        quote_count: tweet.quote_count + 1,
+      }));
+
+      return { success: true };
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : "Failed to quote tweet";
+      set({ error: message });
+      return { success: false, error: message };
+    }
+  },
+
+  retweetTweet: async (tweetId: string) => {
+    try {
+      const data = await graphqlRequest<{
+        tweetRetweet: {
+          tweet: GraphQLTweetNode;
+        };
+      }>(RETWEET_MUTATION, {
+        id: tweetId,
+      });
+
+      const newTweet = normalizeTweet(
+        mapGraphTweetNode(data.tweetRetweet.tweet)
+      );
+      set((state) => ({
+        tweets: [newTweet, ...state.tweets],
+      }));
+
+      // Update retweet count
+      get().updateTweet(tweetId, (tweet) => ({
+        ...tweet,
+        metrics: {
+          ...tweet.metrics,
+          retweets: tweet.metrics.retweets + 1,
+        },
+        retweets_count: tweet.retweets_count + 1,
+      }));
+
+      return { success: true };
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : "Failed to retweet";
+      set({ error: message });
+      return { success: false, error: message };
+    }
+  },
+
+  replyTweet: async (content: string, repliedToTweetId: string) => {
+    try {
+      const data = await graphqlRequest<{
+        tweetReply: {
+          tweet: GraphQLTweetNode;
+        };
+      }>(REPLY_TWEET_MUTATION, {
+        input: {
+          content: content.trim(),
+          repliedToId: repliedToTweetId,
+        },
+      });
+
+      const newTweet = normalizeTweet(mapGraphTweetNode(data.tweetReply.tweet));
+
+      set((state) => {
+        const updatedThreads: Record<string, ThreadData> = {
+          ...state.threads,
+        };
+
+        const rootId = newTweet.root_tweet_id?.$oid;
+        const keysToUpdate = new Set<string>();
+        if (rootId) {
+          keysToUpdate.add(rootId);
+        }
+        keysToUpdate.add(repliedToTweetId);
+
+        keysToUpdate.forEach((key) => {
+          const thread = updatedThreads[key];
+          if (!thread) {
+            return;
+          }
+
+          const nextReplies = [...thread.replies].filter(
+            (tweet) => tweet._id.$oid !== newTweet._id.$oid
+          );
+          nextReplies.push(newTweet);
+          nextReplies.sort((a, b) => {
+            if (a.reply_depth === b.reply_depth) {
+              return (
+                new Date(a.created_at).getTime() -
+                new Date(b.created_at).getTime()
+              );
+            }
+            return (a.reply_depth ?? 0) - (b.reply_depth ?? 0);
+          });
+
+          updatedThreads[key] = {
+            ...thread,
+            replies: nextReplies,
+          };
+        });
+
+        return {
+          tweets: [newTweet, ...state.tweets],
+          threads: updatedThreads,
+        };
+      });
+
+      // Update reply counts
+      get().updateTweet(repliedToTweetId, (tweet) => ({
+        ...tweet,
+        metrics: {
+          ...tweet.metrics,
+          replies: tweet.metrics.replies + 1,
+        },
+        replies_count: tweet.replies_count + 1,
+      }));
+
+      const rootTweetId = newTweet.root_tweet_id?.$oid;
+      if (rootTweetId && rootTweetId !== repliedToTweetId) {
+        get().updateTweet(rootTweetId, (tweet) => ({
+          ...tweet,
+          metrics: {
+            ...tweet.metrics,
+            replies: tweet.metrics.replies + 1,
+          },
+          replies_count: tweet.replies_count + 1,
+        }));
+      }
+
+      return { success: true };
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : "Failed to reply to tweet";
+      set({ error: message });
+      return { success: false, error: message };
+    }
+  },
+
+  smackTweet: async (tweetId: string) => {
+    try {
+      const data = await graphqlRequest<{
+        tweetSmack: {
+          id: string;
+          energy: number;
+          tokensCharged: number;
+          tokensPaidToAuthor: number;
+        };
+      }>(SMACK_TWEET_MUTATION, {
+        id: tweetId,
+        idempotencyKey: `smack-${tweetId}-${Date.now()}`,
+      });
+
+      // Update tweet in store
+      set((state) => ({
+        tweets: state.tweets.map((tweet) =>
+          tweet._id.$oid === tweetId
+            ? {
+                ...tweet,
+                metrics: {
+                  ...tweet.metrics,
+                  smacks: tweet.metrics.smacks + 1,
+                },
+                energy_state: {
+                  ...tweet.energy_state,
+                  energy: data.tweetSmack.energy,
+                },
+              }
+            : tweet
+        ),
+      }));
+
+      return { success: true };
+    } catch (error) {
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : "Failed to smack tweet",
+      };
+    }
+  },
+
+  likeTweet: async (tweetId: string) => {
+    try {
+      const data = await graphqlRequest<{
+        tweetLike: {
+          id: string;
+          likeCount: number;
+          likedByViewer: boolean;
+          energy: number;
+        };
+      }>(LIKE_TWEET_MUTATION, {
+        id: tweetId,
+        idempotencyKey: `like-${tweetId}-${Date.now()}`,
+      });
+
+      // Update tweet in store
+      set((state) => ({
+        tweets: state.tweets.map((tweet) =>
+          tweet._id.$oid === tweetId
+            ? {
+                ...tweet,
+                metrics: {
+                  ...tweet.metrics,
+                  likes: data.tweetLike.likeCount,
+                },
+                viewer_context: {
+                  ...tweet.viewer_context,
+                  is_liked: data.tweetLike.likedByViewer,
+                },
+              }
+            : tweet
+        ),
+      }));
+
+      return { success: true };
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : "Failed to like tweet";
+      set({ error: message });
+      return { success: false, error: message };
+    }
+  },
+
+  updateTweet: (tweetId: string, updater: (tweet: Tweet) => Tweet) => {
+    set((state) => {
+      const updateCollection = (collection: Tweet[]) =>
+        collection.map((tweet) =>
+          tweet._id.$oid === tweetId ? updater(tweet) : tweet
+        );
+
+      const updatedThreads = Object.entries(state.threads).reduce<
+        Record<string, ThreadData>
+      >((acc, [id, thread]) => {
+        const updatedThread: ThreadData = {
+          tweet:
+            thread.tweet._id.$oid === tweetId
+              ? updater(thread.tweet)
+              : thread.tweet,
+          parents: updateCollection(thread.parents),
+          replies: updateCollection(thread.replies),
+        };
+        acc[id] = updatedThread;
+        return acc;
+      }, {});
+
+      return {
+        tweets: updateCollection(state.tweets),
+        threads: updatedThreads,
+      };
+    });
+  },
+
+  setUserTweets: (tweets: Tweet[]) => {
+    set({ userTweets: tweets });
+  },
+
+  clearError: () => {
+    set({ error: null });
+  },
+
+  openQuoteModal: (tweetId: string) => {
+    set({
+      showQuoteModal: true,
+      quoteTweetId: tweetId,
+      quoteContent: "",
+    });
+  },
+
+  closeQuoteModal: () => {
+    set({
+      showQuoteModal: false,
+      quoteTweetId: null,
+      quoteContent: "",
+    });
+  },
+
+  setQuoteContent: (content: string) => {
+    set({ quoteContent: content });
+  },
+
+  clearQuoteData: () => {
+    set({
+      showQuoteModal: false,
+      quoteTweetId: null,
+      quoteContent: "",
+    });
+  },
+
+  openReplyModal: (tweetId: string) => {
+    set({
+      showReplyModal: true,
+      replyTweetId: tweetId,
+      replyContent: "",
+    });
+  },
+
+  closeReplyModal: () => {
+    set({
+      showReplyModal: false,
+      replyTweetId: null,
+      replyContent: "",
+    });
+  },
+
+  setReplyContent: (content: string) => {
+    set({ replyContent: content });
+  },
+
+  clearReplyData: () => {
+    set({
+      showReplyModal: false,
+      replyTweetId: null,
+      replyContent: "",
+    });
+  },
+
+  fetchThread: async (tweetId: string) => {
+    set({
+      threadLoading: true,
+      threadError: null,
+    });
+    console.log("trying to fetch thread", tweetId);
+    try {
+      // Call GraphQL instead of REST
+
+      const data = await graphqlRequest<TweetThreadQueryResult>(
+        TWEET_THREAD_QUERY,
+        { tweetId }
+      );
+      if (!data.tweetThread) {
+        throw new Error("Tweet thread not found");
+      }
+
+      console.log("using graphql to fetch thread", data.tweetThread);
+
+      // Map GraphQL response to your threadData format
+      const normalizedThread: ThreadData = {
+        tweet: normalizeTweet(mapGraphTweetNode(data.tweetThread.tweet)),
+        parents: data.tweetThread.parents.map((parent) =>
+          normalizeTweet(mapGraphTweetNode(parent))
+        ),
+        replies: data.tweetThread.replies.map((reply) =>
+          normalizeTweet(mapGraphTweetNode(reply))
+        ),
+      };
+
+      set((state) => ({
+        threads: {
+          ...state.threads,
+          [tweetId]: normalizedThread,
+        },
+        threadLoading: false,
+      }));
+    } catch (error) {
+      set({
+        threadError:
+          error instanceof Error ? error.message : "Failed to fetch thread",
+        threadLoading: false,
+      });
+    }
+  },
+
+  clearThread: (tweetId: string) => {
+    set((state) => {
+      const threads = { ...state.threads };
+      delete threads[tweetId];
+      return { threads };
+    });
+  },
+
+  clearAllThreads: () => {
+    set({ threads: {}, threadLoading: false, threadError: null });
+  },
+
+  openReplyThreadModal: (tweetId: string) => {
+    set({
+      showReplyThreadModal: true,
+      replyThreadTweetId: tweetId,
+    });
+  },
+
+  closeReplyThreadModal: () => {
+    set({
+      showReplyThreadModal: false,
+      replyThreadTweetId: null,
+    });
+  },
+}));
+
+// Helper function to map GraphQL tweet node to your app's format
+const mapGraphTweetNode = (node: GraphQLTweetNode): any => {
+  const metrics = node.metrics ?? {
+    likes: 0,
+    smacks: 0,
+    retweets: 0,
+    quotes: 0,
+    replies: 0,
+    impressions: 0,
+  };
+
+  return {
+    _id: { $oid: node.id },
+    owner_id: { $oid: node.ownerId },
+    content: node.content,
+    tweet_type: (node.tweetType ?? "original").toLowerCase(),
+    reply_depth: node.replyDepth,
+    root_tweet_id: node.rootTweetId ? { $oid: node.rootTweetId } : null,
+    quoted_tweet_id: node.quotedTweetId ? { $oid: node.quotedTweetId } : null,
+    replied_to_tweet_id: node.repliedToTweetId
+      ? { $oid: node.repliedToTweetId }
+      : null,
+    created_at: { $date: { $numberLong: String(Date.parse(node.createdAt)) } },
+    updated_at: node.updatedAt
+      ? { $date: { $numberLong: String(Date.parse(node.updatedAt)) } }
+      : null,
+    metrics: {
+      likes: metrics.likes,
+      smacks: metrics.smacks,
+      retweets: metrics.retweets,
+      quotes: metrics.quotes,
+      replies: metrics.replies,
+      impressions: metrics.impressions,
+    },
+    energy_state: node.energyState
+      ? {
+          energy: node.energyState.energy,
+          kinetic_energy: node.energyState.kineticEnergy,
+          potential_energy: node.energyState.potentialEnergy,
+          energy_gained_from_support: node.energyState.energyGainedFromSupport,
+          energy_lost_from_attacks: node.energyState.energyLostFromAttacks,
+          mass: node.energyState.mass,
+          velocity_initial: node.energyState.velocityInitial,
+          height_initial: node.energyState.heightInitial,
+        }
+      : undefined,
+    author_snapshot: node.author
+      ? {
+          username: node.author.username,
+          display_name: node.author.displayName,
+          avatar_url: node.author.avatarUrl,
+        }
+      : undefined,
+    quoted_tweet: node.quotedTweet
+      ? mapGraphTweetNode(node.quotedTweet as any)
+      : undefined,
+    replied_to_tweet: node.repliedToTweet
+      ? mapGraphTweetNode(node.repliedToTweet as any)
+      : undefined,
+  };
+};

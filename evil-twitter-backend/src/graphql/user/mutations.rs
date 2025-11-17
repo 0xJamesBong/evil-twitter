@@ -33,15 +33,6 @@ impl UserMutation {
     async fn _placeholder(&self) -> String {
         "placeholder".to_string()
     }
-
-    ///
-    async fn user_create(
-        &self,
-        ctx: &Context<'_>,
-        input: UserCreateInput,
-    ) -> Result<UserCreatePayload> {
-        user_create_resolver(ctx, input).await
-    }
 }
 
 // ============================================================================
@@ -52,16 +43,6 @@ impl UserMutation {
 pub struct OnboardUserInput {
     pub handle: String,
     pub display_name: String,
-}
-
-#[derive(InputObject)]
-pub struct UserCreateInput {
-    pub supabase_id: String,
-    pub username: String,
-    pub display_name: String,
-    pub email: String,
-    pub avatar_url: Option<String>,
-    pub bio: Option<String>,
 }
 
 // ============================================================================
@@ -203,16 +184,4 @@ pub async fn onboard_user_resolver(
     Ok(OnboardUserPayload {
         user: UserNode::from(user),
     })
-}
-
-/// Create a new user (legacy - kept for backward compatibility)
-pub async fn user_create_resolver(
-    _ctx: &Context<'_>,
-    _input: UserCreateInput,
-) -> Result<UserCreatePayload> {
-    // This is legacy code - should be deprecated
-    // For now, return an error suggesting to use onboard_user instead
-    Err(async_graphql::Error::new(
-        "This mutation is deprecated. Please use onboardUser instead.",
-    ))
 }

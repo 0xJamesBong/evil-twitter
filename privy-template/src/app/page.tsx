@@ -16,9 +16,15 @@ import WalletActions from "@/components/sections/wallet-actions";
 import SessionSigners from "@/components/sections/session-signers";
 import WalletManagement from "@/components/sections/wallet-management";
 import MFA from "@/components/sections/mfa";
+import { SyncPrivy } from "@/components/auth/SyncPrivy";
+
+import { useBackendUserStore } from "@/lib/stores/backendUserStore";
 
 function Home() {
   const { ready, authenticated, logout, login } = usePrivy();
+  const { user, isLoading, error } = useBackendUserStore();
+
+  console.log("Home, user:", user);
   if (!ready) {
     return <FullScreenLoader />;
   }
@@ -27,6 +33,7 @@ function Home() {
     <div className="bg-[#E0E7FF66] md:max-h-[100vh] md:overflow-hidden">
       <Header />
       {authenticated ? (
+
         <section className="w-full flex flex-col md:flex-row md:h-[calc(100vh-60px)]">
           <div className="flex-grow overflow-y-auto h-full p-4 pl-8">
             <button className="button" onClick={logout}>
@@ -34,6 +41,7 @@ function Home() {
             </button>
 
             <div>
+              <SyncPrivy />
               <CreateAWallet />
               <FundWallet />
               <LinkAccounts />
@@ -42,6 +50,10 @@ function Home() {
               <SessionSigners />
               <WalletManagement />
               <MFA />
+            </div>
+
+            <div>
+              <pre>{JSON.stringify(user, null, 2)}</pre>
             </div>
           </div>
           <UserObject />
@@ -56,12 +68,12 @@ function Home() {
             priority
           />
           <div className="z-10 flex flex-col items-center justify-center w-full h-full">
-          <div className="flex h-10 items-center justify-center rounded-[20px] border border-white px-6 text-lg text-white font-abc-favorit">
-            Next.js Demo
-          </div>
-        <div className="text-center mt-4 text-white text-7xl font-medium font-abc-favorit leading-[81.60px]">
-          Starter repo
-        </div>
+            <div className="flex h-10 items-center justify-center rounded-[20px] border border-white px-6 text-lg text-white font-abc-favorit">
+              Next.js Demo
+            </div>
+            <div className="text-center mt-4 text-white text-7xl font-medium font-abc-favorit leading-[81.60px]">
+              Starter repo
+            </div>
             <div className="text-center text-white text-xl font-normal leading-loose mt-8">
               Get started developing with Privy using our Next.js starter repo
             </div>
@@ -79,7 +91,7 @@ function Home() {
           </div>
         </section>
       )}
-  
+
       <ToastContainer
         position="top-center"
         autoClose={5000}
