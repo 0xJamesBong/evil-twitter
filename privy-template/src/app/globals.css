@@ -2,7 +2,7 @@
 
 :root {
   --background: #ffffff;
-  --foreground: #14121E;
+  --foreground: #171717;
 }
 
 @theme inline {
@@ -18,20 +18,15 @@ body {
   font-family: var(--font-inter), Arial, Helvetica, sans-serif;
 }
 
-/* MUI compatibility - ensure MUI components work with Tailwind */
-.MuiButton-root {
-  font-family: var(--font-inter), Arial, Helvetica, sans-serif;
-}
-
 @layer components {
   .button-primary {
-    @apply bg-[#00A2C7] hover:bg-[#007994] focus:bg-[#007994] active:bg-[#00566B]
+    @apply bg-[#5B4FFF] hover:bg-[#4A3EE6] focus:bg-[#4A3EE6] active:bg-[#3F35D9]
            disabled:bg-gray-300 disabled:cursor-not-allowed
            text-white font-medium
            px-4 py-2 rounded-md
            border border-transparent
            transition-colors duration-200 ease-in-out
-           focus:outline-none focus:ring-2 focus:ring-[#00A2C7] focus:ring-offset-2
+           focus:outline-none focus:ring-2 focus:ring-[#5B4FFF] focus:ring-offset-2
            inline-flex items-center justify-center
            text-sm leading-5 cursor-pointer;
   }
@@ -40,12 +35,12 @@ body {
     @apply flex flex-row items-center
            px-4 py-2 gap-1 cursor-pointer
            h-9 rounded-full
-           bg-transparent border border-[#00A2C7]
-           text-[#00A2C7] font-medium text-sm leading-tight
-           hover:bg-[#00A2C7] hover:text-white
-           focus:bg-[#00A2C7] focus:text-white
-           active:bg-[#007994]
-           focus:outline-none focus:ring-2 focus:ring-[#00A2C7] focus:ring-offset-2
+           bg-transparent border border-[#5B4FFF]
+           text-[#5B4FFF] font-medium text-sm leading-tight
+           hover:bg-[#5B4FFF] hover:text-white
+           focus:bg-[#5B4FFF] focus:text-white
+           active:bg-[#4A3EE6]
+           focus:outline-none focus:ring-2 focus:ring-purple-500 focus:ring-offset-2
            transition-all duration-200 ease-in-out
            disabled:opacity-50 disabled:cursor-not-allowed;
   }
@@ -65,10 +60,10 @@ body {
   }
 
   .text-primary {
-    @apply text-[#00A2C7];
+    @apply text-[#5B4FFF];
   }
   .border-primary {
-    @apply border-[#00A2C7];
+    @apply border-[#5B4FFF];
   }
 
   .loader-overlay {
