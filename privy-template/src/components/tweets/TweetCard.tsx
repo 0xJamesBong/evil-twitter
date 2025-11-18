@@ -18,6 +18,7 @@ import {
     MoreHoriz as MoreIcon,
 } from "@mui/icons-material";
 import { formatDistanceToNow } from "date-fns";
+import { useRouter } from "next/navigation";
 import { TweetNode } from "@/lib/graphql/tweets/types";
 
 interface TweetCardProps {
@@ -26,6 +27,7 @@ interface TweetCardProps {
     onQuote?: (tweet: TweetNode) => void;
     onRetweet?: (tweet: TweetNode) => void;
     onLike?: (tweet: TweetNode) => void;
+    clickable?: boolean; // Whether the card should be clickable to navigate to detail page
 }
 
 export function TweetCard({
@@ -34,18 +36,28 @@ export function TweetCard({
     onQuote,
     onRetweet,
     onLike,
+    clickable = true,
 }: TweetCardProps) {
+    const router = useRouter();
     const timeAgo = formatDistanceToNow(new Date(tweet.createdAt), { addSuffix: true });
     const author = tweet.author;
 
+    const handleCardClick = () => {
+        if (clickable && tweet.id) {
+            router.push(`/tweets/${tweet.id}`);
+        }
+    };
+
     return (
         <Card
+            onClick={handleCardClick}
             sx={{
                 borderRadius: 0,
                 borderBottom: 1,
                 borderColor: "grey.200",
+                cursor: clickable ? "pointer" : "default",
                 "&:hover": {
-                    bgcolor: "grey.50",
+                    bgcolor: clickable ? "grey.50" : "transparent",
                 },
                 transition: "background-color 0.2s",
             }}
@@ -161,7 +173,10 @@ export function TweetCard({
                             >
                                 <IconButton
                                     size="small"
-                                    onClick={() => onReply?.(tweet)}
+                                    onClick={(e) => {
+                                        e.stopPropagation();
+                                        onReply?.(tweet);
+                                    }}
                                     className="reply-icon"
                                     sx={{
                                         color: "text.secondary",
@@ -197,7 +212,10 @@ export function TweetCard({
                             >
                                 <IconButton
                                     size="small"
-                                    onClick={() => onRetweet?.(tweet)}
+                                    onClick={(e) => {
+                                        e.stopPropagation();
+                                        onRetweet?.(tweet);
+                                    }}
                                     className="retweet-icon"
                                     sx={{
                                         color: "text.secondary",
@@ -233,7 +251,10 @@ export function TweetCard({
                             >
                                 <IconButton
                                     size="small"
-                                    onClick={() => onLike?.(tweet)}
+                                    onClick={(e) => {
+                                        e.stopPropagation();
+                                        onLike?.(tweet);
+                                    }}
                                     className="like-icon"
                                     sx={{
                                         color: "text.secondary",
@@ -269,7 +290,10 @@ export function TweetCard({
                             >
                                 <IconButton
                                     size="small"
-                                    onClick={() => onQuote?.(tweet)}
+                                    onClick={(e) => {
+                                        e.stopPropagation();
+                                        onQuote?.(tweet);
+                                    }}
                                     className="quote-icon"
                                     sx={{
                                         color: "text.secondary",
