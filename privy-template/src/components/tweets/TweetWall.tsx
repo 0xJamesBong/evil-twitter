@@ -43,16 +43,14 @@ export function TweetWall() {
     } = useTweetStore();
     const [newTweetContent, setNewTweetContent] = useState("");
 
-    // Fetch timeline on mount
+    // Fetch timeline on mount (works for both authenticated and unauthenticated users)
     useEffect(() => {
-        if (identityToken) {
-            fetchTimeline(identityToken).catch((e) => {
-                enqueueSnackbar(
-                    e instanceof Error ? e.message : "Failed to load timeline",
-                    { variant: "error" }
-                );
-            });
-        }
+        fetchTimeline(identityToken || undefined).catch((e) => {
+            enqueueSnackbar(
+                e instanceof Error ? e.message : "Failed to load timeline",
+                { variant: "error" }
+            );
+        });
     }, [identityToken, fetchTimeline, enqueueSnackbar]);
 
     const handleReply = (tweet: TweetNode) => {
@@ -149,47 +147,49 @@ export function TweetWall() {
 
     return (
         <Box sx={{ maxWidth: 600, mx: "auto" }}>
-            {/* Compose Tweet */}
-            <Paper
-                elevation={0}
-                sx={{
-                    p: 2,
-                    borderBottom: 1,
-                    borderColor: "grey.200",
-                }}
-            >
-                <Stack spacing={2}>
-                    <TextField
-                        placeholder="What's happening?"
-                        multiline
-                        rows={3}
-                        value={newTweetContent}
-                        onChange={(e) => setNewTweetContent(e.target.value)}
-                        variant="outlined"
-                        sx={{
-                            "& .MuiOutlinedInput-root": {
-                                "& fieldset": {
-                                    border: "none",
-                                },
-                            },
-                        }}
-                    />
-                    <Stack direction="row" justifyContent="flex-end">
-                        <Button
-                            variant="contained"
-                            onClick={handlePostTweet}
-                            disabled={!newTweetContent.trim() || isCreating}
-                            startIcon={isCreating ? <CircularProgress size={16} /> : <SendIcon />}
+            {/* Compose Tweet - Only show if authenticated */}
+            {identityToken && (
+                <Paper
+                    elevation={0}
+                    sx={{
+                        p: 2,
+                        borderBottom: 1,
+                        borderColor: "grey.200",
+                    }}
+                >
+                    <Stack spacing={2}>
+                        <TextField
+                            placeholder="What's happening?"
+                            multiline
+                            rows={3}
+                            value={newTweetContent}
+                            onChange={(e) => setNewTweetContent(e.target.value)}
+                            variant="outlined"
                             sx={{
-                                borderRadius: "9999px",
-                                px: 3,
+                                "& .MuiOutlinedInput-root": {
+                                    "& fieldset": {
+                                        border: "none",
+                                    },
+                                },
                             }}
-                        >
-                            {isCreating ? "Posting..." : "Tweet"}
-                        </Button>
+                        />
+                        <Stack direction="row" justifyContent="flex-end">
+                            <Button
+                                variant="contained"
+                                onClick={handlePostTweet}
+                                disabled={!newTweetContent.trim() || isCreating}
+                                startIcon={isCreating ? <CircularProgress size={16} /> : <SendIcon />}
+                                sx={{
+                                    borderRadius: "9999px",
+                                    px: 3,
+                                }}
+                            >
+                                {isCreating ? "Posting..." : "Tweet"}
+                            </Button>
+                        </Stack>
                     </Stack>
-                </Stack>
-            </Paper>
+                </Paper>
+            )}
 
             {/* Tweet Feed */}
             <Box>

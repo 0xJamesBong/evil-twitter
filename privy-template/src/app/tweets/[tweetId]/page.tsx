@@ -179,15 +179,15 @@ export default function TweetDetailPage() {
     };
 
     const loadTweet = async () => {
-        if (!tweetId || !identityToken) return;
+        if (!tweetId) return;
 
         setLoading(true);
         try {
-            const tweetData = await fetchTweet(identityToken, tweetId);
+            const tweetData = await fetchTweet(identityToken || undefined, tweetId);
             if (tweetData) {
                 setTweet(tweetData);
             }
-            await fetchThread(identityToken, tweetId);
+            await fetchThread(identityToken || undefined, tweetId);
         } catch (error) {
             console.error("Failed to load tweet:", error);
         } finally {
@@ -196,7 +196,7 @@ export default function TweetDetailPage() {
     };
 
     useEffect(() => {
-        if (tweetId && identityToken) {
+        if (tweetId) {
             loadTweet();
         }
     }, [tweetId, identityToken]);

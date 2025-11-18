@@ -70,16 +70,19 @@ type TweetStoreState = {
 type TweetStoreActions = {
   // Fetch operations
   fetchTimeline: (
-    identityToken: string,
+    identityToken?: string,
     first?: number,
     after?: string
   ) => Promise<void>;
   fetchTweet: (
-    identityToken: string,
+    identityToken: string | undefined,
     tweetId: string
   ) => Promise<TweetNode | null>;
   fetchUserTweets: (identityToken: string, userId: string) => Promise<void>;
-  fetchThread: (identityToken: string, tweetId: string) => Promise<void>;
+  fetchThread: (
+    identityToken: string | undefined,
+    tweetId: string
+  ) => Promise<void>;
 
   // Mutation operations
   createTweet: (identityToken: string, content: string) => Promise<TweetNode>;
@@ -151,7 +154,7 @@ export const useTweetStore = create<TweetStoreState & TweetStoreActions>(
     // ========================================================================
 
     fetchTimeline: async (
-      identityToken: string,
+      identityToken?: string,
       first: number = 20,
       after?: string
     ) => {
@@ -173,7 +176,7 @@ export const useTweetStore = create<TweetStoreState & TweetStoreActions>(
       }
     },
 
-    fetchTweet: async (identityToken: string, tweetId: string) => {
+    fetchTweet: async (identityToken: string | undefined, tweetId: string) => {
       try {
         const data = await graphqlRequest<TweetQueryResult>(
           TWEET_QUERY,
@@ -207,7 +210,7 @@ export const useTweetStore = create<TweetStoreState & TweetStoreActions>(
       }
     },
 
-    fetchThread: async (identityToken: string, tweetId: string) => {
+    fetchThread: async (identityToken: string | undefined, tweetId: string) => {
       set({ threadLoading: true, threadError: null });
       try {
         const data = await graphqlRequest<TweetThreadQueryResult>(
