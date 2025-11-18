@@ -59,7 +59,7 @@ export interface TweetCreateResult {
 
 export const TWEET_REPLY_MUTATION = `
   mutation TweetReply($input: TweetReplyInput!) {
-    tweet_reply(input: $input) {
+    tweetReply(input: $input) {
       tweet {
         id
         ownerId
@@ -106,18 +106,18 @@ export const TWEET_REPLY_MUTATION = `
 
 export interface TweetReplyInput {
   content: string;
-  replied_to_id: string;
+  repliedToId: string;
 }
 
 export interface TweetReplyResult {
-  tweet_reply: {
+  tweetReply: {
     tweet: TweetNode;
   };
 }
 
 export const TWEET_QUOTE_MUTATION = `
   mutation TweetQuote($input: TweetQuoteInput!) {
-    tweet_quote(input: $input) {
+    tweetQuote(input: $input) {
       tweet {
         id
         ownerId
@@ -182,18 +182,18 @@ export const TWEET_QUOTE_MUTATION = `
 
 export interface TweetQuoteInput {
   content: string;
-  quoted_tweet_id: string;
+  quotedTweetId: string;
 }
 
 export interface TweetQuoteResult {
-  tweet_quote: {
+  tweetQuote: {
     tweet: TweetNode;
   };
 }
 
 export const TWEET_RETWEET_MUTATION = `
   mutation TweetRetweet($id: ID!) {
-    tweet_retweet(id: $id) {
+    tweetRetweet(id: $id) {
       tweet {
         id
         ownerId
@@ -239,14 +239,14 @@ export const TWEET_RETWEET_MUTATION = `
 `;
 
 export interface TweetRetweetResult {
-  tweet_retweet: {
+  tweetRetweet: {
     tweet: TweetNode;
   };
 }
 
 export const TWEET_LIKE_MUTATION = `
-  mutation TweetLike($id: ID!, $idempotency_key: String) {
-    tweet_like(id: $id, idempotency_key: $idempotency_key) {
+  mutation TweetLike($id: ID!, $idempotencyKey: String) {
+    tweetLike(id: $id, idempotencyKey: $idempotencyKey) {
       id
       likeCount
       smackCount
@@ -257,11 +257,11 @@ export const TWEET_LIKE_MUTATION = `
 `;
 
 export interface TweetLikeResult {
-  tweet_like: {
+  tweetLike: {
     id: string;
-    like_count: number;
-    smack_count: number;
-    liked_by_viewer: boolean;
+    likeCount: number;
+    smackCount: number;
+    likedByViewer: boolean;
     energy: number;
   };
 }

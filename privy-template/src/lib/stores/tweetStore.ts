@@ -281,7 +281,7 @@ export const useTweetStore = create<TweetStoreState & TweetStoreActions>(
       try {
         const input: TweetReplyInput = {
           content: content.trim(),
-          replied_to_id: repliedToTweetId,
+          repliedToId: repliedToTweetId,
         };
         const data = await graphqlRequest<TweetReplyResult>(
           TWEET_REPLY_MUTATION,
@@ -289,7 +289,7 @@ export const useTweetStore = create<TweetStoreState & TweetStoreActions>(
           identityToken
         );
 
-        const newTweet = data.tweet_reply.tweet;
+        const newTweet = data.tweetReply.tweet;
 
         // Optimistic update: add to timeline
         set((state) => ({
@@ -335,7 +335,7 @@ export const useTweetStore = create<TweetStoreState & TweetStoreActions>(
       try {
         const input: TweetQuoteInput = {
           content: content.trim(),
-          quoted_tweet_id: quotedTweetId,
+          quotedTweetId: quotedTweetId,
         };
         const data = await graphqlRequest<TweetQuoteResult>(
           TWEET_QUOTE_MUTATION,
@@ -343,7 +343,7 @@ export const useTweetStore = create<TweetStoreState & TweetStoreActions>(
           identityToken
         );
 
-        const newTweet = data.tweet_quote.tweet;
+        const newTweet = data.tweetQuote.tweet;
 
         // Optimistic update: add to timeline
         set((state) => ({
@@ -378,7 +378,7 @@ export const useTweetStore = create<TweetStoreState & TweetStoreActions>(
           identityToken
         );
 
-        const newTweet = data.tweet_retweet.tweet;
+        const newTweet = data.tweetRetweet.tweet;
 
         // Optimistic update: add to timeline
         set((state) => ({
@@ -410,7 +410,7 @@ export const useTweetStore = create<TweetStoreState & TweetStoreActions>(
           TWEET_LIKE_MUTATION,
           {
             id: tweetId,
-            idempotency_key: `like-${tweetId}-${Date.now()}`,
+            idempotencyKey: `like-${tweetId}-${Date.now()}`,
           },
           identityToken
         );
@@ -420,13 +420,13 @@ export const useTweetStore = create<TweetStoreState & TweetStoreActions>(
           ...tweet,
           metrics: {
             ...tweet.metrics,
-            likes: data.tweet_like.like_count,
+            likes: data.tweetLike.likeCount,
           },
         }));
 
         return {
-          liked: data.tweet_like.liked_by_viewer,
-          likeCount: data.tweet_like.like_count,
+          liked: data.tweetLike.likedByViewer,
+          likeCount: data.tweetLike.likeCount,
         };
       } catch (error) {
         const errorMessage =
