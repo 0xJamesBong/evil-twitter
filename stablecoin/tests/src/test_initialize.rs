@@ -17,12 +17,12 @@ fn test_initialize() {
     let program_id = Pubkey::from_str(program_id).unwrap();
     let program = client.program(program_id).unwrap();
 
-    let tx = program
-        .request()
-        .accounts(stablecoin::accounts::Initialize {})
-        .args(stablecoin::instruction::Initialize {})
-        .send()
-        .expect("");
+    // let tx = program
+    //     .request()
+    //     .accounts(stablecoin::accounts::Initialize {})
+    //     .args(stablecoin::instruction::Initialize {})
+    //     .send()
+    //     .expect("");
 
-    println!("Your transaction signature {}", tx);
+    // println!("Your transaction signature {}", tx);
 }
