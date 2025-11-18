@@ -1,6 +1,5 @@
 "use client";
 
-import { usePrivy } from "@privy-io/react-auth";
 import { Box } from "@mui/material";
 import { Header } from "@/components/ui/header";
 import { LeftSidebar } from "./LeftSidebar";
@@ -10,12 +9,6 @@ interface AuthenticatedLayoutProps {
 }
 
 export function AuthenticatedLayout({ children }: AuthenticatedLayoutProps) {
-    const { authenticated } = usePrivy();
-
-    if (!authenticated) {
-        return <>{children}</>;
-    }
-
     return (
         <Box
             sx={{

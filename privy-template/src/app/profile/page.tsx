@@ -3,7 +3,6 @@
 import { usePrivy } from "@privy-io/react-auth";
 import {
     Box,
-    Button,
     Card,
     CardContent,
     Typography,
@@ -13,13 +12,13 @@ import {
     Stack,
     Avatar,
 } from "@mui/material";
-import { ArrowBack as ArrowLeftIcon } from "@mui/icons-material";
 
 import { FullScreenLoader } from "@/components/ui/fullscreen-loader";
+import { LoginPrompt } from "@/components/auth/LoginPrompt";
 import { useBackendUserStore } from "@/lib/stores/backendUserStore";
 
 function ProfileContent() {
-    const { ready, authenticated, logout } = usePrivy();
+    const { ready, authenticated } = usePrivy();
     const { user: backendUser, isLoading, error } = useBackendUserStore();
 
     if (!ready) {
@@ -27,19 +26,7 @@ function ProfileContent() {
     }
 
     if (!authenticated) {
-        return (
-            <Box
-                sx={{
-                    backgroundColor: "background.default",
-                    minHeight: "100vh",
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                }}
-            >
-                <Typography>Please log in to view your profile</Typography>
-            </Box>
-        );
+        return <LoginPrompt />;
     }
 
     return (

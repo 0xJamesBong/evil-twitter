@@ -1,7 +1,6 @@
 "use client";
 
 import { usePrivy } from "@privy-io/react-auth";
-import Image from "next/image";
 import {
     Box,
     Button,
@@ -12,11 +11,11 @@ import {
     CircularProgress,
     Paper,
     Stack,
-    Chip,
 } from "@mui/material";
 import { ArrowBack as ArrowLeftIcon } from "@mui/icons-material";
 
 import { FullScreenLoader } from "@/components/ui/fullscreen-loader";
+import { LoginPrompt } from "@/components/auth/LoginPrompt";
 import CreateAWallet from "@/components/sections/create-a-wallet";
 import UserObject from "@/components/sections/user-object";
 import FundWallet from "@/components/sections/fund-wallet";
@@ -32,7 +31,7 @@ import { usePingStore } from "@/lib/stores/pingStore";
 import { API_BASE_URL } from "@/lib/config";
 
 function TestContent() {
-    const { ready, authenticated, logout, login, user: privyUser } = usePrivy();
+    const { ready, authenticated, logout, user: privyUser } = usePrivy();
     const { user: backendUser, isLoading, error } = useBackendUserStore();
     const { ping, response, isLoading: isPinging, error: pingError } = usePingStore();
 
@@ -45,105 +44,7 @@ function TestContent() {
     }
 
     if (!authenticated) {
-        return (
-            <Box
-                sx={{
-                    position: "relative",
-                    width: "100%",
-                    height: "calc(100vh - 60px)",
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                }}
-            >
-                <Image
-                    src="./BG.svg"
-                    alt="Background"
-                    fill
-                    style={{ objectFit: "cover", zIndex: 0 }}
-                    priority
-                />
-                <Box
-                    sx={{
-                        position: "relative",
-                        zIndex: 10,
-                        display: "flex",
-                        flexDirection: "column",
-                        alignItems: "center",
-                        justifyContent: "center",
-                        width: "100%",
-                        height: "100%",
-                        textAlign: "center",
-                    }}
-                >
-                    <Chip
-                        label="Next.js Demo"
-                        sx={{
-                            height: 40,
-                            px: 3,
-                            borderColor: "white",
-                            color: "white",
-                            borderWidth: 1,
-                            borderStyle: "solid",
-                            backgroundColor: "transparent",
-                            fontSize: "1.125rem",
-                            mb: 2,
-                        }}
-                    />
-                    <Typography
-                        variant="h1"
-                        sx={{
-                            color: "white",
-                            fontSize: { xs: "3rem", md: "4.5rem" },
-                            fontWeight: 500,
-                            lineHeight: 1.2,
-                            mb: 2,
-                        }}
-                    >
-                        EVIL TWITTER
-                    </Typography>
-                    <Typography
-                        variant="h6"
-                        sx={{
-                            color: "white",
-                            mb: 4,
-                            maxWidth: "md",
-                        }}
-                    >
-                        Try to create an account with privy and put it in our backend
-                    </Typography>
-                    <Button
-                        variant="contained"
-                        size="large"
-                        onClick={() => {
-                            login();
-                            setTimeout(() => {
-                                (
-                                    document.querySelector(
-                                        'input[type="email"]'
-                                    ) as HTMLInputElement
-                                )?.focus();
-                            }, 150);
-                        }}
-                        sx={{
-                            borderRadius: "9999px",
-                            px: { xs: 4, lg: 8 },
-                            py: { xs: 2, lg: 4 },
-                            fontSize: { xs: "1rem", lg: "1.25rem" },
-                            maxWidth: "md",
-                            width: "100%",
-                            bgcolor: "white",
-                            color: "grey.900",
-                            "&:hover": {
-                                bgcolor: "grey.100",
-                            },
-                        }}
-                    >
-                        login
-                    </Button>
-                </Box>
-            </Box>
-        );
+        return <LoginPrompt />;
     }
 
     return (
