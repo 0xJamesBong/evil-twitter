@@ -18,33 +18,14 @@ import {
     MoreHoriz as MoreIcon,
 } from "@mui/icons-material";
 import { formatDistanceToNow } from "date-fns";
-
-export interface MockTweet {
-    id: string;
-    content: string;
-    author: {
-        handle: string;
-        displayName: string;
-        avatarUrl?: string;
-    };
-    createdAt: Date;
-    metrics: {
-        likes: number;
-        retweets: number;
-        quotes: number;
-        replies: number;
-    };
-    tweetType: "Original" | "Reply" | "Quote" | "Retweet";
-    quotedTweet?: MockTweet;
-    repliedToTweet?: MockTweet;
-}
+import { TweetNode } from "@/lib/graphql/tweets/types";
 
 interface TweetCardProps {
-    tweet: MockTweet;
-    onReply?: (tweet: MockTweet) => void;
-    onQuote?: (tweet: MockTweet) => void;
-    onRetweet?: (tweet: MockTweet) => void;
-    onLike?: (tweet: MockTweet) => void;
+    tweet: TweetNode;
+    onReply?: (tweet: TweetNode) => void;
+    onQuote?: (tweet: TweetNode) => void;
+    onRetweet?: (tweet: TweetNode) => void;
+    onLike?: (tweet: TweetNode) => void;
 }
 
 export function TweetCard({
@@ -54,7 +35,8 @@ export function TweetCard({
     onRetweet,
     onLike,
 }: TweetCardProps) {
-    const timeAgo = formatDistanceToNow(tweet.createdAt, { addSuffix: true });
+    const timeAgo = formatDistanceToNow(new Date(tweet.createdAt), { addSuffix: true });
+    const author = tweet.author;
 
     return (
         <Card
@@ -73,14 +55,14 @@ export function TweetCard({
                 <Stack direction="row" spacing={2}>
                     {/* Avatar */}
                     <Avatar
-                        src={tweet.author.avatarUrl}
+                        src={author?.avatarUrl || undefined}
                         sx={{
                             width: 48,
                             height: 48,
                             bgcolor: "primary.main",
                         }}
                     >
-                        {tweet.author.displayName.charAt(0).toUpperCase()}
+                        {author?.displayName?.charAt(0).toUpperCase() || "?"}
                     </Avatar>
 
                     {/* Content */}
@@ -88,10 +70,10 @@ export function TweetCard({
                         {/* Header */}
                         <Stack direction="row" spacing={1} alignItems="center" sx={{ mb: 0.5 }}>
                             <Typography variant="subtitle2" sx={{ fontWeight: 700 }}>
-                                {tweet.author.displayName}
+                                {author?.displayName || "Unknown"}
                             </Typography>
                             <Typography variant="body2" color="text.secondary">
-                                @{tweet.author.handle}
+                                @{author?.handle || "unknown"}
                             </Typography>
                             <Typography variant="body2" color="text.secondary">
                                 ·
@@ -146,16 +128,16 @@ export function TweetCard({
                             >
                                 <Stack direction="row" spacing={1} alignItems="center" sx={{ mb: 1 }}>
                                     <Avatar
-                                        src={tweet.quotedTweet.author.avatarUrl}
+                                        src={tweet.quotedTweet.author?.avatarUrl || undefined}
                                         sx={{ width: 20, height: 20, bgcolor: "primary.main" }}
                                     >
-                                        {tweet.quotedTweet.author.displayName.charAt(0).toUpperCase()}
+                                        {tweet.quotedTweet.author?.displayName?.charAt(0).toUpperCase() || "?"}
                                     </Avatar>
                                     <Typography variant="caption" sx={{ fontWeight: 600 }}>
-                                        {tweet.quotedTweet.author.displayName}
+                                        {tweet.quotedTweet.author?.displayName || "Unknown"}
                                     </Typography>
                                     <Typography variant="caption" color="text.secondary">
-                                        @{tweet.quotedTweet.author.handle}
+                                        @{tweet.quotedTweet.author?.handle || "unknown"}
                                     </Typography>
                                 </Stack>
                                 <Typography variant="body2">{tweet.quotedTweet.content}</Typography>

@@ -13,25 +13,18 @@ import {
     Paper,
 } from "@mui/material";
 import { Close as CloseIcon, Repeat as RetweetIcon } from "@mui/icons-material";
-import { MockTweet } from "./TweetCard";
-import { useSnackbar } from "notistack";
+import { TweetNode } from "@/lib/graphql/tweets/types";
 
 interface RetweetModalProps {
     open: boolean;
     onClose: () => void;
-    tweet: MockTweet | null;
+    tweet: TweetNode | null;
 }
 
 export function RetweetModal({ open, onClose, tweet }: RetweetModalProps) {
-    const { enqueueSnackbar } = useSnackbar();
-
     if (!tweet) return null;
 
-    const handleRetweet = () => {
-        enqueueSnackbar(`Retweeted @${tweet.author.handle}`, { variant: "success" });
-        onClose();
-        // TODO: Call GraphQL mutation
-    };
+    const author = tweet.author;
 
     return (
         <Dialog
@@ -75,18 +68,18 @@ export function RetweetModal({ open, onClose, tweet }: RetweetModalProps) {
                     >
                         <Box sx={{ display: "flex", gap: 2 }}>
                             <Avatar
-                                src={tweet.author.avatarUrl}
+                                src={author?.avatarUrl || undefined}
                                 sx={{ width: 40, height: 40, bgcolor: "primary.main" }}
                             >
-                                {tweet.author.displayName.charAt(0).toUpperCase()}
+                                {author?.displayName?.charAt(0).toUpperCase() || "?"}
                             </Avatar>
                             <Box sx={{ flexGrow: 1 }}>
                                 <Stack direction="row" spacing={1} alignItems="center" sx={{ mb: 0.5 }}>
                                     <Typography variant="subtitle2" sx={{ fontWeight: 700 }}>
-                                        {tweet.author.displayName}
+                                        {author?.displayName || "Unknown"}
                                     </Typography>
                                     <Typography variant="body2" color="text.secondary">
-                                        @{tweet.author.handle}
+                                        @{author?.handle || "unknown"}
                                     </Typography>
                                 </Stack>
                                 <Typography variant="body2">{tweet.content}</Typography>
@@ -103,7 +96,7 @@ export function RetweetModal({ open, onClose, tweet }: RetweetModalProps) {
             <DialogActions sx={{ p: 2, pt: 1, justifyContent: "center" }}>
                 <Button
                     variant="contained"
-                    onClick={handleRetweet}
+                    onClick={onClose}
                     startIcon={<RetweetIcon />}
                     sx={{
                         borderRadius: "9999px",

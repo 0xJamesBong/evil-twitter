@@ -1,6 +1,4 @@
 "use client";
-
-import { useState } from "react";
 import {
     Dialog,
     DialogTitle,
@@ -15,38 +13,35 @@ import {
     Paper,
 } from "@mui/material";
 import { Close as CloseIcon, Send as SendIcon } from "@mui/icons-material";
-import { MockTweet } from "./TweetCard";
-import { useSnackbar } from "notistack";
+import { TweetNode } from "@/lib/graphql/tweets/types";
 
 interface QuoteModalProps {
     open: boolean;
     onClose: () => void;
-    tweet: MockTweet | null;
+    tweet: TweetNode | null;
+    content: string;
+    onContentChange: (content: string) => void;
+    onSubmit: () => void;
+    isSubmitting: boolean;
 }
 
-export function QuoteModal({ open, onClose, tweet }: QuoteModalProps) {
-    const { enqueueSnackbar } = useSnackbar();
-    const [quoteContent, setQuoteContent] = useState("");
-
+export function QuoteModal({
+    open,
+    onClose,
+    tweet,
+    content,
+    onContentChange,
+    onSubmit,
+    isSubmitting,
+}: QuoteModalProps) {
     if (!tweet) return null;
 
-    const handleQuote = () => {
-        if (!quoteContent.trim()) return;
-        enqueueSnackbar(`Quote tweet posted! (Mock - not saved)`, { variant: "success" });
-        setQuoteContent("");
-        onClose();
-        // TODO: Call GraphQL mutation
-    };
-
-    const handleClose = () => {
-        setQuoteContent("");
-        onClose();
-    };
+    const author = tweet.author;
 
     return (
         <Dialog
             open={open}
-            onClose={handleClose}
+            onClose={onClose}
             maxWidth="sm"
             fullWidth
             PaperProps={{
@@ -58,7 +53,7 @@ export function QuoteModal({ open, onClose, tweet }: QuoteModalProps) {
             <DialogTitle>
                 <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
                     <Button
-                        onClick={handleClose}
+                        onClick={onClose}
                         sx={{ minWidth: "auto", p: 1 }}
                     >
                         <CloseIcon />
@@ -84,8 +79,8 @@ export function QuoteModal({ open, onClose, tweet }: QuoteModalProps) {
                             multiline
                             rows={3}
                             placeholder="Add a comment"
-                            value={quoteContent}
-                            onChange={(e) => setQuoteContent(e.target.value)}
+                            value={content}
+                            onChange={(e) => onContentChange(e.target.value)}
                             variant="outlined"
                             sx={{
                                 "& .MuiOutlinedInput-root": {
@@ -108,18 +103,18 @@ export function QuoteModal({ open, onClose, tweet }: QuoteModalProps) {
                     >
                         <Box sx={{ display: "flex", gap: 2 }}>
                             <Avatar
-                                src={tweet.author.avatarUrl}
+                                src={author?.avatarUrl || undefined}
                                 sx={{ width: 40, height: 40, bgcolor: "primary.main" }}
                             >
-                                {tweet.author.displayName.charAt(0).toUpperCase()}
+                                {author?.displayName?.charAt(0).toUpperCase() || "?"}
                             </Avatar>
                             <Box sx={{ flexGrow: 1 }}>
                                 <Stack direction="row" spacing={1} alignItems="center" sx={{ mb: 0.5 }}>
                                     <Typography variant="subtitle2" sx={{ fontWeight: 700 }}>
-                                        {tweet.author.displayName}
+                                        {author?.displayName || "Unknown"}
                                     </Typography>
                                     <Typography variant="body2" color="text.secondary">
-                                        @{tweet.author.handle}
+                                        @{author?.handle || "unknown"}
                                     </Typography>
                                 </Stack>
                                 <Typography variant="body2">{tweet.content}</Typography>
@@ -132,15 +127,15 @@ export function QuoteModal({ open, onClose, tweet }: QuoteModalProps) {
             <DialogActions sx={{ p: 2, pt: 1 }}>
                 <Button
                     variant="contained"
-                    onClick={handleQuote}
-                    disabled={!quoteContent.trim()}
+                    onClick={onSubmit}
+                    disabled={!content.trim() || isSubmitting}
                     startIcon={<SendIcon />}
                     sx={{
                         borderRadius: "9999px",
                         px: 3,
                     }}
                 >
-                    Quote
+                    {isSubmitting ? "Posting..." : "Quote"}
                 </Button>
             </DialogActions>
         </Dialog>

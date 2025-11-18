@@ -1,49 +1,150 @@
 "use client";
 
-import { useState } from "react";
-import { Box, TextField, Button, Stack, Paper } from "@mui/material";
+import { useState, useEffect } from "react";
+import { Box, TextField, Button, Stack, Paper, CircularProgress } from "@mui/material";
 import { Send as SendIcon } from "@mui/icons-material";
-import { TweetCard, MockTweet } from "./TweetCard";
+import { useIdentityToken } from "@privy-io/react-auth";
+import { useSnackbar } from "notistack";
+import { TweetCard } from "./TweetCard";
 import { ReplyModal } from "./ReplyModal";
 import { QuoteModal } from "./QuoteModal";
 import { RetweetModal } from "./RetweetModal";
-import { generateMockTweets } from "@/lib/mockData/tweets";
-import { useSnackbar } from "notistack";
+import { useTweetStore } from "@/lib/stores/tweetStore";
+import { TweetNode } from "@/lib/graphql/tweets/types";
 
 export function TweetWall() {
     const { enqueueSnackbar } = useSnackbar();
-    const [tweets] = useState<MockTweet[]>(() => generateMockTweets(20));
+    const { identityToken } = useIdentityToken();
+    const {
+        tweets,
+        isLoading,
+        isCreating,
+        error,
+        createTweet,
+        replyTweet,
+        quoteTweet,
+        retweetTweet,
+        likeTweet,
+        fetchTimeline,
+        showReplyModal,
+        showQuoteModal,
+        replyTweetId,
+        quoteTweetId,
+        replyContent,
+        quoteContent,
+        openReplyModal,
+        closeReplyModal,
+        setReplyContent,
+        clearReplyData,
+        openQuoteModal,
+        closeQuoteModal,
+        setQuoteContent,
+        clearQuoteData,
+    } = useTweetStore();
     const [newTweetContent, setNewTweetContent] = useState("");
-    const [replyModalOpen, setReplyModalOpen] = useState(false);
-    const [quoteModalOpen, setQuoteModalOpen] = useState(false);
-    const [retweetModalOpen, setRetweetModalOpen] = useState(false);
-    const [selectedTweet, setSelectedTweet] = useState<MockTweet | null>(null);
 
-    const handleReply = (tweet: MockTweet) => {
-        setSelectedTweet(tweet);
-        setReplyModalOpen(true);
+    // Fetch timeline on mount
+    useEffect(() => {
+        if (identityToken) {
+            fetchTimeline(identityToken).catch((e) => {
+                enqueueSnackbar(
+                    e instanceof Error ? e.message : "Failed to load timeline",
+                    { variant: "error" }
+                );
+            });
+        }
+    }, [identityToken, fetchTimeline, enqueueSnackbar]);
+
+    const handleReply = (tweet: TweetNode) => {
+        openReplyModal(tweet.id || "");
     };
 
-    const handleQuote = (tweet: MockTweet) => {
-        setSelectedTweet(tweet);
-        setQuoteModalOpen(true);
+    const handleQuote = (tweet: TweetNode) => {
+        openQuoteModal(tweet.id || "");
     };
 
-    const handleRetweet = (tweet: MockTweet) => {
-        setSelectedTweet(tweet);
-        setRetweetModalOpen(true);
+    const handleRetweet = async (tweet: TweetNode) => {
+        if (!identityToken) {
+            enqueueSnackbar("Please log in to retweet", { variant: "error" });
+            return;
+        }
+        if (!tweet.id) return;
+
+        try {
+            await retweetTweet(identityToken, tweet.id);
+            enqueueSnackbar("Retweeted!", { variant: "success" });
+        } catch (e) {
+            enqueueSnackbar(
+                e instanceof Error ? e.message : "Failed to retweet",
+                { variant: "error" }
+            );
+        }
     };
 
-    const handleLike = (tweet: MockTweet) => {
-        enqueueSnackbar(`Liked @${tweet.author.handle}'s tweet`, { variant: "success" });
-        // TODO: Implement like
+    const handleLike = async (tweet: TweetNode) => {
+        if (!identityToken) {
+            enqueueSnackbar("Please log in to like", { variant: "error" });
+            return;
+        }
+        if (!tweet.id) return;
+
+        try {
+            await likeTweet(identityToken, tweet.id);
+        } catch (e) {
+            enqueueSnackbar(
+                e instanceof Error ? e.message : "Failed to like tweet",
+                { variant: "error" }
+            );
+        }
     };
 
-    const handlePostTweet = () => {
+    const handleSubmitReply = async () => {
+        if (!identityToken || !replyTweetId || !replyContent.trim()) return;
+
+        try {
+            await replyTweet(identityToken, replyContent.trim(), replyTweetId);
+            clearReplyData();
+            enqueueSnackbar("Reply posted!", { variant: "success" });
+        } catch (e) {
+            enqueueSnackbar(
+                e instanceof Error ? e.message : "Failed to post reply",
+                { variant: "error" }
+            );
+        }
+    };
+
+    const handleSubmitQuote = async () => {
+        if (!identityToken || !quoteTweetId || !quoteContent.trim()) return;
+
+        try {
+            await quoteTweet(identityToken, quoteContent.trim(), quoteTweetId);
+            clearQuoteData();
+            enqueueSnackbar("Quote tweet posted!", { variant: "success" });
+        } catch (e) {
+            enqueueSnackbar(
+                e instanceof Error ? e.message : "Failed to post quote",
+                { variant: "error" }
+            );
+        }
+    };
+
+    const handlePostTweet = async () => {
         if (!newTweetContent.trim()) return;
-        enqueueSnackbar("Tweet posted! (Mock - not saved)", { variant: "success" });
-        setNewTweetContent("");
-        // TODO: Call GraphQL mutation
+        if (!identityToken) {
+            enqueueSnackbar("Please log in to post a tweet", { variant: "error" });
+            return;
+        }
+
+        try {
+            await createTweet(identityToken!, newTweetContent.trim());
+            setNewTweetContent("");
+            enqueueSnackbar("Tweet posted!", { variant: "success" });
+        } catch (e) {
+            enqueueSnackbar(
+                e instanceof Error ? e.message : "Failed to post tweet",
+                { variant: "error" }
+            );
+        }
     };
 
     return (
@@ -77,14 +178,14 @@ export function TweetWall() {
                         <Button
                             variant="contained"
                             onClick={handlePostTweet}
-                            disabled={!newTweetContent.trim()}
-                            startIcon={<SendIcon />}
+                            disabled={!newTweetContent.trim() || isCreating}
+                            startIcon={isCreating ? <CircularProgress size={16} /> : <SendIcon />}
                             sx={{
                                 borderRadius: "9999px",
                                 px: 3,
                             }}
                         >
-                            Tweet
+                            {isCreating ? "Posting..." : "Tweet"}
                         </Button>
                     </Stack>
                 </Stack>
@@ -92,42 +193,46 @@ export function TweetWall() {
 
             {/* Tweet Feed */}
             <Box>
-                {tweets.map((tweet) => (
-                    <TweetCard
-                        key={tweet.id}
-                        tweet={tweet}
-                        onReply={handleReply}
-                        onQuote={handleQuote}
-                        onRetweet={handleRetweet}
-                        onLike={handleLike}
-                    />
-                ))}
+                {isLoading ? (
+                    <Box sx={{ display: "flex", justifyContent: "center", p: 4 }}>
+                        <CircularProgress />
+                    </Box>
+                ) : tweets.length === 0 ? (
+                    <Box sx={{ p: 4, textAlign: "center", color: "text.secondary" }}>
+                        No tweets yet. Be the first to tweet!
+                    </Box>
+                ) : (
+                    tweets.map((tweet) => (
+                        <TweetCard
+                            key={tweet.id}
+                            tweet={tweet}
+                            onReply={handleReply}
+                            onQuote={handleQuote}
+                            onRetweet={handleRetweet}
+                            onLike={handleLike}
+                        />
+                    ))
+                )}
             </Box>
 
             {/* Modals */}
             <ReplyModal
-                open={replyModalOpen}
-                onClose={() => {
-                    setReplyModalOpen(false);
-                    setSelectedTweet(null);
-                }}
-                tweet={selectedTweet}
+                open={showReplyModal}
+                onClose={closeReplyModal}
+                tweet={replyTweetId ? tweets.find((t) => t.id === replyTweetId) || null : null}
+                content={replyContent}
+                onContentChange={setReplyContent}
+                onSubmit={handleSubmitReply}
+                isSubmitting={isCreating}
             />
             <QuoteModal
-                open={quoteModalOpen}
-                onClose={() => {
-                    setQuoteModalOpen(false);
-                    setSelectedTweet(null);
-                }}
-                tweet={selectedTweet}
-            />
-            <RetweetModal
-                open={retweetModalOpen}
-                onClose={() => {
-                    setRetweetModalOpen(false);
-                    setSelectedTweet(null);
-                }}
-                tweet={selectedTweet}
+                open={showQuoteModal}
+                onClose={closeQuoteModal}
+                tweet={quoteTweetId ? tweets.find((t) => t.id === quoteTweetId) || null : null}
+                content={quoteContent}
+                onContentChange={setQuoteContent}
+                onSubmit={handleSubmitQuote}
+                isSubmitting={isCreating}
             />
         </Box>
     );
