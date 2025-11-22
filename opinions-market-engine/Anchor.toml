@@ -4,6 +4,7 @@ package_manager = "yarn"
 [features]
 resolution = true
 skip-lint = false
+upgradeable = true
 
 [programs.localnet]
 opinions_market_engine = "8zZcmGeJ6KXSnSyewB7vfLUrYVLfibh6UP3qPujQoeaa"
@@ -13,7 +14,7 @@ url = "https://api.apr.dev"
 
 [provider]
 cluster = "localnet"
-wallet = "~/.config/solana/id.json"
+wallet = "~/Documents/evil-twitter/opinions-market-engine/.secrets/assFUvBMqjyWvtRLEbWXuN84T4UdTihCjfzC8JaXtrh.json"
 
 [scripts]
-test = "cargo test"
+test = "cargo test -- --nocapture"

@@ -73,3 +73,7 @@ temp/
 *.bin
 *.ckpt
 checkpoints/
+
+# Secrets
+.secrets
+**/.secrets

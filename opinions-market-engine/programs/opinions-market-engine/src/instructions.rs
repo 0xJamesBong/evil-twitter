@@ -1,3 +1,4 @@
+use crate::pda_seeds::*;
 use crate::state::*;
 use anchor_lang::prelude::*;
 use anchor_spl::token::{Mint, Token, TokenAccount};
@@ -16,7 +17,7 @@ pub struct InitializeConfig<'info> {
     #[account(
         init,
         payer = admin,
-        seeds = [b"config"],
+        seeds = [CONFIG_SEED],
         bump,
         space = 8 + 128,
     )]
@@ -28,7 +29,7 @@ pub struct InitializeConfig<'info> {
 }
 
 #[derive(Accounts)]
-pub struct RegisterAcceptedMint<'info> {
+pub struct RegisterAlternativePayment<'info> {
     #[account(mut,
     constraint = config.admin == admin.key())]
     pub config: Account<'info, Config>,
@@ -39,17 +40,51 @@ pub struct RegisterAcceptedMint<'info> {
     #[account(
         init,
         payer = admin,
-        seeds = [b"accepted_mint", mint.key().as_ref()],
+        seeds = [ACCEPTED_MINT_SEED, mint.key().as_ref()],
         bump,
         space = 8 + 96,
     )]
-    pub accepted_mint: Account<'info, AcceptedMint>,
-    #[account(mut)]
+    pub alternative_payment: Account<'info, AlternativePayment>,
+
+    /// Treasury token account for this mint, canonical PDA.
+    #[account(
+        init_if_needed,
+        payer = admin,
+        seeds = [TREASURY_TOKEN_ACCOUNT_SEED, mint.key().as_ref()],
+        bump,
+        token::mint = mint,
+        token::authority = config, // <-- SPL owner = config PDA
+    )]
     pub treasury_token_account: Account<'info, TokenAccount>,
 
     pub system_program: Program<'info, System>,
+    pub token_program: Program<'info, Token>,
 }
 
+#[derive(Accounts)]
+pub struct ModifyAcceptedMint<'info> {
+    #[account(
+        mut,
+        seeds = [CONFIG_SEED],
+        bump,
+        constraint = config.admin == admin.key(),
+    )]
+    pub config: Account<'info, Config>,
+
+    #[account(mut)]
+    pub admin: Signer<'info>,
+
+    pub mint: Account<'info, Mint>,
+
+    #[account(
+        mut,
+        seeds = [ACCEPTED_MINT_SEED, mint.key().as_ref()],
+        bump = accepted_mint.bump,
+    )]
+    pub accepted_mint: Account<'info, AlternativePayment>,
+}
+
+// This initializes the UserAccount PDA only
 #[derive(Accounts)]
 pub struct CreateUser<'info> {
     #[account(mut)]
@@ -57,7 +92,7 @@ pub struct CreateUser<'info> {
     #[account(
         init,
         payer = authority,
-        seeds = [b"user", authority.key().as_ref()],
+        seeds = [USER_ACCOUNT_SEED, authority.key().as_ref()],
         bump,
         space = 8 + 64,
     )]
@@ -65,173 +100,200 @@ pub struct CreateUser<'info> {
     pub system_program: Program<'info, System>,
 }
 
-/// Create the program-owned vault (ATA) for a given user+mint.
-/// authority of the ATA = vault_authority PDA.
-#[derive(Accounts)]
-pub struct InitUserVault<'info> {
-    pub user_account: Account<'info, UserAccount>,
-    pub mint: Account<'info, Mint>,
-    /// CHECK: PDA just used as token authority
-    #[account(
-        seeds = [b"vault_authority"],
-        bump,
-    )]
-    pub vault_authority: UncheckedAccount<'info>,
-    #[account(
-        init,
-        payer = payer,
-        token::mint = mint,
-        token::authority = vault_authority,
-    )]
-    pub vault_token_account: Account<'info, TokenAccount>,
-    #[account(mut)]
-    pub payer: Signer<'info>,
-    pub token_program: Program<'info, Token>,
-    pub system_program: Program<'info, System>,
-}
-
+/// User deposits from their wallet into the program-controlled vault.
+/// Also initializes the program-controlled vault if it doesn't exist.
 #[derive(Accounts)]
 pub struct Deposit<'info> {
     #[account(mut)]
-    pub authority: Signer<'info>,
-    pub user_account: Account<'info, UserAccount>,
-    #[account(mut)]
-    pub user_source: Account<'info, TokenAccount>,
+    pub user: Signer<'info>,
+
+    // tie the user account to the authority wallet
     #[account(
-        mut,
-        constraint = vault_token_account.owner == vault_authority.key(),
+        seeds = [USER_ACCOUNT_SEED, user.key().as_ref()],
+        bump,
+    )]
+    pub user_account: Account<'info, UserAccount>,
+
+    // the token being deposited (BLING, USDC, etc.)
+    pub token_mint: Account<'info, Mint>,
+
+    #[account(
+        seeds = [ACCEPTED_MINT_SEED, token_mint.key().as_ref()],
+        bump = accepted_alternative_payment.bump,
+        constraint = accepted_alternative_payment.enabled == true,
+    )]
+    pub accepted_alternative_payment: Account<'info, AlternativePayment>,
+
+    // user's personal wallet ATA for this mint
+    #[account(mut)]
+    pub user_token_ata: Account<'info, TokenAccount>,
+
+    /// Global vault authority PDA (no data)
+    /// CHECK
+    #[account(
+        seeds = [VAULT_AUTHORITY_SEED],
+        bump,
+    )]
+    pub vault_authority: UncheckedAccount<'info>,
+
+    // Program-controlled vault (PDA) for (user, mint).
+    // This is where you can use init_if_needed instead of a separate instruction.
+    #[account(
+        init_if_needed,
+        payer = user,
+        seeds = [VAULT_TOKEN_ACCOUNT_SEED, user.key().as_ref(), token_mint.key().as_ref()],
+        bump,
+        token::mint = token_mint,
+        token::authority = vault_authority,
     )]
     pub vault_token_account: Account<'info, TokenAccount>,
-    /// CHECK
-    pub vault_authority: UncheckedAccount<'info>,
+
     pub token_program: Program<'info, Token>,
+    pub system_program: Program<'info, System>,
 }
 
 #[derive(Accounts)]
 pub struct Withdraw<'info> {
-    pub user_account: Account<'info, UserAccount>,
     #[account(mut)]
-    pub user_destination: Account<'info, TokenAccount>,
+    pub user: Signer<'info>,
+
+    #[account(
+        seeds = [USER_ACCOUNT_SEED, user.key().as_ref()],
+        bump,
+    )]
+    pub user_account: Account<'info, UserAccount>,
+
+    pub token_mint: Account<'info, Mint>,
+
+    // user’s personal wallet ATA for this mint
+    #[account(mut)]
+    pub user_token_dest_ata: Account<'info, TokenAccount>,
+
     #[account(
         mut,
+        seeds = [VAULT_TOKEN_ACCOUNT_SEED, user.key().as_ref(), token_mint.key().as_ref()],
+        bump,
         constraint = vault_token_account.owner == vault_authority.key(),
+        constraint = vault_token_account.mint == token_mint.key(),
     )]
     pub vault_token_account: Account<'info, TokenAccount>,
+
+    /// Global vault authority PDA
     /// CHECK
     #[account(
-        seeds = [b"vault_authority"],
+        seeds = [VAULT_AUTHORITY_SEED],
         bump,
     )]
     pub vault_authority: UncheckedAccount<'info>,
     pub token_program: Program<'info, Token>,
 }
 
-#[derive(Accounts)]
-#[instruction(post_id_hash: [u8; 32])]
-pub struct CreatePost<'info> {
-    pub config: Account<'info, Config>,
-    pub creator_user_account: Account<'info, UserAccount>,
-    #[account(
-        init,
-        payer = payer,
-        seeds = [b"post", creator_user_account.key().as_ref(), post_id_hash.as_ref()],
-        bump,
-        space = 8 + 256,
-    )]
-    pub post: Account<'info, PostAccount>,
-    #[account(mut)]
-    pub post_pot_bling: Account<'info, TokenAccount>,
-    #[account(mut)]
-    pub payer: Signer<'info>,
-    pub system_program: Program<'info, System>,
-}
+// #[derive(Accounts)]
+// #[instruction(post_id_hash: [u8; 32])]
+// pub struct CreatePost<'info> {
+//     pub config: Account<'info, Config>,
+//     pub creator_user_account: Account<'info, UserAccount>,
+//     #[account(
+//         init,
+//         payer = payer,
+//         seeds = [b"post", creator_user_account.key().as_ref(), post_id_hash.as_ref()],
+//         bump,
+//         space = 8 + 256,
+//     )]
+//     pub post: Account<'info, PostAccount>,
+//     #[account(mut)]
+//     pub post_pot_bling: Account<'info, TokenAccount>,
+//     #[account(mut)]
+//     pub payer: Signer<'info>,
+//     pub system_program: Program<'info, System>,
+// }
 
-#[derive(Accounts)]
-#[instruction(side: Side, units: u32, payment_in_bling: bool)]
-pub struct VoteOnPost<'info> {
-    pub config: Account<'info, Config>,
-    #[account(mut)]
-    pub post: Account<'info, PostAccount>,
-    pub user_account: Account<'info, UserAccount>,
+// #[derive(Accounts)]
+// #[instruction(side: Side, units: u32, payment_in_bling: bool)]
+// pub struct VoteOnPost<'info> {
+//     pub config: Account<'info, Config>,
+//     #[account(mut)]
+//     pub post: Account<'info, PostAccount>,
+//     pub user_account: Account<'info, UserAccount>,
 
-    // Per-post per-user position
-    #[account(
-        init_if_needed,
-        payer = payer,
-        seeds = [b"position", post.key().as_ref(), user_account.key().as_ref()],
-        bump,
-        space = 8 + 128,
-    )]
-    pub position: Account<'info, UserPostPosition>,
+//     // Per-post per-user position
+//     #[account(
+//         init_if_needed,
+//         payer = payer,
+//         seeds = [POSITION_SEED, post.key().as_ref(), user_account.key().as_ref()],
+//         bump,
+//         space = 8 + 128,
+//     )]
+//     pub position: Account<'info, UserPostPosition>,
 
-    // Payment vault
-    #[account(mut)]
-    pub user_vault_token_account: Account<'info, TokenAccount>,
-    /// CHECK
-    #[account(
-        seeds = [b"vault_authority"],
-        bump,
-    )]
-    pub vault_authority: UncheckedAccount<'info>,
+//     // Payment vault
+//     #[account(mut)]
+//     pub vault_token_account: Account<'info, TokenAccount>,
+//     /// CHECK
+//     #[account(
+//         seeds = [VAULT_AUTHORITY_SEED],
+//         bump,
+//     )]
+//     pub vault_authority: UncheckedAccount<'info>,
 
-    // BLING & fees
-    #[account(mut)]
-    pub protocol_bling_treasury: Account<'info, TokenAccount>,
-    #[account(mut)]
-    pub creator_bling_vault: Account<'info, TokenAccount>,
-    #[account(mut)]
-    pub post_pot_bling: Account<'info, TokenAccount>,
+//     // BLING & fees
+//     #[account(mut)]
+//     pub protocol_bling_treasury: Account<'info, TokenAccount>,
+//     #[account(mut)]
+//     pub creator_bling_vault: Account<'info, TokenAccount>,
+//     #[account(mut)]
+//     pub post_pot_bling: Account<'info, TokenAccount>,
 
-    // If paying with non-BLING mint
-    pub accepted_mint: Option<Account<'info, AcceptedMint>>,
-    #[account(mut)]
-    pub mint_treasury_token_account: Option<Account<'info, TokenAccount>>,
-    pub bling_mint: Option<Account<'info, Mint>>,
-    /// CHECK
-    pub bling_mint_authority: Option<UncheckedAccount<'info>>,
+//     // If paying with non-BLING mint
+//     pub accepted_alternative_payment: Option<Account<'info, AlternativePayment>>,
+//     #[account(mut)]
+//     pub mint_treasury_token_account: Option<Account<'info, TokenAccount>>,
+//     pub bling_mint: Option<Account<'info, Mint>>,
+//     /// CHECK
+//     pub bling_mint_authority: Option<UncheckedAccount<'info>>,
 
-    #[account(mut)]
-    pub payer: Signer<'info>, // your relayer/backend
-    pub token_program: Program<'info, Token>,
-    pub system_program: Program<'info, System>,
-}
+//     #[account(mut)]
+//     pub payer: Signer<'info>, // your relayer/backend
+//     pub token_program: Program<'info, Token>,
+//     pub system_program: Program<'info, System>,
+// }
 
-#[derive(Accounts)]
-pub struct SettlePost<'info> {
-    #[account(mut)]
-    pub post: Account<'info, PostAccount>,
-    #[account(mut)]
-    pub post_pot_bling: Account<'info, TokenAccount>,
-    /// CHECK
-    #[account(
-        seeds = [b"post_pot_authority", post.key().as_ref()],
-        bump,
-    )]
-    pub post_pot_authority: UncheckedAccount<'info>,
-    #[account(mut)]
-    pub creator_bling_vault: Account<'info, TokenAccount>,
-    #[account(mut)]
-    pub protocol_bling_treasury: Account<'info, TokenAccount>,
-    pub token_program: Program<'info, Token>,
-}
+// #[derive(Accounts)]
+// pub struct SettlePost<'info> {
+//     #[account(mut)]
+//     pub post: Account<'info, PostAccount>,
+//     #[account(mut)]
+//     pub post_pot_bling: Account<'info, TokenAccount>,
+//     /// CHECK
+//     #[account(
+//         seeds = [POST_POT_AUTHORITY_SEED, post.key().as_ref()],
+//         bump,
+//     )]
+//     pub post_pot_authority: UncheckedAccount<'info>,
+//     #[account(mut)]
+//     pub creator_bling_vault: Account<'info, TokenAccount>,
+//     #[account(mut)]
+//     pub protocol_bling_treasury: Account<'info, TokenAccount>,
+//     pub token_program: Program<'info, Token>,
+// }
 
-#[derive(Accounts)]
-pub struct ClaimPostReward<'info> {
-    pub post: Account<'info, PostAccount>,
-    #[account(mut)]
-    pub position: Account<'info, UserPostPosition>,
-    #[account(mut)]
-    pub post_pot_bling: Account<'info, TokenAccount>,
-    /// CHECK
-    #[account(
-        seeds = [b"post_pot_authority", post.key().as_ref()],
-        bump,
-    )]
-    pub post_pot_authority: UncheckedAccount<'info>,
-    #[account(mut)]
-    pub user_bling_vault: Account<'info, TokenAccount>,
-    pub token_program: Program<'info, Token>,
-}
+// #[derive(Accounts)]
+// pub struct ClaimPostReward<'info> {
+//     pub post: Account<'info, PostAccount>,
+//     #[account(mut)]
+//     pub position: Account<'info, UserPostPosition>,
+//     #[account(mut)]
+//     pub post_pot_bling: Account<'info, TokenAccount>,
+//     /// CHECK
+//     #[account(
+//         seeds = [POST_POT_AUTHORITY_SEED, post.key().as_ref()],
+//         bump,
+//     )]
+//     pub post_pot_authority: UncheckedAccount<'info>,
+//     #[account(mut)]
+//     pub user_bling_vault: Account<'info, TokenAccount>,
+//     pub token_program: Program<'info, Token>,
+// }
 
 // -----------------------------------------------------------------------------
 // ERRORS

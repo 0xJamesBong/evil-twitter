@@ -14,20 +14,26 @@ pub struct Config {
     pub base_duration_secs: u32,
     pub max_duration_secs: u32,
     pub extension_per_vote_secs: u32,
+    pub bump: u8,
+    pub padding: [u8; 7], // 7
 }
 
 #[account]
-pub struct AcceptedMint {
-    pub mint: Pubkey,
+pub struct AlternativePayment {
+    pub token_mint: Pubkey,
     pub price_in_bling: u64,
     pub treasury_token_account: Pubkey,
     pub enabled: bool,
+    pub bump: u8,
+    pub padding: [u8; 7], // 7
 }
 
 #[account]
 pub struct UserAccount {
     pub authority_wallet: Pubkey,
     pub social_score: i64, // can drive withdraw penalty etc.
+    pub bump: u8,
+    pub padding: [u8; 7], // 7
 }
 
 #[account]
