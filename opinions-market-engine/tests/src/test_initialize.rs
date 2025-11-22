@@ -11,7 +11,9 @@ use solana_sdk::{
 }; // Add this import
 
 use crate::utils::definitions::RATES;
-use crate::utils::phenomena::{test_phenomena_add_alternative_payment, test_phenomena_create_user};
+use crate::utils::phenomena::{
+    test_phenomena_add_alternative_payment, test_phenomena_create_user, test_phenomena_deposit,
+};
 use crate::utils::utils::{
     airdrop_sol_to_users, send_tx, setup_token_mint, setup_token_mint_ata_and_mint_to,
     setup_token_mint_ata_and_mint_to_many_users,
@@ -64,8 +66,8 @@ async fn test_setup() {
 
     let client = Client::new_with_options(Cluster::Localnet, &payer, CommitmentConfig::confirmed());
 
-    let program = client.program(program_id).unwrap();
-    let rpc = program.rpc();
+    let opinions_market_engine = client.program(program_id).unwrap();
+    let rpc = opinions_market_engine.rpc();
 
     let bling_mint = Keypair::new();
     let bling_pubkey = bling_mint.pubkey();
@@ -86,16 +88,23 @@ async fn test_setup() {
 
     airdrop_sol_to_users(&rpc, &everyone).await;
 
-    setup_token_mint(&rpc, &payer, &payer, &program, &bling_mint).await;
-    setup_token_mint(&rpc, &payer, &payer, &program, &usdc_mint).await;
-    setup_token_mint(&rpc, &payer, &payer, &program, &stablecoin_mint).await;
+    setup_token_mint(&rpc, &payer, &payer, &opinions_market_engine, &bling_mint).await;
+    setup_token_mint(&rpc, &payer, &payer, &opinions_market_engine, &usdc_mint).await;
+    setup_token_mint(
+        &rpc,
+        &payer,
+        &payer,
+        &opinions_market_engine,
+        &stablecoin_mint,
+    )
+    .await;
 
     let bling_atas = setup_token_mint_ata_and_mint_to_many_users(
         &rpc,
         &payer,
         &mint_authority,
         &everyone.keys().cloned().collect::<Vec<Pubkey>>(),
-        &program,
+        &opinions_market_engine,
         &bling_mint,
         1_000_000_000 * LAMPORTS_PER_SOL,
         &bling_mint,
@@ -109,7 +118,7 @@ async fn test_setup() {
         &payer,
         &mint_authority,
         &everyone.keys().cloned().collect::<Vec<Pubkey>>(),
-        &program,
+        &opinions_market_engine,
         &usdc_mint,
         1_000_000_000 * LAMPORTS_PER_SOL,
         &bling_mint,
@@ -142,7 +151,7 @@ async fn test_setup() {
         )
         .0;
 
-        let initialize_ix = program
+        let initialize_ix = opinions_market_engine
             .request()
             .accounts(opinions_market_engine::accounts::Initialize {
                 admin: admin_pubkey,
@@ -166,107 +175,93 @@ async fn test_setup() {
             .unwrap();
         println!("initialize tx: {:?}", initialize_tx);
 
-        test_phenomena_add_alternative_payment(&rpc, &program, &payer, &admin, &usdc_pubkey).await;
+        test_phenomena_add_alternative_payment(
+            &rpc,
+            &opinions_market_engine,
+            &payer,
+            &admin,
+            &usdc_pubkey,
+        )
+        .await;
 
-        test_phenomena_create_user(&rpc, &program, &payer, &user_1).await;
-        test_phenomena_create_user(&rpc, &program, &payer, &user_2).await;
-        test_phenomena_create_user(&rpc, &program, &payer, &user_3).await;
+        test_phenomena_create_user(&rpc, &opinions_market_engine, &payer, &user_1).await;
+        test_phenomena_create_user(&rpc, &opinions_market_engine, &payer, &user_2).await;
+        test_phenomena_create_user(&rpc, &opinions_market_engine, &payer, &user_3).await;
+
+        test_phenomena_deposit(
+            &rpc,
+            &opinions_market_engine,
+            &payer,
+            &user_1,
+            &bling_pubkey,
+            &bling_atas,
+            &config_pda,
+        )
+        .await;
+
         // {
-        //     println!("creating user 1");
+        //     println!("user 1 depositing 10_000_000 bling to their vault");
+        //     let deposit_amount = 10_000_000;
+
         //     let user_account_pda = Pubkey::find_program_address(
         //         &[USER_ACCOUNT_SEED, user_1_pubkey.as_ref()],
         //         &program_id,
         //     )
         //     .0;
 
-        //     let create_user_ix = program
+        //     let vault_authority_pda =
+        //         Pubkey::find_program_address(&[VAULT_AUTHORITY_SEED], &program_id).0;
+
+        //     let vault_token_account_pda = Pubkey::find_program_address(
+        //         &[
+        //             VAULT_TOKEN_ACCOUNT_SEED,
+        //             user_1_pubkey.as_ref(),
+        //             bling_pubkey.as_ref(),
+        //         ],
+        //         &program_id,
+        //     )
+        //     .0;
+
+        //     let user_bling_ata = bling_atas.get(&user_1_pubkey).unwrap();
+
+        //     // For BLING deposits, accepted_alternative_payment can be a dummy account
+        //     // (the function will skip validation for BLING)
+        //     let deposit_ix = program
         //         .request()
-        //         .accounts(opinions_market_engine::accounts::CreateUser {
-        //             authority: user_1_pubkey,
+        //         .accounts(opinions_market_engine::accounts::Deposit {
+        //             user: user_1_pubkey,
         //             user_account: user_account_pda,
+        //             config: config_pda,
+        //             token_mint: bling_pubkey,
+        //             accepted_alternative_payment: Some(config_pda), // Dummy account for BLING (validation skipped)
+        //             user_token_ata: *user_bling_ata,
+        //             vault_authority: vault_authority_pda,
+        //             vault_token_account: vault_token_account_pda,
+        //             token_program: spl_token::ID,
         //             system_program: system_program::ID,
         //         })
-        //         .args(opinions_market_engine::instruction::CreateUser {})
+        //         .args(opinions_market_engine::instruction::Deposit {
+        //             amount: deposit_amount,
+        //         })
         //         .instructions()
         //         .unwrap();
 
-        //     let create_user_tx = send_tx(&rpc, create_user_ix, &payer.pubkey(), &[&payer, &user_1])
+        //     let deposit_tx = send_tx(&rpc, deposit_ix, &payer.pubkey(), &[&payer, &user_1])
         //         .await
         //         .unwrap();
-        //     println!("create user tx: {:?}", create_user_tx);
+        //     println!("deposit tx: {:?}", deposit_tx);
 
-        //     // Verify user account was created
-        //     let user_account = program
-        //         .account::<opinions_market_engine::state::UserAccount>(user_account_pda)
+        //     // Verify vault balance
+        //     let vault_balance = program
+        //         .account::<anchor_spl::token::TokenAccount>(vault_token_account_pda)
         //         .await
         //         .unwrap();
-        //     assert_eq!(user_account.authority_wallet, user_1_pubkey);
-        //     println!("✅ User account created successfully");
+        //     assert_eq!(vault_balance.amount, deposit_amount);
+        //     println!(
+        //         "✅ Deposit successful. Vault balance: {}",
+        //         vault_balance.amount
+        //     );
         // }
-
-        {
-            println!("user 1 depositing 10_000_000 bling to their vault");
-            let deposit_amount = 10_000_000;
-
-            let user_account_pda = Pubkey::find_program_address(
-                &[USER_ACCOUNT_SEED, user_1_pubkey.as_ref()],
-                &program_id,
-            )
-            .0;
-
-            let vault_authority_pda =
-                Pubkey::find_program_address(&[VAULT_AUTHORITY_SEED], &program_id).0;
-
-            let vault_token_account_pda = Pubkey::find_program_address(
-                &[
-                    VAULT_TOKEN_ACCOUNT_SEED,
-                    user_1_pubkey.as_ref(),
-                    bling_pubkey.as_ref(),
-                ],
-                &program_id,
-            )
-            .0;
-
-            let user_bling_ata = bling_atas.get(&user_1_pubkey).unwrap();
-
-            // For BLING deposits, accepted_alternative_payment can be a dummy account
-            // (the function will skip validation for BLING)
-            let deposit_ix = program
-                .request()
-                .accounts(opinions_market_engine::accounts::Deposit {
-                    user: user_1_pubkey,
-                    user_account: user_account_pda,
-                    config: config_pda,
-                    token_mint: bling_pubkey,
-                    accepted_alternative_payment: Some(config_pda), // Dummy account for BLING (validation skipped)
-                    user_token_ata: *user_bling_ata,
-                    vault_authority: vault_authority_pda,
-                    vault_token_account: vault_token_account_pda,
-                    token_program: spl_token::ID,
-                    system_program: system_program::ID,
-                })
-                .args(opinions_market_engine::instruction::Deposit {
-                    amount: deposit_amount,
-                })
-                .instructions()
-                .unwrap();
-
-            let deposit_tx = send_tx(&rpc, deposit_ix, &payer.pubkey(), &[&payer, &user_1])
-                .await
-                .unwrap();
-            println!("deposit tx: {:?}", deposit_tx);
-
-            // Verify vault balance
-            let vault_balance = program
-                .account::<anchor_spl::token::TokenAccount>(vault_token_account_pda)
-                .await
-                .unwrap();
-            assert_eq!(vault_balance.amount, deposit_amount);
-            println!(
-                "✅ Deposit successful. Vault balance: {}",
-                vault_balance.amount
-            );
-        }
 
         {
             println!("user 1 withdrawing 9_000_000 bling from their vault to their wallet");
@@ -293,7 +288,7 @@ async fn test_setup() {
 
             let user_bling_ata = bling_atas.get(&user_1_pubkey).unwrap();
 
-            let withdraw_ix = program
+            let withdraw_ix = opinions_market_engine
                 .request()
                 .accounts(opinions_market_engine::accounts::Withdraw {
                     user: user_1_pubkey,
@@ -316,7 +311,7 @@ async fn test_setup() {
             println!("withdraw tx: {:?}", withdraw_tx);
 
             // Verify vault balance decreased
-            let vault_balance = program
+            let vault_balance = opinions_market_engine
                 .account::<anchor_spl::token::TokenAccount>(vault_token_account_pda)
                 .await
                 .unwrap();
@@ -327,7 +322,7 @@ async fn test_setup() {
             );
 
             // Verify user wallet balance increased
-            let user_balance = program
+            let user_balance = opinions_market_engine
                 .account::<anchor_spl::token::TokenAccount>(*user_bling_ata)
                 .await
                 .unwrap();
