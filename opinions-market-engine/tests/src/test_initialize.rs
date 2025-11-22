@@ -246,6 +246,21 @@ async fn test_setup() {
             .await;
         }
 
+        {
+            println!("user 2 withdrawing 900 usdc from their vault to their wallet");
+            test_phenomena_withdraw(
+                &rpc,
+                &opinions_market_engine,
+                &payer,
+                &user_2,
+                900 * LAMPORTS_PER_SOL,
+                &usdc_pubkey,
+                &tokens,
+                &usdc_atas,
+            )
+            .await;
+        }
+
         // {
         //     println!("user 1 depositing 1_000 usdc to their vault");
         // }
