@@ -12,8 +12,8 @@ use solana_sdk::{
 
 use crate::utils::definitions::RATES;
 use crate::utils::phenomena::{
-    test_phenomena_add_valid_payment, test_phenomena_create_user, test_phenomena_deposit,
-    test_phenomena_withdraw,
+    test_phenomena_add_valid_payment, test_phenomena_create_post, test_phenomena_create_user,
+    test_phenomena_deposit, test_phenomena_withdraw,
 };
 use crate::utils::utils::{
     airdrop_sol_to_users, send_tx, setup_token_mint, setup_token_mint_ata_and_mint_to,
@@ -261,17 +261,25 @@ async fn test_setup() {
             .await;
         }
 
-        // {
-        //     println!("user 1 depositing 1_000 usdc to their vault");
-        // }
+        test_phenomena_create_post(
+            &rpc,
+            &opinions_market_engine,
+            &payer,
+            &user_1,
+            &bling_pubkey,
+            &config_pda,
+        )
+        .await;
 
-        // {
-        //     println!("user 1 withdrawing 900 usdc from their vault to their wallet");
-        // }
-
-        {
-            println!("user 1 makes a post")
-        }
+        test_phenomena_create_post(
+            &rpc,
+            &opinions_market_engine,
+            &payer,
+            &user_3,
+            &bling_pubkey,
+            &config_pda,
+        )
+        .await;
 
         println!("\n\n");
         println!(" 🟪🟪🟪🟪🟪🟪🟪🟪🟪🟪🟪🟪🟪");

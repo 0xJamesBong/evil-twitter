@@ -2,6 +2,8 @@ use std::collections::HashMap;
 
 use anchor_client::anchor_lang::solana_program::example_mocks::solana_sdk::system_program;
 use anchor_client::Program;
+use anchor_spl::associated_token::spl_associated_token_account;
+use anchor_spl::associated_token::spl_associated_token_account::instruction::create_associated_token_account;
 use anchor_spl::token::spl_token;
 use solana_client::nonblocking::rpc_client::RpcClient;
 use solana_sdk::pubkey::Pubkey;
@@ -287,7 +289,106 @@ pub async fn test_phenomena_withdraw(
     println!("✅ User wallet balance: {}", user_balance.amount);
 }
 
-pub async fn test_phenomena_create_post() {}
+pub async fn test_phenomena_create_post(
+    rpc: &RpcClient,
+    opinions_market_engine: &Program<&Keypair>,
+    payer: &Keypair,
+    creator: &Keypair,
+    bling_mint: &Pubkey,
+    config_pda: &Pubkey,
+) {
+    println!("{:} makes a post", creator.pubkey());
+
+    // Generate a random post_id_hash
+    // For testing, we'll use a simple hash based on current time
+    let mut hash = [0u8; 32];
+    hash[0..8].copy_from_slice(
+        &(std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_secs())
+        .to_le_bytes(),
+    );
+
+    let creator_user_account_pda = Pubkey::find_program_address(
+        &[USER_ACCOUNT_SEED, creator.pubkey().as_ref()],
+        &opinions_market_engine.id(),
+    )
+    .0;
+
+    let post_pda = Pubkey::find_program_address(
+        &[b"post", creator_user_account_pda.as_ref(), hash.as_ref()],
+        &opinions_market_engine.id(),
+    )
+    .0;
+
+    let post_pot_authority_pda = Pubkey::find_program_address(
+        &[POST_POT_AUTHORITY_SEED, post_pda.as_ref()],
+        &opinions_market_engine.id(),
+    )
+    .0;
+
+    // Create the post_pot_bling token account (PDA owned by post_pot_authority)
+    // This needs to be created before calling create_post
+    let post_pot_bling_pda = spl_associated_token_account::get_associated_token_address(
+        &post_pot_authority_pda,
+        bling_mint,
+    );
+
+    // Check if the token account exists, if not create it
+    let post_pot_bling_account = opinions_market_engine
+        .account::<anchor_spl::token::TokenAccount>(post_pot_bling_pda)
+        .await;
+
+    if post_pot_bling_account.is_err() {
+        // Create the token account
+        let create_ata_ix = create_associated_token_account(
+            &payer.pubkey(),
+            &post_pot_authority_pda,
+            bling_mint,
+            &spl_token::ID,
+        );
+        let create_ata_tx = send_tx(&rpc, vec![create_ata_ix], &payer.pubkey(), &[&payer])
+            .await
+            .unwrap();
+        println!("Created post_pot_bling token account: {:?}", create_ata_tx);
+    }
+
+    let create_post_ix = opinions_market_engine
+        .request()
+        .accounts(opinions_market_engine::accounts::CreatePost {
+            config: *config_pda,
+            creator_user_account: creator_user_account_pda,
+            post: post_pda,
+            post_pot_bling: post_pot_bling_pda,
+            payer: payer.pubkey(),
+            system_program: system_program::ID,
+        })
+        .args(opinions_market_engine::instruction::CreatePost { post_id_hash: hash })
+        .instructions()
+        .unwrap();
+
+    let create_post_tx = send_tx(&rpc, create_post_ix, &payer.pubkey(), &[&payer])
+        .await
+        .unwrap();
+    println!("create post tx: {:?}", create_post_tx);
+
+    // Verify post was created
+    let post_account = opinions_market_engine
+        .account::<opinions_market_engine::state::PostAccount>(post_pda)
+        .await
+        .unwrap();
+    assert_eq!(post_account.creator_user, creator_user_account_pda);
+    assert_eq!(post_account.post_id_hash, hash);
+    // Check state using pattern matching since PostState doesn't implement Debug
+    match post_account.state {
+        opinions_market_engine::state::PostState::Open => {}
+        _ => panic!("Post should be in Open state"),
+    }
+    assert_eq!(post_account.total_pump_bling, 0);
+    assert_eq!(post_account.total_smack_bling, 0);
+    println!("✅ Post created successfully");
+}
 
 pub async fn test_phenomena_vote_on_post() {}
 
