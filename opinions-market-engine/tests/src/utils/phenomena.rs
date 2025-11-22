@@ -140,12 +140,14 @@ pub async fn test_phenomena_deposit(
     opinions_market_engine: &Program<&Keypair>,
     payer: &Keypair,
     user: &Keypair,
-    bling_mint: &Pubkey,
-    bling_atas: &HashMap<Pubkey, Pubkey>,
+    amount: u64,
+    token_mint: &Pubkey,
+    tokens: &HashMap<Pubkey, String>,
+    token_atas: &HashMap<Pubkey, Pubkey>,
     config_pda: &Pubkey,
 ) {
-    println!("user 1 depositing 10_000_000 bling to their vault");
-    let deposit_amount = 10_000_000;
+    let token_name = tokens.get(token_mint).unwrap();
+    println!("depositing {:} {:} to their vault", amount, token_name);
 
     let user_account_pda = Pubkey::find_program_address(
         &[USER_ACCOUNT_SEED, user.pubkey().as_ref()],
@@ -160,13 +162,13 @@ pub async fn test_phenomena_deposit(
         &[
             VAULT_TOKEN_ACCOUNT_SEED,
             user.pubkey().as_ref(),
-            bling_mint.as_ref(),
+            token_mint.as_ref(),
         ],
         &opinions_market_engine.id(),
     )
     .0;
 
-    let user_bling_ata = bling_atas.get(&user.pubkey()).unwrap();
+    let user_bling_ata = token_atas.get(&user.pubkey()).unwrap();
 
     // For BLING deposits, accepted_alternative_payment can be a dummy account
     // (the function will skip validation for BLING)
@@ -176,7 +178,7 @@ pub async fn test_phenomena_deposit(
             user: user.pubkey(),
             user_account: user_account_pda,
             config: *config_pda,
-            token_mint: bling_mint.clone(),
+            token_mint: token_mint.clone(),
             accepted_alternative_payment: Some(*config_pda), // Dummy account for BLING (validation skipped)
             user_token_ata: *user_bling_ata,
             vault_authority: vault_authority_pda,
@@ -184,9 +186,7 @@ pub async fn test_phenomena_deposit(
             token_program: spl_token::ID,
             system_program: system_program::ID,
         })
-        .args(opinions_market_engine::instruction::Deposit {
-            amount: deposit_amount,
-        })
+        .args(opinions_market_engine::instruction::Deposit { amount: amount })
         .instructions()
         .unwrap();
 
@@ -200,7 +200,7 @@ pub async fn test_phenomena_deposit(
         .account::<anchor_spl::token::TokenAccount>(vault_token_account_pda)
         .await
         .unwrap();
-    assert_eq!(vault_balance.amount, deposit_amount);
+    assert_eq!(vault_balance.amount, amount);
     println!(
         "✅ Deposit successful. Vault balance: {}",
         vault_balance.amount
@@ -212,11 +212,16 @@ pub async fn test_phenomena_withdraw(
     opinions_market_engine: &Program<&Keypair>,
     payer: &Keypair,
     user: &Keypair,
-    bling_mint: &Pubkey,
-    bling_atas: &HashMap<Pubkey, Pubkey>,
+    amount: u64,
+    token_mint: &Pubkey,
+    tokens: &HashMap<Pubkey, String>,
+    token_atas: &HashMap<Pubkey, Pubkey>,
 ) {
-    println!("user 1 withdrawing 9_000_000 bling from their vault to their wallet");
-    let withdraw_amount = 9_000_000;
+    let token_name = tokens.get(token_mint).unwrap();
+    println!(
+        "withdrawing {:} {:} from their vault to their wallet",
+        amount, token_name
+    );
 
     let user_account_pda = Pubkey::find_program_address(
         &[USER_ACCOUNT_SEED, user.pubkey().as_ref()],
@@ -231,28 +236,32 @@ pub async fn test_phenomena_withdraw(
         &[
             VAULT_TOKEN_ACCOUNT_SEED,
             user.pubkey().as_ref(),
-            bling_mint.as_ref(),
+            token_mint.as_ref(),
         ],
         &opinions_market_engine.id(),
     )
     .0;
 
-    let user_bling_ata = bling_atas.get(&user.pubkey()).unwrap();
+    let vault_balance_original = opinions_market_engine
+        .account::<anchor_spl::token::TokenAccount>(vault_token_account_pda)
+        .await
+        .unwrap()
+        .amount;
+
+    let user_token_ata = token_atas.get(&user.pubkey()).unwrap();
 
     let withdraw_ix = opinions_market_engine
         .request()
         .accounts(opinions_market_engine::accounts::Withdraw {
             user: user.pubkey(),
             user_account: user_account_pda,
-            token_mint: bling_mint.clone(),
-            user_token_dest_ata: *user_bling_ata,
+            token_mint: token_mint.clone(),
+            user_token_dest_ata: *user_token_ata,
             vault_token_account: vault_token_account_pda,
             vault_authority: vault_authority_pda,
             token_program: spl_token::ID,
         })
-        .args(opinions_market_engine::instruction::Withdraw {
-            amount: withdraw_amount,
-        })
+        .args(opinions_market_engine::instruction::Withdraw { amount })
         .instructions()
         .unwrap();
 
@@ -266,7 +275,7 @@ pub async fn test_phenomena_withdraw(
         .account::<anchor_spl::token::TokenAccount>(vault_token_account_pda)
         .await
         .unwrap();
-    assert_eq!(vault_balance.amount, 10_000_000 - withdraw_amount);
+    assert_eq!(vault_balance.amount, vault_balance_original - amount);
     println!(
         "✅ Withdraw successful. Vault balance: {}",
         vault_balance.amount
@@ -274,7 +283,7 @@ pub async fn test_phenomena_withdraw(
 
     // Verify user wallet balance increased
     let user_balance = opinions_market_engine
-        .account::<anchor_spl::token::TokenAccount>(*user_bling_ata)
+        .account::<anchor_spl::token::TokenAccount>(*user_token_ata)
         .await
         .unwrap();
     println!("✅ User wallet balance: {}", user_balance.amount);

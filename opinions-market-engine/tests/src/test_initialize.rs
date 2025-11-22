@@ -79,6 +79,12 @@ async fn test_setup() {
     let stablecoin_mint = Keypair::new();
     let stablecoin_pubkey = stablecoin_mint.pubkey();
 
+    let tokens = HashMap::from([
+        (bling_pubkey, "bling".to_string()),
+        (usdc_pubkey, "usdc".to_string()),
+        (stablecoin_pubkey, "stablecoin".to_string()),
+    ]);
+
     let everyone = HashMap::from([
         (payer.pubkey(), "payer".to_string()),
         (admin.pubkey(), "admin".to_string()), // admin is the owner of the opinions market engine program
@@ -188,27 +194,51 @@ async fn test_setup() {
         test_phenomena_create_user(&rpc, &opinions_market_engine, &payer, &user_1).await;
         test_phenomena_create_user(&rpc, &opinions_market_engine, &payer, &user_2).await;
         test_phenomena_create_user(&rpc, &opinions_market_engine, &payer, &user_3).await;
+        {
+            println!("user 1 depositing 10_000_000 bling to their vault");
+            test_phenomena_deposit(
+                &rpc,
+                &opinions_market_engine,
+                &payer,
+                &user_1,
+                10_000_000 * LAMPORTS_PER_SOL,
+                &bling_pubkey,
+                &tokens,
+                &bling_atas,
+                &config_pda,
+            )
+            .await;
+        }
 
-        test_phenomena_deposit(
-            &rpc,
-            &opinions_market_engine,
-            &payer,
-            &user_1,
-            &bling_pubkey,
-            &bling_atas,
-            &config_pda,
-        )
-        .await;
-
-        test_phenomena_withdraw(
-            &rpc,
-            &opinions_market_engine,
-            &payer,
-            &user_1,
-            &bling_pubkey,
-            &bling_atas,
-        )
-        .await;
+        // {
+        //     println!("user 2 depositing 1_000 usdc to their vault");
+        //     test_phenomena_deposit(
+        //         &rpc,
+        //         &opinions_market_engine,
+        //         &payer,
+        //         &user_2,
+        //         1_000 * LAMPORTS_PER_SOL,
+        //         &usdc_pubkey,
+        //         &tokens,
+        //         &usdc_atas,
+        //         &config_pda,
+        //     )
+        //     .await;
+        // }
+        {
+            println!("user 1 withdrawing 9_000_000 bling from their vault to their wallet");
+            test_phenomena_withdraw(
+                &rpc,
+                &opinions_market_engine,
+                &payer,
+                &user_1,
+                9_000_000 * LAMPORTS_PER_SOL,
+                &bling_pubkey,
+                &tokens,
+                &bling_atas,
+            )
+            .await;
+        }
 
         // {
         //     println!("user 1 depositing 1_000 usdc to their vault");
