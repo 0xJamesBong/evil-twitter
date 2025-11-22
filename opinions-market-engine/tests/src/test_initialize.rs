@@ -132,9 +132,10 @@ async fn test_setup() {
     // )
     // .await;
 
+    let config_pda = Pubkey::find_program_address(&[b"config"], &program_id).0;
+
     {
         println!("initializing opinions market engine");
-        let config_pda = Pubkey::find_program_address(&[b"config"], &program_id).0;
         let protocol_bling_treasury_pda = Pubkey::find_program_address(
             &[PROTOCOL_TREASURY_SEED, bling_pubkey.as_ref()],
             &program_id,
@@ -167,87 +168,180 @@ async fn test_setup() {
 
         test_phenomena_add_alternative_payment(&rpc, &program, &payer, &admin, &usdc_pubkey).await;
 
+        {
+            println!("creating user 1");
+            let user_account_pda = Pubkey::find_program_address(
+                &[USER_ACCOUNT_SEED, user_1_pubkey.as_ref()],
+                &program_id,
+            )
+            .0;
+
+            let create_user_ix = program
+                .request()
+                .accounts(opinions_market_engine::accounts::CreateUser {
+                    authority: user_1_pubkey,
+                    user_account: user_account_pda,
+                    system_program: system_program::ID,
+                })
+                .args(opinions_market_engine::instruction::CreateUser {})
+                .instructions()
+                .unwrap();
+
+            let create_user_tx = send_tx(&rpc, create_user_ix, &payer.pubkey(), &[&payer, &user_1])
+                .await
+                .unwrap();
+            println!("create user tx: {:?}", create_user_tx);
+
+            // Verify user account was created
+            let user_account = program
+                .account::<opinions_market_engine::state::UserAccount>(user_account_pda)
+                .await
+                .unwrap();
+            assert_eq!(user_account.authority_wallet, user_1_pubkey);
+            println!("✅ User account created successfully");
+        }
+
+        {
+            println!("user 1 depositing 10_000_000 bling to their vault");
+            let deposit_amount = 10_000_000;
+
+            let user_account_pda = Pubkey::find_program_address(
+                &[USER_ACCOUNT_SEED, user_1_pubkey.as_ref()],
+                &program_id,
+            )
+            .0;
+
+            let vault_authority_pda =
+                Pubkey::find_program_address(&[VAULT_AUTHORITY_SEED], &program_id).0;
+
+            let vault_token_account_pda = Pubkey::find_program_address(
+                &[
+                    VAULT_TOKEN_ACCOUNT_SEED,
+                    user_1_pubkey.as_ref(),
+                    bling_pubkey.as_ref(),
+                ],
+                &program_id,
+            )
+            .0;
+
+            let user_bling_ata = bling_atas.get(&user_1_pubkey).unwrap();
+
+            // For BLING deposits, accepted_alternative_payment can be a dummy account
+            // (the function will skip validation for BLING)
+            let deposit_ix = program
+                .request()
+                .accounts(opinions_market_engine::accounts::Deposit {
+                    user: user_1_pubkey,
+                    user_account: user_account_pda,
+                    config: config_pda,
+                    token_mint: bling_pubkey,
+                    accepted_alternative_payment: Some(config_pda), // Dummy account for BLING (validation skipped)
+                    user_token_ata: *user_bling_ata,
+                    vault_authority: vault_authority_pda,
+                    vault_token_account: vault_token_account_pda,
+                    token_program: spl_token::ID,
+                    system_program: system_program::ID,
+                })
+                .args(opinions_market_engine::instruction::Deposit {
+                    amount: deposit_amount,
+                })
+                .instructions()
+                .unwrap();
+
+            let deposit_tx = send_tx(&rpc, deposit_ix, &payer.pubkey(), &[&payer, &user_1])
+                .await
+                .unwrap();
+            println!("deposit tx: {:?}", deposit_tx);
+
+            // Verify vault balance
+            let vault_balance = program
+                .account::<anchor_spl::token::TokenAccount>(vault_token_account_pda)
+                .await
+                .unwrap();
+            assert_eq!(vault_balance.amount, deposit_amount);
+            println!(
+                "✅ Deposit successful. Vault balance: {}",
+                vault_balance.amount
+            );
+        }
+
+        {
+            println!("user 1 withdrawing 9_000_000 bling from their vault to their wallet");
+            let withdraw_amount = 9_000_000;
+
+            let user_account_pda = Pubkey::find_program_address(
+                &[USER_ACCOUNT_SEED, user_1_pubkey.as_ref()],
+                &program_id,
+            )
+            .0;
+
+            let vault_authority_pda =
+                Pubkey::find_program_address(&[VAULT_AUTHORITY_SEED], &program_id).0;
+
+            let vault_token_account_pda = Pubkey::find_program_address(
+                &[
+                    VAULT_TOKEN_ACCOUNT_SEED,
+                    user_1_pubkey.as_ref(),
+                    bling_pubkey.as_ref(),
+                ],
+                &program_id,
+            )
+            .0;
+
+            let user_bling_ata = bling_atas.get(&user_1_pubkey).unwrap();
+
+            let withdraw_ix = program
+                .request()
+                .accounts(opinions_market_engine::accounts::Withdraw {
+                    user: user_1_pubkey,
+                    user_account: user_account_pda,
+                    token_mint: bling_pubkey,
+                    user_token_dest_ata: *user_bling_ata,
+                    vault_token_account: vault_token_account_pda,
+                    vault_authority: vault_authority_pda,
+                    token_program: spl_token::ID,
+                })
+                .args(opinions_market_engine::instruction::Withdraw {
+                    amount: withdraw_amount,
+                })
+                .instructions()
+                .unwrap();
+
+            let withdraw_tx = send_tx(&rpc, withdraw_ix, &payer.pubkey(), &[&payer, &user_1])
+                .await
+                .unwrap();
+            println!("withdraw tx: {:?}", withdraw_tx);
+
+            // Verify vault balance decreased
+            let vault_balance = program
+                .account::<anchor_spl::token::TokenAccount>(vault_token_account_pda)
+                .await
+                .unwrap();
+            assert_eq!(vault_balance.amount, 10_000_000 - withdraw_amount);
+            println!(
+                "✅ Withdraw successful. Vault balance: {}",
+                vault_balance.amount
+            );
+
+            // Verify user wallet balance increased
+            let user_balance = program
+                .account::<anchor_spl::token::TokenAccount>(*user_bling_ata)
+                .await
+                .unwrap();
+            println!("✅ User wallet balance: {}", user_balance.amount);
+        }
+
         // {
-        //     println!("adding usdc as an alternative payment mint");
-
-        //     // adding usdc as an alternative payment mint
-        //     let alternative_payment_pda = Pubkey::find_program_address(
-        //         &[ACCEPTED_MINT_SEED, usdc_pubkey.as_ref()],
-        //         &program_id,
-        //     )
-        //     .0;
-
-        //     // BEFORE: Verify USDC is NOT an alternative payment mint (account doesn't exist)
-        //     let account_before = program
-        //         .account::<opinions_market_engine::state::AlternativePayment>(
-        //             alternative_payment_pda,
-        //         )
-        //         .await;
-        //     assert!(
-        //         account_before.is_err(),
-        //         "USDC should NOT be registered as alternative payment before registration"
-        //     );
-        //     println!("✅ Verified: USDC is NOT registered before registration");
-        //     let treasury_token_account_pda = Pubkey::find_program_address(
-        //         &[PROTOCOL_TREASURY_SEED, usdc_pubkey.as_ref()],
-        //         &program_id,
-        //     )
-        //     .0;
-        //     let register_alternative_payment_ix = program
-        //         .request()
-        //         .accounts(
-        //             opinions_market_engine::accounts::RegisterAlternativePayment {
-        //                 config: config_pda,
-        //                 admin: admin_pubkey,
-        //                 token_mint: usdc_pubkey,
-        //                 alternative_payment: alternative_payment_pda,
-        //                 treasury_token_account: treasury_token_account_pda,
-        //                 system_program: system_program::ID,
-        //                 token_program: spl_token::ID,
-        //             },
-        //         )
-        //         .args(
-        //             opinions_market_engine::instruction::RegisterAlternativePayment {
-        //                 price_in_bling: RATES.usdc_to_bling,
-        //             },
-        //         )
-        //         .instructions()
-        //         .unwrap();
-
-        //     let register_alternative_payment_tx = send_tx(
-        //         &rpc,
-        //         register_alternative_payment_ix,
-        //         &payer.pubkey(),
-        //         &[&payer, &admin],
-        //     )
-        //     .await
-        //     .unwrap();
-        //     println!(
-        //         "register alternative payment tx: {:?}",
-        //         register_alternative_payment_tx
-        //     );
-
-        //     // AFTER: Verify USDC IS an alternative payment mint (account exists and is enabled)
-        //     let account_after = program
-        //         .account::<opinions_market_engine::state::AlternativePayment>(
-        //             alternative_payment_pda,
-        //         )
-        //         .await
-        //         .unwrap();
-        //     assert_eq!(
-        //         account_after.token_mint, usdc_pubkey,
-        //         "Token mint should match USDC"
-        //     );
-        //     assert!(
-        //         account_after.enabled,
-        //         "USDC should be enabled as alternative payment"
-        //     );
-        //     assert_eq!(
-        //         account_after.price_in_bling, RATES.usdc_to_bling,
-        //         "Price in BLING should match the registered rate"
-        //     );
-        //     println!("✅ Verified: USDC IS registered and enabled as alternative payment");
+        //     println!("user 1 depositing 1_000 usdc to their vault");
         // }
+
+        // {
+        //     println!("user 1 withdrawing 900 usdc from their vault to their wallet");
+        // }
+
+        {
+            println!("user 1 makes a post")
+        }
 
         println!("\n\n");
         println!(" 🟪🟪🟪🟪🟪🟪🟪🟪🟪🟪🟪🟪🟪");

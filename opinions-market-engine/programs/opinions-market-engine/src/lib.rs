@@ -1,5 +1,6 @@
 use crate::pda_seeds::*;
 use anchor_lang::prelude::*;
+use anchor_lang::solana_program::pubkey::Pubkey;
 pub mod instructions;
 pub mod pda_seeds;
 pub mod state;
@@ -101,8 +102,28 @@ pub mod opinions_market_engine {
 
     /// User deposits from their wallet into the program-controlled vault.
     pub fn deposit(ctx: Context<Deposit>, amount: u64) -> Result<()> {
-        // Mint is guaranteed to be accepted.
-        // accepted_alternative_payment contains price / canonical bling price etc.
+        let cfg = &ctx.accounts.config;
+        let is_bling = ctx.accounts.token_mint.key() == cfg.bling_mint;
+
+        // For non-BLING mints, require accepted_alternative_payment to exist and be enabled
+        if !is_bling {
+            let ap_account = ctx
+                .accounts
+                .accepted_alternative_payment
+                .as_ref()
+                .ok_or(ErrorCode::MintNotEnabled)?;
+
+            // Manually derive and validate the PDA
+            let (expected_pda, _bump) = Pubkey::find_program_address(
+                &[ACCEPTED_MINT_SEED, ctx.accounts.token_mint.key().as_ref()],
+                ctx.program_id,
+            );
+            require!(ap_account.key() == expected_pda, ErrorCode::MintNotEnabled);
+
+            let ap_data = &ap_account.try_borrow_data()?;
+            let ap = AlternativePayment::try_deserialize(&mut &ap_data[8..])?;
+            require!(ap.enabled, ErrorCode::MintNotEnabled);
+        }
 
         let cpi_accounts = anchor_spl::token::Transfer {
             from: ctx.accounts.user_token_ata.to_account_info(),
@@ -141,427 +162,428 @@ pub mod opinions_market_engine {
     // POSTS
     // -------------------------------------------------------------------------
 
-    // pub fn create_post(ctx: Context<CreatePost>, post_id_hash: [u8; 32]) -> Result<()> {
-    //     let cfg = &ctx.accounts.config;
-    //     let clock = Clock::get()?;
-    //     let post = &mut ctx.accounts.post;
+    pub fn create_post(ctx: Context<CreatePost>, post_id_hash: [u8; 32]) -> Result<()> {
+        let cfg = &ctx.accounts.config;
+        let clock = Clock::get()?;
 
-    //     post.creator_user = ctx.accounts.creator_user_account.key();
-    //     post.post_id_hash = post_id_hash;
-    //     post.start_time = clock.unix_timestamp;
-    //     post.end_time = clock.unix_timestamp + cfg.base_duration_secs as i64;
-    //     post.state = PostState::Open;
-    //     post.total_pump_bling = 0;
-    //     post.total_smack_bling = 0;
-    //     post.total_pot_bling = 0;
-    //     post.winning_side = None;
-    //     post.payout_per_unit = 0;
+        let post = &mut ctx.accounts.post;
 
-    //     Ok(())
-    // }
+        post.creator_user = ctx.accounts.creator_user_account.key();
+        post.post_id_hash = post_id_hash;
+        post.start_time = clock.unix_timestamp;
+        post.end_time = clock.unix_timestamp + cfg.base_duration_secs as i64;
+        post.state = PostState::Open;
+        post.total_pump_bling = 0;
+        post.total_smack_bling = 0;
+        post.total_pot_bling = 0;
+        post.winning_side = None;
+        post.payout_per_unit = 0;
 
-    // /// Core MVP voting instruction.
-    // /// User pays from their vault; everything is denominated in BLING units.
-    // pub fn vote_on_post(
-    //     ctx: Context<VoteOnPost>,
-    //     side: Side,
-    //     units: u32, // how many PUMPs or SMACKs (for bonding curve)
-    //     payment_in_bling: bool,
-    // ) -> Result<()> {
-    //     require!(units > 0, ErrorCode::ZeroUnits);
+        Ok(())
+    }
 
-    //     let cfg = &ctx.accounts.config;
-    //     let post = &mut ctx.accounts.post;
-    //     let position = &mut ctx.accounts.position;
-    //     let clock = Clock::get()?;
+    /// Core MVP voting instruction.
+    /// User pays from their vault; everything is denominated in BLING units.
+    pub fn vote_on_post(
+        ctx: Context<VoteOnPost>,
+        side: Side,
+        units: u32, // how many PUMPs or SMACKs (for bonding curve)
+        payment_in_bling: bool,
+    ) -> Result<()> {
+        require!(units > 0, ErrorCode::ZeroUnits);
 
-    //     // 1) Check post is open and within time.
-    //     require!(post.state == PostState::Open, ErrorCode::PostNotOpen);
-    //     require!(
-    //         clock.unix_timestamp <= post.end_time,
-    //         ErrorCode::PostExpired
-    //     );
+        let cfg = &ctx.accounts.config;
+        let post = &mut ctx.accounts.post;
+        let position = &mut ctx.accounts.position;
+        let clock = Clock::get()?;
 
-    //     // 2) Determine existing count for user.
-    //     let (n_current, smacks_multiplier) = match side {
-    //         Side::Pump => (position.pump_units, 1u64),
-    //         Side::Smack => (position.smack_units, 10u64), // MVP: 1x for pump, 10x for smack
-    //     };
+        // 1) Check post is open and within time.
+        require!(post.state == PostState::Open, ErrorCode::PostNotOpen);
+        require!(
+            clock.unix_timestamp <= post.end_time,
+            ErrorCode::PostExpired
+        );
 
-    //     // 3) Compute incremental BLING cost from linear curve:
-    //     // sum_{k=n+1}^{n+units} k = units*(2n + units + 1)/2
-    //     let n = n_current as u64;
-    //     let u = units as u64;
-    //     let sum_units = u
-    //         .checked_mul(2 * n + u + 1)
-    //         .ok_or(ErrorCode::MathOverflow)?
-    //         / 2;
-    //     let cost_bling = sum_units
-    //         .checked_mul(smacks_multiplier)
-    //         .ok_or(ErrorCode::MathOverflow)?;
+        // 2) Determine existing count for user.
+        let (n_current, smacks_multiplier) = match side {
+            Side::Pump => (position.pump_units, 1u64),
+            Side::Smack => (position.smack_units, 10u64), // MVP: 1x for pump, 10x for smack
+        };
 
-    //     // 4) Take payment either in BLING or via accepted mint (e.g. USDC).
-    //     let mut pot_increment_bling = cost_bling;
-    //     let mut creator_fee_bling = 0u64;
-    //     let mut protocol_fee_bling = 0u64;
+        // 3) Compute incremental BLING cost from linear curve:
+        // sum_{k=n+1}^{n+units} k = units*(2n + units + 1)/2
+        let n = n_current as u64;
+        let u = units as u64;
+        let sum_units = u
+            .checked_mul(2 * n + u + 1)
+            .ok_or(ErrorCode::MathOverflow)?
+            / 2;
+        let cost_bling = sum_units
+            .checked_mul(smacks_multiplier)
+            .ok_or(ErrorCode::MathOverflow)?;
 
-    //     if payment_in_bling {
-    //         // funds already in BLING vault
-    //         // compute fees
-    //         protocol_fee_bling = cost_bling * (cfg.protocol_fee_bps as u64) / 10_000;
-    //         if matches!(side, Side::Pump) {
-    //             creator_fee_bling = cost_bling * (cfg.creator_fee_bps_pump as u64) / 10_000;
-    //         }
-    //         pot_increment_bling = cost_bling
-    //             .checked_sub(protocol_fee_bling + creator_fee_bling)
-    //             .ok_or(ErrorCode::MathOverflow)?;
+        // 4) Take payment either in BLING or via accepted mint (e.g. USDC).
+        let mut pot_increment_bling = cost_bling;
+        let mut creator_fee_bling = 0u64;
+        let mut protocol_fee_bling = 0u64;
 
-    //         // Move BLING from user vault -> pot / creator / protocol
-    //         let seeds: &[&[&[u8]]] = &[&[b"vault_authority", &[ctx.bumps.vault_authority]]];
+        if payment_in_bling {
+            // funds already in BLING vault
+            // compute fees
+            protocol_fee_bling = cost_bling * (cfg.protocol_fee_bps as u64) / 10_000;
+            if matches!(side, Side::Pump) {
+                creator_fee_bling = cost_bling * (cfg.creator_fee_bps_pump as u64) / 10_000;
+            }
+            pot_increment_bling = cost_bling
+                .checked_sub(protocol_fee_bling + creator_fee_bling)
+                .ok_or(ErrorCode::MathOverflow)?;
 
-    //         // user vault -> protocol treasury (fee)
-    //         if protocol_fee_bling > 0 {
-    //             let cpi_accounts = anchor_spl::token::Transfer {
-    //                 from: ctx.accounts.user_vault_token_account.to_account_info(),
-    //                 to: ctx.accounts.protocol_bling_treasury.to_account_info(),
-    //                 authority: ctx.accounts.vault_authority.to_account_info(),
-    //             };
-    //             let cpi_ctx = CpiContext::new_with_signer(
-    //                 ctx.accounts.token_program.to_account_info(),
-    //                 cpi_accounts,
-    //                 seeds,
-    //             );
-    //             anchor_spl::token::transfer(cpi_ctx, protocol_fee_bling)?;
-    //         }
+            // Move BLING from user vault -> pot / creator / protocol
+            let seeds: &[&[&[u8]]] = &[&[b"vault_authority", &[ctx.bumps.vault_authority]]];
 
-    //         // user vault -> creator vault (pump only)
-    //         if creator_fee_bling > 0 {
-    //             let cpi_accounts = anchor_spl::token::Transfer {
-    //                 from: ctx.accounts.user_vault_token_account.to_account_info(),
-    //                 to: ctx.accounts.creator_bling_vault.to_account_info(),
-    //                 authority: ctx.accounts.vault_authority.to_account_info(),
-    //             };
-    //             let cpi_ctx = CpiContext::new_with_signer(
-    //                 ctx.accounts.token_program.to_account_info(),
-    //                 cpi_accounts,
-    //                 seeds,
-    //             );
-    //             anchor_spl::token::transfer(cpi_ctx, creator_fee_bling)?;
-    //         }
+            // user vault -> protocol treasury (fee)
+            if protocol_fee_bling > 0 {
+                let cpi_accounts = anchor_spl::token::Transfer {
+                    from: ctx.accounts.vault_token_account.to_account_info(),
+                    to: ctx.accounts.protocol_bling_treasury.to_account_info(),
+                    authority: ctx.accounts.vault_authority.to_account_info(),
+                };
+                let cpi_ctx = CpiContext::new_with_signer(
+                    ctx.accounts.token_program.to_account_info(),
+                    cpi_accounts,
+                    seeds,
+                );
+                anchor_spl::token::transfer(cpi_ctx, protocol_fee_bling)?;
+            }
 
-    //         // user vault -> post pot
-    //         let cpi_accounts = anchor_spl::token::Transfer {
-    //             from: ctx.accounts.user_vault_token_account.to_account_info(),
-    //             to: ctx.accounts.post_pot_bling.to_account_info(),
-    //             authority: ctx.accounts.vault_authority.to_account_info(),
-    //         };
-    //         let cpi_ctx = CpiContext::new_with_signer(
-    //             ctx.accounts.token_program.to_account_info(),
-    //             cpi_accounts,
-    //             seeds,
-    //         );
-    //         anchor_spl::token::transfer(cpi_ctx, pot_increment_bling)?;
-    //     } else {
-    //         // Paying with some other mint (e.g. USDC).
-    //         // 1) Determine BLING equivalent for accounting
-    //         let am = ctx
-    //             .accounts
-    //             .accepted_alternative_payment
-    //             .as_ref()
-    //             .ok_or(ErrorCode::MintNotEnabled)?;
-    //         require!(am.enabled, ErrorCode::MintNotEnabled);
+            // user vault -> creator vault (pump only)
+            if creator_fee_bling > 0 {
+                let cpi_accounts = anchor_spl::token::Transfer {
+                    from: ctx.accounts.vault_token_account.to_account_info(),
+                    to: ctx.accounts.creator_bling_vault.to_account_info(),
+                    authority: ctx.accounts.vault_authority.to_account_info(),
+                };
+                let cpi_ctx = CpiContext::new_with_signer(
+                    ctx.accounts.token_program.to_account_info(),
+                    cpi_accounts,
+                    seeds,
+                );
+                anchor_spl::token::transfer(cpi_ctx, creator_fee_bling)?;
+            }
 
-    //         // amount_tokens = cost_bling / price_in_bling
-    //         // (integer division → favourite predatory behaviour)
-    //         let amount_tokens = cost_bling
-    //             .checked_mul(1_000_000) // adjust for mint decimals off-chain ideally
-    //             .ok_or(ErrorCode::MathOverflow)?
-    //             / am.price_in_bling;
+            // user vault -> post pot
+            let cpi_accounts = anchor_spl::token::Transfer {
+                from: ctx.accounts.vault_token_account.to_account_info(),
+                to: ctx.accounts.post_pot_bling.to_account_info(),
+                authority: ctx.accounts.vault_authority.to_account_info(),
+            };
+            let cpi_ctx = CpiContext::new_with_signer(
+                ctx.accounts.token_program.to_account_info(),
+                cpi_accounts,
+                seeds,
+            );
+            anchor_spl::token::transfer(cpi_ctx, pot_increment_bling)?;
+        } else {
+            // Paying with some other mint (e.g. USDC).
+            // 1) Determine BLING equivalent for accounting
+            let am = ctx
+                .accounts
+                .accepted_alternative_payment
+                .as_ref()
+                .ok_or(ErrorCode::MintNotEnabled)?;
+            require!(am.enabled, ErrorCode::MintNotEnabled);
 
-    //         // Unwrap Option types
-    //         let mint_treasury_token_account = ctx
-    //             .accounts
-    //             .mint_treasury_token_account
-    //             .as_ref()
-    //             .ok_or(ErrorCode::MintNotEnabled)?;
+            // amount_tokens = cost_bling / price_in_bling
+            // (integer division → favourite predatory behaviour)
+            let amount_tokens = cost_bling
+                .checked_mul(1_000_000) // adjust for mint decimals off-chain ideally
+                .ok_or(ErrorCode::MathOverflow)?
+                / am.price_in_bling;
 
-    //         // Move tokens from user vault -> mint treasury
-    //         let seeds: &[&[&[u8]]] = &[&[b"vault_authority", &[ctx.bumps.vault_authority]]];
+            // Unwrap Option types
+            let mint_treasury_token_account = ctx
+                .accounts
+                .mint_treasury_token_account
+                .as_ref()
+                .ok_or(ErrorCode::MintNotEnabled)?;
 
-    //         let cpi_accounts = anchor_spl::token::Transfer {
-    //             from: ctx.accounts.user_vault_token_account.to_account_info(),
-    //             to: mint_treasury_token_account.to_account_info(),
-    //             authority: ctx.accounts.vault_authority.to_account_info(),
-    //         };
-    //         let cpi_ctx = CpiContext::new_with_signer(
-    //             ctx.accounts.token_program.to_account_info(),
-    //             cpi_accounts,
-    //             seeds,
-    //         );
-    //         anchor_spl::token::transfer(cpi_ctx, amount_tokens)?;
+            // Move tokens from user vault -> mint treasury
+            let seeds: &[&[&[u8]]] = &[&[b"vault_authority", &[ctx.bumps.vault_authority]]];
 
-    //         // 2) Mint fresh BLING with the same cost_bling,
-    //         // split into protocol / creator / pot the same way.
+            let cpi_accounts = anchor_spl::token::Transfer {
+                from: ctx.accounts.vault_token_account.to_account_info(),
+                to: mint_treasury_token_account.to_account_info(),
+                authority: ctx.accounts.vault_authority.to_account_info(),
+            };
+            let cpi_ctx = CpiContext::new_with_signer(
+                ctx.accounts.token_program.to_account_info(),
+                cpi_accounts,
+                seeds,
+            );
+            anchor_spl::token::transfer(cpi_ctx, amount_tokens)?;
 
-    //         protocol_fee_bling = cost_bling * (cfg.protocol_fee_bps as u64) / 10_000;
-    //         if matches!(side, Side::Pump) {
-    //             creator_fee_bling = cost_bling * (cfg.creator_fee_bps_pump as u64) / 10_000;
-    //         }
-    //         pot_increment_bling = cost_bling
-    //             .checked_sub(protocol_fee_bling + creator_fee_bling)
-    //             .ok_or(ErrorCode::MathOverflow)?;
+            // 2) Mint fresh BLING with the same cost_bling,
+            // split into protocol / creator / pot the same way.
 
-    //         // Unwrap Option types - these should be Some when payment_in_bling is false
-    //         let bling_mint = ctx
-    //             .accounts
-    //             .bling_mint
-    //             .as_ref()
-    //             .ok_or(ErrorCode::MintNotEnabled)?;
-    //         let bling_mint_authority = ctx
-    //             .accounts
-    //             .bling_mint_authority
-    //             .as_ref()
-    //             .ok_or(ErrorCode::MintNotEnabled)?;
+            protocol_fee_bling = cost_bling * (cfg.protocol_fee_bps as u64) / 10_000;
+            if matches!(side, Side::Pump) {
+                creator_fee_bling = cost_bling * (cfg.creator_fee_bps_pump as u64) / 10_000;
+            }
+            pot_increment_bling = cost_bling
+                .checked_sub(protocol_fee_bling + creator_fee_bling)
+                .ok_or(ErrorCode::MathOverflow)?;
 
-    //         // Derive the bump for bling_mint_authority PDA (not initialized, so not in ctx.bumps)
-    //         let (_, bump) =
-    //             Pubkey::find_program_address(&[b"bling_mint_authority"], ctx.program_id);
-    //         let bling_seeds: &[&[&[u8]]] = &[&[b"bling_mint_authority", &[bump]]];
+            // Unwrap Option types - these should be Some when payment_in_bling is false
+            let bling_mint = ctx
+                .accounts
+                .bling_mint
+                .as_ref()
+                .ok_or(ErrorCode::MintNotEnabled)?;
+            let bling_mint_authority = ctx
+                .accounts
+                .bling_mint_authority
+                .as_ref()
+                .ok_or(ErrorCode::MintNotEnabled)?;
 
-    //         // mint protocol fee
-    //         if protocol_fee_bling > 0 {
-    //             let cpi_accounts = anchor_spl::token::MintTo {
-    //                 mint: bling_mint.to_account_info(),
-    //                 to: ctx.accounts.protocol_bling_treasury.to_account_info(),
-    //                 authority: bling_mint_authority.to_account_info(),
-    //             };
-    //             let cpi_ctx = CpiContext::new_with_signer(
-    //                 ctx.accounts.token_program.to_account_info(),
-    //                 cpi_accounts,
-    //                 bling_seeds,
-    //             );
-    //             anchor_spl::token::mint_to(cpi_ctx, protocol_fee_bling)?;
-    //         }
+            // Derive the bump for bling_mint_authority PDA (not initialized, so not in ctx.bumps)
+            let (_, bump) =
+                Pubkey::find_program_address(&[b"bling_mint_authority"], ctx.program_id);
+            let bling_seeds: &[&[&[u8]]] = &[&[b"bling_mint_authority", &[bump]]];
 
-    //         // mint creator fee
-    //         if creator_fee_bling > 0 {
-    //             let cpi_accounts = anchor_spl::token::MintTo {
-    //                 mint: bling_mint.to_account_info(),
-    //                 to: ctx.accounts.creator_bling_vault.to_account_info(),
-    //                 authority: bling_mint_authority.to_account_info(),
-    //             };
-    //             let cpi_ctx = CpiContext::new_with_signer(
-    //                 ctx.accounts.token_program.to_account_info(),
-    //                 cpi_accounts,
-    //                 bling_seeds,
-    //             );
-    //             anchor_spl::token::mint_to(cpi_ctx, creator_fee_bling)?;
-    //         }
+            // mint protocol fee
+            if protocol_fee_bling > 0 {
+                let cpi_accounts = anchor_spl::token::MintTo {
+                    mint: bling_mint.to_account_info(),
+                    to: ctx.accounts.protocol_bling_treasury.to_account_info(),
+                    authority: bling_mint_authority.to_account_info(),
+                };
+                let cpi_ctx = CpiContext::new_with_signer(
+                    ctx.accounts.token_program.to_account_info(),
+                    cpi_accounts,
+                    bling_seeds,
+                );
+                anchor_spl::token::mint_to(cpi_ctx, protocol_fee_bling)?;
+            }
 
-    //         // mint pot portion
-    //         let cpi_accounts = anchor_spl::token::MintTo {
-    //             mint: bling_mint.to_account_info(),
-    //             to: ctx.accounts.post_pot_bling.to_account_info(),
-    //             authority: bling_mint_authority.to_account_info(),
-    //         };
-    //         let cpi_ctx = CpiContext::new_with_signer(
-    //             ctx.accounts.token_program.to_account_info(),
-    //             cpi_accounts,
-    //             bling_seeds,
-    //         );
-    //         anchor_spl::token::mint_to(cpi_ctx, pot_increment_bling)?;
-    //     }
+            // mint creator fee
+            if creator_fee_bling > 0 {
+                let cpi_accounts = anchor_spl::token::MintTo {
+                    mint: bling_mint.to_account_info(),
+                    to: ctx.accounts.creator_bling_vault.to_account_info(),
+                    authority: bling_mint_authority.to_account_info(),
+                };
+                let cpi_ctx = CpiContext::new_with_signer(
+                    ctx.accounts.token_program.to_account_info(),
+                    cpi_accounts,
+                    bling_seeds,
+                );
+                anchor_spl::token::mint_to(cpi_ctx, creator_fee_bling)?;
+            }
 
-    //     // 5) Update post and position state.
-    //     match side {
-    //         Side::Pump => {
-    //             post.total_pump_bling = post
-    //                 .total_pump_bling
-    //                 .checked_add(cost_bling)
-    //                 .ok_or(ErrorCode::MathOverflow)?;
-    //             position.pump_units += units;
-    //             position.pump_staked_bling = position
-    //                 .pump_staked_bling
-    //                 .checked_add(cost_bling)
-    //                 .ok_or(ErrorCode::MathOverflow)?;
-    //         }
-    //         Side::Smack => {
-    //             post.total_smack_bling = post
-    //                 .total_smack_bling
-    //                 .checked_add(cost_bling)
-    //                 .ok_or(ErrorCode::MathOverflow)?;
-    //             position.smack_units += units;
-    //             position.smack_staked_bling = position
-    //                 .smack_staked_bling
-    //                 .checked_add(cost_bling)
-    //                 .ok_or(ErrorCode::MathOverflow)?;
-    //         }
-    //     }
+            // mint pot portion
+            let cpi_accounts = anchor_spl::token::MintTo {
+                mint: bling_mint.to_account_info(),
+                to: ctx.accounts.post_pot_bling.to_account_info(),
+                authority: bling_mint_authority.to_account_info(),
+            };
+            let cpi_ctx = CpiContext::new_with_signer(
+                ctx.accounts.token_program.to_account_info(),
+                cpi_accounts,
+                bling_seeds,
+            );
+            anchor_spl::token::mint_to(cpi_ctx, pot_increment_bling)?;
+        }
 
-    //     post.total_pot_bling = post
-    //         .total_pot_bling
-    //         .checked_add(pot_increment_bling)
-    //         .ok_or(ErrorCode::MathOverflow)?;
+        // 5) Update post and position state.
+        match side {
+            Side::Pump => {
+                post.total_pump_bling = post
+                    .total_pump_bling
+                    .checked_add(cost_bling)
+                    .ok_or(ErrorCode::MathOverflow)?;
+                position.pump_units += units;
+                position.pump_staked_bling = position
+                    .pump_staked_bling
+                    .checked_add(cost_bling)
+                    .ok_or(ErrorCode::MathOverflow)?;
+            }
+            Side::Smack => {
+                post.total_smack_bling = post
+                    .total_smack_bling
+                    .checked_add(cost_bling)
+                    .ok_or(ErrorCode::MathOverflow)?;
+                position.smack_units += units;
+                position.smack_staked_bling = position
+                    .smack_staked_bling
+                    .checked_add(cost_bling)
+                    .ok_or(ErrorCode::MathOverflow)?;
+            }
+        }
 
-    //     // 6) Extend time
-    //     let extra_secs = (cfg.extension_per_vote_secs as i64)
-    //         .checked_mul(units as i64)
-    //         .ok_or(ErrorCode::MathOverflow)?;
-    //     let new_end = post
-    //         .end_time
-    //         .checked_add(extra_secs)
-    //         .ok_or(ErrorCode::MathOverflow)?;
-    //     let max_end = post.start_time + cfg.max_duration_secs as i64;
-    //     post.end_time = new_end.min(max_end);
+        post.total_pot_bling = post
+            .total_pot_bling
+            .checked_add(pot_increment_bling)
+            .ok_or(ErrorCode::MathOverflow)?;
 
-    //     Ok(())
-    // }
+        // 6) Extend time
+        let extra_secs = (cfg.extension_per_vote_secs as i64)
+            .checked_mul(units as i64)
+            .ok_or(ErrorCode::MathOverflow)?;
+        let new_end = post
+            .end_time
+            .checked_add(extra_secs)
+            .ok_or(ErrorCode::MathOverflow)?;
+        let max_end = post.start_time + cfg.max_duration_secs as i64;
+        post.end_time = new_end.min(max_end);
 
-    // pub fn settle_post(ctx: Context<SettlePost>) -> Result<()> {
-    //     // Get post key before mutable borrow
-    //     let post_key = ctx.accounts.post.key();
-    //     let post = &mut ctx.accounts.post;
-    //     let clock = Clock::get()?;
+        Ok(())
+    }
 
-    //     require!(post.state == PostState::Open, ErrorCode::PostAlreadySettled);
-    //     require!(
-    //         clock.unix_timestamp > post.end_time,
-    //         ErrorCode::PostNotExpired
-    //     );
+    pub fn settle_post(ctx: Context<SettlePost>) -> Result<()> {
+        // Get post key before mutable borrow
+        let post_key = ctx.accounts.post.key();
+        let post = &mut ctx.accounts.post;
+        let clock = Clock::get()?;
 
-    //     // Choose winner
-    //     let (winner, total_winning_bling) = if post.total_pump_bling > post.total_smack_bling {
-    //         (Side::Pump, post.total_pump_bling)
-    //     } else if post.total_smack_bling > post.total_pump_bling {
-    //         (Side::Smack, post.total_smack_bling)
-    //     } else {
-    //         // tie rule: burn pot, or return? For now, burn to protocol.
-    //         //anchor_spl::token::Transfer entire pot to protocol treasury
-    //         // Derive the bump for post_pot_authority PDA (not initialized, so not in ctx.bumps)
-    //         let (_, bump) = Pubkey::find_program_address(
-    //             &[b"post_pot_authority", post_key.as_ref()],
-    //             ctx.program_id,
-    //         );
-    //         let seeds: &[&[&[u8]]] = &[&[b"post_pot_authority", post_key.as_ref(), &[bump]]];
-    //         let cpi_accounts = anchor_spl::token::Transfer {
-    //             from: ctx.accounts.post_pot_bling.to_account_info(),
-    //             to: ctx.accounts.protocol_bling_treasury.to_account_info(),
-    //             authority: ctx.accounts.post_pot_authority.to_account_info(),
-    //         };
-    //         let cpi_ctx = CpiContext::new_with_signer(
-    //             ctx.accounts.token_program.to_account_info(),
-    //             cpi_accounts,
-    //             seeds,
-    //         );
-    //         anchor_spl::token::transfer(cpi_ctx, post.total_pot_bling)?;
-    //         post.state = PostState::Settled;
-    //         post.winning_side = None;
-    //         post.payout_per_unit = 0;
-    //         return Ok(());
-    //     };
+        require!(post.state == PostState::Open, ErrorCode::PostAlreadySettled);
+        require!(
+            clock.unix_timestamp > post.end_time,
+            ErrorCode::PostNotExpired
+        );
 
-    //     // MVP distribution:
-    //     // PUMP > SMACK: creator 30%, 70% to PUMPers.
-    //     // SMACK > PUMP: creator 0, 100% to SMACKers.
-    //     let (creator_cut_bps, winners_bps) = match winner {
-    //         Side::Pump => (3000u16, 7000u16),
-    //         Side::Smack => (0u16, 10_000u16),
-    //     };
+        // Choose winner
+        let (winner, total_winning_bling) = if post.total_pump_bling > post.total_smack_bling {
+            (Side::Pump, post.total_pump_bling)
+        } else if post.total_smack_bling > post.total_pump_bling {
+            (Side::Smack, post.total_smack_bling)
+        } else {
+            // tie rule: burn pot, or return? For now, burn to protocol.
+            //anchor_spl::token::Transfer entire pot to protocol treasury
+            // Derive the bump for post_pot_authority PDA (not initialized, so not in ctx.bumps)
+            let (_, bump) = Pubkey::find_program_address(
+                &[b"post_pot_authority", post_key.as_ref()],
+                ctx.program_id,
+            );
+            let seeds: &[&[&[u8]]] = &[&[b"post_pot_authority", post_key.as_ref(), &[bump]]];
+            let cpi_accounts = anchor_spl::token::Transfer {
+                from: ctx.accounts.post_pot_bling.to_account_info(),
+                to: ctx.accounts.protocol_bling_treasury.to_account_info(),
+                authority: ctx.accounts.post_pot_authority.to_account_info(),
+            };
+            let cpi_ctx = CpiContext::new_with_signer(
+                ctx.accounts.token_program.to_account_info(),
+                cpi_accounts,
+                seeds,
+            );
+            anchor_spl::token::transfer(cpi_ctx, post.total_pot_bling)?;
+            post.state = PostState::Settled;
+            post.winning_side = None;
+            post.payout_per_unit = 0;
+            return Ok(());
+        };
 
-    //     let creator_cut = post
-    //         .total_pot_bling
-    //         .checked_mul(creator_cut_bps as u64)
-    //         .ok_or(ErrorCode::MathOverflow)?
-    //         / 10_000;
-    //     let winners_pool = post
-    //         .total_pot_bling
-    //         .checked_sub(creator_cut)
-    //         .ok_or(ErrorCode::MathOverflow)?;
+        // MVP distribution:
+        // PUMP > SMACK: creator 30%, 70% to PUMPers.
+        // SMACK > PUMP: creator 0, 100% to SMACKers.
+        let (creator_cut_bps, winners_bps) = match winner {
+            Side::Pump => (3000u16, 7000u16),
+            Side::Smack => (0u16, 10_000u16),
+        };
 
-    //     // move creator cut out of pot now
-    //     if creator_cut > 0 {
-    //         // Derive the bump for post_pot_authority PDA (not initialized, so not in ctx.bumps)
-    //         // Get post key - post is already mutably borrowed above, so we can't access it here
-    //         // We need to get it before the mutable borrow or use the already-borrowed reference
-    //         let post_key_for_seeds = post.key();
-    //         let (_, bump) = Pubkey::find_program_address(
-    //             &[b"post_pot_authority", post_key_for_seeds.as_ref()],
-    //             ctx.program_id,
-    //         );
-    //         let seeds: &[&[&[u8]]] =
-    //             &[&[b"post_pot_authority", post_key_for_seeds.as_ref(), &[bump]]];
-    //         let cpi_accounts = anchor_spl::token::Transfer {
-    //             from: ctx.accounts.post_pot_bling.to_account_info(),
-    //             to: ctx.accounts.creator_bling_vault.to_account_info(),
-    //             authority: ctx.accounts.post_pot_authority.to_account_info(),
-    //         };
-    //         let cpi_ctx = CpiContext::new_with_signer(
-    //             ctx.accounts.token_program.to_account_info(),
-    //             cpi_accounts,
-    //             seeds,
-    //         );
-    //         anchor_spl::token::transfer(cpi_ctx, creator_cut)?;
-    //     }
+        let creator_cut = post
+            .total_pot_bling
+            .checked_mul(creator_cut_bps as u64)
+            .ok_or(ErrorCode::MathOverflow)?
+            / 10_000;
+        let winners_pool = post
+            .total_pot_bling
+            .checked_sub(creator_cut)
+            .ok_or(ErrorCode::MathOverflow)?;
 
-    //     // Store per-unit payout so users can claim later.
-    //     // payout_per_unit = winners_pool / total_winning_bling
-    //     let payout_per_unit = if total_winning_bling > 0 {
-    //         winners_pool / total_winning_bling
-    //     } else {
-    //         0
-    //     };
+        // move creator cut out of pot now
+        if creator_cut > 0 {
+            // Derive the bump for post_pot_authority PDA (not initialized, so not in ctx.bumps)
+            // Get post key - post is already mutably borrowed above, so we can't access it here
+            // We need to get it before the mutable borrow or use the already-borrowed reference
+            let post_key_for_seeds = post.key();
+            let (_, bump) = Pubkey::find_program_address(
+                &[b"post_pot_authority", post_key_for_seeds.as_ref()],
+                ctx.program_id,
+            );
+            let seeds: &[&[&[u8]]] =
+                &[&[b"post_pot_authority", post_key_for_seeds.as_ref(), &[bump]]];
+            let cpi_accounts = anchor_spl::token::Transfer {
+                from: ctx.accounts.post_pot_bling.to_account_info(),
+                to: ctx.accounts.creator_bling_vault.to_account_info(),
+                authority: ctx.accounts.post_pot_authority.to_account_info(),
+            };
+            let cpi_ctx = CpiContext::new_with_signer(
+                ctx.accounts.token_program.to_account_info(),
+                cpi_accounts,
+                seeds,
+            );
+            anchor_spl::token::transfer(cpi_ctx, creator_cut)?;
+        }
 
-    //     post.state = PostState::Settled;
-    //     post.winning_side = Some(winner);
-    //     post.payout_per_unit = payout_per_unit;
+        // Store per-unit payout so users can claim later.
+        // payout_per_unit = winners_pool / total_winning_bling
+        let payout_per_unit = if total_winning_bling > 0 {
+            winners_pool / total_winning_bling
+        } else {
+            0
+        };
 
-    //     Ok(())
-    // }
+        post.state = PostState::Settled;
+        post.winning_side = Some(winner);
+        post.payout_per_unit = payout_per_unit;
 
-    // pub fn claim_post_reward(ctx: Context<ClaimPostReward>) -> Result<()> {
-    //     let post = &ctx.accounts.post;
-    //     let position = &mut ctx.accounts.position;
+        Ok(())
+    }
 
-    //     require!(post.state == PostState::Settled, ErrorCode::PostNotSettled);
-    //     require!(!position.claimed, ErrorCode::AlreadyClaimed);
+    pub fn claim_post_reward(ctx: Context<ClaimPostReward>) -> Result<()> {
+        let post = &ctx.accounts.post;
+        let position = &mut ctx.accounts.position;
 
-    //     let winning_side = post.winning_side.ok_or(ErrorCode::NoWinner)?;
+        require!(post.state == PostState::Settled, ErrorCode::PostNotSettled);
+        require!(!position.claimed, ErrorCode::AlreadyClaimed);
 
-    //     let weight = match winning_side {
-    //         Side::Pump => position.pump_staked_bling,
-    //         Side::Smack => position.smack_staked_bling,
-    //     };
-    //     if weight == 0 {
-    //         position.claimed = true;
-    //         return Ok(());
-    //     }
+        let winning_side = post.winning_side.ok_or(ErrorCode::NoWinner)?;
 
-    //     let reward = weight
-    //         .checked_mul(post.payout_per_unit)
-    //         .ok_or(ErrorCode::MathOverflow)?;
+        let weight = match winning_side {
+            Side::Pump => position.pump_staked_bling,
+            Side::Smack => position.smack_staked_bling,
+        };
+        if weight == 0 {
+            position.claimed = true;
+            return Ok(());
+        }
 
-    //     if reward > 0 {
-    //         // Derive the bump for post_pot_authority PDA (not initialized, so not in ctx.bumps)
-    //         let post_key = ctx.accounts.post.key();
-    //         let (_, bump) = Pubkey::find_program_address(
-    //             &[b"post_pot_authority", post_key.as_ref()],
-    //             ctx.program_id,
-    //         );
-    //         let seeds: &[&[&[u8]]] = &[&[b"post_pot_authority", post_key.as_ref(), &[bump]]];
-    //         let cpi_accounts = anchor_spl::token::Transfer {
-    //             from: ctx.accounts.post_pot_bling.to_account_info(),
-    //             to: ctx.accounts.user_bling_vault.to_account_info(),
-    //             authority: ctx.accounts.post_pot_authority.to_account_info(),
-    //         };
-    //         let cpi_ctx = CpiContext::new_with_signer(
-    //             ctx.accounts.token_program.to_account_info(),
-    //             cpi_accounts,
-    //             seeds,
-    //         );
-    //         anchor_spl::token::transfer(cpi_ctx, reward)?;
-    //     }
+        let reward = weight
+            .checked_mul(post.payout_per_unit)
+            .ok_or(ErrorCode::MathOverflow)?;
 
-    //     position.claimed = true;
-    //     Ok(())
-    // }
+        if reward > 0 {
+            // Derive the bump for post_pot_authority PDA (not initialized, so not in ctx.bumps)
+            let post_key = ctx.accounts.post.key();
+            let (_, bump) = Pubkey::find_program_address(
+                &[b"post_pot_authority", post_key.as_ref()],
+                ctx.program_id,
+            );
+            let seeds: &[&[&[u8]]] = &[&[b"post_pot_authority", post_key.as_ref(), &[bump]]];
+            let cpi_accounts = anchor_spl::token::Transfer {
+                from: ctx.accounts.post_pot_bling.to_account_info(),
+                to: ctx.accounts.user_bling_vault.to_account_info(),
+                authority: ctx.accounts.post_pot_authority.to_account_info(),
+            };
+            let cpi_ctx = CpiContext::new_with_signer(
+                ctx.accounts.token_program.to_account_info(),
+                cpi_accounts,
+                seeds,
+            );
+            anchor_spl::token::transfer(cpi_ctx, reward)?;
+        }
+
+        position.claimed = true;
+        Ok(())
+    }
 }
