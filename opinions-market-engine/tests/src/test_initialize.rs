@@ -11,6 +11,7 @@ use solana_sdk::{
 }; // Add this import
 
 use crate::utils::definitions::RATES;
+use crate::utils::phenomena::test_phenomena_add_alternative_payment;
 use crate::utils::utils::{
     airdrop_sol_to_users, send_tx, setup_token_mint, setup_token_mint_ata_and_mint_to,
     setup_token_mint_ata_and_mint_to_many_users,
@@ -132,86 +133,122 @@ async fn test_setup() {
     // .await;
 
     {
-        {
-            println!("initializing opinions market engine");
-            let config_pda = Pubkey::find_program_address(&[b"config"], &program_id).0;
-            let protocol_bling_treasury_pda = Pubkey::find_program_address(
-                &[PROTOCOL_TREASURY_SEED, bling_pubkey.as_ref()],
-                &program_id,
-            )
-            .0;
-
-            let initialize_ix = program
-                .request()
-                .accounts(opinions_market_engine::accounts::Initialize {
-                    admin: admin_pubkey,
-                    payer: payer_pubkey.clone(),
-                    config: config_pda,
-                    bling_mint: bling_pubkey,
-                    usdc_mint: usdc_pubkey,
-                    protocol_bling_treasury: protocol_bling_treasury_pda,
-                    system_program: system_program::ID,
-                    token_program: spl_token::ID,
-                })
-                .args(opinions_market_engine::instruction::Initialize {
-                    protocol_fee_bps: 0,
-                    creator_fee_bps_pump: 0,
-                })
-                .instructions()
-                .unwrap();
-
-            let initialize_tx = send_tx(&rpc, initialize_ix, &payer.pubkey(), &[&payer, &admin])
-                .await
-                .unwrap();
-            println!("initialize tx: {:?}", initialize_tx);
-        }
-
-        println!("adding usdc as an alternative payment mint");
-        // before this - usdc is not an alternative payment mint
-        // after this - usdc is an alternative payment mint
-
-        // adding usdc as an alternative payment mint
-        let alternative_payment_pda =
-            Pubkey::find_program_address(&[ACCEPTED_MINT_SEED, usdc_pubkey.as_ref()], &program_id)
-                .0;
-        let treasury_token_account_pda = Pubkey::find_program_address(
-            &[PROTOCOL_TREASURY_SEED, usdc_pubkey.as_ref()],
+        println!("initializing opinions market engine");
+        let config_pda = Pubkey::find_program_address(&[b"config"], &program_id).0;
+        let protocol_bling_treasury_pda = Pubkey::find_program_address(
+            &[PROTOCOL_TREASURY_SEED, bling_pubkey.as_ref()],
             &program_id,
         )
         .0;
-        let register_alternative_payment_ix = program
+
+        let initialize_ix = program
             .request()
-            .accounts(
-                opinions_market_engine::accounts::RegisterAlternativePayment {
-                    config: config_pda,
-                    admin: admin_pubkey,
-                    token_mint: usdc_pubkey,
-                    alternative_payment: alternative_payment_pda,
-                    treasury_token_account: treasury_token_account_pda,
-                    system_program: system_program::ID,
-                    token_program: spl_token::ID,
-                },
-            )
-            .args(
-                opinions_market_engine::instruction::RegisterAlternativePayment {
-                    price_in_bling: RATES.usdc_to_bling,
-                },
-            )
+            .accounts(opinions_market_engine::accounts::Initialize {
+                admin: admin_pubkey,
+                payer: payer_pubkey.clone(),
+                config: config_pda,
+                bling_mint: bling_pubkey,
+                usdc_mint: usdc_pubkey,
+                protocol_bling_treasury: protocol_bling_treasury_pda,
+                system_program: system_program::ID,
+                token_program: spl_token::ID,
+            })
+            .args(opinions_market_engine::instruction::Initialize {
+                protocol_fee_bps: 0,
+                creator_fee_bps_pump: 0,
+            })
             .instructions()
             .unwrap();
 
-        let register_alternative_payment_tx = send_tx(
-            &rpc,
-            register_alternative_payment_ix,
-            &payer.pubkey(),
-            &[&payer, &admin],
-        )
-        .await
-        .unwrap();
-        println!(
-            "register alternative payment tx: {:?}",
-            register_alternative_payment_tx
-        );
+        let initialize_tx = send_tx(&rpc, initialize_ix, &payer.pubkey(), &[&payer, &admin])
+            .await
+            .unwrap();
+        println!("initialize tx: {:?}", initialize_tx);
+
+        test_phenomena_add_alternative_payment(&rpc, &program, &payer, &admin, &usdc_pubkey).await;
+
+        // {
+        //     println!("adding usdc as an alternative payment mint");
+
+        //     // adding usdc as an alternative payment mint
+        //     let alternative_payment_pda = Pubkey::find_program_address(
+        //         &[ACCEPTED_MINT_SEED, usdc_pubkey.as_ref()],
+        //         &program_id,
+        //     )
+        //     .0;
+
+        //     // BEFORE: Verify USDC is NOT an alternative payment mint (account doesn't exist)
+        //     let account_before = program
+        //         .account::<opinions_market_engine::state::AlternativePayment>(
+        //             alternative_payment_pda,
+        //         )
+        //         .await;
+        //     assert!(
+        //         account_before.is_err(),
+        //         "USDC should NOT be registered as alternative payment before registration"
+        //     );
+        //     println!("✅ Verified: USDC is NOT registered before registration");
+        //     let treasury_token_account_pda = Pubkey::find_program_address(
+        //         &[PROTOCOL_TREASURY_SEED, usdc_pubkey.as_ref()],
+        //         &program_id,
+        //     )
+        //     .0;
+        //     let register_alternative_payment_ix = program
+        //         .request()
+        //         .accounts(
+        //             opinions_market_engine::accounts::RegisterAlternativePayment {
+        //                 config: config_pda,
+        //                 admin: admin_pubkey,
+        //                 token_mint: usdc_pubkey,
+        //                 alternative_payment: alternative_payment_pda,
+        //                 treasury_token_account: treasury_token_account_pda,
+        //                 system_program: system_program::ID,
+        //                 token_program: spl_token::ID,
+        //             },
+        //         )
+        //         .args(
+        //             opinions_market_engine::instruction::RegisterAlternativePayment {
+        //                 price_in_bling: RATES.usdc_to_bling,
+        //             },
+        //         )
+        //         .instructions()
+        //         .unwrap();
+
+        //     let register_alternative_payment_tx = send_tx(
+        //         &rpc,
+        //         register_alternative_payment_ix,
+        //         &payer.pubkey(),
+        //         &[&payer, &admin],
+        //     )
+        //     .await
+        //     .unwrap();
+        //     println!(
+        //         "register alternative payment tx: {:?}",
+        //         register_alternative_payment_tx
+        //     );
+
+        //     // AFTER: Verify USDC IS an alternative payment mint (account exists and is enabled)
+        //     let account_after = program
+        //         .account::<opinions_market_engine::state::AlternativePayment>(
+        //             alternative_payment_pda,
+        //         )
+        //         .await
+        //         .unwrap();
+        //     assert_eq!(
+        //         account_after.token_mint, usdc_pubkey,
+        //         "Token mint should match USDC"
+        //     );
+        //     assert!(
+        //         account_after.enabled,
+        //         "USDC should be enabled as alternative payment"
+        //     );
+        //     assert_eq!(
+        //         account_after.price_in_bling, RATES.usdc_to_bling,
+        //         "Price in BLING should match the registered rate"
+        //     );
+        //     println!("✅ Verified: USDC IS registered and enabled as alternative payment");
+        // }
+
         println!("\n\n");
         println!(" 🟪🟪🟪🟪🟪🟪🟪🟪🟪🟪🟪🟪🟪");
         println!("🟪 GOD LOVES ME 🟪");
