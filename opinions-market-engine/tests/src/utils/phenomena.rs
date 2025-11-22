@@ -207,7 +207,78 @@ pub async fn test_phenomena_deposit(
     );
 }
 
-pub async fn test_phenomena_withdraw() {}
+pub async fn test_phenomena_withdraw(
+    rpc: &RpcClient,
+    opinions_market_engine: &Program<&Keypair>,
+    payer: &Keypair,
+    user: &Keypair,
+    bling_mint: &Pubkey,
+    bling_atas: &HashMap<Pubkey, Pubkey>,
+) {
+    println!("user 1 withdrawing 9_000_000 bling from their vault to their wallet");
+    let withdraw_amount = 9_000_000;
+
+    let user_account_pda = Pubkey::find_program_address(
+        &[USER_ACCOUNT_SEED, user.pubkey().as_ref()],
+        &opinions_market_engine.id(),
+    )
+    .0;
+
+    let vault_authority_pda =
+        Pubkey::find_program_address(&[VAULT_AUTHORITY_SEED], &opinions_market_engine.id()).0;
+
+    let vault_token_account_pda = Pubkey::find_program_address(
+        &[
+            VAULT_TOKEN_ACCOUNT_SEED,
+            user.pubkey().as_ref(),
+            bling_mint.as_ref(),
+        ],
+        &opinions_market_engine.id(),
+    )
+    .0;
+
+    let user_bling_ata = bling_atas.get(&user.pubkey()).unwrap();
+
+    let withdraw_ix = opinions_market_engine
+        .request()
+        .accounts(opinions_market_engine::accounts::Withdraw {
+            user: user.pubkey(),
+            user_account: user_account_pda,
+            token_mint: bling_mint.clone(),
+            user_token_dest_ata: *user_bling_ata,
+            vault_token_account: vault_token_account_pda,
+            vault_authority: vault_authority_pda,
+            token_program: spl_token::ID,
+        })
+        .args(opinions_market_engine::instruction::Withdraw {
+            amount: withdraw_amount,
+        })
+        .instructions()
+        .unwrap();
+
+    let withdraw_tx = send_tx(&rpc, withdraw_ix, &payer.pubkey(), &[&payer, &user])
+        .await
+        .unwrap();
+    println!("withdraw tx: {:?}", withdraw_tx);
+
+    // Verify vault balance decreased
+    let vault_balance = opinions_market_engine
+        .account::<anchor_spl::token::TokenAccount>(vault_token_account_pda)
+        .await
+        .unwrap();
+    assert_eq!(vault_balance.amount, 10_000_000 - withdraw_amount);
+    println!(
+        "✅ Withdraw successful. Vault balance: {}",
+        vault_balance.amount
+    );
+
+    // Verify user wallet balance increased
+    let user_balance = opinions_market_engine
+        .account::<anchor_spl::token::TokenAccount>(*user_bling_ata)
+        .await
+        .unwrap();
+    println!("✅ User wallet balance: {}", user_balance.amount);
+}
 
 pub async fn test_phenomena_create_post() {}
 
