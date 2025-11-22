@@ -26,7 +26,7 @@ pub async fn setup_token_mint(
     rpc: &RpcClient,
     payer: &Keypair,
     mint_authority: &Keypair,
-    solstreamer: &Program<&Keypair>,
+    program: &Program<&Keypair>,
     token_mint: &Keypair,
 ) -> Pubkey {
     let space = spl_token::state::Mint::LEN;
@@ -75,7 +75,7 @@ pub async fn setup_token_mint_ata_and_mint_to(
     payer: &Keypair,
     mint_authority: &Keypair,
     mint_to: &Pubkey,
-    solstreamer: &Program<&Keypair>,
+    program: &Program<&Keypair>,
     token_mint: &Keypair,
     amount: u64,
     jitosol_mint: &Keypair,
@@ -142,7 +142,7 @@ pub async fn setup_token_mint_ata_and_mint_to(
     .await
     .unwrap();
 
-    let user_token_balance = solstreamer
+    let user_token_balance = program
         .account::<anchor_spl::token::TokenAccount>(user_token_ata)
         .await
         .unwrap();
@@ -186,7 +186,7 @@ pub async fn setup_token_mint_ata_and_mint_to_many_users(
     payer: &Keypair,
     mint_authority: &Keypair,
     users: &Vec<Pubkey>,
-    solstreamer: &Program<&Keypair>,
+    program: &Program<&Keypair>,
     token_mint: &Keypair,
     amount: u64,
     jitosol_mint: &Keypair,
@@ -202,7 +202,7 @@ pub async fn setup_token_mint_ata_and_mint_to_many_users(
             payer,
             mint_authority,
             &users[i],
-            solstreamer,
+            program,
             token_mint,
             amount,
             jitosol_mint,
@@ -215,7 +215,6 @@ pub async fn setup_token_mint_ata_and_mint_to_many_users(
     }
     users_token_atas
 }
-
 
 pub async fn send_tx<T: Signers + ?Sized>(
     rpc: &RpcClient,

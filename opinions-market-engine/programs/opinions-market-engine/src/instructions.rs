@@ -3,29 +3,40 @@ use crate::state::*;
 use anchor_lang::prelude::*;
 use anchor_spl::token::{Mint, Token, TokenAccount};
 
-#[derive(Accounts)]
-pub struct Initialize {}
-
 // -----------------------------------------------------------------------------
 // CONTEXTS
 // -----------------------------------------------------------------------------
 
 #[derive(Accounts)]
-pub struct InitializeConfig<'info> {
+pub struct Initialize<'info> {
     #[account(mut)]
     pub admin: Signer<'info>,
+
+    #[account(mut)]
+    pub payer: Signer<'info>,
     #[account(
         init,
-        payer = admin,
+        payer = payer,  
         seeds = [CONFIG_SEED],
         bump,
-        space = 8 + 128,
+        space = 8 + Config::INIT_SPACE,
     )]
     pub config: Account<'info, Config>,
     pub bling_mint: Account<'info, Mint>,
-    #[account(mut)]
+    pub usdc_mint: Account<'info, Mint>,
+    
+    #[account(
+        init,
+        payer = payer,
+        seeds = [PROTOCOL_TREASURY_SEED, bling_mint.key().as_ref()],bump,
+        token::mint = bling_mint,
+        token::authority = config,
+    )]
     pub protocol_bling_treasury: Account<'info, TokenAccount>,
+
+    // DO NOT ADD USDC HERE, TREAT IT AS AN ALTERNATIVE PAYMENT MINT 
     pub system_program: Program<'info, System>,
+    pub token_program: Program<'info, Token>,
 }
 
 #[derive(Accounts)]
@@ -36,23 +47,23 @@ pub struct RegisterAlternativePayment<'info> {
     // we need to require this to be the admin of the config account
     #[account(mut)]
     pub admin: Signer<'info>,
-    pub mint: Account<'info, Mint>,
+    pub token_mint: Account<'info, Mint>,
     #[account(
         init,
         payer = admin,
-        seeds = [ACCEPTED_MINT_SEED, mint.key().as_ref()],
+        seeds = [ACCEPTED_MINT_SEED, token_mint.key().as_ref()],
         bump,
-        space = 8 + 96,
+        space = 8 + AlternativePayment::INIT_SPACE,
     )]
     pub alternative_payment: Account<'info, AlternativePayment>,
 
-    /// Treasury token account for this mint, canonical PDA.
+    /// NEW treasury token account for this mint, canonical PDA.
     #[account(
-        init_if_needed,
+        init,
         payer = admin,
-        seeds = [TREASURY_TOKEN_ACCOUNT_SEED, mint.key().as_ref()],
+        seeds = [PROTOCOL_TREASURY_SEED, token_mint.key().as_ref()],
         bump,
-        token::mint = mint,
+        token::mint = token_mint,
         token::authority = config, // <-- SPL owner = config PDA
     )]
     pub treasury_token_account: Account<'info, TokenAccount>,

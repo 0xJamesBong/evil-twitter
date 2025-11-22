@@ -5,6 +5,7 @@ use anchor_lang::prelude::*;
 // -----------------------------------------------------------------------------
 
 #[account]
+#[derive(InitSpace)]
 pub struct Config {
     pub admin: Pubkey,
     pub bling_mint: Pubkey,
@@ -19,6 +20,7 @@ pub struct Config {
 }
 
 #[account]
+#[derive(InitSpace)]
 pub struct AlternativePayment {
     pub token_mint: Pubkey,
     pub price_in_bling: u64,
@@ -29,6 +31,7 @@ pub struct AlternativePayment {
 }
 
 #[account]
+#[derive(InitSpace)]
 pub struct UserAccount {
     pub authority_wallet: Pubkey,
     pub social_score: i64, // can drive withdraw penalty etc.
@@ -37,6 +40,7 @@ pub struct UserAccount {
 }
 
 #[account]
+#[derive(InitSpace)]
 pub struct PostAccount {
     pub creator_user: Pubkey,
     pub post_id_hash: [u8; 32],
@@ -51,6 +55,7 @@ pub struct PostAccount {
 }
 
 #[account]
+#[derive(InitSpace)]
 pub struct UserPostPosition {
     pub user: Pubkey,
     pub post: Pubkey,
@@ -65,13 +70,13 @@ pub struct UserPostPosition {
 // ENUMS
 // -----------------------------------------------------------------------------
 
-#[derive(AnchorSerialize, AnchorDeserialize, Clone, Copy, PartialEq, Eq)]
+#[derive(AnchorSerialize, AnchorDeserialize, Clone, Copy, PartialEq, Eq, InitSpace)]
 pub enum Side {
     Pump,
     Smack,
 }
 
-#[derive(AnchorSerialize, AnchorDeserialize, Clone, Copy, PartialEq, Eq)]
+#[derive(AnchorSerialize, AnchorDeserialize, Clone, Copy, PartialEq, Eq, InitSpace)]
 pub enum PostState {
     Open,
     Settled,

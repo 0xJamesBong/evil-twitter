@@ -37,13 +37,8 @@ pub mod opinions_market_engine {
     use super::*;
     // Don't import from instructions module - use re-exports from crate root
 
-    pub fn initialize(ctx: Context<Initialize>) -> Result<()> {
-        msg!("Greetings from: {:?}", ctx.program_id);
-        Ok(())
-    }
-
-    pub fn initialize_config(
-        ctx: Context<InitializeConfig>,
+    pub fn initialize(
+        ctx: Context<Initialize>,
         protocol_fee_bps: u16,
         creator_fee_bps_pump: u16,
     ) -> Result<()> {
@@ -67,7 +62,7 @@ pub mod opinions_market_engine {
     ) -> Result<()> {
         let am = &mut ctx.accounts.alternative_payment;
 
-        am.token_mint = ctx.accounts.mint.key();
+        am.token_mint = ctx.accounts.token_mint.key();
         am.price_in_bling = price_in_bling;
         am.treasury_token_account = ctx.accounts.treasury_token_account.key();
         am.enabled = true;
