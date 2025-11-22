@@ -209,6 +209,11 @@ pub struct Withdraw<'info> {
 #[instruction(post_id_hash: [u8; 32])]
 pub struct CreatePost<'info> {
     pub config: Account<'info, Config>,
+    #[account(
+        seeds = [USER_ACCOUNT_SEED, payer.key().as_ref()],
+        bump,
+        constraint = creator_user_account.authority_wallet == payer.key() @ ErrorCode::Unauthorized,
+    )]
     pub creator_user_account: Account<'info, UserAccount>,
     #[account(
         init,

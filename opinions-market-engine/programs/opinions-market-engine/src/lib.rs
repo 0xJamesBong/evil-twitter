@@ -35,6 +35,8 @@ pub enum ErrorCode {
     BlingCannotBeAlternativePayment,
     #[msg("Alternative payment already registered for this mint")]
     AlternativePaymentAlreadyRegistered,
+    #[msg("Unauthorized: user account does not belong to the payer")]
+    Unauthorized,
 }
 
 #[program]

@@ -271,15 +271,19 @@ async fn test_setup() {
         )
         .await;
 
-        test_phenomena_create_post(
-            &rpc,
-            &opinions_market_engine,
-            &payer,
-            &user_3,
-            &bling_pubkey,
-            &config_pda,
-        )
-        .await;
+        // {
+        //     println!("user 3 trying to make a post");
+        //     // This would Cause an error because user 3 is not a user in the system
+        //     test_phenomena_create_post(
+        //         &rpc,
+        //         &opinions_market_engine,
+        //         &payer,
+        //         &user_3,
+        //         &bling_pubkey,
+        //         &config_pda,
+        //     )
+        //     .await;
+        // }
 
         println!("\n\n");
         println!(" 🟪🟪🟪🟪🟪🟪🟪🟪🟪🟪🟪🟪🟪");
