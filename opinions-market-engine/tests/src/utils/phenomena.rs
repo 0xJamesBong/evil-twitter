@@ -13,30 +13,30 @@ use opinions_market_engine::pda_seeds::*;
 
 pub async fn test_phenomena() {}
 
-pub async fn test_phenomena_add_alternative_payment(
+pub async fn test_phenomena_add_valid_payment(
     rpc: &RpcClient,
     opinions_market_engine: &Program<&Keypair>,
     payer: &Keypair,
     admin: &Keypair,
     new_token_mint: &Pubkey,
 ) {
-    println!("adding {:} as an alternative payment mint", new_token_mint);
+    println!("adding {:} as an valid payment mint", new_token_mint);
     let config_pda = Pubkey::find_program_address(&[b"config"], &opinions_market_engine.id()).0;
 
-    // adding usdc as an alternative payment mint
-    let alternative_payment_pda = Pubkey::find_program_address(
-        &[ACCEPTED_MINT_SEED, new_token_mint.as_ref()],
+    // adding usdc as an valid payment mint
+    let valid_payment_pda = Pubkey::find_program_address(
+        &[VALID_PAYMENT_SEED, new_token_mint.as_ref()],
         &opinions_market_engine.id(),
     )
     .0;
 
-    // BEFORE: Verify USDC is NOT an alternative payment mint (account doesn't exist)
+    // BEFORE: Verify USDC is NOT an valid payment mint (account doesn't exist)
     let account_before = opinions_market_engine
-        .account::<opinions_market_engine::state::AlternativePayment>(alternative_payment_pda)
+        .account::<opinions_market_engine::state::ValidPayment>(valid_payment_pda)
         .await;
     assert!(
         account_before.is_err(),
-        "USDC should NOT be registered as alternative payment before registration"
+        "USDC should NOT be registered as valid payment before registration"
     );
     println!("✅ Verified: USDC is NOT registered before registration");
     let treasury_token_account_pda = Pubkey::find_program_address(
@@ -44,43 +44,36 @@ pub async fn test_phenomena_add_alternative_payment(
         &opinions_market_engine.id(),
     )
     .0;
-    let register_alternative_payment_ix = opinions_market_engine
+    let register_valid_payment_ix = opinions_market_engine
         .request()
-        .accounts(
-            opinions_market_engine::accounts::RegisterAlternativePayment {
-                config: config_pda,
-                admin: admin.pubkey(),
-                token_mint: new_token_mint.clone(),
-                alternative_payment: alternative_payment_pda,
-                treasury_token_account: treasury_token_account_pda,
-                system_program: system_program::ID,
-                token_program: spl_token::ID,
-            },
-        )
-        .args(
-            opinions_market_engine::instruction::RegisterAlternativePayment {
-                price_in_bling: RATES.usdc_to_bling,
-            },
-        )
+        .accounts(opinions_market_engine::accounts::RegisterValidPayment {
+            config: config_pda,
+            admin: admin.pubkey(),
+            token_mint: new_token_mint.clone(),
+            valid_payment: valid_payment_pda,
+            treasury_token_account: treasury_token_account_pda,
+            system_program: system_program::ID,
+            token_program: spl_token::ID,
+        })
+        .args(opinions_market_engine::instruction::RegisterValidPayment {
+            price_in_bling: RATES.usdc_to_bling,
+        })
         .instructions()
         .unwrap();
 
-    let register_alternative_payment_tx = send_tx(
+    let register_valid_payment_tx = send_tx(
         &rpc,
-        register_alternative_payment_ix,
+        register_valid_payment_ix,
         &payer.pubkey(),
         &[&payer, &admin],
     )
     .await
     .unwrap();
-    println!(
-        "register alternative payment tx: {:?}",
-        register_alternative_payment_tx
-    );
+    println!("register valid payment tx: {:?}", register_valid_payment_tx);
 
-    // AFTER: Verify USDC IS an alternative payment mint (account exists and is enabled)
+    // AFTER: Verify USDC IS an valid payment mint (account exists and is enabled)
     let account_after = opinions_market_engine
-        .account::<opinions_market_engine::state::AlternativePayment>(alternative_payment_pda)
+        .account::<opinions_market_engine::state::ValidPayment>(valid_payment_pda)
         .await
         .unwrap();
     assert_eq!(
@@ -89,7 +82,7 @@ pub async fn test_phenomena_add_alternative_payment(
     );
     assert!(
         account_after.enabled,
-        "USDC should be enabled as alternative payment"
+        "USDC should be enabled as valid payment"
     );
     assert_eq!(
         account_after.price_in_bling, RATES.usdc_to_bling,
@@ -168,18 +161,23 @@ pub async fn test_phenomena_deposit(
     )
     .0;
 
+    let valid_payment_pda = Pubkey::find_program_address(
+        &[VALID_PAYMENT_SEED, token_mint.as_ref()],
+        &opinions_market_engine.id(),
+    )
+    .0;
+
     let user_bling_ata = token_atas.get(&user.pubkey()).unwrap();
 
-    // For BLING deposits, accepted_alternative_payment can be a dummy account
+    // For BLING deposits, accepted_valid_payment can be a dummy account
     // (the function will skip validation for BLING)
     let deposit_ix = opinions_market_engine
         .request()
         .accounts(opinions_market_engine::accounts::Deposit {
             user: user.pubkey(),
             user_account: user_account_pda,
-            config: *config_pda,
             token_mint: token_mint.clone(),
-            accepted_alternative_payment: Some(*config_pda), // Dummy account for BLING (validation skipped)
+            valid_payment: valid_payment_pda,
             user_token_ata: *user_bling_ata,
             vault_authority: vault_authority_pda,
             vault_token_account: vault_token_account_pda,

@@ -58,31 +58,31 @@ pub mod opinions_market_engine {
         cfg.extension_per_vote_secs = 60;
         cfg.bump = ctx.bumps.config;
         cfg.padding = [0; 7];
+
+        let am = &mut ctx.accounts.valid_payment;
+        am.token_mint = ctx.accounts.bling_mint.key();
+        am.price_in_bling = 1;
+        am.treasury_token_account = ctx.accounts.protocol_bling_treasury.key();
+        am.enabled = true;
+        am.bump = ctx.bumps.valid_payment;
         Ok(())
     }
 
-    pub fn register_alternative_payment(
-        ctx: Context<RegisterAlternativePayment>,
+    pub fn register_valid_payment(
+        ctx: Context<RegisterValidPayment>,
         price_in_bling: u64, // How much is 1 token in BLING units -
     ) -> Result<()> {
         let cfg = &ctx.accounts.config;
 
-        // Guard: Prevent BLING from being registered as alternative payment
-        // (Also enforced by constraint in accounts struct, but adding runtime check for defense-in-depth)
-        require!(
-            ctx.accounts.token_mint.key() != cfg.bling_mint,
-            ErrorCode::BlingCannotBeAlternativePayment
-        );
-
         // Note: Duplicate registration is prevented by the `init` constraint on alternative_payment account.
         // If the account already exists (same PDA seeds), init will fail before this function is called.
 
-        let am = &mut ctx.accounts.alternative_payment;
+        let am = &mut ctx.accounts.valid_payment;
         am.token_mint = ctx.accounts.token_mint.key();
         am.price_in_bling = price_in_bling;
         am.treasury_token_account = ctx.accounts.treasury_token_account.key();
         am.enabled = true;
-        am.bump = ctx.bumps.alternative_payment;
+        am.bump = ctx.bumps.valid_payment;
         Ok(())
     }
 
@@ -102,29 +102,7 @@ pub mod opinions_market_engine {
 
     /// User deposits from their wallet into the program-controlled vault.
     pub fn deposit(ctx: Context<Deposit>, amount: u64) -> Result<()> {
-        let cfg = &ctx.accounts.config;
-        let is_bling = ctx.accounts.token_mint.key() == cfg.bling_mint;
-
-        // For non-BLING mints, require accepted_alternative_payment to exist and be enabled
-        if !is_bling {
-            let ap_account = ctx
-                .accounts
-                .accepted_alternative_payment
-                .as_ref()
-                .ok_or(ErrorCode::MintNotEnabled)?;
-
-            // Manually derive and validate the PDA
-            let (expected_pda, _bump) = Pubkey::find_program_address(
-                &[ACCEPTED_MINT_SEED, ctx.accounts.token_mint.key().as_ref()],
-                ctx.program_id,
-            );
-            require!(ap_account.key() == expected_pda, ErrorCode::MintNotEnabled);
-
-            let ap_data = &ap_account.try_borrow_data()?;
-            let ap = AlternativePayment::try_deserialize(&mut &ap_data[8..])?;
-            require!(ap.enabled, ErrorCode::MintNotEnabled);
-        }
-
+        // No logic needed—Anchor already checked mint is allowed.
         let cpi_accounts = anchor_spl::token::Transfer {
             from: ctx.accounts.user_token_ata.to_account_info(),
             to: ctx.accounts.vault_token_account.to_account_info(),

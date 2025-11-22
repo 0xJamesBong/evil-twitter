@@ -12,7 +12,7 @@ use solana_sdk::{
 
 use crate::utils::definitions::RATES;
 use crate::utils::phenomena::{
-    test_phenomena_add_alternative_payment, test_phenomena_create_user, test_phenomena_deposit,
+    test_phenomena_add_valid_payment, test_phenomena_create_user, test_phenomena_deposit,
     test_phenomena_withdraw,
 };
 use crate::utils::utils::{
@@ -158,6 +158,10 @@ async fn test_setup() {
         )
         .0;
 
+        let valid_payment_pda =
+            Pubkey::find_program_address(&[VALID_PAYMENT_SEED, bling_pubkey.as_ref()], &program_id)
+                .0;
+
         let initialize_ix = opinions_market_engine
             .request()
             .accounts(opinions_market_engine::accounts::Initialize {
@@ -167,6 +171,7 @@ async fn test_setup() {
                 bling_mint: bling_pubkey,
                 usdc_mint: usdc_pubkey,
                 protocol_bling_treasury: protocol_bling_treasury_pda,
+                valid_payment: valid_payment_pda,
                 system_program: system_program::ID,
                 token_program: spl_token::ID,
             })
@@ -182,7 +187,7 @@ async fn test_setup() {
             .unwrap();
         println!("initialize tx: {:?}", initialize_tx);
 
-        test_phenomena_add_alternative_payment(
+        test_phenomena_add_valid_payment(
             &rpc,
             &opinions_market_engine,
             &payer,
@@ -194,6 +199,7 @@ async fn test_setup() {
         test_phenomena_create_user(&rpc, &opinions_market_engine, &payer, &user_1).await;
         test_phenomena_create_user(&rpc, &opinions_market_engine, &payer, &user_2).await;
         test_phenomena_create_user(&rpc, &opinions_market_engine, &payer, &user_3).await;
+
         {
             println!("user 1 depositing 10_000_000 bling to their vault");
             test_phenomena_deposit(
@@ -210,21 +216,21 @@ async fn test_setup() {
             .await;
         }
 
-        // {
-        //     println!("user 2 depositing 1_000 usdc to their vault");
-        //     test_phenomena_deposit(
-        //         &rpc,
-        //         &opinions_market_engine,
-        //         &payer,
-        //         &user_2,
-        //         1_000 * LAMPORTS_PER_SOL,
-        //         &usdc_pubkey,
-        //         &tokens,
-        //         &usdc_atas,
-        //         &config_pda,
-        //     )
-        //     .await;
-        // }
+        {
+            println!("user 2 depositing 1_000 usdc to their vault");
+            test_phenomena_deposit(
+                &rpc,
+                &opinions_market_engine,
+                &payer,
+                &user_2,
+                1_000 * LAMPORTS_PER_SOL,
+                &usdc_pubkey,
+                &tokens,
+                &usdc_atas,
+                &config_pda,
+            )
+            .await;
+        }
         {
             println!("user 1 withdrawing 9_000_000 bling from their vault to their wallet");
             test_phenomena_withdraw(

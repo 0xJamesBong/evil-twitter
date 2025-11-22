@@ -29,6 +29,15 @@ pub struct Initialize<'info> {
     #[account(
         init,
         payer = payer,
+        seeds = [VALID_PAYMENT_SEED, bling_mint.key().as_ref()],
+        bump,
+        space = 8 + ValidPayment::INIT_SPACE, 
+    )]
+    pub valid_payment: Account<'info, ValidPayment>,
+
+    #[account(
+        init,
+        payer = payer,
         seeds = [PROTOCOL_TREASURY_SEED, bling_mint.key().as_ref()],bump,
         token::mint = bling_mint,
         token::authority = config,
@@ -41,7 +50,7 @@ pub struct Initialize<'info> {
 }
 
 #[derive(Accounts)]
-pub struct RegisterAlternativePayment<'info> {
+pub struct RegisterValidPayment<'info> {
     #[account(mut,
     constraint = config.admin == admin.key())]
     pub config: Account<'info, Config>,
@@ -52,12 +61,12 @@ pub struct RegisterAlternativePayment<'info> {
     #[account(
         init,
         payer = admin,
-        seeds = [ACCEPTED_MINT_SEED, token_mint.key().as_ref()],
+        seeds = [VALID_PAYMENT_SEED, token_mint.key().as_ref()],
         bump,
-        space = 8 + AlternativePayment::INIT_SPACE,
+        space = 8 + ValidPayment::INIT_SPACE,
         constraint = token_mint.key() != config.bling_mint @ ErrorCode::BlingCannotBeAlternativePayment,
     )]
-    pub alternative_payment: Account<'info, AlternativePayment>,
+    pub valid_payment: Account<'info, ValidPayment>,
 
     /// NEW treasury token account for this mint, canonical PDA.
     #[account(
@@ -91,10 +100,10 @@ pub struct ModifyAcceptedMint<'info> {
 
     #[account(
         mut,
-        seeds = [ACCEPTED_MINT_SEED, mint.key().as_ref()],
+        seeds = [VALID_PAYMENT_SEED, mint.key().as_ref()],
         bump = accepted_mint.bump,
     )]
-    pub accepted_mint: Account<'info, AlternativePayment>,
+    pub accepted_mint: Account<'info, ValidPayment>,
 }
 
 // This initializes the UserAccount PDA only
@@ -120,36 +129,31 @@ pub struct Deposit<'info> {
     #[account(mut)]
     pub user: Signer<'info>,
 
-    // tie the user account to the authority wallet
     #[account(
         seeds = [USER_ACCOUNT_SEED, user.key().as_ref()],
         bump,
     )]
     pub user_account: Account<'info, UserAccount>,
 
-    pub config: Account<'info, Config>,
-
-    // the token being deposited (BLING, USDC, etc.)
     pub token_mint: Account<'info, Mint>,
 
-    // For BLING deposits, this can be a dummy account. For alternative payments, this must exist and be enabled.
-    /// CHECK: Only validated for non-BLING mints. For BLING, pass a dummy account.
-    pub accepted_alternative_payment: Option<UncheckedAccount<'info>>,
+    #[account(
+        seeds = [VALID_PAYMENT_SEED, token_mint.key().as_ref()],
+        bump = valid_payment.bump,
+        constraint = valid_payment.enabled @ ErrorCode::MintNotEnabled,
+    )]
+    pub valid_payment: Account<'info, ValidPayment>,
 
-    // user's personal wallet ATA for this mint
     #[account(mut)]
     pub user_token_ata: Account<'info, TokenAccount>,
 
-    /// Global vault authority PDA (no data)
-    /// CHECK
+    /// CHECK: Vault authority PDA derived from seeds
     #[account(
         seeds = [VAULT_AUTHORITY_SEED],
         bump,
     )]
     pub vault_authority: UncheckedAccount<'info>,
 
-    // Program-controlled vault (PDA) for (user, mint).
-    // This is where you can use init_if_needed instead of a separate instruction.
     #[account(
         init_if_needed,
         payer = user,
@@ -163,6 +167,8 @@ pub struct Deposit<'info> {
     pub token_program: Program<'info, Token>,
     pub system_program: Program<'info, System>,
 }
+
+
 
 #[derive(Accounts)]
 pub struct Withdraw<'info> {
@@ -190,8 +196,7 @@ pub struct Withdraw<'info> {
     )]
     pub vault_token_account: Account<'info, TokenAccount>,
 
-    /// Global vault authority PDA
-    /// CHECK
+    /// CHECK: Global vault authority PDA derived from seeds
     #[account(
         seeds = [VAULT_AUTHORITY_SEED],
         bump,
@@ -241,7 +246,7 @@ pub struct VoteOnPost<'info> {
     // Payment vault
     #[account(mut)]
     pub vault_token_account: Account<'info, TokenAccount>,
-    /// CHECK
+    /// CHECK: Vault authority PDA derived from seeds
     #[account(
         seeds = [VAULT_AUTHORITY_SEED],
         bump,
@@ -257,7 +262,7 @@ pub struct VoteOnPost<'info> {
     pub post_pot_bling: Account<'info, TokenAccount>,
 
     // If paying with non-BLING mint
-    pub accepted_alternative_payment: Option<Account<'info, AlternativePayment>>,
+    pub accepted_alternative_payment: Option<Account<'info, ValidPayment>>,
     #[account(mut)]
     pub mint_treasury_token_account: Option<Account<'info, TokenAccount>>,
     pub bling_mint: Option<Account<'info, Mint>>,

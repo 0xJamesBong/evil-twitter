@@ -21,7 +21,7 @@ pub struct Config {
 
 #[account]
 #[derive(InitSpace)]
-pub struct AlternativePayment {
+pub struct ValidPayment {
     pub token_mint: Pubkey,
     /// how much is 1 token in BLING units -
     /// 1 USDC = 10_000 BLING for example

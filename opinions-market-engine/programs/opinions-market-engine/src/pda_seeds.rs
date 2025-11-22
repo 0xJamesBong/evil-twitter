@@ -1,6 +1,6 @@
 pub const CONFIG_SEED: &[u8] = b"config";
 
-pub const ACCEPTED_MINT_SEED: &[u8] = b"accepted_mint";
+pub const VALID_PAYMENT_SEED: &[u8] = b"valid_payment";
 pub const USER_ACCOUNT_SEED: &[u8] = b"user_account";
 pub const VAULT_AUTHORITY_SEED: &[u8] = b"vault_authority";
 pub const VAULT_TOKEN_ACCOUNT_SEED: &[u8] = b"vault_token_account";
