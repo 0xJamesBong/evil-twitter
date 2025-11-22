@@ -56,9 +56,9 @@ pub mod opinions_market_engine {
         Ok(())
     }
 
-    pub fn register_accepted_mint(
+    pub fn register_alternative_payment(
         ctx: Context<RegisterAlternativePayment>,
-        price_in_bling: u64,
+        price_in_bling: u64, // How much is 1 token in BLING units -
     ) -> Result<()> {
         let am = &mut ctx.accounts.alternative_payment;
 

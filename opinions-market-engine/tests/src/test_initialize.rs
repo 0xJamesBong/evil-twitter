@@ -10,6 +10,7 @@ use solana_sdk::{
     signature::{read_keypair_file, Keypair, Signer},
 }; // Add this import
 
+use crate::utils::definitions::RATES;
 use crate::utils::utils::{
     airdrop_sol_to_users, send_tx, setup_token_mint, setup_token_mint_ata_and_mint_to,
     setup_token_mint_ata_and_mint_to_many_users,
@@ -131,38 +132,86 @@ async fn test_setup() {
     // .await;
 
     {
-        println!("initializing opinions market engine");
-        let config_pda = Pubkey::find_program_address(&[b"config"], &program_id).0;
-        let protocol_bling_treasury_pda = Pubkey::find_program_address(
-            &[PROTOCOL_TREASURY_SEED, bling_pubkey.as_ref()],
+        {
+            println!("initializing opinions market engine");
+            let config_pda = Pubkey::find_program_address(&[b"config"], &program_id).0;
+            let protocol_bling_treasury_pda = Pubkey::find_program_address(
+                &[PROTOCOL_TREASURY_SEED, bling_pubkey.as_ref()],
+                &program_id,
+            )
+            .0;
+
+            let initialize_ix = program
+                .request()
+                .accounts(opinions_market_engine::accounts::Initialize {
+                    admin: admin_pubkey,
+                    payer: payer_pubkey.clone(),
+                    config: config_pda,
+                    bling_mint: bling_pubkey,
+                    usdc_mint: usdc_pubkey,
+                    protocol_bling_treasury: protocol_bling_treasury_pda,
+                    system_program: system_program::ID,
+                    token_program: spl_token::ID,
+                })
+                .args(opinions_market_engine::instruction::Initialize {
+                    protocol_fee_bps: 0,
+                    creator_fee_bps_pump: 0,
+                })
+                .instructions()
+                .unwrap();
+
+            let initialize_tx = send_tx(&rpc, initialize_ix, &payer.pubkey(), &[&payer, &admin])
+                .await
+                .unwrap();
+            println!("initialize tx: {:?}", initialize_tx);
+        }
+
+        println!("adding usdc as an alternative payment mint");
+        // before this - usdc is not an alternative payment mint
+        // after this - usdc is an alternative payment mint
+
+        // adding usdc as an alternative payment mint
+        let alternative_payment_pda =
+            Pubkey::find_program_address(&[ACCEPTED_MINT_SEED, usdc_pubkey.as_ref()], &program_id)
+                .0;
+        let treasury_token_account_pda = Pubkey::find_program_address(
+            &[PROTOCOL_TREASURY_SEED, usdc_pubkey.as_ref()],
             &program_id,
         )
         .0;
-
-        let initialize_ix = program
+        let register_alternative_payment_ix = program
             .request()
-            .accounts(opinions_market_engine::accounts::Initialize {
-                admin: admin_pubkey,
-                payer: payer_pubkey.clone(),
-                config: config_pda,
-                bling_mint: bling_pubkey,
-                usdc_mint: usdc_pubkey,
-                protocol_bling_treasury: protocol_bling_treasury_pda,
-                system_program: system_program::ID,
-                token_program: spl_token::ID,
-            })
-            .args(opinions_market_engine::instruction::Initialize {
-                protocol_fee_bps: 0,
-                creator_fee_bps_pump: 0,
-            })
+            .accounts(
+                opinions_market_engine::accounts::RegisterAlternativePayment {
+                    config: config_pda,
+                    admin: admin_pubkey,
+                    token_mint: usdc_pubkey,
+                    alternative_payment: alternative_payment_pda,
+                    treasury_token_account: treasury_token_account_pda,
+                    system_program: system_program::ID,
+                    token_program: spl_token::ID,
+                },
+            )
+            .args(
+                opinions_market_engine::instruction::RegisterAlternativePayment {
+                    price_in_bling: RATES.usdc_to_bling,
+                },
+            )
             .instructions()
             .unwrap();
 
-        let initialize_tx = send_tx(&rpc, initialize_ix, &payer.pubkey(), &[&payer, &admin])
-            .await
-            .unwrap();
-        println!("initialize tx: {:?}", initialize_tx);
-
+        let register_alternative_payment_tx = send_tx(
+            &rpc,
+            register_alternative_payment_ix,
+            &payer.pubkey(),
+            &[&payer, &admin],
+        )
+        .await
+        .unwrap();
+        println!(
+            "register alternative payment tx: {:?}",
+            register_alternative_payment_tx
+        );
         println!("\n\n");
         println!(" 🟪🟪🟪🟪🟪🟪🟪🟪🟪🟪🟪🟪🟪");
         println!("🟪 GOD LOVES ME 🟪");

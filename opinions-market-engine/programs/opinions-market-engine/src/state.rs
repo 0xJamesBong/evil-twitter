@@ -23,6 +23,9 @@ pub struct Config {
 #[derive(InitSpace)]
 pub struct AlternativePayment {
     pub token_mint: Pubkey,
+    /// how much is 1 token in BLING units -
+    /// 1 USDC = 10_000 BLING for example
+    /// 1 SOL = 1_000_000_000 BLING for example
     pub price_in_bling: u64,
     pub treasury_token_account: Pubkey,
     pub enabled: bool,
