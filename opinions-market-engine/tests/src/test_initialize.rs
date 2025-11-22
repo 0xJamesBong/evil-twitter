@@ -11,7 +11,7 @@ use solana_sdk::{
 }; // Add this import
 
 use crate::utils::definitions::RATES;
-use crate::utils::phenomena::test_phenomena_add_alternative_payment;
+use crate::utils::phenomena::{test_phenomena_add_alternative_payment, test_phenomena_create_user};
 use crate::utils::utils::{
     airdrop_sol_to_users, send_tx, setup_token_mint, setup_token_mint_ata_and_mint_to,
     setup_token_mint_ata_and_mint_to_many_users,
@@ -168,38 +168,41 @@ async fn test_setup() {
 
         test_phenomena_add_alternative_payment(&rpc, &program, &payer, &admin, &usdc_pubkey).await;
 
-        {
-            println!("creating user 1");
-            let user_account_pda = Pubkey::find_program_address(
-                &[USER_ACCOUNT_SEED, user_1_pubkey.as_ref()],
-                &program_id,
-            )
-            .0;
+        test_phenomena_create_user(&rpc, &program, &payer, &user_1).await;
+        test_phenomena_create_user(&rpc, &program, &payer, &user_2).await;
+        test_phenomena_create_user(&rpc, &program, &payer, &user_3).await;
+        // {
+        //     println!("creating user 1");
+        //     let user_account_pda = Pubkey::find_program_address(
+        //         &[USER_ACCOUNT_SEED, user_1_pubkey.as_ref()],
+        //         &program_id,
+        //     )
+        //     .0;
 
-            let create_user_ix = program
-                .request()
-                .accounts(opinions_market_engine::accounts::CreateUser {
-                    authority: user_1_pubkey,
-                    user_account: user_account_pda,
-                    system_program: system_program::ID,
-                })
-                .args(opinions_market_engine::instruction::CreateUser {})
-                .instructions()
-                .unwrap();
+        //     let create_user_ix = program
+        //         .request()
+        //         .accounts(opinions_market_engine::accounts::CreateUser {
+        //             authority: user_1_pubkey,
+        //             user_account: user_account_pda,
+        //             system_program: system_program::ID,
+        //         })
+        //         .args(opinions_market_engine::instruction::CreateUser {})
+        //         .instructions()
+        //         .unwrap();
 
-            let create_user_tx = send_tx(&rpc, create_user_ix, &payer.pubkey(), &[&payer, &user_1])
-                .await
-                .unwrap();
-            println!("create user tx: {:?}", create_user_tx);
+        //     let create_user_tx = send_tx(&rpc, create_user_ix, &payer.pubkey(), &[&payer, &user_1])
+        //         .await
+        //         .unwrap();
+        //     println!("create user tx: {:?}", create_user_tx);
 
-            // Verify user account was created
-            let user_account = program
-                .account::<opinions_market_engine::state::UserAccount>(user_account_pda)
-                .await
-                .unwrap();
-            assert_eq!(user_account.authority_wallet, user_1_pubkey);
-            println!("✅ User account created successfully");
-        }
+        //     // Verify user account was created
+        //     let user_account = program
+        //         .account::<opinions_market_engine::state::UserAccount>(user_account_pda)
+        //         .await
+        //         .unwrap();
+        //     assert_eq!(user_account.authority_wallet, user_1_pubkey);
+        //     println!("✅ User account created successfully");
+        // }
 
         {
             println!("user 1 depositing 10_000_000 bling to their vault");

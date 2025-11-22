@@ -94,3 +94,53 @@ pub async fn test_phenomena_add_alternative_payment(
         "Price in BLING should match the registered rate"
     );
 }
+
+pub async fn test_phenomena_create_user(
+    rpc: &RpcClient,
+    opinions_market_engine: &Program<&Keypair>,
+    payer: &Keypair,
+    user: &Keypair,
+) {
+    println!("creating user 1");
+    let user_account_pda = Pubkey::find_program_address(
+        &[USER_ACCOUNT_SEED, user.pubkey().as_ref()],
+        &opinions_market_engine.id(),
+    )
+    .0;
+
+    let create_user_ix = opinions_market_engine
+        .request()
+        .accounts(opinions_market_engine::accounts::CreateUser {
+            authority: user.pubkey(),
+            user_account: user_account_pda,
+            system_program: system_program::ID,
+        })
+        .args(opinions_market_engine::instruction::CreateUser {})
+        .instructions()
+        .unwrap();
+
+    let create_user_tx = send_tx(&rpc, create_user_ix, &payer.pubkey(), &[&payer, &user])
+        .await
+        .unwrap();
+    println!("create user tx: {:?}", create_user_tx);
+
+    // Verify user account was created
+    let user_account = opinions_market_engine
+        .account::<opinions_market_engine::state::UserAccount>(user_account_pda)
+        .await
+        .unwrap();
+    assert_eq!(user_account.authority_wallet, user.pubkey());
+    println!("✅ User account created successfully");
+}
+
+pub async fn test_phenomena_deposit() {}
+
+pub async fn test_phenomena_withdraw() {}
+
+pub async fn test_phenomena_create_post() {}
+
+pub async fn test_phenomena_vote_on_post() {}
+
+pub async fn test_phenomena_settle_post() {}
+
+// pub async fn test_phenomena_claim_post_reward() {}
