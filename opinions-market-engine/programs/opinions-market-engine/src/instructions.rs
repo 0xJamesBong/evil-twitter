@@ -2,6 +2,7 @@ use crate::pda_seeds::*;
 use crate::state::*;
 use anchor_lang::prelude::*;
 use anchor_spl::token::{Mint, Token, TokenAccount};
+use crate::ErrorCode;
 
 // -----------------------------------------------------------------------------
 // CONTEXTS
@@ -54,6 +55,7 @@ pub struct RegisterAlternativePayment<'info> {
         seeds = [ACCEPTED_MINT_SEED, token_mint.key().as_ref()],
         bump,
         space = 8 + AlternativePayment::INIT_SPACE,
+        constraint = token_mint.key() != config.bling_mint @ ErrorCode::BlingCannotBeAlternativePayment,
     )]
     pub alternative_payment: Account<'info, AlternativePayment>,
 

@@ -30,6 +30,10 @@ pub enum ErrorCode {
     ZeroUnits,
     #[msg("Mint is not enabled")]
     MintNotEnabled,
+    #[msg("BLING cannot be registered as an alternative payment")]
+    BlingCannotBeAlternativePayment,
+    #[msg("Alternative payment already registered for this mint")]
+    AlternativePaymentAlreadyRegistered,
 }
 
 #[program]
@@ -60,8 +64,19 @@ pub mod opinions_market_engine {
         ctx: Context<RegisterAlternativePayment>,
         price_in_bling: u64, // How much is 1 token in BLING units -
     ) -> Result<()> {
-        let am = &mut ctx.accounts.alternative_payment;
+        let cfg = &ctx.accounts.config;
 
+        // Guard: Prevent BLING from being registered as alternative payment
+        // (Also enforced by constraint in accounts struct, but adding runtime check for defense-in-depth)
+        require!(
+            ctx.accounts.token_mint.key() != cfg.bling_mint,
+            ErrorCode::BlingCannotBeAlternativePayment
+        );
+
+        // Note: Duplicate registration is prevented by the `init` constraint on alternative_payment account.
+        // If the account already exists (same PDA seeds), init will fail before this function is called.
+
+        let am = &mut ctx.accounts.alternative_payment;
         am.token_mint = ctx.accounts.token_mint.key();
         am.price_in_bling = price_in_bling;
         am.treasury_token_account = ctx.accounts.treasury_token_account.key();
