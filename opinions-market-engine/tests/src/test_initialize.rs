@@ -13,7 +13,7 @@ use solana_sdk::{
 use crate::utils::definitions::RATES;
 use crate::utils::phenomena::{
     test_phenomena_add_valid_payment, test_phenomena_create_post, test_phenomena_create_user,
-    test_phenomena_deposit, test_phenomena_withdraw,
+    test_phenomena_deposit, test_phenomena_vote_on_post, test_phenomena_withdraw,
 };
 use crate::utils::utils::{
     airdrop_sol_to_users, send_tx, setup_token_mint, setup_token_mint_ata_and_mint_to,
@@ -261,18 +261,93 @@ async fn test_setup() {
             .await;
         }
 
-        test_phenomena_create_post(
-            &rpc,
-            &opinions_market_engine,
-            &payer,
-            &user_1,
-            &bling_pubkey,
-            &config_pda,
-        )
-        .await;
+        let post_p1_pda = {
+            println!("user 1 creating an original post P1");
+            test_phenomena_create_post(
+                &rpc,
+                &opinions_market_engine,
+                &payer,
+                &user_1,
+                &bling_pubkey,
+                &config_pda,
+                None, // Original post
+            )
+            .await
+        };
 
-        // {
-        //     println!("user 3 trying to make a post");
+        let post_p2_pda = {
+            println!("user 2 creates a child post P2 of user 1's post P1");
+            test_phenomena_create_post(
+                &rpc,
+                &opinions_market_engine,
+                &payer,
+                &user_2,
+                &bling_pubkey,
+                &config_pda,
+                Some(post_p1_pda), // Child post
+            )
+            .await
+        };
+
+        {
+            println!("user 2 upvoting user 1's post P1");
+            test_phenomena_vote_on_post(
+                &rpc,
+                &opinions_market_engine,
+                &payer,
+                &user_2,
+                &post_p1_pda,
+                opinions_market_engine::state::Side::Pump,
+                1,
+                &bling_pubkey,
+                &bling_atas,
+                &config_pda,
+            )
+            .await;
+        }
+
+        {
+            println!("user 1 downvoting user 2's post P2");
+            test_phenomena_vote_on_post(
+                &rpc,
+                &opinions_market_engine,
+                &payer,
+                &user_1,
+                &post_p2_pda,
+                opinions_market_engine::state::Side::Smack,
+                1,
+                &bling_pubkey,
+                &bling_atas,
+                &config_pda,
+            )
+            .await;
+        }
+
+        {
+            println!("user 1 downvoting user 2's child post");
+            // Note: This is the same as the previous vote since P2 is already a child post
+            // If you meant a different child post, we'd need to create another one first
+            test_phenomena_vote_on_post(
+                &rpc,
+                &opinions_market_engine,
+                &payer,
+                &user_1,
+                &post_p2_pda,
+                opinions_market_engine::state::Side::Smack,
+                1,
+                &bling_pubkey,
+                &bling_atas,
+                &config_pda,
+            )
+            .await;
+        }
+
+        {
+            // {
+            //     println!("user 3 trying to make a post");
+            println!("user 1 claims their reward from user 2's post");
+        }
+
         //     // This would Cause an error because user 3 is not a user in the system
         //     test_phenomena_create_post(
         //         &rpc,
@@ -284,6 +359,8 @@ async fn test_setup() {
         //     )
         //     .await;
         // }
+
+        {}
 
         println!("\n\n");
         println!(" 🟪🟪🟪🟪🟪🟪🟪🟪🟪🟪🟪🟪🟪");

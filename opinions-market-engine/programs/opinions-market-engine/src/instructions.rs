@@ -248,8 +248,15 @@ pub struct VoteOnPost<'info> {
     )]
     pub position: Account<'info, UserPostPosition>,
 
-    // Payment vault
-    #[account(mut)]
+    // Payment vault - for BLING payments, this is the user's BLING vault
+    #[account(
+        init_if_needed,
+        payer = payer,
+        seeds = [USER_VAULT_TOKEN_ACCOUNT_SEED, user_account.authority_wallet.as_ref(), bling_mint.key().as_ref()],
+        bump,
+        token::mint = bling_mint,
+        token::authority = vault_authority,
+    )]
     pub user_vault_token_account: Account<'info, TokenAccount>,
     /// CHECK: Vault authority PDA derived from seeds
     #[account(
@@ -266,11 +273,13 @@ pub struct VoteOnPost<'info> {
     #[account(mut)]
     pub post_pot_bling: Account<'info, TokenAccount>,
 
+    // BLING mint - always required for vault initialization
+    pub bling_mint: Account<'info, Mint>,
+
     // If paying with non-BLING mint
     pub accepted_alternative_payment: Option<Account<'info, ValidPayment>>,
     #[account(mut)]
     pub mint_treasury_token_account: Option<Account<'info, TokenAccount>>,
-    pub bling_mint: Option<Account<'info, Mint>>,
     /// CHECK
     pub bling_mint_authority: Option<UncheckedAccount<'info>>,
 

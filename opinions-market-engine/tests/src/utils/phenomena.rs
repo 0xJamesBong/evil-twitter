@@ -296,8 +296,14 @@ pub async fn test_phenomena_create_post(
     creator: &Keypair,
     bling_mint: &Pubkey,
     config_pda: &Pubkey,
-) {
-    println!("{:} makes a post", creator.pubkey());
+    parent_post_pda: Option<Pubkey>,
+) -> Pubkey {
+    let post_type_str = if parent_post_pda.is_some() {
+        "child post"
+    } else {
+        "original post"
+    };
+    println!("{:} makes a {}", creator.pubkey(), post_type_str);
 
     // Generate a random post_id_hash
     // For testing, we'll use a simple hash based on current time
@@ -366,7 +372,7 @@ pub async fn test_phenomena_create_post(
         })
         .args(opinions_market_engine::instruction::CreatePost {
             post_id_hash: hash,
-            parent_post_pda: None,
+            parent_post_pda,
         })
         .instructions()
         .unwrap();
@@ -391,10 +397,176 @@ pub async fn test_phenomena_create_post(
     }
     assert_eq!(post_account.upvotes, 0);
     assert_eq!(post_account.downvotes, 0);
-    println!("✅ Post created successfully");
+
+    // Verify post type
+    match (parent_post_pda, post_account.post_type) {
+        (
+            Some(parent),
+            opinions_market_engine::state::PostType::Child {
+                parent: stored_parent,
+            },
+        ) => {
+            assert_eq!(stored_parent, parent);
+        }
+        (None, opinions_market_engine::state::PostType::Original) => {}
+        _ => panic!("Post type mismatch"),
+    }
+
+    println!("✅ {} created successfully", post_type_str);
+    post_pda
 }
 
-pub async fn test_phenomena_vote_on_post() {}
+pub async fn test_phenomena_vote_on_post(
+    rpc: &RpcClient,
+    opinions_market_engine: &Program<&Keypair>,
+    payer: &Keypair,
+    voter: &Keypair,
+    post_pda: &Pubkey,
+    side: opinions_market_engine::state::Side,
+    units: u32,
+    bling_mint: &Pubkey,
+    bling_atas: &HashMap<Pubkey, Pubkey>,
+    config_pda: &Pubkey,
+) {
+    let side_str = match side {
+        opinions_market_engine::state::Side::Pump => "upvote",
+        opinions_market_engine::state::Side::Smack => "downvote",
+    };
+    println!(
+        "{:} {}ing post {:} with {} units",
+        voter.pubkey(),
+        side_str,
+        post_pda,
+        units
+    );
+
+    // Get post account to find creator
+    let post_account = opinions_market_engine
+        .account::<opinions_market_engine::state::PostAccount>(*post_pda)
+        .await
+        .unwrap();
+
+    let creator_user_account_pda = post_account.creator_user;
+
+    // Get creator's wallet from user account
+    let creator_user_account = opinions_market_engine
+        .account::<opinions_market_engine::state::UserAccount>(creator_user_account_pda)
+        .await
+        .unwrap();
+
+    let creator_wallet = creator_user_account.authority_wallet;
+
+    // Get config to find protocol treasury
+    let config = opinions_market_engine
+        .account::<opinions_market_engine::state::Config>(*config_pda)
+        .await
+        .unwrap();
+
+    let voter_user_account_pda = Pubkey::find_program_address(
+        &[USER_ACCOUNT_SEED, voter.pubkey().as_ref()],
+        &opinions_market_engine.id(),
+    )
+    .0;
+
+    let position_pda = Pubkey::find_program_address(
+        &[
+            POSITION_SEED,
+            post_pda.as_ref(),
+            voter_user_account_pda.as_ref(),
+        ],
+        &opinions_market_engine.id(),
+    )
+    .0;
+
+    let vault_authority_pda =
+        Pubkey::find_program_address(&[VAULT_AUTHORITY_SEED], &opinions_market_engine.id()).0;
+
+    let user_vault_token_account_pda = Pubkey::find_program_address(
+        &[
+            USER_VAULT_TOKEN_ACCOUNT_SEED,
+            voter.pubkey().as_ref(),
+            bling_mint.as_ref(),
+        ],
+        &opinions_market_engine.id(),
+    )
+    .0;
+
+    let creator_bling_vault_pda = Pubkey::find_program_address(
+        &[
+            USER_VAULT_TOKEN_ACCOUNT_SEED,
+            creator_wallet.as_ref(),
+            bling_mint.as_ref(),
+        ],
+        &opinions_market_engine.id(),
+    )
+    .0;
+
+    let post_pot_authority_pda = Pubkey::find_program_address(
+        &[POST_POT_AUTHORITY_SEED, post_pda.as_ref()],
+        &opinions_market_engine.id(),
+    )
+    .0;
+
+    let post_pot_bling_pda = spl_associated_token_account::get_associated_token_address(
+        &post_pot_authority_pda,
+        bling_mint,
+    );
+
+    let protocol_bling_treasury_pda = Pubkey::find_program_address(
+        &[PROTOCOL_TREASURY_SEED, bling_mint.as_ref()],
+        &opinions_market_engine.id(),
+    )
+    .0;
+
+    let vote_ix = opinions_market_engine
+        .request()
+        .accounts(opinions_market_engine::accounts::VoteOnPost {
+            config: *config_pda,
+            post: *post_pda,
+            user_account: voter_user_account_pda,
+            position: position_pda,
+            user_vault_token_account: user_vault_token_account_pda,
+            vault_authority: vault_authority_pda,
+            protocol_bling_treasury: protocol_bling_treasury_pda,
+            creator_bling_vault: creator_bling_vault_pda,
+            post_pot_bling: post_pot_bling_pda,
+            accepted_alternative_payment: None,
+            mint_treasury_token_account: None,
+            bling_mint: bling_mint.clone(),
+            bling_mint_authority: None,
+            payer: voter.pubkey(), // Voter must be the payer (they're paying for the vote)
+            token_program: spl_token::ID,
+            system_program: system_program::ID,
+        })
+        .args(opinions_market_engine::instruction::VoteOnPost {
+            side,
+            units,
+            payment_in_bling: true,
+        })
+        .instructions()
+        .unwrap();
+
+    // Voter is the payer, so only voter needs to sign
+    let vote_tx = send_tx(&rpc, vote_ix, &voter.pubkey(), &[&voter])
+        .await
+        .unwrap();
+    println!("vote tx: {:?}", vote_tx);
+
+    // Verify position was updated
+    let position = opinions_market_engine
+        .account::<opinions_market_engine::state::UserPostPosition>(position_pda)
+        .await
+        .unwrap();
+    match side {
+        opinions_market_engine::state::Side::Pump => {
+            assert_eq!(position.upvotes, units);
+        }
+        opinions_market_engine::state::Side::Smack => {
+            assert_eq!(position.downvotes, units);
+        }
+    }
+    println!("✅ Vote successful");
+}
 
 pub async fn test_phenomena_settle_post() {}
 

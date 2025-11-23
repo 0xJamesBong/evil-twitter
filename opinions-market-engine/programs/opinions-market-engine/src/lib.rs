@@ -322,12 +322,8 @@ pub mod opinions_market_engine {
                 .checked_sub(protocol_fee_bling + creator_fee_bling)
                 .ok_or(ErrorCode::MathOverflow)?;
 
-            // Unwrap Option types - these should be Some when payment_in_bling is false
-            let bling_mint = ctx
-                .accounts
-                .bling_mint
-                .as_ref()
-                .ok_or(ErrorCode::MintNotEnabled)?;
+            // bling_mint is now always required, but bling_mint_authority is still optional
+            let bling_mint = &ctx.accounts.bling_mint;
             let bling_mint_authority = ctx
                 .accounts
                 .bling_mint_authority
