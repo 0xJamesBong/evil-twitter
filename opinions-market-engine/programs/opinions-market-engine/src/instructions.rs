@@ -72,12 +72,12 @@ pub struct RegisterValidPayment<'info> {
     #[account(
         init,
         payer = admin,
-        seeds = [PROTOCOL_TREASURY_SEED, token_mint.key().as_ref()],
+        seeds = [PROTOCOL_TREASURY_TOKEN_ACCOUNT_SEED, token_mint.key().as_ref()],
         bump,
         token::mint = token_mint,
         token::authority = config, // <-- SPL owner = config PDA
     )]
-    pub treasury_token_account: Account<'info, TokenAccount>,
+    pub protocol_token_treasury_token_account: Account<'info, TokenAccount>,
 
     pub system_program: Program<'info, System>,
     pub token_program: Program<'info, Token>,
@@ -218,71 +218,129 @@ pub struct CreatePost<'info> {
     #[account(
         init,
         payer = payer,
-        seeds = [b"post", creator_user_account.key().as_ref(), post_id_hash.as_ref()],
+        seeds = [b"post", post_id_hash.as_ref()],
         bump,
         space = 8 + 256,
     )]
     pub post: Account<'info, PostAccount>,
-    #[account(mut)]
-    pub post_pot_bling: Account<'info, TokenAccount>,
+    
+    #[account(
+        mut, 
+        seeds = [POST_POT_TOKEN_ACCOUNT_SEED, post.key().as_ref(), token_mint.key().as_ref()],
+        bump, 
+        constraint = post_pot_token_account.owner == post_pot_authority.key(),
+        constraint = post_pot_token_account.mint == token_mint.key(),
+    )]
+    pub post_pot_token_account: Account<'info, TokenAccount>,
+
+    #[account(
+        seeds = [POST_POT_AUTHORITY_SEED, post.key().as_ref()],
+        bump,
+    )]
+    pub post_pot_authority: UncheckedAccount<'info>,
+
+    pub token_mint: Account<'info, Mint>,
     #[account(mut)]
     pub payer: Signer<'info>,
     pub system_program: Program<'info, System>,
 }
 
 #[derive(Accounts)]
-#[instruction(side: Side, units: u32, payment_in_bling: bool)]
+#[instruction(side: Side, units: u32, payment_in_bling: bool, post_id_hash: [u8; 32])]
 pub struct VoteOnPost<'info> {
     pub config: Account<'info, Config>,
-    #[account(mut)]
+    #[account(
+        mut,
+        seeds = [b"post", post_id_hash.as_ref()],
+        bump,
+    )]
     pub post: Account<'info, PostAccount>,
+    
+    #[account(mut)]
+    pub user: Signer<'info>,
+    #[account(
+        seeds = [USER_ACCOUNT_SEED, user.key().as_ref()],
+        bump,
+    )]
     pub user_account: Account<'info, UserAccount>,
-
     // Per-post per-user position
     #[account(
         init_if_needed,
         payer = payer,
-        seeds = [POSITION_SEED, post.key().as_ref(), user_account.key().as_ref()],
+        seeds = [POSITION_SEED, post.key().as_ref(), user.key().as_ref()],
         bump,
         space = 8 + 128,
     )]
     pub position: Account<'info, UserPostPosition>,
 
-    // Payment vault - for BLING payments, this is the user's BLING vault
-    #[account(
-        init_if_needed,
-        payer = payer,
-        seeds = [USER_VAULT_TOKEN_ACCOUNT_SEED, user_account.authority_wallet.as_ref(), bling_mint.key().as_ref()],
-        bump,
-        token::mint = bling_mint,
-        token::authority = vault_authority,
-    )]
-    pub user_vault_token_account: Account<'info, TokenAccount>,
+  
+    #[account(mut)]
+    pub user_token_ata: Account<'info, TokenAccount>,
+    
+    
     /// CHECK: Vault authority PDA derived from seeds
     #[account(
         seeds = [VAULT_AUTHORITY_SEED],
         bump,
     )]
     pub vault_authority: UncheckedAccount<'info>,
+  // Payment vault - for BLING payments, this is the user's BLING vault
+    #[account(
+    mut,
+    seeds = [USER_VAULT_TOKEN_ACCOUNT_SEED, user.key().as_ref(), token_mint.key().as_ref()],
+    bump,
+    token::mint = token_mint,
+    token::authority = vault_authority,
+    )]
+    pub user_vault_token_account: Account<'info,  TokenAccount>,
+
+
+    #[account(mut)]
+    pub post_account: Account<'info, PostAccount>,
+    
+    #[account(
+        init_if_needed,
+        payer = payer,
+        seeds = [USER_VAULT_TOKEN_ACCOUNT_SEED, post.creator_user.key().as_ref(), token_mint.key().as_ref()],
+        bump,
+        token::mint = token_mint,
+        token::authority = vault_authority,
+    )]
+    pub creator_vault_token_account: Account<'info, TokenAccount>,
+
+    #[account(
+        mut, 
+        seeds = [POST_POT_TOKEN_ACCOUNT_SEED, post.key().as_ref(), token_mint.key().as_ref()],
+        bump, 
+        constraint = post_pot_token_account.owner == post_pot_authority.key(),
+        constraint = post_pot_token_account.mint == token_mint.key(),
+    )]
+    pub post_pot_token_account: Account<'info, TokenAccount>,
+
+    #[account(
+        seeds = [POST_POT_AUTHORITY_SEED, post.key().as_ref()],
+        bump,
+    )]
+    pub post_pot_authority: UncheckedAccount<'info>,
 
     // BLING & fees
-    #[account(mut)]
-    pub protocol_bling_treasury: Account<'info, TokenAccount>,
-    #[account(mut)]
-    pub creator_bling_vault: Account<'info, TokenAccount>,
-    #[account(mut)]
-    pub post_pot_bling: Account<'info, TokenAccount>,
+    #[account(
+        mut,
+        seeds = [PROTOCOL_TREASURY_TOKEN_ACCOUNT_SEED, token_mint.key().as_ref()],
+        token::mint = token_mint,
+        token::authority = config,
+    bump,
+    )]
+    pub protocol_token_treasury_token_account: Account<'info, TokenAccount>,
 
-    // BLING mint - always required for vault initialization
-    pub bling_mint: Account<'info, Mint>,
-
-    // If paying with non-BLING mint
-    pub accepted_alternative_payment: Option<Account<'info, ValidPayment>>,
-    #[account(mut)]
-    pub mint_treasury_token_account: Option<Account<'info, TokenAccount>>,
-    /// CHECK
-    pub bling_mint_authority: Option<UncheckedAccount<'info>>,
-
+    #[account(
+        seeds = [VALID_PAYMENT_SEED, token_mint.key().as_ref()],
+        bump = valid_payment.bump,
+        constraint = valid_payment.enabled @ ErrorCode::MintNotEnabled,
+    )]
+    pub valid_payment: Account<'info, ValidPayment>,
+    
+    pub token_mint: Account<'info, Mint>,
     #[account(mut)]
     pub payer: Signer<'info>, // your relayer/backend
     pub token_program: Program<'info, Token>,
@@ -291,41 +349,72 @@ pub struct VoteOnPost<'info> {
 
 #[derive(Accounts)]
 pub struct SettlePost<'info> {
+    // -----------------------
+    // POST
+    // -----------------------
     #[account(mut)]
     pub post: Account<'info, PostAccount>,
 
-    #[account(mut)]
-    pub post_pot_bling: Account<'info, TokenAccount>,
+    // -----------------------
+    // POST POT (PDA)
+    // -----------------------
+    #[account(
+        mut,
+        seeds = [POST_POT_TOKEN_ACCOUNT_SEED, post.key().as_ref(), token_mint.key().as_ref()],
+        bump,
+        constraint = post_pot_token_account.mint == token_mint.key(),
+        constraint = post_pot_token_account.owner == post_pot_authority.key(),
+    )]
+    pub post_pot_token_account: Account<'info, TokenAccount>,
 
-    /// CHECK
     #[account(
         seeds = [POST_POT_AUTHORITY_SEED, post.key().as_ref()],
         bump,
     )]
     pub post_pot_authority: UncheckedAccount<'info>,
 
-    #[account(mut)]
-    pub creator_bling_vault: Account<'info, TokenAccount>,
+    // -----------------------
+    // PROTOCOL TREASURY FOR THIS MINT
+    // -----------------------
+    #[account(
+        mut,
+        seeds = [PROTOCOL_TREASURY_TOKEN_ACCOUNT_SEED, token_mint.key().as_ref()],
+        bump,
+        token::mint = token_mint,
+        token::authority = config,
+    )]
+    pub protocol_token_treasury_token_account: Account<'info, TokenAccount>,
 
-    #[account(mut)]
-    pub protocol_bling_treasury: Account<'info, TokenAccount>,
+    // -----------------------
+    // CHILD POST (OPTIONAL)
+    // -----------------------
+    #[account(
+        mut,
+        constraint = parent_post.key() == match post.post_type {
+            PostType::Child { parent } => parent,
+            _ => parent_post.key(), // always equal if not child, do not read
+        }
+    )]
+    pub parent_post: Account<'info, PostAccount>,
 
-    // optional, only meaningful if post is child
-    /// CHECK: Only used if post is a child post
-    #[account(mut)]
-    pub parent_post: UncheckedAccount<'info>,
+    #[account(
+        mut,
+        seeds = [POST_POT_TOKEN_ACCOUNT_SEED, parent_post.key().as_ref(), token_mint.key().as_ref()],
+        bump,
+        constraint = parent_post_pot_token_account.mint == token_mint.key(),
+        constraint = parent_post_pot_token_account.owner == parent_post_pot_authority.key(),
+    )]
+    pub parent_post_pot_token_account: Account<'info, TokenAccount>,
 
-    /// CHECK: Only used if post is a child post
-    #[account(mut)]
-    pub parent_post_pot_bling: UncheckedAccount<'info>,
-
-    /// CHECK: Parent post pot authority PDA, only used if post is a child post
     #[account(
         seeds = [POST_POT_AUTHORITY_SEED, parent_post.key().as_ref()],
         bump,
     )]
     pub parent_post_pot_authority: UncheckedAccount<'info>,
 
+    // -----------------------
+    pub config: Account<'info, Config>,
+    pub token_mint: Account<'info, Mint>,
     pub token_program: Program<'info, Token>,
 }
 

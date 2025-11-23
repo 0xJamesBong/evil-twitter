@@ -1,3 +1,7 @@
+use crate::{
+    constants::{POST_INIT_DURATION_SECS, POST_MAX_DURATION_SECS, VOTE_PER_BLING_BASE_COST},
+    ErrorCode,
+};
 use anchor_lang::prelude::*;
 
 // -----------------------------------------------------------------------------
@@ -9,9 +13,13 @@ use anchor_lang::prelude::*;
 pub struct Config {
     pub admin: Pubkey,
     pub bling_mint: Pubkey,
-    pub protocol_bling_treasury: Pubkey,
-    pub protocol_fee_bps: u16,
-    pub creator_fee_bps_pump: u16,
+
+    pub protocol_vote_fee_bps: u16,
+    pub protocol_vote_settlement_fee_bps: u16,
+
+    pub creator_pump_vote_fee_bps: u16,
+    pub creator_vote_settlement_fee_bps: u16,
+
     pub base_duration_secs: u32,
     pub max_duration_secs: u32,
     pub extension_per_vote_secs: u32,
@@ -63,6 +71,49 @@ pub struct PostAccount {
     pub payout_per_unit: u64, // stored after settle
 }
 
+impl PostAccount {
+    pub fn new(
+        creator_user: Pubkey,
+        post_id_hash: [u8; 32],
+        post_type: PostType,
+        now: i64,
+    ) -> Self {
+        let end_time = now + POST_INIT_DURATION_SECS as i64;
+        Self {
+            creator_user,
+            post_id_hash,
+            post_type,
+            start_time: now,
+            end_time,
+            state: PostState::Open,
+            upvotes: 0,
+            downvotes: 0,
+            winning_side: None,
+            payout_per_unit: 0,
+        }
+    }
+
+    pub fn extend_time_limit(
+        &mut self,
+        current_time: i64,
+        extension_per_vote_secs: u32,
+    ) -> Result<i64> {
+        let naive_new_end = self.end_time.max(current_time) + extension_per_vote_secs as i64;
+
+        // Cap it so it's never more than MAX_AUCTION_DURATION from *now*
+        let cap = current_time + POST_MAX_DURATION_SECS as i64;
+
+        let new_end = naive_new_end.min(cap);
+
+        self.end_time = new_end;
+        Ok(new_end)
+    }
+
+    pub fn within_time_limit(&self, current_time: i64) -> bool {
+        (current_time < self.end_time)
+    }
+}
+
 #[account]
 #[derive(InitSpace)]
 pub struct UserPostPosition {
@@ -87,4 +138,92 @@ pub enum Side {
 pub enum PostState {
     Open,
     Settled,
+}
+
+pub struct Vote {
+    pub side: Side,
+    pub units: u32,
+    pub user_pubkey: Pubkey,
+    pub post_pubkey: Pubkey,
+}
+
+impl Vote {
+    pub fn new(side: Side, units: u32, user_pubkey: Pubkey, post_pubkey: Pubkey) -> Self {
+        Self {
+            side,
+            units,
+            user_pubkey,
+            post_pubkey,
+        }
+    }
+    fn user_adjusted_cost(
+        &self,
+        user_position: &UserPostPosition,
+        user_account: &UserAccount,
+    ) -> Result<u64> {
+        // CAP EVERYTHING FIRST — overflow is now mathematically impossible
+        let units = (self.units as u64).min(1_000_000);
+        let prev = match self.side {
+            Side::Pump => user_position.upvotes as u64,
+            Side::Smack => user_position.downvotes as u64,
+        }
+        .min(1_000_000);
+
+        let side_mult = match self.side {
+            Side::Pump => 1u64,
+            Side::Smack => 10u64,
+        };
+
+        // Social multiplier: 5_000–20_000 bps
+        let social_mult_bps = {
+            let score = user_account.social_score;
+            if score >= 0 {
+                10_000 - 50 * (score.min(100) as u64)
+            } else {
+                10_000 + 100 * ((-score).min(100) as u64)
+            }
+        }
+        .clamp(5_000, 20_000);
+
+        // ---- INTUITIVE RAW MATH (SAFE NOW) ----
+        let raw = units * side_mult * (prev + 1);
+
+        // Apply social multiplier
+        let cost = (raw * social_mult_bps) / 10_000;
+
+        Ok(cost.max(1))
+    }
+
+    fn post_adjusted_cost(&self, post: &PostAccount, base: u64) -> Result<u64> {
+        let post_units = match self.side {
+            Side::Pump => post.upvotes as u64,
+            Side::Smack => post.downvotes as u64,
+        }
+        .min(1_000_000);
+
+        // Bonding curve: 10_000 → 10_000 + 1_000_000
+        let curve_mult_bps = 10_000 + (post_units * 5);
+        let curve_mult_bps = curve_mult_bps.clamp(10_000, 1_000_000);
+
+        let mut cost = (base * curve_mult_bps) / 10_000;
+
+        // child post +10%
+        if matches!(post.post_type, PostType::Child { .. }) {
+            cost = (cost * 11_000) / 10_000;
+        }
+
+        Ok(cost.max(1))
+    }
+
+    pub fn compute_cost_in_bling(
+        &self,
+        post: &PostAccount,
+        user_position: &UserPostPosition,
+        user_account: &UserAccount,
+        _cfg: &Config,
+    ) -> Result<u64> {
+        let user = self.user_adjusted_cost(user_position, user_account)?;
+        let post_cost = self.post_adjusted_cost(post, user)?;
+        Ok(post_cost.max(1))
+    }
 }
