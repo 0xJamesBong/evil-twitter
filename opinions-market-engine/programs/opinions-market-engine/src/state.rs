@@ -42,11 +42,18 @@ pub struct UserAccount {
     pub padding: [u8; 7], // 7
 }
 
+#[derive(AnchorSerialize, AnchorDeserialize, Clone, Copy, PartialEq, Eq, InitSpace)]
+pub enum PostType {
+    Original,
+    Child { parent: Pubkey },
+}
+
 #[account]
 #[derive(InitSpace)]
 pub struct PostAccount {
     pub creator_user: Pubkey,
     pub post_id_hash: [u8; 32],
+    pub post_type: PostType, // <-- NEW
     pub start_time: i64,
     pub end_time: i64,
     pub state: PostState,

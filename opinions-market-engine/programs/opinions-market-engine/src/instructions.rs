@@ -284,20 +284,42 @@ pub struct VoteOnPost<'info> {
 pub struct SettlePost<'info> {
     #[account(mut)]
     pub post: Account<'info, PostAccount>,
+
     #[account(mut)]
     pub post_pot_bling: Account<'info, TokenAccount>,
+
     /// CHECK
     #[account(
         seeds = [POST_POT_AUTHORITY_SEED, post.key().as_ref()],
         bump,
     )]
     pub post_pot_authority: UncheckedAccount<'info>,
+
     #[account(mut)]
     pub creator_bling_vault: Account<'info, TokenAccount>,
+
     #[account(mut)]
     pub protocol_bling_treasury: Account<'info, TokenAccount>,
+
+    // optional, only meaningful if post is child
+    /// CHECK: Only used if post is a child post
+    #[account(mut)]
+    pub parent_post: UncheckedAccount<'info>,
+
+    /// CHECK: Only used if post is a child post
+    #[account(mut)]
+    pub parent_post_pot_bling: UncheckedAccount<'info>,
+
+    /// CHECK: Parent post pot authority PDA, only used if post is a child post
+    #[account(
+        seeds = [POST_POT_AUTHORITY_SEED, parent_post.key().as_ref()],
+        bump,
+    )]
+    pub parent_post_pot_authority: UncheckedAccount<'info>,
+
     pub token_program: Program<'info, Token>,
 }
+
 
 #[derive(Accounts)]
 pub struct ClaimPostReward<'info> {

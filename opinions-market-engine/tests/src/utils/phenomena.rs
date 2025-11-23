@@ -361,14 +361,18 @@ pub async fn test_phenomena_create_post(
             creator_user_account: creator_user_account_pda,
             post: post_pda,
             post_pot_bling: post_pot_bling_pda,
-            payer: payer.pubkey(),
+            payer: creator.pubkey(), // Creator must be the payer/signer (seeds constraint requires this)
             system_program: system_program::ID,
         })
-        .args(opinions_market_engine::instruction::CreatePost { post_id_hash: hash })
+        .args(opinions_market_engine::instruction::CreatePost {
+            post_id_hash: hash,
+            parent_post_pda: None,
+        })
         .instructions()
         .unwrap();
 
-    let create_post_tx = send_tx(&rpc, create_post_ix, &payer.pubkey(), &[&payer])
+    // Creator must sign since they are the payer
+    let create_post_tx = send_tx(&rpc, create_post_ix, &payer.pubkey(), &[&payer, &creator])
         .await
         .unwrap();
     println!("create post tx: {:?}", create_post_tx);

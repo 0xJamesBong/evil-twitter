@@ -37,6 +37,8 @@ pub enum ErrorCode {
     AlternativePaymentAlreadyRegistered,
     #[msg("Unauthorized: user account does not belong to the payer")]
     Unauthorized,
+    #[msg("Invalid parent post")]
+    InvalidParentPost,
 }
 
 #[program]
@@ -142,7 +144,11 @@ pub mod opinions_market_engine {
     // POSTS
     // -------------------------------------------------------------------------
 
-    pub fn create_post(ctx: Context<CreatePost>, post_id_hash: [u8; 32]) -> Result<()> {
+    pub fn create_post(
+        ctx: Context<CreatePost>,
+        post_id_hash: [u8; 32],
+        parent_post_pda: Option<Pubkey>,
+    ) -> Result<()> {
         let cfg = &ctx.accounts.config;
         let clock = Clock::get()?;
 
@@ -150,6 +156,10 @@ pub mod opinions_market_engine {
 
         post.creator_user = ctx.accounts.creator_user_account.key();
         post.post_id_hash = post_id_hash;
+        post.post_type = match parent_post_pda {
+            Some(parent_pda) => PostType::Child { parent: parent_pda },
+            None => PostType::Original,
+        };
         post.start_time = clock.unix_timestamp;
         post.end_time = clock.unix_timestamp + cfg.base_duration_secs as i64;
         post.state = PostState::Open;
@@ -516,6 +526,68 @@ pub mod opinions_market_engine {
         post.state = PostState::Settled;
         post.winning_side = Some(winner);
         post.payout_per_unit = payout_per_unit;
+
+        // After computing payouts and post.payout_per_unit
+
+        match post.post_type.clone() {
+            PostType::Original => {
+                // nothing: pot stays here and is distributed via claim_post_reward
+            }
+
+            PostType::Child { parent } => {
+                // Validate parent post matches
+                require_keys_eq!(
+                    ctx.accounts.parent_post.key(),
+                    parent,
+                    ErrorCode::InvalidParentPost
+                );
+
+                // Validate mint matches by deserializing parent pot
+                let parent_pot_data = ctx.accounts.parent_post_pot_bling.try_borrow_data()?;
+                let parent_pot: anchor_spl::token::TokenAccount =
+                    anchor_spl::token::TokenAccount::try_deserialize(&mut &parent_pot_data[..])?;
+                require_keys_eq!(
+                    parent_pot.mint,
+                    ctx.accounts.post_pot_bling.mint,
+                    ErrorCode::MathOverflow
+                );
+
+                // PDA authority of this child pot
+                let (_, bump) = Pubkey::find_program_address(
+                    &[POST_POT_AUTHORITY_SEED, post_key.as_ref()],
+                    ctx.program_id,
+                );
+                let child_pot_seeds: &[&[&[u8]]] =
+                    &[&[POST_POT_AUTHORITY_SEED, post_key.as_ref(), &[bump]]];
+
+                // Transfer entire remaining pot to parent
+                let amount_left = ctx.accounts.post_pot_bling.amount;
+
+                if amount_left > 0 {
+                    let cpi_accounts = anchor_spl::token::Transfer {
+                        from: ctx.accounts.post_pot_bling.to_account_info(),
+                        to: ctx.accounts.parent_post_pot_bling.to_account_info(),
+                        authority: ctx.accounts.post_pot_authority.to_account_info(),
+                    };
+                    let cpi_ctx = CpiContext::new_with_signer(
+                        ctx.accounts.token_program.to_account_info(),
+                        cpi_accounts,
+                        child_pot_seeds,
+                    );
+                    anchor_spl::token::transfer(cpi_ctx, amount_left)?;
+
+                    // Update parent's total_pot_bling accounting
+                    let mut parent_post_data = ctx.accounts.parent_post.try_borrow_mut_data()?;
+                    let mut parent_post_struct: PostAccount =
+                        PostAccount::try_deserialize(&mut &parent_post_data[..])?;
+                    parent_post_struct.total_pot_bling = parent_post_struct
+                        .total_pot_bling
+                        .checked_add(amount_left)
+                        .ok_or(ErrorCode::MathOverflow)?;
+                    parent_post_struct.serialize(&mut &mut parent_post_data[..])?;
+                }
+            }
+        }
 
         Ok(())
     }
