@@ -157,12 +157,12 @@ pub struct Deposit<'info> {
     #[account(
         init_if_needed,
         payer = user,
-        seeds = [VAULT_TOKEN_ACCOUNT_SEED, user.key().as_ref(), token_mint.key().as_ref()],
+        seeds = [USER_VAULT_TOKEN_ACCOUNT_SEED, user.key().as_ref(), token_mint.key().as_ref()],
         bump,
         token::mint = token_mint,
         token::authority = vault_authority,
     )]
-    pub vault_token_account: Account<'info, TokenAccount>,
+    pub user_vault_token_account: Account<'info, TokenAccount>,
 
     pub token_program: Program<'info, Token>,
     pub system_program: Program<'info, System>,
@@ -189,12 +189,12 @@ pub struct Withdraw<'info> {
 
     #[account(
         mut,
-        seeds = [VAULT_TOKEN_ACCOUNT_SEED, user.key().as_ref(), token_mint.key().as_ref()],
+        seeds = [USER_VAULT_TOKEN_ACCOUNT_SEED, user.key().as_ref(), token_mint.key().as_ref()],
         bump,
-        constraint = vault_token_account.owner == vault_authority.key(),
-        constraint = vault_token_account.mint == token_mint.key(),
+        constraint = user_vault_token_account.owner == vault_authority.key(),
+        constraint = user_vault_token_account.mint == token_mint.key(),
     )]
-    pub vault_token_account: Account<'info, TokenAccount>,
+    pub user_vault_token_account: Account<'info, TokenAccount>,
 
     /// CHECK: Global vault authority PDA derived from seeds
     #[account(
@@ -250,7 +250,7 @@ pub struct VoteOnPost<'info> {
 
     // Payment vault
     #[account(mut)]
-    pub vault_token_account: Account<'info, TokenAccount>,
+    pub user_vault_token_account: Account<'info, TokenAccount>,
     /// CHECK: Vault authority PDA derived from seeds
     #[account(
         seeds = [VAULT_AUTHORITY_SEED],

@@ -57,9 +57,8 @@ pub struct PostAccount {
     pub start_time: i64,
     pub end_time: i64,
     pub state: PostState,
-    pub total_pump_bling: u64,
-    pub total_smack_bling: u64,
-    pub total_pot_bling: u64,
+    pub upvotes: u64,
+    pub downvotes: u64,
     pub winning_side: Option<Side>,
     pub payout_per_unit: u64, // stored after settle
 }
@@ -69,10 +68,8 @@ pub struct PostAccount {
 pub struct UserPostPosition {
     pub user: Pubkey,
     pub post: Pubkey,
-    pub pump_units: u32,
-    pub smack_units: u32,
-    pub pump_staked_bling: u64,
-    pub smack_staked_bling: u64,
+    pub upvotes: u32,
+    pub downvotes: u32,
     pub claimed: bool,
 }
 

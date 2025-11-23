@@ -155,7 +155,7 @@ pub async fn test_phenomena_deposit(
 
     let vault_token_account_pda = Pubkey::find_program_address(
         &[
-            VAULT_TOKEN_ACCOUNT_SEED,
+            USER_VAULT_TOKEN_ACCOUNT_SEED,
             user.pubkey().as_ref(),
             token_mint.as_ref(),
         ],
@@ -182,7 +182,7 @@ pub async fn test_phenomena_deposit(
             valid_payment: valid_payment_pda,
             user_token_ata: *user_bling_ata,
             vault_authority: vault_authority_pda,
-            vault_token_account: vault_token_account_pda,
+            user_vault_token_account: vault_token_account_pda,
             token_program: spl_token::ID,
             system_program: system_program::ID,
         })
@@ -234,7 +234,7 @@ pub async fn test_phenomena_withdraw(
 
     let vault_token_account_pda = Pubkey::find_program_address(
         &[
-            VAULT_TOKEN_ACCOUNT_SEED,
+            USER_VAULT_TOKEN_ACCOUNT_SEED,
             user.pubkey().as_ref(),
             token_mint.as_ref(),
         ],
@@ -257,7 +257,7 @@ pub async fn test_phenomena_withdraw(
             user_account: user_account_pda,
             token_mint: token_mint.clone(),
             user_token_dest_ata: *user_token_ata,
-            vault_token_account: vault_token_account_pda,
+            user_vault_token_account: vault_token_account_pda,
             vault_authority: vault_authority_pda,
             token_program: spl_token::ID,
         })
@@ -389,8 +389,8 @@ pub async fn test_phenomena_create_post(
         opinions_market_engine::state::PostState::Open => {}
         _ => panic!("Post should be in Open state"),
     }
-    assert_eq!(post_account.total_pump_bling, 0);
-    assert_eq!(post_account.total_smack_bling, 0);
+    assert_eq!(post_account.upvotes, 0);
+    assert_eq!(post_account.downvotes, 0);
     println!("✅ Post created successfully");
 }
 

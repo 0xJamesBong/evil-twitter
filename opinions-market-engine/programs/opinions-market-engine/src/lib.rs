@@ -109,7 +109,7 @@ pub mod opinions_market_engine {
         // No logic needed—Anchor already checked mint is allowed.
         let cpi_accounts = anchor_spl::token::Transfer {
             from: ctx.accounts.user_token_ata.to_account_info(),
-            to: ctx.accounts.vault_token_account.to_account_info(),
+            to: ctx.accounts.user_vault_token_account.to_account_info(),
             authority: ctx.accounts.user.to_account_info(),
         };
         let cpi_ctx = CpiContext::new(ctx.accounts.token_program.to_account_info(), cpi_accounts);
@@ -127,7 +127,7 @@ pub mod opinions_market_engine {
         let seeds: &[&[&[u8]]] = &[&[VAULT_AUTHORITY_SEED, &[ctx.bumps.vault_authority]]];
 
         let cpi_accounts = anchor_spl::token::Transfer {
-            from: ctx.accounts.vault_token_account.to_account_info(),
+            from: ctx.accounts.user_vault_token_account.to_account_info(),
             to: ctx.accounts.user_token_dest_ata.to_account_info(),
             authority: ctx.accounts.vault_authority.to_account_info(),
         };
@@ -163,11 +163,10 @@ pub mod opinions_market_engine {
         post.start_time = clock.unix_timestamp;
         post.end_time = clock.unix_timestamp + cfg.base_duration_secs as i64;
         post.state = PostState::Open;
-        post.total_pump_bling = 0;
-        post.total_smack_bling = 0;
-        post.total_pot_bling = 0;
-        post.winning_side = None;
+        post.upvotes = 0;
+        post.downvotes = 0;
         post.payout_per_unit = 0;
+        post.winning_side = None;
 
         Ok(())
     }
@@ -196,8 +195,8 @@ pub mod opinions_market_engine {
 
         // 2) Determine existing count for user.
         let (n_current, smacks_multiplier) = match side {
-            Side::Pump => (position.pump_units, 1u64),
-            Side::Smack => (position.smack_units, 10u64), // MVP: 1x for pump, 10x for smack
+            Side::Pump => (position.upvotes, 1u64),
+            Side::Smack => (position.downvotes, 10u64), // MVP: 1x for pump, 10x for smack
         };
 
         // 3) Compute incremental BLING cost from linear curve:
@@ -234,7 +233,7 @@ pub mod opinions_market_engine {
             // user vault -> protocol treasury (fee)
             if protocol_fee_bling > 0 {
                 let cpi_accounts = anchor_spl::token::Transfer {
-                    from: ctx.accounts.vault_token_account.to_account_info(),
+                    from: ctx.accounts.user_vault_token_account.to_account_info(),
                     to: ctx.accounts.protocol_bling_treasury.to_account_info(),
                     authority: ctx.accounts.vault_authority.to_account_info(),
                 };
@@ -249,7 +248,7 @@ pub mod opinions_market_engine {
             // user vault -> creator vault (pump only)
             if creator_fee_bling > 0 {
                 let cpi_accounts = anchor_spl::token::Transfer {
-                    from: ctx.accounts.vault_token_account.to_account_info(),
+                    from: ctx.accounts.user_vault_token_account.to_account_info(),
                     to: ctx.accounts.creator_bling_vault.to_account_info(),
                     authority: ctx.accounts.vault_authority.to_account_info(),
                 };
@@ -263,7 +262,7 @@ pub mod opinions_market_engine {
 
             // user vault -> post pot
             let cpi_accounts = anchor_spl::token::Transfer {
-                from: ctx.accounts.vault_token_account.to_account_info(),
+                from: ctx.accounts.user_vault_token_account.to_account_info(),
                 to: ctx.accounts.post_pot_bling.to_account_info(),
                 authority: ctx.accounts.vault_authority.to_account_info(),
             };
@@ -301,7 +300,7 @@ pub mod opinions_market_engine {
             let seeds: &[&[&[u8]]] = &[&[b"vault_authority", &[ctx.bumps.vault_authority]]];
 
             let cpi_accounts = anchor_spl::token::Transfer {
-                from: ctx.accounts.vault_token_account.to_account_info(),
+                from: ctx.accounts.user_vault_token_account.to_account_info(),
                 to: mint_treasury_token_account.to_account_info(),
                 authority: ctx.accounts.vault_authority.to_account_info(),
             };
@@ -387,33 +386,20 @@ pub mod opinions_market_engine {
         // 5) Update post and position state.
         match side {
             Side::Pump => {
-                post.total_pump_bling = post
-                    .total_pump_bling
+                post.upvotes = post
+                    .upvotes
                     .checked_add(cost_bling)
                     .ok_or(ErrorCode::MathOverflow)?;
-                position.pump_units += units;
-                position.pump_staked_bling = position
-                    .pump_staked_bling
-                    .checked_add(cost_bling)
-                    .ok_or(ErrorCode::MathOverflow)?;
+                position.upvotes += units;
             }
             Side::Smack => {
-                post.total_smack_bling = post
-                    .total_smack_bling
+                post.downvotes = post
+                    .downvotes
                     .checked_add(cost_bling)
                     .ok_or(ErrorCode::MathOverflow)?;
-                position.smack_units += units;
-                position.smack_staked_bling = position
-                    .smack_staked_bling
-                    .checked_add(cost_bling)
-                    .ok_or(ErrorCode::MathOverflow)?;
+                position.downvotes += units;
             }
         }
-
-        post.total_pot_bling = post
-            .total_pot_bling
-            .checked_add(pot_increment_bling)
-            .ok_or(ErrorCode::MathOverflow)?;
 
         // 6) Extend time
         let extra_secs = (cfg.extension_per_vote_secs as i64)
@@ -442,10 +428,10 @@ pub mod opinions_market_engine {
         );
 
         // Choose winner
-        let (winner, total_winning_bling) = if post.total_pump_bling > post.total_smack_bling {
-            (Side::Pump, post.total_pump_bling)
-        } else if post.total_smack_bling > post.total_pump_bling {
-            (Side::Smack, post.total_smack_bling)
+        let (winner, total_winning_bling) = if post.upvotes > post.downvotes {
+            (Side::Pump, post.upvotes)
+        } else if post.downvotes > post.upvotes {
+            (Side::Smack, post.downvotes)
         } else {
             // tie rule: burn pot, or return? For now, burn to protocol.
             //anchor_spl::token::Transfer entire pot to protocol treasury
@@ -465,7 +451,7 @@ pub mod opinions_market_engine {
                 cpi_accounts,
                 seeds,
             );
-            anchor_spl::token::transfer(cpi_ctx, post.total_pot_bling)?;
+            anchor_spl::token::transfer(cpi_ctx, post.payout_per_unit)?;
             post.state = PostState::Settled;
             post.winning_side = None;
             post.payout_per_unit = 0;
@@ -481,12 +467,12 @@ pub mod opinions_market_engine {
         };
 
         let creator_cut = post
-            .total_pot_bling
+            .payout_per_unit
             .checked_mul(creator_cut_bps as u64)
             .ok_or(ErrorCode::MathOverflow)?
             / 10_000;
         let winners_pool = post
-            .total_pot_bling
+            .payout_per_unit
             .checked_sub(creator_cut)
             .ok_or(ErrorCode::MathOverflow)?;
 
@@ -580,8 +566,8 @@ pub mod opinions_market_engine {
                     let mut parent_post_data = ctx.accounts.parent_post.try_borrow_mut_data()?;
                     let mut parent_post_struct: PostAccount =
                         PostAccount::try_deserialize(&mut &parent_post_data[..])?;
-                    parent_post_struct.total_pot_bling = parent_post_struct
-                        .total_pot_bling
+                    parent_post_struct.payout_per_unit = parent_post_struct
+                        .payout_per_unit
                         .checked_add(amount_left)
                         .ok_or(ErrorCode::MathOverflow)?;
                     parent_post_struct.serialize(&mut &mut parent_post_data[..])?;
@@ -602,8 +588,8 @@ pub mod opinions_market_engine {
         let winning_side = post.winning_side.ok_or(ErrorCode::NoWinner)?;
 
         let weight = match winning_side {
-            Side::Pump => position.pump_staked_bling,
-            Side::Smack => position.smack_staked_bling,
+            Side::Pump => position.upvotes,
+            Side::Smack => position.downvotes,
         };
         if weight == 0 {
             position.claimed = true;
@@ -611,7 +597,7 @@ pub mod opinions_market_engine {
         }
 
         let reward = weight
-            .checked_mul(post.payout_per_unit)
+            .checked_mul(post.payout_per_unit as u32)
             .ok_or(ErrorCode::MathOverflow)?;
 
         if reward > 0 {
@@ -632,7 +618,7 @@ pub mod opinions_market_engine {
                 cpi_accounts,
                 seeds,
             );
-            anchor_spl::token::transfer(cpi_ctx, reward)?;
+            anchor_spl::token::transfer(cpi_ctx, reward as u64)?;
         }
 
         position.claimed = true;
