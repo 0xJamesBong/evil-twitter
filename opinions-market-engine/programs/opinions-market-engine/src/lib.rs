@@ -416,164 +416,70 @@ pub mod opinions_market_engine {
     }
 
     pub fn settle_post(ctx: Context<SettlePost>) -> Result<()> {
-        // Get post key before mutable borrow
-        let post_key = ctx.accounts.post.key();
         let post = &mut ctx.accounts.post;
         let clock = Clock::get()?;
 
-        require!(post.state == PostState::Open, ErrorCode::PostAlreadySettled);
+        require!(post.state == PostState::Open, ErrorCode::PostNotOpen);
         require!(
             clock.unix_timestamp > post.end_time,
             ErrorCode::PostNotExpired
         );
 
-        // Choose winner
-        let (winner, total_winning_bling) = if post.upvotes > post.downvotes {
+        //
+        // 1. Determine winner
+        //
+        let (winner, total_winning_votes) = if post.upvotes > post.downvotes {
             (Side::Pump, post.upvotes)
         } else if post.downvotes > post.upvotes {
             (Side::Smack, post.downvotes)
         } else {
-            // tie rule: burn pot, or return? For now, burn to protocol.
-            //anchor_spl::token::Transfer entire pot to protocol treasury
-            // Derive the bump for post_pot_authority PDA (not initialized, so not in ctx.bumps)
+            // tie rule → burn or send to protocol
+            let pot_amount = ctx.accounts.post_pot_bling.amount;
+            let post_key = post.key();
             let (_, bump) = Pubkey::find_program_address(
-                &[b"post_pot_authority", post_key.as_ref()],
+                &[POST_POT_AUTHORITY_SEED, post_key.as_ref()],
                 ctx.program_id,
             );
-            let seeds: &[&[&[u8]]] = &[&[b"post_pot_authority", post_key.as_ref(), &[bump]]];
+
+            let seeds: &[&[&[u8]]] = &[&[POST_POT_AUTHORITY_SEED, post_key.as_ref(), &[bump]]];
+
             let cpi_accounts = anchor_spl::token::Transfer {
                 from: ctx.accounts.post_pot_bling.to_account_info(),
                 to: ctx.accounts.protocol_bling_treasury.to_account_info(),
                 authority: ctx.accounts.post_pot_authority.to_account_info(),
             };
+
             let cpi_ctx = CpiContext::new_with_signer(
                 ctx.accounts.token_program.to_account_info(),
                 cpi_accounts,
                 seeds,
             );
-            anchor_spl::token::transfer(cpi_ctx, post.payout_per_unit)?;
+
+            anchor_spl::token::transfer(cpi_ctx, pot_amount)?;
+
             post.state = PostState::Settled;
             post.winning_side = None;
             post.payout_per_unit = 0;
+
             return Ok(());
         };
 
-        // MVP distribution:
-        // PUMP > SMACK: creator 30%, 70% to PUMPers.
-        // SMACK > PUMP: creator 0, 100% to SMACKers.
-        let (creator_cut_bps, winners_bps) = match winner {
-            Side::Pump => (3000u16, 7000u16),
-            Side::Smack => (0u16, 10_000u16),
-        };
-
-        let creator_cut = post
-            .payout_per_unit
-            .checked_mul(creator_cut_bps as u64)
-            .ok_or(ErrorCode::MathOverflow)?
-            / 10_000;
-        let winners_pool = post
-            .payout_per_unit
-            .checked_sub(creator_cut)
-            .ok_or(ErrorCode::MathOverflow)?;
-
-        // move creator cut out of pot now
-        if creator_cut > 0 {
-            // Derive the bump for post_pot_authority PDA (not initialized, so not in ctx.bumps)
-            // Get post key - post is already mutably borrowed above, so we can't access it here
-            // We need to get it before the mutable borrow or use the already-borrowed reference
-            let post_key_for_seeds = post.key();
-            let (_, bump) = Pubkey::find_program_address(
-                &[b"post_pot_authority", post_key_for_seeds.as_ref()],
-                ctx.program_id,
-            );
-            let seeds: &[&[&[u8]]] =
-                &[&[b"post_pot_authority", post_key_for_seeds.as_ref(), &[bump]]];
-            let cpi_accounts = anchor_spl::token::Transfer {
-                from: ctx.accounts.post_pot_bling.to_account_info(),
-                to: ctx.accounts.creator_bling_vault.to_account_info(),
-                authority: ctx.accounts.post_pot_authority.to_account_info(),
-            };
-            let cpi_ctx = CpiContext::new_with_signer(
-                ctx.accounts.token_program.to_account_info(),
-                cpi_accounts,
-                seeds,
-            );
-            anchor_spl::token::transfer(cpi_ctx, creator_cut)?;
-        }
-
-        // Store per-unit payout so users can claim later.
-        // payout_per_unit = winners_pool / total_winning_bling
-        let payout_per_unit = if total_winning_bling > 0 {
-            winners_pool / total_winning_bling
+        //
+        // 2. Compute payout_per_unit
+        //
+        let pot_amount = ctx.accounts.post_pot_bling.amount;
+        let payout_per_unit = if total_winning_votes > 0 {
+            pot_amount / total_winning_votes
         } else {
             0
         };
 
+        //
+        // 3. Save settle results
+        //
         post.state = PostState::Settled;
         post.winning_side = Some(winner);
         post.payout_per_unit = payout_per_unit;
-
-        // After computing payouts and post.payout_per_unit
-
-        match post.post_type.clone() {
-            PostType::Original => {
-                // nothing: pot stays here and is distributed via claim_post_reward
-            }
-
-            PostType::Child { parent } => {
-                // Validate parent post matches
-                require_keys_eq!(
-                    ctx.accounts.parent_post.key(),
-                    parent,
-                    ErrorCode::InvalidParentPost
-                );
-
-                // Validate mint matches by deserializing parent pot
-                let parent_pot_data = ctx.accounts.parent_post_pot_bling.try_borrow_data()?;
-                let parent_pot: anchor_spl::token::TokenAccount =
-                    anchor_spl::token::TokenAccount::try_deserialize(&mut &parent_pot_data[..])?;
-                require_keys_eq!(
-                    parent_pot.mint,
-                    ctx.accounts.post_pot_bling.mint,
-                    ErrorCode::MathOverflow
-                );
-
-                // PDA authority of this child pot
-                let (_, bump) = Pubkey::find_program_address(
-                    &[POST_POT_AUTHORITY_SEED, post_key.as_ref()],
-                    ctx.program_id,
-                );
-                let child_pot_seeds: &[&[&[u8]]] =
-                    &[&[POST_POT_AUTHORITY_SEED, post_key.as_ref(), &[bump]]];
-
-                // Transfer entire remaining pot to parent
-                let amount_left = ctx.accounts.post_pot_bling.amount;
-
-                if amount_left > 0 {
-                    let cpi_accounts = anchor_spl::token::Transfer {
-                        from: ctx.accounts.post_pot_bling.to_account_info(),
-                        to: ctx.accounts.parent_post_pot_bling.to_account_info(),
-                        authority: ctx.accounts.post_pot_authority.to_account_info(),
-                    };
-                    let cpi_ctx = CpiContext::new_with_signer(
-                        ctx.accounts.token_program.to_account_info(),
-                        cpi_accounts,
-                        child_pot_seeds,
-                    );
-                    anchor_spl::token::transfer(cpi_ctx, amount_left)?;
-
-                    // Update parent's total_pot_bling accounting
-                    let mut parent_post_data = ctx.accounts.parent_post.try_borrow_mut_data()?;
-                    let mut parent_post_struct: PostAccount =
-                        PostAccount::try_deserialize(&mut &parent_post_data[..])?;
-                    parent_post_struct.payout_per_unit = parent_post_struct
-                        .payout_per_unit
-                        .checked_add(amount_left)
-                        .ok_or(ErrorCode::MathOverflow)?;
-                    parent_post_struct.serialize(&mut &mut parent_post_data[..])?;
-                }
-            }
-        }
 
         Ok(())
     }
@@ -585,42 +491,61 @@ pub mod opinions_market_engine {
         require!(post.state == PostState::Settled, ErrorCode::PostNotSettled);
         require!(!position.claimed, ErrorCode::AlreadyClaimed);
 
+        //
+        // 1. Determine user vote weight
+        //
         let winning_side = post.winning_side.ok_or(ErrorCode::NoWinner)?;
 
-        let weight = match winning_side {
-            Side::Pump => position.upvotes,
-            Side::Smack => position.downvotes,
+        let user_votes = match winning_side {
+            Side::Pump => position.upvotes as u64,
+            Side::Smack => position.downvotes as u64,
         };
-        if weight == 0 {
+
+        if user_votes == 0 {
             position.claimed = true;
             return Ok(());
         }
 
-        let reward = weight
-            .checked_mul(post.payout_per_unit as u32)
+        //
+        // 2. Compute reward
+        //
+        let reward = user_votes
+            .checked_mul(post.payout_per_unit)
             .ok_or(ErrorCode::MathOverflow)?;
 
-        if reward > 0 {
-            // Derive the bump for post_pot_authority PDA (not initialized, so not in ctx.bumps)
-            let post_key = ctx.accounts.post.key();
-            let (_, bump) = Pubkey::find_program_address(
-                &[b"post_pot_authority", post_key.as_ref()],
-                ctx.program_id,
-            );
-            let seeds: &[&[&[u8]]] = &[&[b"post_pot_authority", post_key.as_ref(), &[bump]]];
-            let cpi_accounts = anchor_spl::token::Transfer {
-                from: ctx.accounts.post_pot_bling.to_account_info(),
-                to: ctx.accounts.user_bling_vault.to_account_info(),
-                authority: ctx.accounts.post_pot_authority.to_account_info(),
-            };
-            let cpi_ctx = CpiContext::new_with_signer(
-                ctx.accounts.token_program.to_account_info(),
-                cpi_accounts,
-                seeds,
-            );
-            anchor_spl::token::transfer(cpi_ctx, reward as u64)?;
+        if reward == 0 {
+            position.claimed = true;
+            return Ok(());
         }
 
+        //
+        // 3. Transfer reward from post pot PDA → user vault
+        //
+        let post_key = post.key();
+        let (_, bump) = Pubkey::find_program_address(
+            &[POST_POT_AUTHORITY_SEED, post_key.as_ref()],
+            ctx.program_id,
+        );
+
+        let seeds: &[&[&[u8]]] = &[&[POST_POT_AUTHORITY_SEED, post_key.as_ref(), &[bump]]];
+
+        let cpi_accounts = anchor_spl::token::Transfer {
+            from: ctx.accounts.post_pot_bling.to_account_info(),
+            to: ctx.accounts.user_bling_vault.to_account_info(),
+            authority: ctx.accounts.post_pot_authority.to_account_info(),
+        };
+
+        let cpi_ctx = CpiContext::new_with_signer(
+            ctx.accounts.token_program.to_account_info(),
+            cpi_accounts,
+            seeds,
+        );
+
+        anchor_spl::token::transfer(cpi_ctx, reward)?;
+
+        //
+        // 4. Mark as claimed
+        //
         position.claimed = true;
         Ok(())
     }
