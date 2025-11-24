@@ -173,7 +173,7 @@ pub mod opinions_market_engine {
         post.upvotes = new_post.upvotes;
         post.downvotes = new_post.downvotes;
         post.winning_side = new_post.winning_side;
-        post.payout_per_unit = new_post.payout_per_unit;
+        post.pot_payouts = new_post.pot_payouts;
 
         Ok(())
     }
@@ -195,11 +195,12 @@ pub mod opinions_market_engine {
             ErrorCode::PostExpired
         );
 
-        // 1) calculate cost
+        //
+        // ---- 1. Compute BLING cost ----
+        //
         let vote = Vote::new(side, units, ctx.accounts.user.key(), post.key());
         let cost_bling = vote.compute_cost_in_bling(post, pos, &ctx.accounts.user_account, cfg)?;
 
-        // 2) fee calculation
         let protocol_fee = cost_bling * (cfg.protocol_vote_fee_bps as u64) / 10_000;
         let creator_fee = match side {
             Side::Pump => cost_bling * (cfg.creator_pump_vote_fee_bps as u64) / 10_000,
@@ -210,155 +211,64 @@ pub mod opinions_market_engine {
             .checked_sub(protocol_fee + creator_fee)
             .ok_or(ErrorCode::MathOverflow)?;
 
-        let paying_in_bling = ctx.accounts.token_mint.key() == cfg.bling_mint;
+        //
+        // ---- 2. TRANSFERS (ALWAYS IN token_mint) ----
+        //
 
-        // Seeds for vault_authority
-        let signer_seeds: &[&[&[u8]]] = &[&[VAULT_AUTHORITY_SEED, &[ctx.bumps.vault_authority]]];
+        let user_authority_seeds = &[&[VAULT_AUTHORITY_SEED, &[ctx.bumps.vault_authority]][..]];
 
-        // =======================================================================
-        // CASE 1: PAYING IN BLING
-        // =======================================================================
-        if paying_in_bling {
-            // protocol fee transfer
-            if protocol_fee > 0 {
-                let cpi_accounts = anchor_spl::token::Transfer {
-                    from: ctx.accounts.user_vault_token_account.to_account_info(),
-                    to: ctx
-                        .accounts
-                        .protocol_token_treasury_token_account
-                        .to_account_info(),
-                    authority: ctx.accounts.vault_authority.to_account_info(),
-                };
-                let cpi_ctx = CpiContext::new_with_signer(
+        // protocol fee
+        if protocol_fee > 0 {
+            anchor_spl::token::transfer(
+                CpiContext::new_with_signer(
                     ctx.accounts.token_program.to_account_info(),
-                    cpi_accounts,
-                    signer_seeds,
-                );
-                anchor_spl::token::transfer(cpi_ctx, protocol_fee)?;
-            }
+                    anchor_spl::token::Transfer {
+                        from: ctx.accounts.user_vault_token_account.to_account_info(),
+                        to: ctx
+                            .accounts
+                            .protocol_token_treasury_token_account
+                            .to_account_info(),
+                        authority: ctx.accounts.vault_authority.to_account_info(),
+                    },
+                    user_authority_seeds,
+                ),
+                protocol_fee,
+            )?;
+        }
 
-            // creator fee transfer
-            if creator_fee > 0 {
-                let cpi_accounts = anchor_spl::token::Transfer {
-                    from: ctx.accounts.user_vault_token_account.to_account_info(),
-                    to: ctx.accounts.creator_vault_token_account.to_account_info(),
-                    authority: ctx.accounts.vault_authority.to_account_info(),
-                };
-                let cpi_ctx = CpiContext::new_with_signer(
+        // creator fee
+        if creator_fee > 0 {
+            anchor_spl::token::transfer(
+                CpiContext::new_with_signer(
                     ctx.accounts.token_program.to_account_info(),
-                    cpi_accounts,
-                    signer_seeds,
-                );
-                anchor_spl::token::transfer(cpi_ctx, creator_fee)?;
-            }
+                    anchor_spl::token::Transfer {
+                        from: ctx.accounts.user_vault_token_account.to_account_info(),
+                        to: ctx.accounts.creator_vault_token_account.to_account_info(),
+                        authority: ctx.accounts.vault_authority.to_account_info(),
+                    },
+                    user_authority_seeds,
+                ),
+                creator_fee,
+            )?;
+        }
 
-            // pot increment transfer
-            let cpi_accounts = anchor_spl::token::Transfer {
-                from: ctx.accounts.user_vault_token_account.to_account_info(),
-                to: ctx.accounts.post_pot_token_account.to_account_info(),
-                authority: ctx.accounts.vault_authority.to_account_info(),
-            };
-
-            let cpi_ctx = CpiContext::new_with_signer(
+        // pot increment
+        anchor_spl::token::transfer(
+            CpiContext::new_with_signer(
                 ctx.accounts.token_program.to_account_info(),
-                cpi_accounts,
-                signer_seeds,
-            );
-
-            anchor_spl::token::transfer(cpi_ctx, pot_increment)?;
-        }
-        // =======================================================================
-        // CASE 2: PAYING IN ALTERNATIVE TOKEN (USDC / SOL / ETC)
-        // =======================================================================
-        else {
-            let valid = &ctx.accounts.valid_payment;
-
-            // convert cost_bling → alt-token amount
-            let amount_alt_tokens = cost_bling
-                .checked_mul(1_000_000) // assume 6 decimals
-                .ok_or(ErrorCode::MathOverflow)?
-                / valid.price_in_bling;
-
-            // 1) Take user alt-tokens into treasury
-            {
-                let cpi_accounts = anchor_spl::token::Transfer {
+                anchor_spl::token::Transfer {
                     from: ctx.accounts.user_vault_token_account.to_account_info(),
-                    to: ctx
-                        .accounts
-                        .protocol_token_treasury_token_account
-                        .to_account_info(),
-                    authority: ctx.accounts.vault_authority.to_account_info(),
-                };
-                let cpi_ctx = CpiContext::new_with_signer(
-                    ctx.accounts.token_program.to_account_info(),
-                    cpi_accounts,
-                    signer_seeds,
-                );
-                anchor_spl::token::transfer(cpi_ctx, amount_alt_tokens)?;
-            }
-
-            // 2) Mint BLING to protocol/creator/pot
-            let bling_mint = &ctx.accounts.bling_mint;
-            let bling_auth = &ctx.accounts.bling_mint_authority;
-
-            // PDA for bling mint authority
-            let (_, bump) =
-                Pubkey::find_program_address(&[b"bling_mint_authority"], ctx.program_id);
-
-            let bling_seeds: &[&[&[u8]]] = &[&[b"bling_mint_authority", &[bump]]];
-
-            // mint protocol fee
-            if protocol_fee > 0 {
-                let cpi_accounts = anchor_spl::token::MintTo {
-                    mint: bling_mint.to_account_info(),
-                    to: ctx
-                        .accounts
-                        .protocol_token_treasury_token_account
-                        .to_account_info(),
-                    authority: bling_auth.to_account_info(),
-                };
-                let cpi_ctx = CpiContext::new_with_signer(
-                    ctx.accounts.token_program.to_account_info(),
-                    cpi_accounts,
-                    bling_seeds,
-                );
-                anchor_spl::token::mint_to(cpi_ctx, protocol_fee)?;
-            }
-
-            // mint creator fee
-            if creator_fee > 0 {
-                let cpi_accounts = anchor_spl::token::MintTo {
-                    mint: bling_mint.to_account_info(),
-                    to: ctx.accounts.creator_token_vault.to_account_info(),
-                    authority: bling_auth.to_account_info(),
-                };
-                let cpi_ctx = CpiContext::new_with_signer(
-                    ctx.accounts.token_program.to_account_info(),
-                    cpi_accounts,
-                    bling_seeds,
-                );
-                anchor_spl::token::mint_to(cpi_ctx, creator_fee)?;
-            }
-
-            // mint pot increment
-            {
-                let cpi_accounts = anchor_spl::token::MintTo {
-                    mint: bling_mint.to_account_info(),
                     to: ctx.accounts.post_pot_token_account.to_account_info(),
-                    authority: bling_auth.to_account_info(),
-                };
-                let cpi_ctx = CpiContext::new_with_signer(
-                    ctx.accounts.token_program.to_account_info(),
-                    cpi_accounts,
-                    bling_seeds,
-                );
-                anchor_spl::token::mint_to(cpi_ctx, pot_increment)?;
-            }
-        }
+                    authority: ctx.accounts.vault_authority.to_account_info(),
+                },
+                user_authority_seeds,
+            ),
+            pot_increment,
+        )?;
 
-        // =======================================================================
-        // Update state
-        // =======================================================================
+        //
+        // ---- 3. UPDATE COUNTERS ----
+        //
 
         match side {
             Side::Pump => {
@@ -377,13 +287,15 @@ pub mod opinions_market_engine {
             }
         }
 
+        // Extend post duration
         let ext = (cfg.extension_per_vote_secs as i64)
             .checked_mul(units as i64)
             .ok_or(ErrorCode::MathOverflow)?;
+
         post.end_time = post
             .end_time
             .checked_add(ext)
-            .ok_or(ErrorCode::MathOverflow)?
+            .unwrap()
             .min(post.start_time + cfg.max_duration_secs as i64);
 
         Ok(())
@@ -391,63 +303,61 @@ pub mod opinions_market_engine {
 
     pub fn settle_post(ctx: Context<SettlePost>) -> Result<()> {
         let post = &mut ctx.accounts.post;
-        let clock = Clock::get()?;
 
-        // --- 1. Pre-conditions ---
-        require!(post.state == PostState::Open, ErrorCode::PostNotOpen);
+        // Must be expired
+        let clock = Clock::get()?;
         require!(
             clock.unix_timestamp > post.end_time,
             ErrorCode::PostNotExpired
         );
 
-        // --- 2. Determine winner ---
-        let (winner, total_winning_votes) = if post.upvotes > post.downvotes {
-            (Side::Pump, post.upvotes)
-        } else if post.downvotes > post.upvotes {
-            (Side::Smack, post.downvotes)
-        } else {
-            // --------------------------------------
-            // Tie: pot → protocol treasury
-            // --------------------------------------
-            let pot_amount = ctx.accounts.post_pot_token_account.amount;
+        // Determine winner once globally
+        if post.winning_side.is_none() {
+            if post.upvotes > post.downvotes {
+                post.winning_side = Some(Side::Pump);
+            } else if post.downvotes > post.upvotes {
+                post.winning_side = Some(Side::Smack);
+            } else {
+                // Tie: burn pot to protocol
+                let pot_amount = ctx.accounts.post_pot_token_account.amount;
+                if pot_amount > 0 {
+                    let post_key = post.key();
+                    let (_, bump) = Pubkey::find_program_address(
+                        &[POST_POT_AUTHORITY_SEED, post_key.as_ref()],
+                        ctx.program_id,
+                    );
 
-            if pot_amount > 0 {
-                let post_key = post.key();
-                let (_addr, bump) = Pubkey::find_program_address(
-                    &[POST_POT_AUTHORITY_SEED, post_key.as_ref()],
-                    ctx.program_id,
-                );
+                    let seeds: &[&[&[u8]]] =
+                        &[&[POST_POT_AUTHORITY_SEED, post_key.as_ref(), &[bump]]];
 
-                let signer_seeds: &[&[&[u8]]] =
-                    &[&[POST_POT_AUTHORITY_SEED, post_key.as_ref(), &[bump]]];
+                    anchor_spl::token::transfer(
+                        CpiContext::new_with_signer(
+                            ctx.accounts.token_program.to_account_info(),
+                            anchor_spl::token::Transfer {
+                                from: ctx.accounts.post_pot_token_account.to_account_info(),
+                                to: ctx
+                                    .accounts
+                                    .protocol_token_treasury_token_account
+                                    .to_account_info(),
+                                authority: ctx.accounts.post_pot_authority.to_account_info(),
+                            },
+                            seeds,
+                        ),
+                        pot_amount,
+                    )?;
+                }
 
-                let cpi_ctx = CpiContext::new_with_signer(
-                    ctx.accounts.token_program.to_account_info(),
-                    anchor_spl::token::Transfer {
-                        from: ctx.accounts.post_pot_token_account.to_account_info(),
-                        to: ctx
-                            .accounts
-                            .protocol_token_treasury_token_account
-                            .to_account_info(),
-                        authority: ctx.accounts.post_pot_authority.to_account_info(),
-                    },
-                    signer_seeds,
-                );
-                anchor_spl::token::transfer(cpi_ctx, pot_amount)?;
+                post.state = PostState::Settled;
+                return Ok(());
             }
+        }
 
-            post.state = PostState::Settled;
-            post.winning_side = None;
-            post.payout_per_unit = 0;
-
-            return Ok(());
+        let winning = post.winning_side.unwrap();
+        let total_winning_votes = match winning {
+            Side::Pump => post.upvotes,
+            Side::Smack => post.downvotes,
         };
 
-        // --- 3. Compute payout_per_unit ---
-        //
-        // NOTE: total_winning_votes **is in BLING units**, not "number of votes".
-        // So unit payout = pot / total_winning_votes
-        //
         let pot_amount = ctx.accounts.post_pot_token_account.amount;
         let payout_per_unit = if total_winning_votes > 0 {
             pot_amount / total_winning_votes
@@ -455,40 +365,43 @@ pub mod opinions_market_engine {
             0
         };
 
-        // --- 4. Child Post logic (optional) ---
         //
-        // If this is a child post, automatically forward 10% of the pot to the parent.
-        // (You can disable/remove this if not needed.)
+        // Parent forwarding (optional)
         //
         if let PostType::Child { parent } = post.post_type {
-            let child_cut = pot_amount / 10; // 10% → parent
-            if child_cut > 0 {
+            let parent_cut = pot_amount / 10; // 10%
+            if parent_cut > 0 {
                 let post_key = post.key();
-                let (_p, bump) = Pubkey::find_program_address(
+                let (_, bump) = Pubkey::find_program_address(
                     &[POST_POT_AUTHORITY_SEED, post_key.as_ref()],
                     ctx.program_id,
                 );
-                let child_seeds: &[&[&[u8]]] =
-                    &[&[POST_POT_AUTHORITY_SEED, post_key.as_ref(), &[bump]]];
+                let seeds: &[&[&[u8]]] = &[&[POST_POT_AUTHORITY_SEED, post_key.as_ref(), &[bump]]];
 
-                let cpi_ctx = CpiContext::new_with_signer(
-                    ctx.accounts.token_program.to_account_info(),
-                    anchor_spl::token::Transfer {
-                        from: ctx.accounts.post_pot_token_account.to_account_info(),
-                        to: ctx.accounts.parent_post_pot_token_account.to_account_info(),
-                        authority: ctx.accounts.post_pot_authority.to_account_info(),
-                    },
-                    child_seeds,
-                );
-                anchor_spl::token::transfer(cpi_ctx, child_cut)?;
+                anchor_spl::token::transfer(
+                    CpiContext::new_with_signer(
+                        ctx.accounts.token_program.to_account_info(),
+                        anchor_spl::token::Transfer {
+                            from: ctx.accounts.post_pot_token_account.to_account_info(),
+                            to: ctx.accounts.parent_post_pot_token_account.to_account_info(),
+                            authority: ctx.accounts.post_pot_authority.to_account_info(),
+                        },
+                        seeds,
+                    ),
+                    parent_cut,
+                )?;
             }
         }
 
-        // --- 5. Update post state ---
-        post.state = PostState::Settled;
-        post.winning_side = Some(winner);
-        post.payout_per_unit = payout_per_unit;
+        //
+        // Store payout_per_unit for this mint
+        //
+        post.pot_payouts.push(PotPayout {
+            mint: ctx.accounts.token_mint.key(),
+            payout_per_unit,
+        });
 
+        post.state = PostState::Settled;
         Ok(())
     }
 

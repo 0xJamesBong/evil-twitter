@@ -212,108 +212,84 @@ pub struct CreatePost<'info> {
     #[account(
         seeds = [USER_ACCOUNT_SEED, payer.key().as_ref()],
         bump,
-        constraint = creator_user_account.authority_wallet == payer.key() @ ErrorCode::Unauthorized,
+        constraint = creator_user_account.authority_wallet == payer.key()
+            @ ErrorCode::Unauthorized,
     )]
     pub creator_user_account: Account<'info, UserAccount>,
+
     #[account(
         init,
         payer = payer,
-        seeds = [b"post", post_id_hash.as_ref()],
+        seeds = [POST_ACCOUNT_SEED, post_id_hash.as_ref()],
         bump,
-        space = 8 + 256,
+        space = 8 + PostAccount::INIT_SPACE,
     )]
     pub post: Account<'info, PostAccount>,
-    
-    #[account(
-        mut, 
-        seeds = [POST_POT_TOKEN_ACCOUNT_SEED, post.key().as_ref(), token_mint.key().as_ref()],
-        bump, 
-        constraint = post_pot_token_account.owner == post_pot_authority.key(),
-        constraint = post_pot_token_account.mint == token_mint.key(),
-    )]
-    pub post_pot_token_account: Account<'info, TokenAccount>,
 
-    #[account(
-        seeds = [POST_POT_AUTHORITY_SEED, post.key().as_ref()],
-        bump,
-    )]
-    pub post_pot_authority: UncheckedAccount<'info>,
-
-    pub token_mint: Account<'info, Mint>,
     #[account(mut)]
     pub payer: Signer<'info>,
+
     pub system_program: Program<'info, System>,
 }
 
+
+
 #[derive(Accounts)]
-#[instruction(side: Side, units: u32, payment_in_bling: bool, post_id_hash: [u8; 32])]
+#[instruction(side: Side, units: u32, post_id_hash: [u8; 32])]
 pub struct VoteOnPost<'info> {
     pub config: Account<'info, Config>,
+
     #[account(
         mut,
         seeds = [b"post", post_id_hash.as_ref()],
         bump,
     )]
     pub post: Account<'info, PostAccount>,
-    
+
     #[account(mut)]
     pub user: Signer<'info>,
+
     #[account(
         seeds = [USER_ACCOUNT_SEED, user.key().as_ref()],
         bump,
     )]
     pub user_account: Account<'info, UserAccount>,
-    // Per-post per-user position
+
     #[account(
         init_if_needed,
         payer = payer,
         seeds = [POSITION_SEED, post.key().as_ref(), user.key().as_ref()],
         bump,
-        space = 8 + 128,
+        space = 8 + UserPostPosition::INIT_SPACE,
     )]
     pub position: Account<'info, UserPostPosition>,
 
-  
     #[account(mut)]
     pub user_token_ata: Account<'info, TokenAccount>,
-    
-    
-    /// CHECK: Vault authority PDA derived from seeds
+
     #[account(
         seeds = [VAULT_AUTHORITY_SEED],
         bump,
     )]
     pub vault_authority: UncheckedAccount<'info>,
-  // Payment vault - for BLING payments, this is the user's BLING vault
-    #[account(
-    mut,
-    seeds = [USER_VAULT_TOKEN_ACCOUNT_SEED, user.key().as_ref(), token_mint.key().as_ref()],
-    bump,
-    token::mint = token_mint,
-    token::authority = vault_authority,
-    )]
-    pub user_vault_token_account: Account<'info,  TokenAccount>,
 
-
-    #[account(mut)]
-    pub post_account: Account<'info, PostAccount>,
-    
     #[account(
-        init_if_needed,
-        payer = payer,
-        seeds = [USER_VAULT_TOKEN_ACCOUNT_SEED, post.creator_user.key().as_ref(), token_mint.key().as_ref()],
+        mut,
+        seeds = [USER_VAULT_TOKEN_ACCOUNT_SEED, user.key().as_ref(), token_mint.key().as_ref()],
         bump,
         token::mint = token_mint,
         token::authority = vault_authority,
     )]
-    pub creator_vault_token_account: Account<'info, TokenAccount>,
+    pub user_vault_token_account: Account<'info, TokenAccount>,
 
+    // THIS IS NOW LAZY-CREATED
     #[account(
-        mut, 
+        init_if_needed,
+        payer = payer,
         seeds = [POST_POT_TOKEN_ACCOUNT_SEED, post.key().as_ref(), token_mint.key().as_ref()],
-        bump, 
-        constraint = post_pot_token_account.owner == post_pot_authority.key(),
-        constraint = post_pot_token_account.mint == token_mint.key(),
+        bump,
+        token::mint = token_mint,
+        token::authority = post_pot_authority,
     )]
     pub post_pot_token_account: Account<'info, TokenAccount>,
 
@@ -323,13 +299,13 @@ pub struct VoteOnPost<'info> {
     )]
     pub post_pot_authority: UncheckedAccount<'info>,
 
-    // BLING & fees
+    // protocol treasury pot for this mint
     #[account(
         mut,
         seeds = [PROTOCOL_TREASURY_TOKEN_ACCOUNT_SEED, token_mint.key().as_ref()],
+        bump,
         token::mint = token_mint,
         token::authority = config,
-    bump,
     )]
     pub protocol_token_treasury_token_account: Account<'info, TokenAccount>,
 
@@ -339,10 +315,12 @@ pub struct VoteOnPost<'info> {
         constraint = valid_payment.enabled @ ErrorCode::MintNotEnabled,
     )]
     pub valid_payment: Account<'info, ValidPayment>,
-    
+
     pub token_mint: Account<'info, Mint>,
+
     #[account(mut)]
-    pub payer: Signer<'info>, // your relayer/backend
+    pub payer: Signer<'info>,
+
     pub token_program: Program<'info, Token>,
     pub system_program: Program<'info, System>,
 }
