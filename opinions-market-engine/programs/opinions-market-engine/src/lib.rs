@@ -192,7 +192,7 @@ pub mod opinions_market_engine {
         ctx: Context<VoteOnPost>,
         side: Side,
         units: u32,
-        post_id_hash: [u8; 32],
+        post_id_hash: [u8; 32], // do not remove this - this is used to derive the post pda!
     ) -> Result<()> {
         require!(units > 0, ErrorCode::ZeroUnits);
 
@@ -210,8 +210,9 @@ pub mod opinions_market_engine {
         //
         // ---- 1. Compute BLING cost ----
         //
-        let vote = Vote::new(side, units, ctx.accounts.user.key(), post.key());
-        let cost_bling = vote.compute_cost_in_bling(post, pos, &ctx.accounts.user_account, cfg)?;
+        let vote = Vote::new(side, units, ctx.accounts.voter.key(), post.key());
+        let cost_bling =
+            vote.compute_cost_in_bling(post, pos, &ctx.accounts.voter_user_account, cfg)?;
 
         let protocol_fee = cost_bling * (cfg.protocol_vote_fee_bps as u64) / 10_000;
         let creator_fee = match side {
@@ -236,7 +237,10 @@ pub mod opinions_market_engine {
                 CpiContext::new_with_signer(
                     ctx.accounts.token_program.to_account_info(),
                     anchor_spl::token::Transfer {
-                        from: ctx.accounts.user_vault_token_account.to_account_info(),
+                        from: ctx
+                            .accounts
+                            .voter_user_vault_token_account
+                            .to_account_info(),
                         to: ctx
                             .accounts
                             .protocol_token_treasury_token_account
@@ -255,7 +259,10 @@ pub mod opinions_market_engine {
                 CpiContext::new_with_signer(
                     ctx.accounts.token_program.to_account_info(),
                     anchor_spl::token::Transfer {
-                        from: ctx.accounts.user_vault_token_account.to_account_info(),
+                        from: ctx
+                            .accounts
+                            .voter_user_vault_token_account
+                            .to_account_info(),
                         to: ctx.accounts.creator_vault_token_account.to_account_info(),
                         authority: ctx.accounts.vault_authority.to_account_info(),
                     },
@@ -270,7 +277,10 @@ pub mod opinions_market_engine {
             CpiContext::new_with_signer(
                 ctx.accounts.token_program.to_account_info(),
                 anchor_spl::token::Transfer {
-                    from: ctx.accounts.user_vault_token_account.to_account_info(),
+                    from: ctx
+                        .accounts
+                        .voter_user_vault_token_account
+                        .to_account_info(),
                     to: ctx.accounts.post_pot_token_account.to_account_info(),
                     authority: ctx.accounts.vault_authority.to_account_info(),
                 },

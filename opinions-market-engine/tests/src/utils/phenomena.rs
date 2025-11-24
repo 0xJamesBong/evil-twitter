@@ -415,19 +415,7 @@ pub async fn test_phenomena_vote_on_post(
         .await
         .unwrap();
 
-    let post_id_hash = post_account.post_id_hash;
-    let creator_user = post_account.creator_user;
-
-    let creator_user_account_pda = Pubkey::find_program_address(
-        &[USER_ACCOUNT_SEED, creator_user.as_ref()],
-        &opinions_market_engine.id(),
-    )
-    .0;
-    // Get creator's wallet from user account
-    let creator_user_account = opinions_market_engine
-        .account::<opinions_market_engine::state::UserAccount>(creator_user_account_pda)
-        .await
-        .unwrap();
+    let post_id_hash = post_account.post_id_hash.clone();
 
     // Get config
     let config = opinions_market_engine
@@ -437,6 +425,16 @@ pub async fn test_phenomena_vote_on_post(
 
     let voter_user_account_pda = Pubkey::find_program_address(
         &[USER_ACCOUNT_SEED, voter.pubkey().as_ref()],
+        &opinions_market_engine.id(),
+    )
+    .0;
+
+    let user_vault_token_account_pda = Pubkey::find_program_address(
+        &[
+            USER_VAULT_TOKEN_ACCOUNT_SEED,
+            voter.pubkey().as_ref(),
+            token_mint.as_ref(),
+        ],
         &opinions_market_engine.id(),
     )
     .0;
@@ -454,15 +452,19 @@ pub async fn test_phenomena_vote_on_post(
     let vault_authority_pda =
         Pubkey::find_program_address(&[VAULT_AUTHORITY_SEED], &opinions_market_engine.id()).0;
 
-    let user_vault_token_account_pda = Pubkey::find_program_address(
-        &[
-            USER_VAULT_TOKEN_ACCOUNT_SEED,
-            voter.pubkey().as_ref(),
-            token_mint.as_ref(),
-        ],
+    let creator_user = post_account.creator_user; // this is a wallet pubkey
+
+    let creator_user_account_pda = Pubkey::find_program_address(
+        &[USER_ACCOUNT_SEED, creator_user.as_ref()],
         &opinions_market_engine.id(),
     )
     .0;
+
+    // Get creator's wallet from user account
+    let creator_user_account = opinions_market_engine
+        .account::<opinions_market_engine::state::UserAccount>(creator_user_account_pda)
+        .await
+        .unwrap();
 
     let creator_vault_token_account_pda = Pubkey::find_program_address(
         &[
@@ -506,13 +508,13 @@ pub async fn test_phenomena_vote_on_post(
         .request()
         .accounts(opinions_market_engine::accounts::VoteOnPost {
             config: *config_pda,
-            user: voter.pubkey(),
+            voter: voter.pubkey(),
             payer: payer.pubkey(),
             post: *post_pda,
-            user_account: voter_user_account_pda,
+            voter_user_account: voter_user_account_pda,
             position: position_pda,
             vault_authority: vault_authority_pda,
-            user_vault_token_account: user_vault_token_account_pda,
+            voter_user_vault_token_account: user_vault_token_account_pda,
             post_pot_token_account: post_pot_token_account_pda,
             post_pot_authority: post_pot_authority_pda,
             protocol_token_treasury_token_account: protocol_treasury_token_account_pda,

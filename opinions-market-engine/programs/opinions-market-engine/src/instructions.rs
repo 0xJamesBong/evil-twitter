@@ -243,10 +243,9 @@ pub struct VoteOnPost<'info> {
     pub config: Account<'info, Config>,
 
     #[account(mut)]
-    pub user: Signer<'info>,
+    pub voter: Signer<'info>,
     #[account(mut)]
     pub payer: Signer<'info>,
-
 
     #[account(
         mut,
@@ -256,15 +255,24 @@ pub struct VoteOnPost<'info> {
     pub post: Account<'info, PostAccount>,
 
     #[account(
-        seeds = [USER_ACCOUNT_SEED, user.key().as_ref()],
+        seeds = [USER_ACCOUNT_SEED, voter.key().as_ref()],
         bump,
     )]
-    pub user_account: Account<'info, UserAccount>,
+    pub voter_user_account: Account<'info, UserAccount>,
+
+    #[account(
+        mut,
+        seeds = [USER_VAULT_TOKEN_ACCOUNT_SEED, voter.key().as_ref(), token_mint.key().as_ref()],
+        bump,
+        token::mint = token_mint,
+        token::authority = vault_authority,
+    )]
+    pub voter_user_vault_token_account: Account<'info, TokenAccount>,
 
     #[account(
         init_if_needed,
         payer = payer,
-        seeds = [POSITION_SEED, post.key().as_ref(), user.key().as_ref()],
+        seeds = [POSITION_SEED, post.key().as_ref(), voter.key().as_ref()],
         bump,
         space = 8 + UserPostPosition::INIT_SPACE,
     )]
@@ -277,14 +285,7 @@ pub struct VoteOnPost<'info> {
     )]
     pub vault_authority: UncheckedAccount<'info>,
 
-    #[account(
-        mut,
-        seeds = [USER_VAULT_TOKEN_ACCOUNT_SEED, user.key().as_ref(), token_mint.key().as_ref()],
-        bump,
-        token::mint = token_mint,
-        token::authority = vault_authority,
-    )]
-    pub user_vault_token_account: Account<'info, TokenAccount>,
+
 
     // THIS IS NOW LAZY-CREATED
     #[account(
