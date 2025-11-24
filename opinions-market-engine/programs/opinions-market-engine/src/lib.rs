@@ -198,14 +198,25 @@ pub mod opinions_market_engine {
 
         let cfg = &ctx.accounts.config;
         let post = &mut ctx.accounts.post;
-        let pos = &mut ctx.accounts.position;
 
         let clock = Clock::get()?;
+
         require!(post.state == PostState::Open, ErrorCode::PostNotOpen);
         require!(
             post.within_time_limit(clock.unix_timestamp),
             ErrorCode::PostExpired
         );
+
+        // Handle position
+        let pos = &mut ctx.accounts.position;
+        if pos.user == Pubkey::default() {
+            let new_pos = UserPostPosition::new(ctx.accounts.voter.key(), post.key());
+            pos.user = new_pos.user;
+            pos.post = new_pos.post;
+            pos.upvotes = new_pos.upvotes;
+            pos.downvotes = new_pos.downvotes;
+            pos.claimed = new_pos.claimed;
+        }
 
         //
         // ---- 1. Compute BLING cost ----

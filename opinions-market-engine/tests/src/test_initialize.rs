@@ -277,7 +277,8 @@ async fn test_setup() {
             .await;
         }
 
-        let post_p1_pda = {
+        //// ===== CREATING POSTS =====
+        let (post_p1_pda, post_p1_id_hash) = {
             println!("user 1 creating an original post P1");
             test_phenomena_create_post(
                 &rpc,
@@ -290,7 +291,7 @@ async fn test_setup() {
             .await
         };
 
-        let post_p2_pda = {
+        let (post_p2_pda, post_p2_id_hash) = {
             println!("user 2 creates a child post P2 of user 1's post P1");
             test_phenomena_create_post(
                 &rpc,

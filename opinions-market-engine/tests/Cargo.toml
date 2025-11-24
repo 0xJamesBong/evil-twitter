@@ -21,4 +21,4 @@ solana-program-test = { workspace = true }
 anyhow = "1.0.99"
 
 
-
+hex = "0.4"

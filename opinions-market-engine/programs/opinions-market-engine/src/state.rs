@@ -156,6 +156,17 @@ pub struct UserPostPosition {
     pub claimed: bool,
 }
 
+impl UserPostPosition {
+    pub fn new(user: Pubkey, post: Pubkey) -> Self {
+        Self {
+            user,
+            post,
+            upvotes: 0,
+            downvotes: 0,
+            claimed: false,
+        }
+    }
+}
 // -----------------------------------------------------------------------------
 // ENUMS
 // -----------------------------------------------------------------------------

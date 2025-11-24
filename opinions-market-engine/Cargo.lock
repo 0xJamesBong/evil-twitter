@@ -7958,6 +7958,7 @@ dependencies = [
  "anchor-client",
  "anchor-spl",
  "anyhow",
+ "hex",
  "opinions-market-engine",
  "rand 0.8.5",
  "solana-client",

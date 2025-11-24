@@ -251,6 +251,7 @@ pub struct VoteOnPost<'info> {
         mut,
         seeds = [POST_ACCOUNT_SEED, post_id_hash.as_ref()],
         bump,
+        constraint = post.state == PostState::Open @ ErrorCode::PostNotOpen,
     )]
     pub post: Account<'info, PostAccount>,
 
@@ -284,8 +285,6 @@ pub struct VoteOnPost<'info> {
         bump,
     )]
     pub vault_authority: UncheckedAccount<'info>,
-
-
 
     // THIS IS NOW LAZY-CREATED
     #[account(

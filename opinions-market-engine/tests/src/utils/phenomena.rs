@@ -306,7 +306,7 @@ pub async fn test_phenomena_create_post(
     creator: &Keypair,
     config_pda: &Pubkey,
     parent_post_pda: Option<Pubkey>,
-) -> Pubkey {
+) -> (Pubkey, [u8; 32]) {
     let post_type_str = if parent_post_pda.is_some() {
         "child post"
     } else {
@@ -352,37 +352,119 @@ pub async fn test_phenomena_create_post(
         .unwrap();
     println!("create post tx: {:?}", create_post_tx);
 
-    // Verify post was created
+    // Verify post was created and all fields are correct
     let post_account = opinions_market_engine
         .account::<opinions_market_engine::state::PostAccount>(post_pda)
         .await
         .unwrap();
-    assert_eq!(post_account.creator_user, creator.pubkey());
-    assert_eq!(post_account.post_id_hash, hash);
-    // Check state using pattern matching since PostState doesn't implement Debug
+
+    // Verify creator
+    assert_eq!(
+        post_account.creator_user,
+        creator.pubkey(),
+        "Post creator_user should match creator wallet"
+    );
+
+    // Verify post_id_hash
+    assert_eq!(
+        post_account.post_id_hash, hash,
+        "Post post_id_hash should match generated hash"
+    );
+
+    // Verify state is Open
     match post_account.state {
-        opinions_market_engine::state::PostState::Open => {}
-        _ => panic!("Post should be in Open state"),
+        opinions_market_engine::state::PostState::Open => {
+            println!("✅ Post state is Open");
+        }
+        opinions_market_engine::state::PostState::Settled => {
+            panic!("Post should be in Open state, not Settled");
+        }
     }
-    assert_eq!(post_account.upvotes, 0);
-    assert_eq!(post_account.downvotes, 0);
+
+    // Verify initial vote counts
+    assert_eq!(post_account.upvotes, 0, "New post should have 0 upvotes");
+    assert_eq!(
+        post_account.downvotes, 0,
+        "New post should have 0 downvotes"
+    );
+
+    // Verify winning_side is None for new post
+    match post_account.winning_side {
+        None => {
+            println!("✅ Post winning_side is None (correct for new post)");
+        }
+        Some(_) => {
+            panic!("New post should not have a winning_side, but got Some(_)");
+        }
+        _ => {
+            panic!("SOMETHING ELSE WENT WRONG")
+        }
+    }
+
+    // Verify timestamps are set correctly
+    // start_time should be a valid timestamp (greater than 0 and reasonable)
+    assert!(
+        post_account.start_time > 0,
+        "Post start_time should be set to a valid timestamp"
+    );
+
+    // Verify end_time is start_time + POST_INIT_DURATION_SECS (24 hours = 86400 seconds)
+    let expected_end_time = post_account.start_time + (24 * 3600) as i64;
+    assert_eq!(
+        post_account.end_time, expected_end_time,
+        "Post end_time should be start_time + 24 hours (POST_INIT_DURATION_SECS = 86400 seconds)"
+    );
+
+    // Verify end_time is after start_time
+    assert!(
+        post_account.end_time > post_account.start_time,
+        "Post end_time should be after start_time"
+    );
 
     // Verify post type
-    match (parent_post_pda, post_account.post_type) {
+    match (parent_post_pda, &post_account.post_type) {
         (
             Some(parent),
             opinions_market_engine::state::PostType::Child {
                 parent: stored_parent,
             },
         ) => {
-            assert_eq!(stored_parent, parent);
+            assert_eq!(
+                *stored_parent, parent,
+                "Child post parent PDA should match provided parent"
+            );
+            println!("✅ Post type is Child with correct parent");
         }
-        (None, opinions_market_engine::state::PostType::Original) => {}
-        _ => panic!("Post type mismatch"),
+        (None, opinions_market_engine::state::PostType::Original) => {
+            println!("✅ Post type is Original");
+        }
+        (Some(_), opinions_market_engine::state::PostType::Original) => {
+            panic!("Post type mismatch: expected Child post but got Original");
+        }
+        (None, opinions_market_engine::state::PostType::Child { parent }) => {
+            panic!(
+                "Post type mismatch: expected Original post but got Child with parent {}",
+                parent
+            );
+        }
     }
 
-    println!("✅ {} created successfully", post_type_str);
-    post_pda
+    println!(
+        "✅ {} created successfully with all fields verified",
+        post_type_str
+    );
+    println!("   - Creator: {}", post_account.creator_user);
+    println!("   - State: Open");
+    println!("   - Start time: {}", post_account.start_time);
+    println!("   - End time: {}", post_account.end_time);
+    println!(
+        "   - Upvotes: {}, Downvotes: {}",
+        post_account.upvotes, post_account.downvotes
+    );
+    println!("post_pda: {}", post_pda);
+    println!("post_id_hash: {:?}", hex::encode(hash));
+
+    (post_pda, hash)
 }
 
 pub async fn test_phenomena_vote_on_post(
@@ -417,6 +499,26 @@ pub async fn test_phenomena_vote_on_post(
 
     let post_id_hash = post_account.post_id_hash.clone();
 
+    println!("post_pda passed in: {}", post_pda);
+    let expected = Pubkey::find_program_address(
+        &[POST_ACCOUNT_SEED, post_id_hash.as_ref()],
+        &opinions_market_engine.id(),
+    )
+    .0;
+    println!("post_pda derived from seeds: {}", expected);
+    println!("post_id_hash: {}", hex::encode(post_id_hash));
+
+    match post_account.state {
+        opinions_market_engine::state::PostState::Open => {
+            println!("✅ Post state is Open");
+        }
+        opinions_market_engine::state::PostState::Settled => {
+            panic!("Post should be in Open state, not Settled");
+        }
+        _ => {
+            panic!("SOMETHING ELSE WENT WRONG")
+        }
+    }
     // Get config
     let config = opinions_market_engine
         .account::<opinions_market_engine::state::Config>(*config_pda)
@@ -453,18 +555,6 @@ pub async fn test_phenomena_vote_on_post(
         Pubkey::find_program_address(&[VAULT_AUTHORITY_SEED], &opinions_market_engine.id()).0;
 
     let creator_user = post_account.creator_user; // this is a wallet pubkey
-
-    let creator_user_account_pda = Pubkey::find_program_address(
-        &[USER_ACCOUNT_SEED, creator_user.as_ref()],
-        &opinions_market_engine.id(),
-    )
-    .0;
-
-    // Get creator's wallet from user account
-    let creator_user_account = opinions_market_engine
-        .account::<opinions_market_engine::state::UserAccount>(creator_user_account_pda)
-        .await
-        .unwrap();
 
     let creator_vault_token_account_pda = Pubkey::find_program_address(
         &[
