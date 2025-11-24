@@ -409,8 +409,13 @@ pub async fn test_phenomena_vote_on_post(
         .unwrap();
 
     let post_id_hash = post_account.post_id_hash;
-    let creator_user_account_pda = post_account.creator_user;
+    let creator_user = post_account.creator_user;
 
+    let creator_user_account_pda = Pubkey::find_program_address(
+        &[USER_ACCOUNT_SEED, creator_user.as_ref()],
+        &opinions_market_engine.id(),
+    )
+    .0;
     // Get creator's wallet from user account
     let creator_user_account = opinions_market_engine
         .account::<opinions_market_engine::state::UserAccount>(creator_user_account_pda)
@@ -455,7 +460,7 @@ pub async fn test_phenomena_vote_on_post(
     let creator_vault_token_account_pda = Pubkey::find_program_address(
         &[
             USER_VAULT_TOKEN_ACCOUNT_SEED,
-            creator_user_account_pda.as_ref(),
+            creator_user.as_ref(),
             token_mint.as_ref(),
         ],
         &opinions_market_engine.id(),
@@ -494,8 +499,9 @@ pub async fn test_phenomena_vote_on_post(
         .request()
         .accounts(opinions_market_engine::accounts::VoteOnPost {
             config: *config_pda,
-            post: *post_pda,
             user: voter.pubkey(),
+            payer: payer.pubkey(),
+            post: *post_pda,
             user_account: voter_user_account_pda,
             position: position_pda,
             vault_authority: vault_authority_pda,
@@ -506,7 +512,6 @@ pub async fn test_phenomena_vote_on_post(
             creator_vault_token_account: creator_vault_token_account_pda,
             valid_payment: valid_payment_pda,
             token_mint: *token_mint,
-            payer: voter.pubkey(),
             token_program: spl_token::ID,
             system_program: system_program::ID,
         })
@@ -519,7 +524,7 @@ pub async fn test_phenomena_vote_on_post(
         .unwrap();
 
     // Voter is the payer, so only voter needs to sign
-    let vote_tx = send_tx(&rpc, vote_ix, &voter.pubkey(), &[&voter])
+    let vote_tx = send_tx(&rpc, vote_ix, &payer.pubkey(), &[&payer, &voter])
         .await
         .unwrap();
     println!("vote tx: {:?}", vote_tx);

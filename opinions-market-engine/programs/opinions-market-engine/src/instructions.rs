@@ -239,16 +239,19 @@ pub struct CreatePost<'info> {
 pub struct VoteOnPost<'info> {
     #[account(mut)]
     pub config: Account<'info, Config>,
-    
+
+    #[account(mut)]
+    pub user: Signer<'info>,
+    #[account(mut)]
+    pub payer: Signer<'info>,
+
+
     #[account(
         mut,
         seeds = [POST_ACCOUNT_SEED, post_id_hash.as_ref()],
         bump,
     )]
     pub post: Account<'info, PostAccount>,
-
-    #[account(mut)]
-    pub user: Signer<'info>,
 
     #[account(
         seeds = [USER_ACCOUNT_SEED, user.key().as_ref()],
@@ -329,9 +332,7 @@ pub struct VoteOnPost<'info> {
 
     pub token_mint: Account<'info, Mint>,
 
-    #[account(mut)]
-    pub payer: Signer<'info>,
-
+    
     pub token_program: Program<'info, Token>,
     pub system_program: Program<'info, System>,
 }
