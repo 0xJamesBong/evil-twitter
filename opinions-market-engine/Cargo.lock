@@ -7964,6 +7964,7 @@ dependencies = [
  "solana-client",
  "solana-program-test",
  "solana-sdk",
+ "solana-transaction-status-client-types",
  "tokio",
 ]
 

@@ -201,6 +201,9 @@ pub mod opinions_market_engine {
 
         let clock = Clock::get()?;
 
+        msg!("clock.unix_timestamp: {}", clock.unix_timestamp);
+        msg!("post.end_time: {}", post.end_time);
+        assert!(1 == 2, "1 is not 2");
         require!(post.state == PostState::Open, ErrorCode::PostNotOpen);
         require!(
             post.within_time_limit(clock.unix_timestamp),
@@ -342,6 +345,9 @@ pub mod opinions_market_engine {
     pub fn settle_post(ctx: Context<SettlePost>) -> Result<()> {
         let post = &mut ctx.accounts.post;
         let clock = Clock::get()?;
+
+        msg!("clock.unix_timestamp: {}", clock.unix_timestamp);
+        msg!("post.end_time: {}", post.end_time);
 
         require!(post.state == PostState::Open, ErrorCode::PostNotOpen);
         require!(

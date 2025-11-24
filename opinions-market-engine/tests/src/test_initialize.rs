@@ -13,7 +13,8 @@ use solana_sdk::{
 use crate::utils::definitions::RATES;
 use crate::utils::phenomena::{
     test_phenomena_add_valid_payment, test_phenomena_create_post, test_phenomena_create_user,
-    test_phenomena_deposit, test_phenomena_vote_on_post, test_phenomena_withdraw,
+    test_phenomena_deposit, test_phenomena_settle_post, test_phenomena_vote_on_post,
+    test_phenomena_withdraw,
 };
 use crate::utils::utils::{
     airdrop_sol_to_users, send_tx, setup_token_mint, setup_token_mint_ata_and_mint_to,
@@ -338,21 +339,6 @@ async fn test_setup() {
             .await;
         }
 
-        // Note: In a real test, you'd need to wait for the post to expire before settling
-        // For now, we'll just show the settle function exists
-        // {
-        //     println!("Settling post P1");
-        //     test_phenomena_settle_post(
-        //         &rpc,
-        //         &opinions_market_engine,
-        //         &payer,
-        //         &post_p1_pda,
-        //         &bling_pubkey,
-        //         &config_pda,
-        //     )
-        //     .await;
-        // }
-
         {
             println!("user 1 downvoting user 2's post P2");
             test_phenomena_vote_on_post(
@@ -384,6 +370,21 @@ async fn test_setup() {
                 1,
                 &bling_pubkey,
                 &bling_atas,
+                &config_pda,
+            )
+            .await;
+        }
+
+        //         Note: In a real test, you'd need to wait for the post to expire before settling
+        // For now, we'll just show the settle function exists
+        {
+            println!("Settling post P1");
+            test_phenomena_settle_post(
+                &rpc,
+                &opinions_market_engine,
+                &payer,
+                &post_p1_pda,
+                &bling_pubkey,
                 &config_pda,
             )
             .await;

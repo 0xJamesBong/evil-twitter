@@ -12,6 +12,7 @@ use solana_sdk::{signature::Keypair, signer::Signer};
 use crate::utils::definitions::RATES;
 use crate::utils::utils::send_tx;
 use opinions_market_engine::pda_seeds::*;
+use solana_transaction_status_client_types::UiTransactionEncoding;
 
 pub async fn test_phenomena() {}
 
@@ -873,6 +874,12 @@ pub async fn test_phenomena_settle_post(
         .await
         .unwrap();
     println!("settle post tx: {:?}", settle_tx);
+    let tx_details = rpc
+        .get_transaction(&settle_tx, UiTransactionEncoding::Json)
+        .await
+        .unwrap();
+
+    println!("{:#?}", tx_details.transaction.meta.unwrap().log_messages);
 
     // Verify post was settled
     let settled_post = opinions_market_engine
