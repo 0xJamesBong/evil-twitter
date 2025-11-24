@@ -9,7 +9,7 @@ use constants::*;
 use instructions::*;
 use state::*;
 
-declare_id!("8zZcmGeJ6KXSnSyewB7vfLUrYVLfibh6UP3qPujQoeaa");
+declare_id!("4z5rjroGdWmgGX13SdFsh4wRM4jJkMUrcvYrNpV3gezm");
 
 #[error_code]
 pub enum ErrorCode {
@@ -46,12 +46,12 @@ pub enum ErrorCode {
 pub struct Ping {}
 
 #[program]
-pub mod opinions_market_engine {
+pub mod opinions_market {
     use super::*;
     // Don't import from instructions module - use re-exports from crate root
     pub fn ping(ctx: Context<Ping>) -> Result<()> {
         msg!("Greetings from: {:?}", ctx.program_id);
-        panic!("test");
+        panic!("SHIT");
         Ok(())
     }
     pub fn initialize(
@@ -209,7 +209,7 @@ pub mod opinions_market_engine {
 
         msg!("clock.unix_timestamp: {}", clock.unix_timestamp);
         msg!("post.end_time: {}", post.end_time);
-        assert!(1 == 2, "1 is not 2");
+
         require!(post.state == PostState::Open, ErrorCode::PostNotOpen);
         require!(
             post.within_time_limit(clock.unix_timestamp),
@@ -360,6 +360,8 @@ pub mod opinions_market_engine {
             clock.unix_timestamp > post.end_time,
             ErrorCode::PostNotExpired
         );
+
+        panic!("🌟 SHIT SHIT SHIT SHIT SHIT ");
 
         // Determine winner
         let (winner, total_weight) = if post.upvotes > post.downvotes {

@@ -3,11 +3,12 @@ use anchor_client::{
     solana_sdk::commitment_config::CommitmentConfig, Client, Cluster,
 };
 
+use anchor_client::solana_sdk::{pubkey::Pubkey, signature::read_keypair_file};
+
 use anchor_spl::token::spl_token;
-use solana_sdk::pubkey::Pubkey;
 use solana_sdk::{
     native_token::LAMPORTS_PER_SOL,
-    signature::{read_keypair_file, Keypair, Signer},
+    signature::{Keypair, Signer},
 }; // Add this import
 
 use crate::utils::definitions::RATES;
@@ -20,40 +21,41 @@ use crate::utils::utils::{
     airdrop_sol_to_users, send_tx, setup_token_mint, setup_token_mint_ata_and_mint_to,
     setup_token_mint_ata_and_mint_to_many_users,
 };
-use opinions_market_engine::pda_seeds::*;
+use opinions_market::pda_seeds::*;
+use std::collections::HashMap;
 
 #[tokio::test]
 async fn test_ping() {
-    let program_id = opinions_market_engine::ID;
+    let program_id = opinions_market::ID;
     let anchor_wallet = std::env::var("ANCHOR_WALLET").unwrap();
     let payer = read_keypair_file(&anchor_wallet).unwrap();
 
     let client = Client::new_with_options(Cluster::Localnet, &payer, CommitmentConfig::confirmed());
+
     let program = client.program(program_id).unwrap();
+
     let rpc = program.rpc();
+    // let tx = program
+    //     .request()
+    //     .accounts(opinions_market::accounts::Ping {})
+    //     .args(opinions_market::instruction::Ping {})
+    //     .send()
+    //     .expect("");
+
     let ix = program
         .request()
-        .accounts(opinions_market_engine::accounts::Ping {})
+        .accounts(opinions_market::accounts::Ping {})
+        .args(opinions_market::instruction::Ping {})
         .instructions()
         .unwrap();
     let tx = send_tx(&rpc, ix, &payer.pubkey(), &[&payer]).await.unwrap();
 
     println!("Your transaction signature {}", tx);
 }
-//     let tx = program
-//         .request()
-//         .accounts(opinions_market_engine::accounts::Initialize {})
-//         .args(opinions_market_engine::instruction::Initialize {})
-//         .send()
-//         .expect("");
-
-//     println!("Your transaction signature {}", tx);
-// }
-use std::collections::HashMap;
 
 #[tokio::test]
 async fn test_setup() {
-    let program_id = opinions_market_engine::ID;
+    let program_id = opinions_market::ID;
     let anchor_wallet = std::env::var("ANCHOR_WALLET").unwrap();
     let payer = read_keypair_file(&anchor_wallet).unwrap();
     let payer_pubkey = &payer.pubkey();
@@ -76,8 +78,8 @@ async fn test_setup() {
 
     let client = Client::new_with_options(Cluster::Localnet, &payer, CommitmentConfig::confirmed());
 
-    let opinions_market_engine = client.program(program_id).unwrap();
-    let rpc = opinions_market_engine.rpc();
+    let opinions_market = client.program(program_id).unwrap();
+    let rpc = opinions_market.rpc();
 
     let bling_mint = Keypair::new();
     let bling_pubkey = bling_mint.pubkey();
@@ -104,23 +106,16 @@ async fn test_setup() {
 
     airdrop_sol_to_users(&rpc, &everyone).await;
 
-    setup_token_mint(&rpc, &payer, &payer, &opinions_market_engine, &bling_mint).await;
-    setup_token_mint(&rpc, &payer, &payer, &opinions_market_engine, &usdc_mint).await;
-    setup_token_mint(
-        &rpc,
-        &payer,
-        &payer,
-        &opinions_market_engine,
-        &stablecoin_mint,
-    )
-    .await;
+    setup_token_mint(&rpc, &payer, &payer, &opinions_market, &bling_mint).await;
+    setup_token_mint(&rpc, &payer, &payer, &opinions_market, &usdc_mint).await;
+    setup_token_mint(&rpc, &payer, &payer, &opinions_market, &stablecoin_mint).await;
 
     let bling_atas = setup_token_mint_ata_and_mint_to_many_users(
         &rpc,
         &payer,
         &mint_authority,
         &everyone.keys().cloned().collect::<Vec<Pubkey>>(),
-        &opinions_market_engine,
+        &opinions_market,
         &bling_mint,
         1_000_000_000 * LAMPORTS_PER_SOL,
         &bling_mint,
@@ -134,7 +129,7 @@ async fn test_setup() {
         &payer,
         &mint_authority,
         &everyone.keys().cloned().collect::<Vec<Pubkey>>(),
-        &opinions_market_engine,
+        &opinions_market,
         &usdc_mint,
         1_000_000_000 * LAMPORTS_PER_SOL,
         &bling_mint,
@@ -171,9 +166,9 @@ async fn test_setup() {
             Pubkey::find_program_address(&[VALID_PAYMENT_SEED, bling_pubkey.as_ref()], &program_id)
                 .0;
 
-        let initialize_ix = opinions_market_engine
+        let initialize_ix = opinions_market
             .request()
-            .accounts(opinions_market_engine::accounts::Initialize {
+            .accounts(opinions_market::accounts::Initialize {
                 admin: admin_pubkey,
                 payer: payer_pubkey.clone(),
                 config: config_pda,
@@ -184,7 +179,7 @@ async fn test_setup() {
                 system_program: system_program::ID,
                 token_program: spl_token::ID,
             })
-            .args(opinions_market_engine::instruction::Initialize {
+            .args(opinions_market::instruction::Initialize {
                 protocol_fee_bps: 0,
                 creator_fee_bps_pump: 0,
             })
@@ -196,24 +191,18 @@ async fn test_setup() {
             .unwrap();
         println!("initialize tx: {:?}", initialize_tx);
 
-        test_phenomena_add_valid_payment(
-            &rpc,
-            &opinions_market_engine,
-            &payer,
-            &admin,
-            &usdc_pubkey,
-        )
-        .await;
+        test_phenomena_add_valid_payment(&rpc, &opinions_market, &payer, &admin, &usdc_pubkey)
+            .await;
 
-        test_phenomena_create_user(&rpc, &opinions_market_engine, &payer, &user_1).await;
-        test_phenomena_create_user(&rpc, &opinions_market_engine, &payer, &user_2).await;
-        test_phenomena_create_user(&rpc, &opinions_market_engine, &payer, &user_3).await;
+        test_phenomena_create_user(&rpc, &opinions_market, &payer, &user_1).await;
+        test_phenomena_create_user(&rpc, &opinions_market, &payer, &user_2).await;
+        test_phenomena_create_user(&rpc, &opinions_market, &payer, &user_3).await;
 
         {
             println!("user 1 depositing 10_000_000 bling to their vault");
             test_phenomena_deposit(
                 &rpc,
-                &opinions_market_engine,
+                &opinions_market,
                 &payer,
                 &user_1,
                 10_000_000 * LAMPORTS_PER_SOL,
@@ -229,7 +218,7 @@ async fn test_setup() {
             println!("user 2 depositing 1_000 usdc to their vault");
             test_phenomena_deposit(
                 &rpc,
-                &opinions_market_engine,
+                &opinions_market,
                 &payer,
                 &user_2,
                 1_000 * LAMPORTS_PER_SOL,
@@ -244,7 +233,7 @@ async fn test_setup() {
             println!("user 1 withdrawing 9_000_000 bling from their vault to their wallet");
             test_phenomena_withdraw(
                 &rpc,
-                &opinions_market_engine,
+                &opinions_market,
                 &payer,
                 &user_1,
                 9_000_000 * LAMPORTS_PER_SOL,
@@ -259,7 +248,7 @@ async fn test_setup() {
             println!("user 2 withdrawing 900 usdc from their vault to their wallet");
             test_phenomena_withdraw(
                 &rpc,
-                &opinions_market_engine,
+                &opinions_market,
                 &payer,
                 &user_2,
                 900 * LAMPORTS_PER_SOL,
@@ -274,7 +263,7 @@ async fn test_setup() {
             println!("user 2 depositing 1_000_000 bling to their vault");
             test_phenomena_deposit(
                 &rpc,
-                &opinions_market_engine,
+                &opinions_market,
                 &payer,
                 &user_2,
                 1_000_000 * LAMPORTS_PER_SOL,
@@ -291,7 +280,7 @@ async fn test_setup() {
             println!("user 1 creating an original post P1");
             test_phenomena_create_post(
                 &rpc,
-                &opinions_market_engine,
+                &opinions_market,
                 &payer,
                 &user_1,
                 &config_pda,
@@ -304,7 +293,7 @@ async fn test_setup() {
             println!("user 2 creates a child post P2 of user 1's post P1");
             test_phenomena_create_post(
                 &rpc,
-                &opinions_market_engine,
+                &opinions_market,
                 &payer,
                 &user_2,
                 &config_pda,
@@ -317,11 +306,11 @@ async fn test_setup() {
             println!("user 2 upvoting user 1's post P1");
             test_phenomena_vote_on_post(
                 &rpc,
-                &opinions_market_engine,
+                &opinions_market,
                 &payer,
                 &user_2,
                 &post_p1_pda,
-                opinions_market_engine::state::Side::Pump,
+                opinions_market::state::Side::Pump,
                 1,
                 &bling_pubkey,
                 &bling_atas,
@@ -334,11 +323,11 @@ async fn test_setup() {
             println!("user 1 downvoting user 2's post P2");
             test_phenomena_vote_on_post(
                 &rpc,
-                &opinions_market_engine,
+                &opinions_market,
                 &payer,
                 &user_1,
                 &post_p2_pda,
-                opinions_market_engine::state::Side::Smack,
+                opinions_market::state::Side::Smack,
                 2,
                 &bling_pubkey,
                 &bling_atas,
@@ -351,11 +340,11 @@ async fn test_setup() {
             println!("user 1 downvoting user 2's post P2");
             test_phenomena_vote_on_post(
                 &rpc,
-                &opinions_market_engine,
+                &opinions_market,
                 &payer,
                 &user_1,
                 &post_p2_pda,
-                opinions_market_engine::state::Side::Smack,
+                opinions_market::state::Side::Smack,
                 1,
                 &bling_pubkey,
                 &bling_atas,
@@ -370,11 +359,11 @@ async fn test_setup() {
             // If you meant a different child post, we'd need to create another one first
             test_phenomena_vote_on_post(
                 &rpc,
-                &opinions_market_engine,
+                &opinions_market,
                 &payer,
                 &user_1,
                 &post_p2_pda,
-                opinions_market_engine::state::Side::Smack,
+                opinions_market::state::Side::Smack,
                 1,
                 &bling_pubkey,
                 &bling_atas,
@@ -389,7 +378,7 @@ async fn test_setup() {
             println!("Settling post P1");
             test_phenomena_settle_post(
                 &rpc,
-                &opinions_market_engine,
+                &opinions_market,
                 &payer,
                 &post_p1_pda,
                 &bling_pubkey,
@@ -407,7 +396,7 @@ async fn test_setup() {
         //     // This would Cause an error because user 3 is not a user in the system
         //     test_phenomena_create_post(
         //         &rpc,
-        //         &opinions_market_engine,
+        //         &opinions_market,
         //         &payer,
         //         &user_3,
         //         &bling_pubkey,

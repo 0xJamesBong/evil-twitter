@@ -7,7 +7,7 @@ skip-lint = false
 upgradeable = true
 
 [programs.localnet]
-opinions_market_engine = "8zZcmGeJ6KXSnSyewB7vfLUrYVLfibh6UP3qPujQoeaa"
+opinions_market = "4z5rjroGdWmgGX13SdFsh4wRM4jJkMUrcvYrNpV3gezm"
 
 [registry]
 url = "https://api.apr.dev"
@@ -18,10 +18,3 @@ wallet = "~/Documents/evil-twitter/opinions-market-engine/.secrets/assFUvBMqjyWv
 
 [scripts]
 test = "cargo test -- --nocapture"
-
-
-
-[test]
-startup_wait = 5000
-shutdown_wait = 2000
-upgradeable = false
