@@ -261,6 +261,22 @@ async fn test_setup() {
             .await;
         }
 
+        {
+            println!("user 2 depositing 1_000_000 bling to their vault");
+            test_phenomena_deposit(
+                &rpc,
+                &opinions_market_engine,
+                &payer,
+                &user_2,
+                1_000_000 * LAMPORTS_PER_SOL,
+                &bling_pubkey,
+                &tokens,
+                &bling_atas,
+                &config_pda,
+            )
+            .await;
+        }
+
         let post_p1_pda = {
             println!("user 1 creating an original post P1");
             test_phenomena_create_post(

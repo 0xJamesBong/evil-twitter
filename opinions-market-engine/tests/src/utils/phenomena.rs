@@ -510,7 +510,11 @@ pub async fn test_phenomena_vote_on_post(
             token_program: spl_token::ID,
             system_program: system_program::ID,
         })
-        .args(opinions_market_engine::instruction::VoteOnPost { side, units })
+        .args(opinions_market_engine::instruction::VoteOnPost {
+            side,
+            units,
+            post_id_hash,
+        })
         .instructions()
         .unwrap();
 

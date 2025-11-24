@@ -237,8 +237,9 @@ pub struct CreatePost<'info> {
 #[derive(Accounts)]
 #[instruction(side: Side, units: u32, post_id_hash: [u8; 32])]
 pub struct VoteOnPost<'info> {
+    #[account(mut)]
     pub config: Account<'info, Config>,
-
+    
     #[account(
         mut,
         seeds = [POST_ACCOUNT_SEED, post_id_hash.as_ref()],
@@ -310,7 +311,8 @@ pub struct VoteOnPost<'info> {
 
     // creator's vault for receiving creator fees
     #[account(
-        mut,
+        init_if_needed,
+        payer = payer,
         seeds = [USER_VAULT_TOKEN_ACCOUNT_SEED, post.creator_user.as_ref(), token_mint.key().as_ref()],
         bump,
         token::mint = token_mint,

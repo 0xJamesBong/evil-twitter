@@ -185,7 +185,12 @@ pub mod opinions_market_engine {
     /// Core MVP voting instruction.
     /// User pays from their vault; everything is denominated in BLING units.
 
-    pub fn vote_on_post(ctx: Context<VoteOnPost>, side: Side, units: u32) -> Result<()> {
+    pub fn vote_on_post(
+        ctx: Context<VoteOnPost>,
+        side: Side,
+        units: u32,
+        post_id_hash: [u8; 32],
+    ) -> Result<()> {
         require!(units > 0, ErrorCode::ZeroUnits);
 
         let cfg = &ctx.accounts.config;
