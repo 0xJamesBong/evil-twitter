@@ -240,7 +240,7 @@ pub struct CreatePost<'info> {
 #[instruction(side: Side, units: u32, post_id_hash: [u8; 32])]
 pub struct VoteOnPost<'info> {
     #[account(mut)]
-    pub config: Account<'info, Config>,
+    pub config: Box<Account<'info, Config>>,
 
     #[account(mut)]
     pub voter: Signer<'info>,
@@ -253,13 +253,13 @@ pub struct VoteOnPost<'info> {
         bump,
         constraint = post.state == PostState::Open @ ErrorCode::PostNotOpen,
     )]
-    pub post: Account<'info, PostAccount>,
+    pub post: Box<Account<'info, PostAccount>>,
 
     #[account(
         seeds = [USER_ACCOUNT_SEED, voter.key().as_ref()],
         bump,
     )]
-    pub voter_user_account: Account<'info, UserAccount>,
+    pub voter_user_account: Box<Account<'info, UserAccount>>,
 
     #[account(
         mut,
@@ -268,7 +268,7 @@ pub struct VoteOnPost<'info> {
         token::mint = token_mint,
         token::authority = vault_authority,
     )]
-    pub voter_user_vault_token_account: Account<'info, TokenAccount>,
+    pub voter_user_vault_token_account: Box<Account<'info, TokenAccount>>,
 
     #[account(
         init_if_needed,
@@ -277,7 +277,7 @@ pub struct VoteOnPost<'info> {
         bump,
         space = 8 + UserPostPosition::INIT_SPACE,
     )]
-    pub position: Account<'info, UserPostPosition>,
+    pub position: Box<Account<'info, UserPostPosition>>,
 
     /// CHECK: Vault authority PDA derived from seeds
     #[account(
@@ -295,7 +295,7 @@ pub struct VoteOnPost<'info> {
         token::mint = token_mint,
         token::authority = post_pot_authority,
     )]
-    pub post_pot_token_account: Account<'info, TokenAccount>,
+    pub post_pot_token_account: Box<Account<'info, TokenAccount>>,
 
     /// CHECK: Post pot authority PDA derived from seeds
     #[account(
@@ -312,7 +312,7 @@ pub struct VoteOnPost<'info> {
         token::mint = token_mint,
         token::authority = config,
     )]
-    pub protocol_token_treasury_token_account: Account<'info, TokenAccount>,
+    pub protocol_token_treasury_token_account: Box<Account<'info, TokenAccount>>,
 
     // creator's vault for receiving creator fees
     #[account(
@@ -323,17 +323,16 @@ pub struct VoteOnPost<'info> {
         token::mint = token_mint,
         token::authority = vault_authority,
     )]
-    pub creator_vault_token_account: Account<'info, TokenAccount>,
+    pub creator_vault_token_account: Box<Account<'info, TokenAccount>>,
     
     #[account(
         seeds = [VALID_PAYMENT_SEED, token_mint.key().as_ref()],
         bump = valid_payment.bump,
         constraint = valid_payment.enabled @ ErrorCode::MintNotEnabled,
     )]
-    pub valid_payment: Account<'info, ValidPayment>,
+    pub valid_payment: Box<Account<'info, ValidPayment>>,
 
     pub token_mint: Account<'info, Mint>,
-
     
     pub token_program: Program<'info, Token>,
     pub system_program: Program<'info, System>,

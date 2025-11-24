@@ -221,9 +221,13 @@ pub mod opinions_market_engine {
         //
         // ---- 1. Compute BLING cost ----
         //
+
         let vote = Vote::new(side, units, ctx.accounts.voter.key(), post.key());
         let cost_bling =
             vote.compute_cost_in_bling(post, pos, &ctx.accounts.voter_user_account, cfg)?;
+
+        msg!("cost_bling: {}", cost_bling);
+        msg!("post.upvotes BEFORE: {}", post.upvotes);
 
         let protocol_fee = cost_bling * (cfg.protocol_vote_fee_bps as u64) / 10_000;
         let creator_fee = match side {
