@@ -103,9 +103,12 @@ pub mod opinions_market_engine {
 
     // when the user first signs in, we will need the user to create a user, which will create their deposit vault
     pub fn create_user(ctx: Context<CreateUser>) -> Result<()> {
-        let user = &mut ctx.accounts.user_account;
-        user.social_score = 0; // you can use this later for withdraw penalties
-        user.bump = ctx.bumps.user_account;
+        let user_account = &mut ctx.accounts.user_account;
+        let new_user_account = UserAccount::new(ctx.accounts.user.key(), ctx.bumps.user_account);
+
+        user_account.user = new_user_account.user;
+        user_account.social_score = new_user_account.social_score;
+        user_account.bump = new_user_account.bump;
 
         Ok(())
     }
@@ -160,7 +163,7 @@ pub mod opinions_market_engine {
         let now = clock.unix_timestamp;
         let post = &mut ctx.accounts.post;
         let new_post = PostAccount::new(
-            ctx.accounts.user_account.key(),
+            ctx.accounts.user.key(),
             post_id_hash,
             match parent_post_pda {
                 Some(parent_pda) => PostType::Child { parent: parent_pda },

@@ -111,7 +111,8 @@ pub async fn test_phenomena_create_user(
     let create_user_ix = opinions_market_engine
         .request()
         .accounts(opinions_market_engine::accounts::CreateUser {
-            authority: user.pubkey(),
+            user: user.pubkey(),
+            payer: payer.pubkey(),
             user_account: user_account_pda,
             system_program: system_program::ID,
         })
@@ -129,6 +130,12 @@ pub async fn test_phenomena_create_user(
         .account::<opinions_market_engine::state::UserAccount>(user_account_pda)
         .await
         .unwrap();
+
+    assert_eq!(
+        user_account.user,
+        user.pubkey(),
+        "User account should store the wallet pubkey"
+    );
 
     println!("✅ User account created successfully");
 }
@@ -350,7 +357,7 @@ pub async fn test_phenomena_create_post(
         .account::<opinions_market_engine::state::PostAccount>(post_pda)
         .await
         .unwrap();
-    assert_eq!(post_account.creator_user, user_account_pda);
+    assert_eq!(post_account.creator_user, creator.pubkey());
     assert_eq!(post_account.post_id_hash, hash);
     // Check state using pattern matching since PostState doesn't implement Debug
     match post_account.state {

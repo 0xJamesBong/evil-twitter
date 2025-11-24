@@ -110,11 +110,13 @@ pub struct ModifyAcceptedMint<'info> {
 #[derive(Accounts)]
 pub struct CreateUser<'info> {
     #[account(mut)]
-    pub authority: Signer<'info>,
+    pub user: Signer<'info>,
+    #[account(mut)]
+    pub payer: Signer<'info>,
     #[account(
         init,
-        payer = authority,
-        seeds = [USER_ACCOUNT_SEED, authority.key().as_ref()],
+        payer = payer,
+        seeds = [USER_ACCOUNT_SEED, user.key().as_ref()],
         bump,
         space = 8 + 64,
     )]

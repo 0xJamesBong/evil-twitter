@@ -1,5 +1,8 @@
 use crate::{
-    constants::{POST_INIT_DURATION_SECS, POST_MAX_DURATION_SECS, VOTE_PER_BLING_BASE_COST},
+    constants::{
+        POST_INIT_DURATION_SECS, POST_MAX_DURATION_SECS, USER_INITIAL_SOCIAL_SCORE,
+        VOTE_PER_BLING_BASE_COST,
+    },
     ErrorCode,
 };
 use anchor_lang::prelude::*;
@@ -52,8 +55,18 @@ impl ValidPayment {
 #[account]
 #[derive(InitSpace)]
 pub struct UserAccount {
+    pub user: Pubkey,      // user wallet pubkey
     pub social_score: i64, // can drive withdraw penalty etc.
     pub bump: u8,
+}
+impl UserAccount {
+    pub fn new(user: Pubkey, bump: u8) -> Self {
+        Self {
+            user,
+            social_score: USER_INITIAL_SOCIAL_SCORE,
+            bump,
+        }
+    }
 }
 
 #[derive(AnchorSerialize, AnchorDeserialize, Clone, Copy, PartialEq, Eq, InitSpace)]
@@ -71,7 +84,7 @@ pub struct PotPayout {
 #[account]
 #[derive(InitSpace)]
 pub struct PostAccount {
-    pub creator_user: Pubkey,
+    pub creator_user: Pubkey, // wallet key
     pub post_id_hash: [u8; 32],
     pub post_type: PostType, // <-- NEW
     pub start_time: i64,
