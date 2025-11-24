@@ -35,19 +35,25 @@ pub struct ValidPayment {
     /// 1 USDC = 10_000 BLING for example
     /// 1 SOL = 1_000_000_000 BLING for example
     pub price_in_bling: u64,
-    pub treasury_token_account: Pubkey,
     pub enabled: bool,
     pub bump: u8,
-    pub padding: [u8; 7], // 7
+}
+impl ValidPayment {
+    pub fn new(token_mint: Pubkey, price_in_bling: u64, enabled: bool) -> Self {
+        Self {
+            token_mint,
+            price_in_bling,
+            enabled,
+            bump: 0,
+        }
+    }
 }
 
 #[account]
 #[derive(InitSpace)]
 pub struct UserAccount {
-    pub authority_wallet: Pubkey,
     pub social_score: i64, // can drive withdraw penalty etc.
     pub bump: u8,
-    pub padding: [u8; 7], // 7
 }
 
 #[derive(AnchorSerialize, AnchorDeserialize, Clone, Copy, PartialEq, Eq, InitSpace)]
@@ -74,7 +80,15 @@ pub struct PostAccount {
     pub upvotes: u64,
     pub downvotes: u64,
     pub winning_side: Option<Side>,
-    pub pot_payouts: Vec<PotPayout>,
+}
+
+#[account]
+#[derive(InitSpace)]
+pub struct PostMintPayout {
+    pub post: Pubkey,
+    pub mint: Pubkey,
+    pub payout_per_unit: u64,
+    pub bump: u8,
 }
 
 impl PostAccount {
@@ -95,7 +109,6 @@ impl PostAccount {
             upvotes: 0,
             downvotes: 0,
             winning_side: None,
-            pot_payouts: Vec::new(),
         }
     }
 

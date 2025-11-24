@@ -153,7 +153,7 @@ async fn test_setup() {
     {
         println!("initializing opinions market engine");
         let protocol_bling_treasury_pda = Pubkey::find_program_address(
-            &[PROTOCOL_TREASURY_SEED, bling_pubkey.as_ref()],
+            &[PROTOCOL_TREASURY_TOKEN_ACCOUNT_SEED, bling_pubkey.as_ref()],
             &program_id,
         )
         .0;
@@ -268,7 +268,6 @@ async fn test_setup() {
                 &opinions_market_engine,
                 &payer,
                 &user_1,
-                &bling_pubkey,
                 &config_pda,
                 None, // Original post
             )
@@ -282,7 +281,6 @@ async fn test_setup() {
                 &opinions_market_engine,
                 &payer,
                 &user_2,
-                &bling_pubkey,
                 &config_pda,
                 Some(post_p1_pda), // Child post
             )
@@ -305,6 +303,38 @@ async fn test_setup() {
             )
             .await;
         }
+
+        {
+            println!("user 1 downvoting user 2's post P2");
+            test_phenomena_vote_on_post(
+                &rpc,
+                &opinions_market_engine,
+                &payer,
+                &user_1,
+                &post_p2_pda,
+                opinions_market_engine::state::Side::Smack,
+                2,
+                &bling_pubkey,
+                &bling_atas,
+                &config_pda,
+            )
+            .await;
+        }
+
+        // Note: In a real test, you'd need to wait for the post to expire before settling
+        // For now, we'll just show the settle function exists
+        // {
+        //     println!("Settling post P1");
+        //     test_phenomena_settle_post(
+        //         &rpc,
+        //         &opinions_market_engine,
+        //         &payer,
+        //         &post_p1_pda,
+        //         &bling_pubkey,
+        //         &config_pda,
+        //     )
+        //     .await;
+        // }
 
         {
             println!("user 1 downvoting user 2's post P2");

@@ -5,6 +5,7 @@ description = "Created with Anchor"
 edition = "2021"
 
 [dependencies]
+rand = "0.8"
 tokio = { version = "1", features = ["macros"] }
 
 opinions-market-engine = { version = "0.1.0", path = "../programs/opinions-market-engine" }
@@ -18,3 +19,6 @@ solana-client = { workspace = true }
 solana-program-test = { workspace = true }
 
 anyhow = "1.0.99"
+
+
+

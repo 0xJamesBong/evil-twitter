@@ -42,7 +42,10 @@ pub async fn test_phenomena_add_valid_payment(
     );
     println!("✅ Verified: USDC is NOT registered before registration");
     let treasury_token_account_pda = Pubkey::find_program_address(
-        &[PROTOCOL_TREASURY_SEED, new_token_mint.as_ref()],
+        &[
+            PROTOCOL_TREASURY_TOKEN_ACCOUNT_SEED,
+            new_token_mint.as_ref(),
+        ],
         &opinions_market_engine.id(),
     )
     .0;
@@ -53,7 +56,7 @@ pub async fn test_phenomena_add_valid_payment(
             admin: admin.pubkey(),
             token_mint: new_token_mint.clone(),
             valid_payment: valid_payment_pda,
-            treasury_token_account: treasury_token_account_pda,
+            protocol_token_treasury_token_account: treasury_token_account_pda,
             system_program: system_program::ID,
             token_program: spl_token::ID,
         })
@@ -126,7 +129,7 @@ pub async fn test_phenomena_create_user(
         .account::<opinions_market_engine::state::UserAccount>(user_account_pda)
         .await
         .unwrap();
-    assert_eq!(user_account.authority_wallet, user.pubkey());
+
     println!("✅ User account created successfully");
 }
 
@@ -294,7 +297,6 @@ pub async fn test_phenomena_create_post(
     opinions_market_engine: &Program<&Keypair>,
     payer: &Keypair,
     creator: &Keypair,
-    bling_mint: &Pubkey,
     config_pda: &Pubkey,
     parent_post_pda: Option<Pubkey>,
 ) -> Pubkey {
@@ -305,69 +307,29 @@ pub async fn test_phenomena_create_post(
     };
     println!("{:} makes a {}", creator.pubkey(), post_type_str);
 
-    // Generate a random post_id_hash
-    // For testing, we'll use a simple hash based on current time
-    let mut hash = [0u8; 32];
-    hash[0..8].copy_from_slice(
-        &(std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .unwrap()
-            .as_secs())
-        .to_le_bytes(),
-    );
+    // Generate a unique post_id_hash
+    let hash = crate::utils::utils::generate_post_id_hash();
 
-    let creator_user_account_pda = Pubkey::find_program_address(
+    let user_account_pda = Pubkey::find_program_address(
         &[USER_ACCOUNT_SEED, creator.pubkey().as_ref()],
         &opinions_market_engine.id(),
     )
     .0;
 
     let post_pda = Pubkey::find_program_address(
-        &[b"post", creator_user_account_pda.as_ref(), hash.as_ref()],
+        &[POST_ACCOUNT_SEED, hash.as_ref()],
         &opinions_market_engine.id(),
     )
     .0;
-
-    let post_pot_authority_pda = Pubkey::find_program_address(
-        &[POST_POT_AUTHORITY_SEED, post_pda.as_ref()],
-        &opinions_market_engine.id(),
-    )
-    .0;
-
-    // Create the post_pot_bling token account (PDA owned by post_pot_authority)
-    // This needs to be created before calling create_post
-    let post_pot_bling_pda = spl_associated_token_account::get_associated_token_address(
-        &post_pot_authority_pda,
-        bling_mint,
-    );
-
-    // Check if the token account exists, if not create it
-    let post_pot_bling_account = opinions_market_engine
-        .account::<anchor_spl::token::TokenAccount>(post_pot_bling_pda)
-        .await;
-
-    if post_pot_bling_account.is_err() {
-        // Create the token account
-        let create_ata_ix = create_associated_token_account(
-            &payer.pubkey(),
-            &post_pot_authority_pda,
-            bling_mint,
-            &spl_token::ID,
-        );
-        let create_ata_tx = send_tx(&rpc, vec![create_ata_ix], &payer.pubkey(), &[&payer])
-            .await
-            .unwrap();
-        println!("Created post_pot_bling token account: {:?}", create_ata_tx);
-    }
 
     let create_post_ix = opinions_market_engine
         .request()
         .accounts(opinions_market_engine::accounts::CreatePost {
             config: *config_pda,
-            creator_user_account: creator_user_account_pda,
+            user: creator.pubkey(),
+            payer: payer.pubkey(),
+            user_account: user_account_pda,
             post: post_pda,
-            post_pot_bling: post_pot_bling_pda,
-            payer: creator.pubkey(), // Creator must be the payer/signer (seeds constraint requires this)
             system_program: system_program::ID,
         })
         .args(opinions_market_engine::instruction::CreatePost {
@@ -377,7 +339,7 @@ pub async fn test_phenomena_create_post(
         .instructions()
         .unwrap();
 
-    // Creator must sign since they are the payer
+    // Both payer and creator (user) must sign
     let create_post_tx = send_tx(&rpc, create_post_ix, &payer.pubkey(), &[&payer, &creator])
         .await
         .unwrap();
@@ -388,7 +350,7 @@ pub async fn test_phenomena_create_post(
         .account::<opinions_market_engine::state::PostAccount>(post_pda)
         .await
         .unwrap();
-    assert_eq!(post_account.creator_user, creator_user_account_pda);
+    assert_eq!(post_account.creator_user, user_account_pda);
     assert_eq!(post_account.post_id_hash, hash);
     // Check state using pattern matching since PostState doesn't implement Debug
     match post_account.state {
@@ -424,8 +386,8 @@ pub async fn test_phenomena_vote_on_post(
     post_pda: &Pubkey,
     side: opinions_market_engine::state::Side,
     units: u32,
-    bling_mint: &Pubkey,
-    bling_atas: &HashMap<Pubkey, Pubkey>,
+    token_mint: &Pubkey,
+    token_atas: &HashMap<Pubkey, Pubkey>,
     config_pda: &Pubkey,
 ) {
     let side_str = match side {
@@ -440,12 +402,13 @@ pub async fn test_phenomena_vote_on_post(
         units
     );
 
-    // Get post account to find creator
+    // Get post account to get post_id_hash and find creator
     let post_account = opinions_market_engine
         .account::<opinions_market_engine::state::PostAccount>(*post_pda)
         .await
         .unwrap();
 
+    let post_id_hash = post_account.post_id_hash;
     let creator_user_account_pda = post_account.creator_user;
 
     // Get creator's wallet from user account
@@ -454,9 +417,7 @@ pub async fn test_phenomena_vote_on_post(
         .await
         .unwrap();
 
-    let creator_wallet = creator_user_account.authority_wallet;
-
-    // Get config to find protocol treasury
+    // Get config
     let config = opinions_market_engine
         .account::<opinions_market_engine::state::Config>(*config_pda)
         .await
@@ -485,17 +446,17 @@ pub async fn test_phenomena_vote_on_post(
         &[
             USER_VAULT_TOKEN_ACCOUNT_SEED,
             voter.pubkey().as_ref(),
-            bling_mint.as_ref(),
+            token_mint.as_ref(),
         ],
         &opinions_market_engine.id(),
     )
     .0;
 
-    let creator_bling_vault_pda = Pubkey::find_program_address(
+    let creator_vault_token_account_pda = Pubkey::find_program_address(
         &[
             USER_VAULT_TOKEN_ACCOUNT_SEED,
-            creator_wallet.as_ref(),
-            bling_mint.as_ref(),
+            creator_user_account_pda.as_ref(),
+            token_mint.as_ref(),
         ],
         &opinions_market_engine.id(),
     )
@@ -507,13 +468,24 @@ pub async fn test_phenomena_vote_on_post(
     )
     .0;
 
-    let post_pot_bling_pda = spl_associated_token_account::get_associated_token_address(
-        &post_pot_authority_pda,
-        bling_mint,
-    );
+    let post_pot_token_account_pda = Pubkey::find_program_address(
+        &[
+            POST_POT_TOKEN_ACCOUNT_SEED,
+            post_pda.as_ref(),
+            token_mint.as_ref(),
+        ],
+        &opinions_market_engine.id(),
+    )
+    .0;
 
-    let protocol_bling_treasury_pda = Pubkey::find_program_address(
-        &[PROTOCOL_TREASURY_SEED, bling_mint.as_ref()],
+    let protocol_treasury_token_account_pda = Pubkey::find_program_address(
+        &[PROTOCOL_TREASURY_TOKEN_ACCOUNT_SEED, token_mint.as_ref()],
+        &opinions_market_engine.id(),
+    )
+    .0;
+
+    let valid_payment_pda = Pubkey::find_program_address(
+        &[VALID_PAYMENT_SEED, token_mint.as_ref()],
         &opinions_market_engine.id(),
     )
     .0;
@@ -523,26 +495,22 @@ pub async fn test_phenomena_vote_on_post(
         .accounts(opinions_market_engine::accounts::VoteOnPost {
             config: *config_pda,
             post: *post_pda,
+            user: voter.pubkey(),
             user_account: voter_user_account_pda,
             position: position_pda,
-            user_vault_token_account: user_vault_token_account_pda,
             vault_authority: vault_authority_pda,
-            protocol_bling_treasury: protocol_bling_treasury_pda,
-            creator_bling_vault: creator_bling_vault_pda,
-            post_pot_bling: post_pot_bling_pda,
-            accepted_alternative_payment: None,
-            mint_treasury_token_account: None,
-            bling_mint: bling_mint.clone(),
-            bling_mint_authority: None,
-            payer: voter.pubkey(), // Voter must be the payer (they're paying for the vote)
+            user_vault_token_account: user_vault_token_account_pda,
+            post_pot_token_account: post_pot_token_account_pda,
+            post_pot_authority: post_pot_authority_pda,
+            protocol_token_treasury_token_account: protocol_treasury_token_account_pda,
+            creator_vault_token_account: creator_vault_token_account_pda,
+            valid_payment: valid_payment_pda,
+            token_mint: *token_mint,
+            payer: voter.pubkey(),
             token_program: spl_token::ID,
             system_program: system_program::ID,
         })
-        .args(opinions_market_engine::instruction::VoteOnPost {
-            side,
-            units,
-            payment_in_bling: true,
-        })
+        .args(opinions_market_engine::instruction::VoteOnPost { side, units })
         .instructions()
         .unwrap();
 
@@ -565,9 +533,132 @@ pub async fn test_phenomena_vote_on_post(
             assert_eq!(position.downvotes, units);
         }
     }
-    println!("✅ Vote successful");
+
+    // Verify post counters were updated
+    let updated_post = opinions_market_engine
+        .account::<opinions_market_engine::state::PostAccount>(*post_pda)
+        .await
+        .unwrap();
+    match side {
+        opinions_market_engine::state::Side::Pump => {
+            assert!(updated_post.upvotes >= units as u64);
+        }
+        opinions_market_engine::state::Side::Smack => {
+            assert!(updated_post.downvotes >= units as u64);
+        }
+    }
+
+    println!("✅ Vote successful. Position and post updated.");
 }
 
-pub async fn test_phenomena_settle_post() {}
+pub async fn test_phenomena_settle_post(
+    rpc: &RpcClient,
+    opinions_market_engine: &Program<&Keypair>,
+    payer: &Keypair,
+    post_pda: &Pubkey,
+    token_mint: &Pubkey,
+    config_pda: &Pubkey,
+) {
+    println!("Settling post {:?}", post_pda);
+
+    // Get post account to check if it's a child post
+    let post_account = opinions_market_engine
+        .account::<opinions_market_engine::state::PostAccount>(*post_pda)
+        .await
+        .unwrap();
+
+    let post_pot_token_account_pda = Pubkey::find_program_address(
+        &[
+            POST_POT_TOKEN_ACCOUNT_SEED,
+            post_pda.as_ref(),
+            token_mint.as_ref(),
+        ],
+        &opinions_market_engine.id(),
+    )
+    .0;
+
+    let post_pot_authority_pda = Pubkey::find_program_address(
+        &[POST_POT_AUTHORITY_SEED, post_pda.as_ref()],
+        &opinions_market_engine.id(),
+    )
+    .0;
+
+    let post_mint_payout_pda = Pubkey::find_program_address(
+        &[
+            POST_MINT_PAYOUT_SEED,
+            post_pda.as_ref(),
+            token_mint.as_ref(),
+        ],
+        &opinions_market_engine.id(),
+    )
+    .0;
+
+    let protocol_treasury_token_account_pda = Pubkey::find_program_address(
+        &[PROTOCOL_TREASURY_TOKEN_ACCOUNT_SEED, token_mint.as_ref()],
+        &opinions_market_engine.id(),
+    )
+    .0;
+
+    // Handle parent post if this is a child post
+    let parent_post_pda = match post_account.post_type {
+        opinions_market_engine::state::PostType::Child { parent } => Some(parent),
+        opinions_market_engine::state::PostType::Original => None,
+    };
+
+    let settle_ix = opinions_market_engine
+        .request()
+        .accounts(opinions_market_engine::accounts::SettlePost {
+            post: *post_pda,
+            post_pot_token_account: post_pot_token_account_pda,
+            post_pot_authority: post_pot_authority_pda,
+            post_mint_payout: post_mint_payout_pda,
+            protocol_token_treasury_token_account: protocol_treasury_token_account_pda,
+            parent_post: parent_post_pda,
+            config: *config_pda,
+            token_mint: *token_mint,
+            payer: payer.pubkey(),
+            token_program: spl_token::ID,
+            system_program: system_program::ID,
+        })
+        .instructions()
+        .unwrap();
+
+    let settle_tx = send_tx(&rpc, settle_ix, &payer.pubkey(), &[&payer])
+        .await
+        .unwrap();
+    println!("settle post tx: {:?}", settle_tx);
+
+    // Verify post was settled
+    let settled_post = opinions_market_engine
+        .account::<opinions_market_engine::state::PostAccount>(*post_pda)
+        .await
+        .unwrap();
+
+    match settled_post.state {
+        opinions_market_engine::state::PostState::Settled => {}
+        _ => panic!("Post should be in Settled state"),
+    }
+
+    // Verify post_mint_payout was created and has payout info
+    let payout_account = opinions_market_engine
+        .account::<opinions_market_engine::state::PostMintPayout>(post_mint_payout_pda)
+        .await
+        .unwrap();
+
+    assert_eq!(payout_account.post, *post_pda);
+    assert_eq!(payout_account.mint, *token_mint);
+
+    // Check if payout was stored in the payout account
+    if settled_post.upvotes > settled_post.downvotes
+        || settled_post.downvotes > settled_post.upvotes
+    {
+        assert!(
+            payout_account.payout_per_unit > 0,
+            "Payout per unit should be > 0 for winning post"
+        );
+    }
+
+    println!("✅ Post settled successfully");
+}
 
 // pub async fn test_phenomena_claim_post_reward() {}

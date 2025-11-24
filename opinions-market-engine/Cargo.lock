@@ -7959,6 +7959,7 @@ dependencies = [
  "anchor-spl",
  "anyhow",
  "opinions-market-engine",
+ "rand 0.8.5",
  "solana-client",
  "solana-program-test",
  "solana-sdk",

@@ -19,6 +19,17 @@ use solana_sdk::{
 }; // Add this import
 use solana_sdk::{pubkey::Pubkey, signer::Signer};
 
+/// Generate a unique post_id_hash for creating posts.
+/// Uses current time (nanoseconds) + creator pubkey to ensure uniqueness.
+/// If parent_post_pda is provided, also incorporates it for child post uniqueness.
+use rand::RngCore;
+
+pub fn generate_post_id_hash() -> [u8; 32] {
+    let mut h = [0u8; 32];
+    rand::thread_rng().fill_bytes(&mut h);
+    h
+}
+
 pub async fn setup_token_mint(
     rpc: &RpcClient,
     payer: &Keypair,

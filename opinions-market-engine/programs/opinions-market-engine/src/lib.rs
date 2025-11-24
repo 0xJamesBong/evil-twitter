@@ -56,7 +56,6 @@ pub mod opinions_market_engine {
         let cfg = &mut ctx.accounts.config;
         cfg.admin = *ctx.accounts.admin.key;
         cfg.bling_mint = ctx.accounts.bling_mint.key();
-        cfg.protocol_bling_treasury = ctx.accounts.protocol_bling_treasury.key();
         cfg.protocol_vote_fee_bps = protocol_fee_bps;
         cfg.creator_pump_vote_fee_bps = creator_fee_bps_pump;
         cfg.base_duration_secs = 24 * 3600;
@@ -65,12 +64,15 @@ pub mod opinions_market_engine {
         cfg.bump = ctx.bumps.config;
         cfg.padding = [0; 7];
 
-        let am = &mut ctx.accounts.valid_payment;
-        am.token_mint = ctx.accounts.bling_mint.key();
-        am.price_in_bling = 1;
-        am.treasury_token_account = ctx.accounts.protocol_bling_treasury.key();
-        am.enabled = true;
-        am.bump = ctx.bumps.valid_payment;
+        let valid_payment = &mut ctx.accounts.valid_payment;
+
+        let new_valid_payment = ValidPayment::new(ctx.accounts.bling_mint.key(), 1, true);
+
+        valid_payment.token_mint = new_valid_payment.token_mint;
+        valid_payment.price_in_bling = new_valid_payment.price_in_bling;
+        valid_payment.enabled = new_valid_payment.enabled;
+        valid_payment.bump = ctx.bumps.valid_payment; // Use the actual bump from Anchor
+
         Ok(())
     }
 
@@ -83,12 +85,15 @@ pub mod opinions_market_engine {
         // Note: Duplicate registration is prevented by the `init` constraint on alternative_payment account.
         // If the account already exists (same PDA seeds), init will fail before this function is called.
 
-        let am = &mut ctx.accounts.valid_payment;
-        am.token_mint = ctx.accounts.token_mint.key();
-        am.price_in_bling = price_in_bling;
-        am.treasury_token_account = ctx.accounts.treasury_token_account.key();
-        am.enabled = true;
-        am.bump = ctx.bumps.valid_payment;
+        let valid_payment = &mut ctx.accounts.valid_payment;
+        let new_valid_payment =
+            ValidPayment::new(ctx.accounts.token_mint.key(), price_in_bling, true);
+
+        valid_payment.token_mint = new_valid_payment.token_mint;
+        valid_payment.price_in_bling = new_valid_payment.price_in_bling;
+        valid_payment.enabled = new_valid_payment.enabled;
+        valid_payment.bump = ctx.bumps.valid_payment; // Use the actual bump from Anchor
+
         Ok(())
     }
 
@@ -99,10 +104,9 @@ pub mod opinions_market_engine {
     // when the user first signs in, we will need the user to create a user, which will create their deposit vault
     pub fn create_user(ctx: Context<CreateUser>) -> Result<()> {
         let user = &mut ctx.accounts.user_account;
-        user.authority_wallet = ctx.accounts.authority.key();
         user.social_score = 0; // you can use this later for withdraw penalties
         user.bump = ctx.bumps.user_account;
-        user.padding = [0; 7];
+
         Ok(())
     }
 
@@ -126,7 +130,8 @@ pub mod opinions_market_engine {
         // later you’ll put the social penalty logic here
         let effective_amount = amount;
 
-        let seeds: &[&[&[u8]]] = &[&[VAULT_AUTHORITY_SEED, &[ctx.bumps.vault_authority]]];
+        let vault_bump = ctx.bumps.vault_authority;
+        let seeds: &[&[&[u8]]] = &[&[VAULT_AUTHORITY_SEED, &[vault_bump]]];
 
         let cpi_accounts = anchor_spl::token::Transfer {
             from: ctx.accounts.user_vault_token_account.to_account_info(),
@@ -155,7 +160,7 @@ pub mod opinions_market_engine {
         let now = clock.unix_timestamp;
         let post = &mut ctx.accounts.post;
         let new_post = PostAccount::new(
-            ctx.accounts.creator_user_account.key(),
+            ctx.accounts.user_account.key(),
             post_id_hash,
             match parent_post_pda {
                 Some(parent_pda) => PostType::Child { parent: parent_pda },
@@ -173,7 +178,6 @@ pub mod opinions_market_engine {
         post.upvotes = new_post.upvotes;
         post.downvotes = new_post.downvotes;
         post.winning_side = new_post.winning_side;
-        post.pot_payouts = new_post.pot_payouts;
 
         Ok(())
     }
@@ -215,7 +219,8 @@ pub mod opinions_market_engine {
         // ---- 2. TRANSFERS (ALWAYS IN token_mint) ----
         //
 
-        let user_authority_seeds = &[&[VAULT_AUTHORITY_SEED, &[ctx.bumps.vault_authority]][..]];
+        let vault_bump = ctx.bumps.vault_authority;
+        let user_authority_seeds: &[&[&[u8]]] = &[&[VAULT_AUTHORITY_SEED, &[vault_bump]]];
 
         // protocol fee
         if protocol_fee > 0 {
@@ -303,74 +308,23 @@ pub mod opinions_market_engine {
 
     pub fn settle_post(ctx: Context<SettlePost>) -> Result<()> {
         let post = &mut ctx.accounts.post;
-
-        // Must be expired
         let clock = Clock::get()?;
+
+        require!(post.state == PostState::Open, ErrorCode::PostNotOpen);
         require!(
             clock.unix_timestamp > post.end_time,
             ErrorCode::PostNotExpired
         );
 
-        // Determine winner once globally
-        if post.winning_side.is_none() {
-            if post.upvotes > post.downvotes {
-                post.winning_side = Some(Side::Pump);
-            } else if post.downvotes > post.upvotes {
-                post.winning_side = Some(Side::Smack);
-            } else {
-                // Tie: burn pot to protocol
-                let pot_amount = ctx.accounts.post_pot_token_account.amount;
-                if pot_amount > 0 {
-                    let post_key = post.key();
-                    let (_, bump) = Pubkey::find_program_address(
-                        &[POST_POT_AUTHORITY_SEED, post_key.as_ref()],
-                        ctx.program_id,
-                    );
-
-                    let seeds: &[&[&[u8]]] =
-                        &[&[POST_POT_AUTHORITY_SEED, post_key.as_ref(), &[bump]]];
-
-                    anchor_spl::token::transfer(
-                        CpiContext::new_with_signer(
-                            ctx.accounts.token_program.to_account_info(),
-                            anchor_spl::token::Transfer {
-                                from: ctx.accounts.post_pot_token_account.to_account_info(),
-                                to: ctx
-                                    .accounts
-                                    .protocol_token_treasury_token_account
-                                    .to_account_info(),
-                                authority: ctx.accounts.post_pot_authority.to_account_info(),
-                            },
-                            seeds,
-                        ),
-                        pot_amount,
-                    )?;
-                }
-
-                post.state = PostState::Settled;
-                return Ok(());
-            }
-        }
-
-        let winning = post.winning_side.unwrap();
-        let total_winning_votes = match winning {
-            Side::Pump => post.upvotes,
-            Side::Smack => post.downvotes,
-        };
-
-        let pot_amount = ctx.accounts.post_pot_token_account.amount;
-        let payout_per_unit = if total_winning_votes > 0 {
-            pot_amount / total_winning_votes
+        // Determine winner
+        let (winner, total_weight) = if post.upvotes > post.downvotes {
+            (Side::Pump, post.upvotes)
+        } else if post.downvotes > post.upvotes {
+            (Side::Smack, post.downvotes)
         } else {
-            0
-        };
-
-        //
-        // Parent forwarding (optional)
-        //
-        if let PostType::Child { parent } = post.post_type {
-            let parent_cut = pot_amount / 10; // 10%
-            if parent_cut > 0 {
+            // tie → sweep pot to treasury
+            let pot_amount = ctx.accounts.post_pot_token_account.amount;
+            if pot_amount > 0 {
                 let post_key = post.key();
                 let (_, bump) = Pubkey::find_program_address(
                     &[POST_POT_AUTHORITY_SEED, post_key.as_ref()],
@@ -378,96 +332,98 @@ pub mod opinions_market_engine {
                 );
                 let seeds: &[&[&[u8]]] = &[&[POST_POT_AUTHORITY_SEED, post_key.as_ref(), &[bump]]];
 
-                anchor_spl::token::transfer(
-                    CpiContext::new_with_signer(
-                        ctx.accounts.token_program.to_account_info(),
-                        anchor_spl::token::Transfer {
-                            from: ctx.accounts.post_pot_token_account.to_account_info(),
-                            to: ctx.accounts.parent_post_pot_token_account.to_account_info(),
-                            authority: ctx.accounts.post_pot_authority.to_account_info(),
-                        },
-                        seeds,
-                    ),
-                    parent_cut,
-                )?;
-            }
-        }
+                let cpi = CpiContext::new_with_signer(
+                    ctx.accounts.token_program.to_account_info(),
+                    anchor_spl::token::Transfer {
+                        from: ctx.accounts.post_pot_token_account.to_account_info(),
+                        to: ctx
+                            .accounts
+                            .protocol_token_treasury_token_account
+                            .to_account_info(),
+                        authority: ctx.accounts.post_pot_authority.to_account_info(),
+                    },
+                    seeds,
+                );
 
-        //
-        // Store payout_per_unit for this mint
-        //
-        post.pot_payouts.push(PotPayout {
-            mint: ctx.accounts.token_mint.key(),
-            payout_per_unit,
-        });
+                anchor_spl::token::transfer(cpi, pot_amount)?;
+            }
+
+            post.state = PostState::Settled;
+            post.winning_side = None;
+            return Ok(());
+        };
+
+        // Compute payout_per_unit
+        let pot_amount = ctx.accounts.post_pot_token_account.amount;
+        let payout_per_unit = if total_weight > 0 {
+            pot_amount / total_weight
+        } else {
+            0
+        };
+
+        // Write the payout snapshot
+        let payout = &mut ctx.accounts.post_mint_payout;
+        payout.post = post.key();
+        payout.mint = ctx.accounts.token_mint.key();
+        payout.payout_per_unit = payout_per_unit;
+        payout.bump = ctx.bumps.post_mint_payout;
 
         post.state = PostState::Settled;
+        post.winning_side = Some(winner);
+
         Ok(())
     }
 
-    // pub fn claim_post_reward(ctx: Context<ClaimPostReward>) -> Result<()> {
-    //     let post = &ctx.accounts.post;
-    //     let position = &mut ctx.accounts.position;
+    pub fn claim_post_reward(ctx: Context<ClaimPostReward>) -> Result<()> {
+        let post = &ctx.accounts.post;
+        let pos = &mut ctx.accounts.position;
 
-    //     require!(post.state == PostState::Settled, ErrorCode::PostNotSettled);
-    //     require!(!position.claimed, ErrorCode::AlreadyClaimed);
+        require!(post.state == PostState::Settled, ErrorCode::PostNotSettled);
+        require!(!pos.claimed, ErrorCode::AlreadyClaimed);
 
-    //     //
-    //     // 1. Determine user vote weight
-    //     //
-    //     let winning_side = post.winning_side.ok_or(ErrorCode::NoWinner)?;
+        let winning_side = post.winning_side.ok_or(ErrorCode::NoWinner)?;
 
-    //     let user_votes = match winning_side {
-    //         Side::Pump => position.upvotes as u64,
-    //         Side::Smack => position.downvotes as u64,
-    //     };
+        let user_units = match winning_side {
+            Side::Pump => pos.upvotes as u64,
+            Side::Smack => pos.downvotes as u64,
+        };
 
-    //     if user_votes == 0 {
-    //         position.claimed = true;
-    //         return Ok(());
-    //     }
+        if user_units == 0 {
+            pos.claimed = true;
+            return Ok(());
+        }
 
-    //     //
-    //     // 2. Compute reward
-    //     //
-    //     let reward = user_votes
-    //         .checked_mul(post.payout_per_unit)
-    //         .ok_or(ErrorCode::MathOverflow)?;
+        let payout = &ctx.accounts.post_mint_payout;
+        let reward = user_units
+            .checked_mul(payout.payout_per_unit)
+            .ok_or(ErrorCode::MathOverflow)?;
 
-    //     if reward == 0 {
-    //         position.claimed = true;
-    //         return Ok(());
-    //     }
+        if reward == 0 {
+            pos.claimed = true;
+            return Ok(());
+        }
 
-    //     //
-    //     // 3. Transfer reward from post pot PDA → user vault
-    //     //
-    //     let post_key = post.key();
-    //     let (_, bump) = Pubkey::find_program_address(
-    //         &[POST_POT_AUTHORITY_SEED, post_key.as_ref()],
-    //         ctx.program_id,
-    //     );
+        // Transfer reward
+        let post_key = post.key();
+        let (_, bump) = Pubkey::find_program_address(
+            &[POST_POT_AUTHORITY_SEED, post_key.as_ref()],
+            ctx.program_id,
+        );
+        let seeds: &[&[&[u8]]] = &[&[POST_POT_AUTHORITY_SEED, post_key.as_ref(), &[bump]]];
 
-    //     let seeds: &[&[&[u8]]] = &[&[POST_POT_AUTHORITY_SEED, post_key.as_ref(), &[bump]]];
+        let cpi = CpiContext::new_with_signer(
+            ctx.accounts.token_program.to_account_info(),
+            anchor_spl::token::Transfer {
+                from: ctx.accounts.post_pot_token_account.to_account_info(),
+                to: ctx.accounts.user_vault_token_account.to_account_info(),
+                authority: ctx.accounts.post_pot_authority.to_account_info(),
+            },
+            seeds,
+        );
 
-    //     let cpi_accounts = anchor_spl::token::Transfer {
-    //         from: ctx.accounts.post_pot_bling.to_account_info(),
-    //         to: ctx.accounts.user_bling_vault.to_account_info(),
-    //         authority: ctx.accounts.post_pot_authority.to_account_info(),
-    //     };
+        anchor_spl::token::transfer(cpi, reward)?;
 
-    //     let cpi_ctx = CpiContext::new_with_signer(
-    //         ctx.accounts.token_program.to_account_info(),
-    //         cpi_accounts,
-    //         seeds,
-    //     );
-
-    //     anchor_spl::token::transfer(cpi_ctx, reward)?;
-
-    //     //
-    //     // 4. Mark as claimed
-    //     //
-    //     position.claimed = true;
-    //     Ok(())
-    // }
+        pos.claimed = true;
+        Ok(())
+    }
 }
