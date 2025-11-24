@@ -433,7 +433,7 @@ pub async fn test_phenomena_vote_on_post(
         &[
             POSITION_SEED,
             post_pda.as_ref(),
-            voter_user_account_pda.as_ref(),
+            voter.pubkey().as_ref(), // Use voter's wallet pubkey, not user_account PDA
         ],
         &opinions_market_engine.id(),
     )
