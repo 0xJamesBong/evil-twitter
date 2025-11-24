@@ -210,6 +210,7 @@ pub mod opinions_market {
         msg!("clock.unix_timestamp: {}", clock.unix_timestamp);
         msg!("post.end_time: {}", post.end_time);
 
+        panic!("🌟 SHIT SHIT SHIT SHIT SHIT ");
         require!(post.state == PostState::Open, ErrorCode::PostNotOpen);
         require!(
             post.within_time_limit(clock.unix_timestamp),
@@ -354,14 +355,12 @@ pub mod opinions_market {
 
         msg!("clock.unix_timestamp: {}", clock.unix_timestamp);
         msg!("post.end_time: {}", post.end_time);
-
+        panic!("🌟 SHIT SHIT SHIT SHIT SHIT ");
         require!(post.state == PostState::Open, ErrorCode::PostNotOpen);
         require!(
             clock.unix_timestamp > post.end_time,
             ErrorCode::PostNotExpired
         );
-
-        panic!("🌟 SHIT SHIT SHIT SHIT SHIT ");
 
         // Determine winner
         let (winner, total_weight) = if post.upvotes > post.downvotes {
