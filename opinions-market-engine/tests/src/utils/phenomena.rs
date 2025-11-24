@@ -491,13 +491,13 @@ pub async fn test_phenomena_vote_on_post(
         units
     );
 
-    // Get post account to get post_id_hash and find creator
-    let post_account = opinions_market_engine
+    // Get post account BEFORE vote to capture initial state
+    let post_account_before = opinions_market_engine
         .account::<opinions_market_engine::state::PostAccount>(*post_pda)
         .await
         .unwrap();
 
-    let post_id_hash = post_account.post_id_hash.clone();
+    let post_id_hash = post_account_before.post_id_hash.clone();
 
     println!("post_pda passed in: {}", post_pda);
     let expected = Pubkey::find_program_address(
@@ -508,7 +508,7 @@ pub async fn test_phenomena_vote_on_post(
     println!("post_pda derived from seeds: {}", expected);
     println!("post_id_hash: {}", hex::encode(post_id_hash));
 
-    match post_account.state {
+    match post_account_before.state {
         opinions_market_engine::state::PostState::Open => {
             println!("✅ Post state is Open");
         }
@@ -519,11 +519,44 @@ pub async fn test_phenomena_vote_on_post(
             panic!("SOMETHING ELSE WENT WRONG")
         }
     }
-    // Get config
+
+    // Capture initial post state
+    let initial_end_time = post_account_before.end_time;
+    let initial_upvotes = post_account_before.upvotes;
+    let initial_downvotes = post_account_before.downvotes;
+    let initial_start_time = post_account_before.start_time;
+
+    println!("📊 Post state BEFORE vote:");
+    println!("   - Start time: {}", initial_start_time);
+    println!("   - End time: {}", initial_end_time);
+    println!(
+        "   - Upvotes: {}, Downvotes: {}",
+        initial_upvotes, initial_downvotes
+    );
+
+    // Get config to know extension_per_vote_secs
     let config = opinions_market_engine
         .account::<opinions_market_engine::state::Config>(*config_pda)
         .await
         .unwrap();
+
+    // Calculate expected end_time extension
+    let expected_extension = (config.extension_per_vote_secs as i64) * (units as i64);
+    let naive_new_end_time = initial_end_time + expected_extension;
+    let max_allowed_end_time = initial_start_time + (config.max_duration_secs as i64);
+    let expected_end_time = naive_new_end_time.min(max_allowed_end_time);
+    let expected_actual_extension = expected_end_time - initial_end_time;
+
+    println!(
+        "📅 Expected time extension: {} seconds ({} units × {} secs/unit)",
+        expected_extension, units, config.extension_per_vote_secs
+    );
+    println!("   - Naive new end_time: {}", naive_new_end_time);
+    println!("   - Max allowed end_time: {}", max_allowed_end_time);
+    println!(
+        "   - Expected end_time after vote: {} (extension: {} seconds)",
+        expected_end_time, expected_actual_extension
+    );
 
     let voter_user_account_pda = Pubkey::find_program_address(
         &[USER_ACCOUNT_SEED, voter.pubkey().as_ref()],
@@ -551,10 +584,30 @@ pub async fn test_phenomena_vote_on_post(
     )
     .0;
 
+    // Try to get position BEFORE vote (may not exist)
+    let position_before = opinions_market_engine
+        .account::<opinions_market_engine::state::UserPostPosition>(position_pda)
+        .await;
+
+    let initial_position_upvotes = match &position_before {
+        Ok(pos) => pos.upvotes,
+        Err(_) => 0,
+    };
+    let initial_position_downvotes = match &position_before {
+        Ok(pos) => pos.downvotes,
+        Err(_) => 0,
+    };
+
+    println!("📊 Position state BEFORE vote:");
+    println!(
+        "   - Upvotes: {}, Downvotes: {}",
+        initial_position_upvotes, initial_position_downvotes
+    );
+
     let vault_authority_pda =
         Pubkey::find_program_address(&[VAULT_AUTHORITY_SEED], &opinions_market_engine.id()).0;
 
-    let creator_user = post_account.creator_user; // this is a wallet pubkey
+    let creator_user = post_account_before.creator_user; // this is a wallet pubkey
 
     let creator_vault_token_account_pda = Pubkey::find_program_address(
         &[
@@ -628,35 +681,120 @@ pub async fn test_phenomena_vote_on_post(
         .unwrap();
     println!("vote tx: {:?}", vote_tx);
 
-    // Verify position was updated
-    let position = opinions_market_engine
+    // Verify position was updated AFTER vote
+    let position_after = opinions_market_engine
         .account::<opinions_market_engine::state::UserPostPosition>(position_pda)
         .await
         .unwrap();
+
+    println!("📊 Position state AFTER vote:");
+    println!(
+        "   - Upvotes: {}, Downvotes: {}",
+        position_after.upvotes, position_after.downvotes
+    );
+
     match side {
         opinions_market_engine::state::Side::Pump => {
-            assert_eq!(position.upvotes, units);
+            assert_eq!(
+                position_after.upvotes,
+                initial_position_upvotes + units,
+                "Position upvotes should increase by {} (was {}, now {})",
+                units,
+                initial_position_upvotes,
+                position_after.upvotes
+            );
         }
         opinions_market_engine::state::Side::Smack => {
-            assert_eq!(position.downvotes, units);
+            assert_eq!(
+                position_after.downvotes,
+                initial_position_downvotes + units,
+                "Position downvotes should increase by {} (was {}, now {})",
+                units,
+                initial_position_downvotes,
+                position_after.downvotes
+            );
         }
     }
 
-    // Verify post counters were updated
-    let updated_post = opinions_market_engine
+    // Verify post counters were updated AFTER vote
+    let post_account_after = opinions_market_engine
         .account::<opinions_market_engine::state::PostAccount>(*post_pda)
         .await
         .unwrap();
+
+    println!("📊 Post state AFTER vote:");
+    println!(
+        "   - Start time: {} (unchanged)",
+        post_account_after.start_time
+    );
+    println!(
+        "   - End time: {} (was {}, changed by {} seconds)",
+        post_account_after.end_time,
+        initial_end_time,
+        post_account_after.end_time - initial_end_time
+    );
+    println!(
+        "   - Upvotes: {} (was {}, changed by {})",
+        post_account_after.upvotes,
+        initial_upvotes,
+        post_account_after.upvotes as i64 - initial_upvotes as i64
+    );
+    println!(
+        "   - Downvotes: {} (was {}, changed by {})",
+        post_account_after.downvotes,
+        initial_downvotes,
+        post_account_after.downvotes as i64 - initial_downvotes as i64
+    );
+
+    // Verify start_time didn't change
+    assert_eq!(
+        post_account_after.start_time, initial_start_time,
+        "Post start_time should not change after vote"
+    );
+
+    // Verify end_time was extended correctly
+    let actual_extension = post_account_after.end_time - initial_end_time;
+    assert_eq!(
+        post_account_after.end_time, expected_end_time,
+        "Post end_time should be extended correctly. Expected: {} (extension: {} secs), Got: {} (extension: {} secs)",
+        expected_end_time, expected_actual_extension, post_account_after.end_time, actual_extension
+    );
+    assert!(
+        actual_extension > 0,
+        "Post end_time should be extended by at least some amount. Extension: {} seconds",
+        actual_extension
+    );
+    assert!(
+        actual_extension <= expected_extension,
+        "Post end_time extension should not exceed expected. Expected max: {} secs, Got: {} secs",
+        expected_extension,
+        actual_extension
+    );
+
+    // Verify vote counts increased correctly
     match side {
         opinions_market_engine::state::Side::Pump => {
-            assert!(updated_post.upvotes >= units as u64);
+            assert!(
+                post_account_after.upvotes >= initial_upvotes + units as u64,
+                "Post upvotes should increase by at least {} (was {}, now {})",
+                units,
+                initial_upvotes,
+                post_account_after.upvotes
+            );
         }
         opinions_market_engine::state::Side::Smack => {
-            assert!(updated_post.downvotes >= units as u64);
+            assert!(
+                post_account_after.downvotes >= initial_downvotes + units as u64,
+                "Post downvotes should increase by at least {} (was {}, now {})",
+                units,
+                initial_downvotes,
+                post_account_after.downvotes
+            );
         }
     }
 
-    println!("✅ Vote successful. Position and post updated.");
+    println!("✅ Vote successful. Position and post updated correctly.");
+    println!("   ✅ End time extended by {} seconds", actual_extension);
 }
 
 pub async fn test_phenomena_settle_post(
