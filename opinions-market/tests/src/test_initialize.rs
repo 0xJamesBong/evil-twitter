@@ -6,6 +6,7 @@ use anchor_client::{
 use anchor_client::solana_sdk::{pubkey::Pubkey, signature::read_keypair_file};
 
 use anchor_spl::token::spl_token;
+use solana_program_test::ProgramTest;
 use solana_sdk::{
     native_token::LAMPORTS_PER_SOL,
     signature::{Keypair, Signer},
@@ -23,6 +24,33 @@ use crate::utils::utils::{
 };
 use opinions_market::pda_seeds::*;
 use std::collections::HashMap;
+
+#[tokio::test]
+async fn test_clock() {
+    let program_test = ProgramTest::default();
+    let mut context = program_test.start_with_context().await;
+
+    // print initial slot
+    let clock = context
+        .banks_client
+        .get_sysvar::<solana_sdk::clock::Clock>()
+        .await
+        .unwrap();
+    println!("initial slot: {}", clock.slot);
+
+    // --- WARP TIME (advance slots) ---
+    context.warp_to_slot(5000).unwrap(); // <—— this is the time warp
+
+    // print slot after warp
+    let clock2 = context
+        .banks_client
+        .get_sysvar::<solana_sdk::clock::Clock>()
+        .await
+        .unwrap();
+    println!("after warp slot: {}", clock2.slot);
+    assert_eq!(clock2.slot, 5000);
+    panic!();
+}
 
 #[tokio::test]
 async fn test_ping() {
