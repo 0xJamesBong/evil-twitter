@@ -7,10 +7,10 @@ use solana_client::nonblocking::rpc_client::RpcClient;
 use solana_sdk::pubkey::Pubkey;
 use solana_sdk::{signature::Keypair, signer::Signer};
 
-use crate::utils::definitions::RATES;
-use crate::utils::utils::send_tx;
+use crate::config::TIME_CONFIG_FAST;
+use crate::utils::rates::RATES;
+use crate::utils::utils::{send_tx, wait_for_post_to_expire};
 use opinions_market::pda_seeds::*;
-use solana_transaction_status_client_types::UiTransactionEncoding;
 
 pub async fn test_phenomena() {}
 
@@ -99,6 +99,7 @@ pub async fn test_phenomena_create_user(
     opinions_market: &Program<&Keypair>,
     payer: &Keypair,
     user: &Keypair,
+    config_pda: &Pubkey,
 ) {
     println!("creating user 1");
     let user_account_pda = Pubkey::find_program_address(
@@ -113,6 +114,7 @@ pub async fn test_phenomena_create_user(
             user: user.pubkey(),
             payer: payer.pubkey(),
             user_account: user_account_pda,
+            config: *config_pda,
             system_program: system_program::ID,
         })
         .args(opinions_market::instruction::CreateUser {})
@@ -368,14 +370,8 @@ pub async fn test_phenomena_create_post(
     );
 
     // Verify state is Open
-    match post_account.state {
-        opinions_market::state::PostState::Open => {
-            println!("✅ Post state is Open");
-        }
-        opinions_market::state::PostState::Settled => {
-            panic!("Post should be in Open state, not Settled");
-        }
-    }
+    assert_eq!(post_account.state, opinions_market::state::PostState::Open);
+    println!("✅ Post state is Open");
 
     // Verify initial vote counts
     assert_eq!(post_account.upvotes, 0, "New post should have 0 upvotes");
@@ -385,17 +381,11 @@ pub async fn test_phenomena_create_post(
     );
 
     // Verify winning_side is None for new post
-    match post_account.winning_side {
-        None => {
-            println!("✅ Post winning_side is None (correct for new post)");
-        }
-        Some(_) => {
-            panic!("New post should not have a winning_side, but got Some(_)");
-        }
-        _ => {
-            panic!("SOMETHING ELSE WENT WRONG")
-        }
-    }
+    assert_eq!(
+        post_account.winning_side, None,
+        "New post should not have a winning_side"
+    );
+    println!("✅ Post winning_side is None (correct for new post)");
 
     // Verify timestamps are set correctly
     // start_time should be a valid timestamp (greater than 0 and reasonable)
@@ -404,11 +394,12 @@ pub async fn test_phenomena_create_post(
         "Post start_time should be set to a valid timestamp"
     );
 
-    // Verify end_time is start_time + POST_INIT_DURATION_SECS (24 hours = 86400 seconds)
-    let expected_end_time = post_account.start_time + (24 * 3600) as i64;
+    // Verify end_time is start_time + base_duration_secs
+    let expected_end_time = post_account.start_time + (TIME_CONFIG_FAST.base_duration_secs) as i64;
     assert_eq!(
         post_account.end_time, expected_end_time,
-        "Post end_time should be start_time + 24 hours (POST_INIT_DURATION_SECS = 86400 seconds)"
+        "Post end_time should be start_time + {} seconds (base_duration_secs)",
+        TIME_CONFIG_FAST.base_duration_secs
     );
 
     // Verify end_time is after start_time
@@ -418,30 +409,31 @@ pub async fn test_phenomena_create_post(
     );
 
     // Verify post type
-    match (parent_post_pda, &post_account.post_type) {
-        (
-            Some(parent),
-            opinions_market::state::PostType::Child {
+    match parent_post_pda {
+        Some(parent) => {
+            if let opinions_market::state::PostType::Child {
                 parent: stored_parent,
-            },
-        ) => {
+            } = post_account.post_type
+            {
+                assert_eq!(
+                    stored_parent, parent,
+                    "Child post parent PDA should match provided parent"
+                );
+                println!("✅ Post type is Child with correct parent");
+            } else {
+                panic!(
+                    "Post type mismatch: expected Child post but got {:?}",
+                    post_account.post_type
+                );
+            }
+        }
+        None => {
             assert_eq!(
-                *stored_parent, parent,
-                "Child post parent PDA should match provided parent"
+                post_account.post_type,
+                opinions_market::state::PostType::Original,
+                "Post type should be Original when no parent is provided"
             );
-            println!("✅ Post type is Child with correct parent");
-        }
-        (None, opinions_market::state::PostType::Original) => {
             println!("✅ Post type is Original");
-        }
-        (Some(_), opinions_market::state::PostType::Original) => {
-            panic!("Post type mismatch: expected Child post but got Original");
-        }
-        (None, opinions_market::state::PostType::Child { parent }) => {
-            panic!(
-                "Post type mismatch: expected Original post but got Child with parent {}",
-                parent
-            );
         }
     }
 
@@ -470,7 +462,7 @@ pub async fn test_phenomena_vote_on_post(
     voter: &Keypair,
     post_pda: &Pubkey,
     side: opinions_market::state::Side,
-    units: u32,
+    votes: u64,
     token_mint: &Pubkey,
     token_atas: &HashMap<Pubkey, Pubkey>,
     config_pda: &Pubkey,
@@ -480,11 +472,11 @@ pub async fn test_phenomena_vote_on_post(
         opinions_market::state::Side::Smack => "downvote",
     };
     println!(
-        "{:} {}ing post {:} with {} units",
+        "{:} {}ing post {:} with {} votes",
         voter.pubkey(),
         side_str,
         post_pda,
-        units
+        votes
     );
 
     // Get post account BEFORE vote to capture initial state
@@ -504,17 +496,12 @@ pub async fn test_phenomena_vote_on_post(
     println!("post_pda derived from seeds: {}", expected);
     println!("post_id_hash: {}", hex::encode(post_id_hash));
 
-    match post_account_before.state {
-        opinions_market::state::PostState::Open => {
-            println!("✅ Post state is Open");
-        }
-        opinions_market::state::PostState::Settled => {
-            panic!("Post should be in Open state, not Settled");
-        }
-        _ => {
-            panic!("SOMETHING ELSE WENT WRONG")
-        }
-    }
+    assert_eq!(
+        post_account_before.state,
+        opinions_market::state::PostState::Open,
+        "Post should be in Open state before voting"
+    );
+    println!("✅ Post state is Open");
 
     // Capture initial post state
     let initial_end_time = post_account_before.end_time;
@@ -530,22 +517,17 @@ pub async fn test_phenomena_vote_on_post(
         initial_upvotes, initial_downvotes
     );
 
-    // Get config to know extension_per_vote_secs
-    let config = opinions_market
-        .account::<opinions_market::state::Config>(*config_pda)
-        .await
-        .unwrap();
-
+    // Use TIME_CONFIG_FAST for time calculations (matches what we initialized with)
     // Calculate expected end_time extension
-    let expected_extension = (config.extension_per_vote_secs as i64) * (units as i64);
+    let expected_extension = (TIME_CONFIG_FAST.extension_per_vote_secs as i64) * (votes as i64);
     let naive_new_end_time = initial_end_time + expected_extension;
-    let max_allowed_end_time = initial_start_time + (config.max_duration_secs as i64);
+    let max_allowed_end_time = initial_start_time + (TIME_CONFIG_FAST.max_duration_secs as i64);
     let expected_end_time = naive_new_end_time.min(max_allowed_end_time);
     let expected_actual_extension = expected_end_time - initial_end_time;
 
     println!(
-        "📅 Expected time extension: {} seconds ({} units × {} secs/unit)",
-        expected_extension, units, config.extension_per_vote_secs
+        "📅 Expected time extension: {} seconds ({} votes × {} secs/vote)",
+        expected_extension, votes, TIME_CONFIG_FAST.extension_per_vote_secs
     );
     println!("   - Naive new end_time: {}", naive_new_end_time);
     println!("   - Max allowed end_time: {}", max_allowed_end_time);
@@ -665,7 +647,7 @@ pub async fn test_phenomena_vote_on_post(
         })
         .args(opinions_market::instruction::VoteOnPost {
             side,
-            units,
+            votes,
             post_id_hash,
         })
         .instructions()
@@ -693,9 +675,9 @@ pub async fn test_phenomena_vote_on_post(
         opinions_market::state::Side::Pump => {
             assert_eq!(
                 position_after.upvotes,
-                initial_position_upvotes + units,
+                initial_position_upvotes + votes,
                 "Position upvotes should increase by {} (was {}, now {})",
-                units,
+                votes,
                 initial_position_upvotes,
                 position_after.upvotes
             );
@@ -703,9 +685,9 @@ pub async fn test_phenomena_vote_on_post(
         opinions_market::state::Side::Smack => {
             assert_eq!(
                 position_after.downvotes,
-                initial_position_downvotes + units,
+                initial_position_downvotes + votes,
                 "Position downvotes should increase by {} (was {}, now {})",
-                units,
+                votes,
                 initial_position_downvotes,
                 position_after.downvotes
             );
@@ -771,18 +753,18 @@ pub async fn test_phenomena_vote_on_post(
     match side {
         opinions_market::state::Side::Pump => {
             assert!(
-                post_account_after.upvotes >= initial_upvotes + units as u64,
+                post_account_after.upvotes >= initial_upvotes + votes as u64,
                 "Post upvotes should increase by at least {} (was {}, now {})",
-                units,
+                votes,
                 initial_upvotes,
                 post_account_after.upvotes
             );
         }
         opinions_market::state::Side::Smack => {
             assert!(
-                post_account_after.downvotes >= initial_downvotes + units as u64,
+                post_account_after.downvotes >= initial_downvotes + votes as u64,
                 "Post downvotes should increase by at least {} (was {}, now {})",
-                units,
+                votes,
                 initial_downvotes,
                 post_account_after.downvotes
             );
@@ -798,16 +780,217 @@ pub async fn test_phenomena_settle_post(
     opinions_market: &Program<&Keypair>,
     payer: &Keypair,
     post_pda: &Pubkey,
-    token_mint: &Pubkey,
+    tokens: &HashMap<Pubkey, String>,
     config_pda: &Pubkey,
 ) {
-    println!("Settling post {:?}", post_pda);
+    println!("Settling post {:?} for {} tokens", post_pda, tokens.len());
 
-    // Get post account to check if it's a child post
+    // wait for post to be expired
+    wait_for_post_to_expire(rpc, opinions_market, post_pda).await;
+
+    for (token_mint, token_name) in tokens {
+        println!(
+            "Settling post {:?} for token mint: {}",
+            post_pda, token_name
+        );
+
+        // Get post account to check if it's a child post
+        let post_account = opinions_market
+            .account::<opinions_market::state::PostAccount>(*post_pda)
+            .await
+            .unwrap();
+        let post_id_hash = post_account.post_id_hash.clone();
+
+        let post_pot_token_account_pda = Pubkey::find_program_address(
+            &[
+                POST_POT_TOKEN_ACCOUNT_SEED,
+                post_pda.as_ref(),
+                token_mint.as_ref(),
+            ],
+            &opinions_market.id(),
+        )
+        .0;
+
+        // Check if post_pot_token_account exists (only exists if someone voted with this token mint)
+        let post_pot_result = opinions_market
+            .account::<anchor_spl::token::TokenAccount>(post_pot_token_account_pda)
+            .await;
+
+        match post_pot_result {
+            Ok(post_pot) if post_pot.amount == 0 => {
+                println!(
+                    "⚠️  Post pot for token {} is empty (0 balance), skipping settlement",
+                    token_name
+                );
+                continue; // Skip this token mint - nothing to settle
+            }
+            Err(_) => {
+                println!(
+                    "⚠️  No votes for token {} on this post (account doesn't exist), skipping settlement",
+                    token_name
+                );
+                continue; // Skip this token mint - account was never created
+            }
+            Ok(_) => {
+                // Account exists and has balance, proceed with settlement
+            }
+        }
+
+        let post_pot_authority_pda = Pubkey::find_program_address(
+            &[POST_POT_AUTHORITY_SEED, post_pda.as_ref()],
+            &opinions_market.id(),
+        )
+        .0;
+
+        let post_mint_payout_pda = Pubkey::find_program_address(
+            &[
+                POST_MINT_PAYOUT_SEED,
+                post_pda.as_ref(),
+                token_mint.as_ref(),
+            ],
+            &opinions_market.id(),
+        )
+        .0;
+
+        let protocol_treasury_token_account_pda = Pubkey::find_program_address(
+            &[PROTOCOL_TREASURY_TOKEN_ACCOUNT_SEED, token_mint.as_ref()],
+            &opinions_market.id(),
+        )
+        .0;
+
+        // Handle parent post if this is a child post
+        let parent_post_pda = match post_account.post_type {
+            opinions_market::state::PostType::Child { parent } => Some(parent),
+            opinions_market::state::PostType::Original => None,
+        };
+
+        let settle_ix = opinions_market
+            .request()
+            .accounts(opinions_market::accounts::SettlePost {
+                post: *post_pda,
+                post_pot_token_account: post_pot_token_account_pda,
+                post_pot_authority: post_pot_authority_pda,
+                post_mint_payout: post_mint_payout_pda,
+                protocol_token_treasury_token_account: protocol_treasury_token_account_pda,
+                parent_post: parent_post_pda,
+                config: *config_pda,
+                token_mint: *token_mint,
+                payer: payer.pubkey(),
+                token_program: spl_token::ID,
+                system_program: system_program::ID,
+            })
+            .args(opinions_market::instruction::SettlePost {
+                post_id_hash: post_id_hash,
+            })
+            .instructions()
+            .unwrap();
+
+        let settle_tx = send_tx(&rpc, settle_ix, &payer.pubkey(), &[&payer])
+            .await
+            .unwrap();
+        println!("settle post tx: {:?}", settle_tx);
+
+        // Verify post was settled
+        let settled_post = opinions_market
+            .account::<opinions_market::state::PostAccount>(*post_pda)
+            .await
+            .unwrap();
+
+        assert_eq!(
+            settled_post.state,
+            opinions_market::state::PostState::Settled
+        );
+        println!("✅ Post state is Settled");
+        // Verify post_mint_payout was created and has payout info
+        let payout_account = opinions_market
+            .account::<opinions_market::state::PostMintPayout>(post_mint_payout_pda)
+            .await
+            .unwrap();
+
+        assert_eq!(payout_account.post, *post_pda);
+        assert_eq!(payout_account.token_mint, *token_mint);
+
+        // Check if payout was stored in the payout account
+        if settled_post.upvotes > settled_post.downvotes
+            || settled_post.downvotes > settled_post.upvotes
+        {
+            assert!(
+                payout_account.payout_per_winning_vote > 0,
+                "Payout per vote should be > 0 for winning post"
+            );
+        }
+
+        let winning_side = match settled_post.winning_side.unwrap() {
+            opinions_market::state::Side::Pump => "Pump",
+            opinions_market::state::Side::Smack => "Smack",
+        };
+        println!("✅ Post settled successfully, {} won", winning_side);
+    }
+}
+
+pub async fn test_phenomena_claim_post_reward(
+    rpc: &RpcClient,
+    opinions_market: &Program<&Keypair>,
+    payer: &Keypair,
+    user: &Keypair,
+    post_pda: &Pubkey,
+    token_mint: &Pubkey,
+    tokens: &HashMap<Pubkey, String>,
+) {
+    let token_name = tokens.get(token_mint).unwrap();
+    println!(
+        "User {:?} claiming reward from post {:?} for token {}",
+        user.pubkey(),
+        post_pda,
+        token_name
+    );
+
+    // Get post account to extract post_id_hash
     let post_account = opinions_market
         .account::<opinions_market::state::PostAccount>(*post_pda)
         .await
         .unwrap();
+    let post_id_hash = post_account.post_id_hash.clone();
+
+    // Verify post is settled
+    assert_eq!(
+        post_account.state,
+        opinions_market::state::PostState::Settled,
+        "Post must be settled before claiming rewards"
+    );
+
+    // Verify post has a winning side
+    assert!(
+        post_account.winning_side.is_some(),
+        "Post must have a winning side to claim rewards"
+    );
+
+    // Derive all necessary PDAs
+    let position_pda = Pubkey::find_program_address(
+        &[POSITION_SEED, post_pda.as_ref(), user.pubkey().as_ref()],
+        &opinions_market.id(),
+    )
+    .0;
+
+    let user_post_mint_claim_pda = Pubkey::find_program_address(
+        &[
+            USER_POST_MINT_CLAIM_SEED,
+            post_pda.as_ref(),
+            token_mint.as_ref(),
+        ],
+        &opinions_market.id(),
+    )
+    .0;
+
+    let post_mint_payout_pda = Pubkey::find_program_address(
+        &[
+            POST_MINT_PAYOUT_SEED,
+            post_pda.as_ref(),
+            token_mint.as_ref(),
+        ],
+        &opinions_market.id(),
+    )
+    .0;
 
     let post_pot_token_account_pda = Pubkey::find_program_address(
         &[
@@ -825,82 +1008,154 @@ pub async fn test_phenomena_settle_post(
     )
     .0;
 
-    let post_mint_payout_pda = Pubkey::find_program_address(
+    let user_vault_token_account_pda = Pubkey::find_program_address(
         &[
-            POST_MINT_PAYOUT_SEED,
-            post_pda.as_ref(),
+            USER_VAULT_TOKEN_ACCOUNT_SEED,
+            user.pubkey().as_ref(),
             token_mint.as_ref(),
         ],
         &opinions_market.id(),
     )
     .0;
 
-    let protocol_treasury_token_account_pda = Pubkey::find_program_address(
-        &[PROTOCOL_TREASURY_TOKEN_ACCOUNT_SEED, token_mint.as_ref()],
-        &opinions_market.id(),
-    )
-    .0;
+    // Get initial balances and state
+    // Check if position exists (user must have voted on this post)
+    let position_result = opinions_market
+        .account::<opinions_market::state::UserPostPosition>(position_pda)
+        .await;
 
-    // Handle parent post if this is a child post
-    let parent_post_pda = match post_account.post_type {
-        opinions_market::state::PostType::Child { parent } => Some(parent),
-        opinions_market::state::PostType::Original => None,
+    let position = match position_result {
+        Ok(pos) => pos,
+        Err(_) => {
+            println!("⚠️  User has no position on this post (never voted), cannot claim reward");
+            return; // User never voted, so no reward to claim
+        }
     };
 
-    let settle_ix = opinions_market
-        .request()
-        .accounts(opinions_market::accounts::SettlePost {
-            post: *post_pda,
-            post_pot_token_account: post_pot_token_account_pda,
-            post_pot_authority: post_pot_authority_pda,
-            post_mint_payout: post_mint_payout_pda,
-            protocol_token_treasury_token_account: protocol_treasury_token_account_pda,
-            parent_post: parent_post_pda,
-            config: *config_pda,
-            token_mint: *token_mint,
-            payer: payer.pubkey(),
-            token_program: spl_token::ID,
-            system_program: system_program::ID,
-        })
-        .instructions()
-        .unwrap();
-
-    let settle_tx = send_tx(&rpc, settle_ix, &payer.pubkey(), &[&payer])
-        .await
-        .unwrap();
-    println!("settle post tx: {:?}", settle_tx);
-
-    // Verify post was settled
-    let settled_post = opinions_market
-        .account::<opinions_market::state::PostAccount>(*post_pda)
-        .await
-        .unwrap();
-
-    match settled_post.state {
-        opinions_market::state::PostState::Settled => {}
-        _ => panic!("Post should be in Settled state"),
-    }
-
-    // Verify post_mint_payout was created and has payout info
-    let payout_account = opinions_market
+    let post_mint_payout = opinions_market
         .account::<opinions_market::state::PostMintPayout>(post_mint_payout_pda)
         .await
         .unwrap();
 
-    assert_eq!(payout_account.post, *post_pda);
-    assert_eq!(payout_account.token_mint, *token_mint);
+    let post_pot_before = opinions_market
+        .account::<anchor_spl::token::TokenAccount>(post_pot_token_account_pda)
+        .await
+        .unwrap();
 
-    // Check if payout was stored in the payout account
-    if settled_post.upvotes > settled_post.downvotes
-        || settled_post.downvotes > settled_post.upvotes
-    {
-        assert!(
-            payout_account.payout_per_winning_vote > 0,
-            "Payout per unit should be > 0 for winning post"
-        );
+    let user_vault_before = opinions_market
+        .account::<anchor_spl::token::TokenAccount>(user_vault_token_account_pda)
+        .await
+        .unwrap();
+
+    // Check if already claimed
+    let claim_before = opinions_market
+        .account::<opinions_market::state::UserPostMintClaim>(user_post_mint_claim_pda)
+        .await;
+
+    if let Ok(claim) = claim_before {
+        if claim.claimed {
+            println!("⚠️  Reward already claimed for this token mint, skipping...");
+            return;
+        }
     }
 
-    println!("✅ Post settled successfully");
-}
+    // Determine expected reward
+    let winning_side = post_account.winning_side.unwrap();
+    let user_votes = match winning_side {
+        opinions_market::state::Side::Pump => position.upvotes as u64,
+        opinions_market::state::Side::Smack => position.downvotes as u64,
+    };
 
-// pub async fn test_phenomena_claim_post_reward() {}
+    let expected_reward = if user_votes == 0 {
+        0
+    } else {
+        let scaled = user_votes
+            .checked_mul(post_mint_payout.payout_per_winning_vote)
+            .unwrap();
+        scaled
+            .checked_div(opinions_market::constants::PRECISION)
+            .unwrap()
+    };
+
+    println!("📊 Claim details:");
+    println!("   - Winning side: {:?}", winning_side);
+    println!("   - User votes on winning side: {}", user_votes);
+    println!(
+        "   - Payout per winning vote: {}",
+        post_mint_payout.payout_per_winning_vote
+    );
+    println!("   - Expected reward: {}", expected_reward);
+    println!("   - Post pot before: {}", post_pot_before.amount);
+    println!("   - User vault before: {}", user_vault_before.amount);
+
+    // Call claim_post_reward instruction
+    let claim_ix = opinions_market
+        .request()
+        .accounts(opinions_market::accounts::ClaimPostReward {
+            user: user.pubkey(),
+            payer: payer.pubkey(),
+            post: *post_pda,
+            position: position_pda,
+            user_post_mint_claim: user_post_mint_claim_pda,
+            post_mint_payout: post_mint_payout_pda,
+            post_pot_token_account: post_pot_token_account_pda,
+            post_pot_authority: post_pot_authority_pda,
+            user_vault_token_account: user_vault_token_account_pda,
+            token_mint: *token_mint,
+            token_program: spl_token::ID,
+            system_program: system_program::ID,
+        })
+        .args(opinions_market::instruction::ClaimPostReward { post_id_hash })
+        .instructions()
+        .unwrap();
+
+    let claim_tx = send_tx(&rpc, claim_ix, &payer.pubkey(), &[&payer, &user])
+        .await
+        .unwrap();
+    println!("claim post reward tx: {:?}", claim_tx);
+
+    // Verify claim was successful
+    let user_post_mint_claim = opinions_market
+        .account::<opinions_market::state::UserPostMintClaim>(user_post_mint_claim_pda)
+        .await
+        .unwrap();
+
+    assert_eq!(
+        user_post_mint_claim.claimed, true,
+        "Claim should be marked as claimed"
+    );
+
+    // Verify balances changed correctly
+    let post_pot_after = opinions_market
+        .account::<anchor_spl::token::TokenAccount>(post_pot_token_account_pda)
+        .await
+        .unwrap();
+
+    let user_vault_after = opinions_market
+        .account::<anchor_spl::token::TokenAccount>(user_vault_token_account_pda)
+        .await
+        .unwrap();
+
+    if expected_reward > 0 {
+        assert_eq!(
+            post_pot_after.amount,
+            post_pot_before.amount.checked_sub(expected_reward).unwrap(),
+            "Post pot should decrease by reward amount"
+        );
+        assert_eq!(
+            user_vault_after.amount,
+            user_vault_before
+                .amount
+                .checked_add(expected_reward)
+                .unwrap(),
+            "User vault should increase by reward amount"
+        );
+        println!("✅ Reward transferred successfully");
+        println!("   - Post pot after: {}", post_pot_after.amount);
+        println!("   - User vault after: {}", user_vault_after.amount);
+    } else {
+        println!("✅ No reward (user had 0 votes on winning side or reward was 0)");
+    }
+
+    println!("✅ Post reward claimed successfully");
+}

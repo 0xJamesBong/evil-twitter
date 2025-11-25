@@ -24,6 +24,31 @@ use solana_sdk::{pubkey::Pubkey, signer::Signer};
 /// If parent_post_pda is provided, also incorporates it for child post uniqueness.
 use rand::RngCore;
 
+async fn current_chain_timestamp(rpc: &RpcClient) -> i64 {
+    let slot = rpc.get_slot().await.unwrap();
+    rpc.get_block_time(slot).await.unwrap()
+}
+pub async fn wait_for_seconds(seconds: u64) {
+    println!("⏳ Waiting {} seconds…", seconds);
+    tokio::time::sleep(tokio::time::Duration::from_secs(seconds)).await;
+}
+
+pub async fn wait_for_post_to_expire(
+    rpc: &RpcClient,
+    opinions_market: &Program<&Keypair>,
+    post_pda: &Pubkey,
+) {
+    let post_account = opinions_market
+        .account::<opinions_market::state::PostAccount>(*post_pda)
+        .await
+        .unwrap();
+    let end = post_account.end_time;
+    let now = current_chain_timestamp(rpc).await;
+    if end > now {
+        let wait_secs = (end - now) as u64;
+        wait_for_seconds(wait_secs).await;
+    }
+}
 pub fn generate_post_id_hash() -> [u8; 32] {
     let mut h = [0u8; 32];
     rand::thread_rng().fill_bytes(&mut h);

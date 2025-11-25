@@ -121,6 +121,12 @@ pub struct CreateUser<'info> {
         space = 8 + 64,
     )]
     pub user_account: Account<'info, UserAccount>,
+    
+    #[account(mut,
+        seeds = [CONFIG_SEED],
+        bump,
+    )]
+    pub config: Account<'info, Config>,
     pub system_program: Program<'info, System>,
 }
 
@@ -237,7 +243,7 @@ pub struct CreatePost<'info> {
 
 
 #[derive(Accounts)]
-#[instruction(side: Side, units: u32, post_id_hash: [u8; 32])]
+#[instruction(side: Side, votes:u64, post_id_hash: [u8; 32])]
 pub struct VoteOnPost<'info> {
     #[account(mut)]
     pub config: Box<Account<'info, Config>>,
@@ -338,9 +344,18 @@ pub struct VoteOnPost<'info> {
     pub system_program: Program<'info, System>,
 }
 
+
 #[derive(Accounts)]
+#[instruction(post_id_hash: [u8; 32])]
 pub struct SettlePost<'info> {
     #[account(mut)]
+    pub payer: Signer<'info>,
+
+    #[account(
+        mut,
+        seeds = [POST_ACCOUNT_SEED, post_id_hash.as_ref()],
+        bump,
+    )]
     pub post: Account<'info, PostAccount>,
 
     #[account(
@@ -363,7 +378,7 @@ pub struct SettlePost<'info> {
     #[account(
         init_if_needed,
         payer = payer,
-        seeds = [POST_MINT_PAYOUT_SEED, post.key().as_ref()],
+        seeds = [POST_MINT_PAYOUT_SEED, post.key().as_ref(), token_mint.key().as_ref()],
         bump,
         space = 8 + PostMintPayout::INIT_SPACE
     )]
@@ -384,21 +399,25 @@ pub struct SettlePost<'info> {
     pub config: Account<'info, Config>,
     pub token_mint: Account<'info, Mint>,
 
-    #[account(mut)]
-    pub payer: Signer<'info>,
-
+    
     pub token_program: Program<'info, Token>,
     pub system_program: Program<'info, System>,
 }
 
 
 #[derive(Accounts)]
+#[instruction(post_id_hash: [u8; 32])]
 pub struct ClaimPostReward<'info> {
     #[account(mut)]
     pub user: Signer<'info>,
     #[account(mut)]
     pub payer: Signer<'info>,
-    
+
+    #[account(
+        mut,
+        seeds = [POST_ACCOUNT_SEED, post_id_hash.as_ref()],
+        bump,
+    )]
     pub post: Account<'info, PostAccount>,
     #[account(mut)]
     pub position: Account<'info, UserPostPosition>,

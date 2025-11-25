@@ -12,74 +12,74 @@ use solana_sdk::{
     signature::{Keypair, Signer},
 }; // Add this import
 
-use crate::utils::definitions::RATES;
+use crate::config::TIME_CONFIG_FAST;
 use crate::utils::phenomena::{
-    test_phenomena_add_valid_payment, test_phenomena_create_post, test_phenomena_create_user,
-    test_phenomena_deposit, test_phenomena_settle_post, test_phenomena_vote_on_post,
-    test_phenomena_withdraw,
+    test_phenomena_add_valid_payment, test_phenomena_claim_post_reward, test_phenomena_create_post,
+    test_phenomena_create_user, test_phenomena_deposit, test_phenomena_settle_post,
+    test_phenomena_vote_on_post, test_phenomena_withdraw,
 };
 use crate::utils::utils::{
     airdrop_sol_to_users, send_tx, setup_token_mint, setup_token_mint_ata_and_mint_to,
-    setup_token_mint_ata_and_mint_to_many_users,
+    setup_token_mint_ata_and_mint_to_many_users, wait_for_post_to_expire,
 };
 use opinions_market::pda_seeds::*;
 use std::collections::HashMap;
 
-#[tokio::test]
-async fn test_clock() {
-    let program_test = ProgramTest::default();
-    let mut context = program_test.start_with_context().await;
+// #[tokio::test]
+// async fn test_clock() {
+//     let program_test = ProgramTest::default();
+//     let mut context = program_test.start_with_context().await;
 
-    // print initial slot
-    let clock = context
-        .banks_client
-        .get_sysvar::<solana_sdk::clock::Clock>()
-        .await
-        .unwrap();
-    println!("initial slot: {}", clock.slot);
+//     // print initial slot
+//     let clock = context
+//         .banks_client
+//         .get_sysvar::<solana_sdk::clock::Clock>()
+//         .await
+//         .unwrap();
+//     println!("initial slot: {}", clock.slot);
 
-    // --- WARP TIME (advance slots) ---
-    context.warp_to_slot(5000).unwrap(); // <—— this is the time warp
+//     // --- WARP TIME (advance slots) ---
+//     context.warp_to_slot(5000).unwrap(); // <—— this is the time warp
 
-    // print slot after warp
-    let clock2 = context
-        .banks_client
-        .get_sysvar::<solana_sdk::clock::Clock>()
-        .await
-        .unwrap();
-    println!("after warp slot: {}", clock2.slot);
-    assert_eq!(clock2.slot, 5000);
-    panic!();
-}
+//     // print slot after warp
+//     let clock2 = context
+//         .banks_client
+//         .get_sysvar::<solana_sdk::clock::Clock>()
+//         .await
+//         .unwrap();
+//     println!("after warp slot: {}", clock2.slot);
+//     assert_eq!(clock2.slot, 5000);
+//     panic!();
+// }
 
-#[tokio::test]
-async fn test_ping() {
-    let program_id = opinions_market::ID;
-    let anchor_wallet = std::env::var("ANCHOR_WALLET").unwrap();
-    let payer = read_keypair_file(&anchor_wallet).unwrap();
+// #[tokio::test]
+// async fn test_ping() {
+//     let program_id = opinions_market::ID;
+//     let anchor_wallet = std::env::var("ANCHOR_WALLET").unwrap();
+//     let payer = read_keypair_file(&anchor_wallet).unwrap();
 
-    let client = Client::new_with_options(Cluster::Localnet, &payer, CommitmentConfig::confirmed());
+//     let client = Client::new_with_options(Cluster::Localnet, &payer, CommitmentConfig::confirmed());
 
-    let program = client.program(program_id).unwrap();
+//     let program = client.program(program_id).unwrap();
 
-    let rpc = program.rpc();
-    // let tx = program
-    //     .request()
-    //     .accounts(opinions_market::accounts::Ping {})
-    //     .args(opinions_market::instruction::Ping {})
-    //     .send()
-    //     .expect("");
+//     let rpc = program.rpc();
+//     // let tx = program
+//     //     .request()
+//     //     .accounts(opinions_market::accounts::Ping {})
+//     //     .args(opinions_market::instruction::Ping {})
+//     //     .send()
+//     //     .expect("");
 
-    let ix = program
-        .request()
-        .accounts(opinions_market::accounts::Ping {})
-        .args(opinions_market::instruction::Ping {})
-        .instructions()
-        .unwrap();
-    let tx = send_tx(&rpc, ix, &payer.pubkey(), &[&payer]).await.unwrap();
+//     let ix = program
+//         .request()
+//         .accounts(opinions_market::accounts::Ping {})
+//         .args(opinions_market::instruction::Ping {})
+//         .instructions()
+//         .unwrap();
+//     let tx = send_tx(&rpc, ix, &payer.pubkey(), &[&payer]).await.unwrap();
 
-    println!("Your transaction signature {}", tx);
-}
+//     println!("Your transaction signature {}", tx);
+// }
 
 #[tokio::test]
 async fn test_setup() {
@@ -208,8 +208,9 @@ async fn test_setup() {
                 token_program: spl_token::ID,
             })
             .args(opinions_market::instruction::Initialize {
-                protocol_fee_bps: 0,
-                creator_fee_bps_pump: 0,
+                base_duration_secs: TIME_CONFIG_FAST.base_duration_secs,
+                max_duration_secs: TIME_CONFIG_FAST.max_duration_secs,
+                extension_per_vote_secs: TIME_CONFIG_FAST.extension_per_vote_secs,
             })
             .instructions()
             .unwrap();
@@ -222,9 +223,9 @@ async fn test_setup() {
         test_phenomena_add_valid_payment(&rpc, &opinions_market, &payer, &admin, &usdc_pubkey)
             .await;
 
-        test_phenomena_create_user(&rpc, &opinions_market, &payer, &user_1).await;
-        test_phenomena_create_user(&rpc, &opinions_market, &payer, &user_2).await;
-        test_phenomena_create_user(&rpc, &opinions_market, &payer, &user_3).await;
+        test_phenomena_create_user(&rpc, &opinions_market, &payer, &user_1, &config_pda).await;
+        test_phenomena_create_user(&rpc, &opinions_market, &payer, &user_2, &config_pda).await;
+        test_phenomena_create_user(&rpc, &opinions_market, &payer, &user_3, &config_pda).await;
 
         {
             println!("user 1 depositing 10_000_000 bling to their vault");
@@ -403,24 +404,35 @@ async fn test_setup() {
         //         Note: In a real test, you'd need to wait for the post to expire before settling
         // For now, we'll just show the settle function exists
         {
+            // wait_seconds(TIME_CONFIG_FAST.max_duration_secs as u64).await;
             println!("Settling post P1");
             test_phenomena_settle_post(
                 &rpc,
                 &opinions_market,
                 &payer,
                 &post_p1_pda,
-                &bling_pubkey,
+                &tokens,
                 &config_pda,
             )
             .await;
         }
 
         {
-            // {
-            //     println!("user 3 trying to make a post");
-            println!("user 1 claims their reward from user 2's post");
+            println!("\n user 2 claims their reward from user 's post");
+            test_phenomena_claim_post_reward(
+                &rpc,
+                &opinions_market,
+                &payer,
+                &user_2,
+                &post_p1_pda,
+                &bling_pubkey,
+                &tokens,
+            )
+            .await;
         }
 
+        // {
+        //     println!("user 3 trying to make a post");
         //     // This would Cause an error because user 3 is not a user in the system
         //     test_phenomena_create_post(
         //         &rpc,
@@ -433,12 +445,12 @@ async fn test_setup() {
         //     .await;
         // }
 
-        {}
-
-        println!("\n\n");
-        println!(" 🟪🟪🟪🟪🟪🟪🟪🟪🟪🟪🟪🟪🟪");
-        println!("🟪 GOD LOVES ME 🟪");
-        println!(" 🟪🟪🟪🟪🟪🟪🟪🟪🟪🟪🟪🟪🟪");
-        panic!();
+        {
+            println!("\n\n");
+            println!(" 🟪🟪🟪🟪🟪🟪🟪🟪🟪🟪🟪🟪🟪🟪🟪🟪🟪");
+            println!(" 🟪 🟪 🟪 🟪 GOD LOVES ME 🟪 🟪 🟪 🟪");
+            println!(" 🟪🟪🟪🟪🟪🟪🟪🟪🟪🟪🟪🟪🟪🟪🟪🟪🟪");
+            panic!();
+        }
     }
 }

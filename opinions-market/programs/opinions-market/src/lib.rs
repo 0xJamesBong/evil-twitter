@@ -29,8 +29,8 @@ pub enum ErrorCode {
     AlreadyClaimed,
     #[msg("Math overflow")]
     MathOverflow,
-    #[msg("Zero units not allowed")]
-    ZeroUnits,
+    #[msg("Zero votes not allowed")]
+    ZeroVotes,
     #[msg("Mint is not enabled")]
     MintNotEnabled,
     #[msg("BLING cannot be registered as an alternative payment")]
@@ -56,19 +56,32 @@ pub mod opinions_market {
     }
     pub fn initialize(
         ctx: Context<Initialize>,
-        protocol_fee_bps: u16,
-        creator_fee_bps_pump: u16,
+
+        base_duration_secs: u32,
+        max_duration_secs: u32,
+        extension_per_vote_secs: u32,
     ) -> Result<()> {
         let cfg = &mut ctx.accounts.config;
-        cfg.admin = *ctx.accounts.admin.key;
-        cfg.bling_mint = ctx.accounts.bling_mint.key();
-        cfg.protocol_vote_fee_bps = protocol_fee_bps;
-        cfg.creator_pump_vote_fee_bps = creator_fee_bps_pump;
-        cfg.base_duration_secs = 24 * 3600;
-        cfg.max_duration_secs = 48 * 3600;
-        cfg.extension_per_vote_secs = 60;
-        cfg.bump = ctx.bumps.config;
-        cfg.padding = [0; 7];
+
+        let new_cfg = Config::new(
+            *ctx.accounts.admin.key,
+            ctx.accounts.bling_mint.key(),
+            base_duration_secs,
+            max_duration_secs,
+            extension_per_vote_secs,
+            ctx.bumps.config,
+            [0; 7],
+        );
+
+        cfg.admin = new_cfg.admin;
+        cfg.bling_mint = new_cfg.bling_mint;
+
+        cfg.base_duration_secs = new_cfg.base_duration_secs;
+        cfg.max_duration_secs = new_cfg.max_duration_secs;
+        cfg.extension_per_vote_secs = new_cfg.extension_per_vote_secs;
+
+        cfg.bump = new_cfg.bump;
+        cfg.padding = new_cfg.padding;
 
         let valid_payment = &mut ctx.accounts.valid_payment;
 
@@ -84,7 +97,7 @@ pub mod opinions_market {
 
     pub fn register_valid_payment(
         ctx: Context<RegisterValidPayment>,
-        price_in_bling: u64, // How much is 1 token in BLING units -
+        price_in_bling: u64, // How much is 1 token in BLING -
     ) -> Result<()> {
         let cfg = &ctx.accounts.config;
 
@@ -109,6 +122,7 @@ pub mod opinions_market {
 
     // when the user first signs in, we will need the user to create a user, which will create their deposit vault
     pub fn create_user(ctx: Context<CreateUser>) -> Result<()> {
+        let config = &mut ctx.accounts.config;
         let user_account = &mut ctx.accounts.user_account;
         let new_user_account = UserAccount::new(ctx.accounts.user.key(), ctx.bumps.user_account);
 
@@ -166,6 +180,7 @@ pub mod opinions_market {
         parent_post_pda: Option<Pubkey>,
     ) -> Result<()> {
         let clock = Clock::get()?;
+        let config = &ctx.accounts.config;
         let now = clock.unix_timestamp;
         let post = &mut ctx.accounts.post;
         let new_post = PostAccount::new(
@@ -176,6 +191,7 @@ pub mod opinions_market {
                 None => PostType::Original,
             },
             now,
+            config,
         );
 
         post.creator_user = new_post.creator_user;
@@ -192,18 +208,32 @@ pub mod opinions_market {
     }
 
     /// Core MVP voting instruction.
-    /// User pays from their vault; everything is denominated in BLING units.
+    /// User pays from their vault; everything is denominated in BLING.
 
     pub fn vote_on_post(
         ctx: Context<VoteOnPost>,
         side: Side,
-        units: u32,
+        votes: u64,
         post_id_hash: [u8; 32], // do not remove this - this is used to derive the post pda!
     ) -> Result<()> {
-        require!(units > 0, ErrorCode::ZeroUnits);
+        require!(votes > 0, ErrorCode::ZeroVotes);
 
         let cfg = &ctx.accounts.config;
         let post = &mut ctx.accounts.post;
+        let current = match side {
+            Side::Pump => post.upvotes,
+            Side::Smack => post.downvotes,
+        };
+
+        let requested = votes as u64;
+        let remaining_capacity = u64::MAX - current;
+
+        // Cap valid votes at safe capacity
+        let valid_votes = requested.min(remaining_capacity);
+
+        if valid_votes < requested {
+            msg!("⚠ Overflow prevented: {} votes requested, only {} applied. Full cost still charged.", requested, valid_votes);
+        }
 
         let clock = Clock::get()?;
 
@@ -230,21 +260,21 @@ pub mod opinions_market {
         // ---- 1. Compute BLING cost ----
         //
 
-        let vote = Vote::new(side, units, ctx.accounts.voter.key(), post.key());
+        let vote = Vote::new(side, valid_votes, ctx.accounts.voter.key(), post.key());
         let cost_bling =
             vote.compute_cost_in_bling(post, pos, &ctx.accounts.voter_user_account, cfg)?;
 
         msg!("cost_bling: {}", cost_bling);
         msg!("post.upvotes BEFORE: {}", post.upvotes);
 
-        let protocol_fee = cost_bling * (cfg.protocol_vote_fee_bps as u64) / 10_000;
-        let creator_fee = match side {
-            Side::Pump => cost_bling * (cfg.creator_pump_vote_fee_bps as u64) / 10_000,
+        let protocol_fee = cost_bling * (PARAMS.protocol_vote_fee_bps as u64) / 10_000;
+        let creator_pump_fee = match side {
+            Side::Pump => cost_bling * (PARAMS.creator_pump_fee_bps as u64) / 10_000,
             Side::Smack => 0,
         };
 
         let pot_increment = cost_bling
-            .checked_sub(protocol_fee + creator_fee)
+            .checked_sub(protocol_fee + creator_pump_fee)
             .ok_or(ErrorCode::MathOverflow)?;
 
         //
@@ -277,7 +307,7 @@ pub mod opinions_market {
         }
 
         // creator fee
-        if creator_fee > 0 {
+        if creator_pump_fee > 0 {
             anchor_spl::token::transfer(
                 CpiContext::new_with_signer(
                     ctx.accounts.token_program.to_account_info(),
@@ -291,7 +321,7 @@ pub mod opinions_market {
                     },
                     user_authority_seeds,
                 ),
-                creator_fee,
+                creator_pump_fee,
             )?;
         }
 
@@ -318,31 +348,17 @@ pub mod opinions_market {
 
         match side {
             Side::Pump => {
-                post.upvotes = post
-                    .upvotes
-                    .checked_add(cost_bling)
-                    .ok_or(ErrorCode::MathOverflow)?;
-                pos.upvotes += units;
+                post.upvotes += valid_votes;
+                pos.upvotes = pos.upvotes.saturating_add(valid_votes);
             }
             Side::Smack => {
-                post.downvotes = post
-                    .downvotes
-                    .checked_add(cost_bling)
-                    .ok_or(ErrorCode::MathOverflow)?;
-                pos.downvotes += units;
+                post.downvotes += valid_votes;
+                pos.downvotes = pos.downvotes.saturating_add(valid_votes);
             }
         }
 
         // Extend post duration
-        let ext = (cfg.extension_per_vote_secs as i64)
-            .checked_mul(units as i64)
-            .ok_or(ErrorCode::MathOverflow)?;
-
-        post.end_time = post
-            .end_time
-            .checked_add(ext)
-            .unwrap()
-            .min(post.start_time + cfg.max_duration_secs as i64);
+        post.extend_time_limit(clock.unix_timestamp, valid_votes as u32, cfg)?;
 
         Ok(())
     }
@@ -351,19 +367,20 @@ pub mod opinions_market {
     //instructions together, each parametrized by individual token mints, and send it
     // off in one transaction.
     // Naturally this means we cannot require the PostState to be open, we only require it to be past the settlement time.
-    pub fn settle_post(ctx: Context<SettlePost>) -> Result<()> {
+    pub fn settle_post(ctx: Context<SettlePost>, post_id_hash: [u8; 32]) -> Result<()> {
+        msg!("\n🌟🌟🌟🌟🌟 Settling post 🌟🌟🌟🌟🌟");
         let post = &mut ctx.accounts.post;
-
         let clock = Clock::get()?;
         let now = clock.unix_timestamp;
 
         msg!("clock.unix_timestamp: {}", clock.unix_timestamp);
         msg!("post.end_time: {}", post.end_time);
 
-        // * * * * this must not be adopted.
+        // * * * * this require! must not be adopted.
         // * * * * require!(post.state == PostState::Open, ErrorCode::PostNotOpen);
         // If still within time limit, exit early.
         if (post.within_time_limit(now)) {
+            msg!("Post is still within time limit, not doing anything and exiting early!");
             return Ok(());
         }
 
@@ -402,17 +419,20 @@ pub mod opinions_market {
         payout.payout_per_winning_vote = new_payout.payout_per_winning_vote;
         payout.bump = new_payout.bump;
 
-        if post.state == PostState::Open {
-            post.state = PostState::Settled;
-        }
         if post.winning_side.is_none() {
             post.winning_side = Some(winner);
         }
 
+        if post.state == PostState::Open {
+            post.state = PostState::Settled;
+        }
+
+        require!(post.state == PostState::Settled, ErrorCode::PostNotSettled);
+
         Ok(())
     }
 
-    pub fn claim_post_reward(ctx: Context<ClaimPostReward>) -> Result<()> {
+    pub fn claim_post_reward(ctx: Context<ClaimPostReward>, post_id_hash: [u8; 32]) -> Result<()> {
         let post = &ctx.accounts.post;
         let pos = &mut ctx.accounts.position;
         let claim = &mut ctx.accounts.user_post_mint_claim;
@@ -422,12 +442,12 @@ pub mod opinions_market {
 
         let winning_side = post.winning_side.ok_or(ErrorCode::NoWinner)?;
 
-        let user_units = match winning_side {
+        let user_votes = match winning_side {
             Side::Pump => pos.upvotes as u64,
             Side::Smack => pos.downvotes as u64,
         };
 
-        if user_units == 0 {
+        if user_votes == 0 {
             claim.claimed = true;
             return Ok(()); // non-winner → no payout
         }
@@ -435,7 +455,7 @@ pub mod opinions_market {
         let payout = &ctx.accounts.post_mint_payout;
 
         // SCALE → unscale before transfer
-        let scaled = user_units
+        let scaled = user_votes
             .checked_mul(payout.payout_per_winning_vote)
             .ok_or(ErrorCode::MathOverflow)?;
 
