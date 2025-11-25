@@ -11,8 +11,6 @@ use crate::config::TIME_CONFIG_FAST;
 use crate::utils::rates::RATES;
 use crate::utils::utils::send_tx;
 use opinions_market::pda_seeds::*;
-use solana_transaction_status_client_types::UiTransactionEncoding;
-use tokio::time::{sleep, Duration};
 
 pub async fn test_phenomena() {}
 
@@ -373,14 +371,7 @@ pub async fn test_phenomena_create_post(
 
     // Verify state is Open
     assert_eq!(post_account.state, opinions_market::state::PostState::Open);
-    match post_account.state {
-        opinions_market::state::PostState::Open => {
-            println!("✅ Post state is Open");
-        }
-        opinions_market::state::PostState::Settled => {
-            panic!("Post should be in Open state, not Settled");
-        }
-    }
+    println!("✅ Post state is Open");
 
     // Verify initial vote counts
     assert_eq!(post_account.upvotes, 0, "New post should have 0 upvotes");
@@ -390,17 +381,11 @@ pub async fn test_phenomena_create_post(
     );
 
     // Verify winning_side is None for new post
-    match post_account.winning_side {
-        None => {
-            println!("✅ Post winning_side is None (correct for new post)");
-        }
-        Some(_) => {
-            panic!("New post should not have a winning_side, but got Some(_)");
-        }
-        _ => {
-            panic!("SOMETHING ELSE WENT WRONG")
-        }
-    }
+    assert_eq!(
+        post_account.winning_side, None,
+        "New post should not have a winning_side"
+    );
+    println!("✅ Post winning_side is None (correct for new post)");
 
     // Verify timestamps are set correctly
     // start_time should be a valid timestamp (greater than 0 and reasonable)
@@ -424,30 +409,31 @@ pub async fn test_phenomena_create_post(
     );
 
     // Verify post type
-    match (parent_post_pda, &post_account.post_type) {
-        (
-            Some(parent),
-            opinions_market::state::PostType::Child {
+    match parent_post_pda {
+        Some(parent) => {
+            if let opinions_market::state::PostType::Child {
                 parent: stored_parent,
-            },
-        ) => {
+            } = post_account.post_type
+            {
+                assert_eq!(
+                    stored_parent, parent,
+                    "Child post parent PDA should match provided parent"
+                );
+                println!("✅ Post type is Child with correct parent");
+            } else {
+                panic!(
+                    "Post type mismatch: expected Child post but got {:?}",
+                    post_account.post_type
+                );
+            }
+        }
+        None => {
             assert_eq!(
-                *stored_parent, parent,
-                "Child post parent PDA should match provided parent"
+                post_account.post_type,
+                opinions_market::state::PostType::Original,
+                "Post type should be Original when no parent is provided"
             );
-            println!("✅ Post type is Child with correct parent");
-        }
-        (None, opinions_market::state::PostType::Original) => {
             println!("✅ Post type is Original");
-        }
-        (Some(_), opinions_market::state::PostType::Original) => {
-            panic!("Post type mismatch: expected Child post but got Original");
-        }
-        (None, opinions_market::state::PostType::Child { parent }) => {
-            panic!(
-                "Post type mismatch: expected Original post but got Child with parent {}",
-                parent
-            );
         }
     }
 
@@ -510,17 +496,12 @@ pub async fn test_phenomena_vote_on_post(
     println!("post_pda derived from seeds: {}", expected);
     println!("post_id_hash: {}", hex::encode(post_id_hash));
 
-    match post_account_before.state {
-        opinions_market::state::PostState::Open => {
-            println!("✅ Post state is Open");
-        }
-        opinions_market::state::PostState::Settled => {
-            panic!("Post should be in Open state, not Settled");
-        }
-        _ => {
-            panic!("SOMETHING ELSE WENT WRONG")
-        }
-    }
+    assert_eq!(
+        post_account_before.state,
+        opinions_market::state::PostState::Open,
+        "Post should be in Open state before voting"
+    );
+    println!("✅ Post state is Open");
 
     // Capture initial post state
     let initial_end_time = post_account_before.end_time;
@@ -910,11 +891,7 @@ pub async fn test_phenomena_settle_post(
         settled_post.state,
         opinions_market::state::PostState::Settled
     );
-    // match settled_post.state {
-    //     opinions_market::state::PostState::Settled => {}
-    //     _ => panic!("Post should be in Settled state"),
-    // }
-
+    println!("✅ Post state is Settled");
     // Verify post_mint_payout was created and has payout info
     let payout_account = opinions_market
         .account::<opinions_market::state::PostMintPayout>(post_mint_payout_pda)
