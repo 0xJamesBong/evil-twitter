@@ -379,9 +379,10 @@ pub mod opinions_market {
         // * * * * this must not be adopted.
         // * * * * require!(post.state == PostState::Open, ErrorCode::PostNotOpen);
         // If still within time limit, exit early.
-        if (post.within_time_limit(now)) {
-            return Ok(());
-        }
+        // if (post.within_time_limit(now)) {
+        //     msg!("Post is still within time limit, not doing anything and exiting early!");
+        //     return Ok(());
+        // }
 
         // Determine winner — ties and zero votes = Pump side wins
         let (winner, total_winning_votes) = match post.upvotes.cmp(&post.downvotes) {
@@ -424,6 +425,8 @@ pub mod opinions_market {
         if post.winning_side.is_none() {
             post.winning_side = Some(winner);
         }
+
+        require!(post.state == PostState::Settled, ErrorCode::PostNotSettled);
 
         Ok(())
     }

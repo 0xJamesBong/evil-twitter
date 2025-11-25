@@ -1,4 +1,4 @@
-use crate::{constants::PARAMS, ErrorCode};
+use crate::constants::PARAMS;
 use anchor_lang::prelude::*;
 
 // -----------------------------------------------------------------------------
@@ -6,7 +6,7 @@ use anchor_lang::prelude::*;
 // -----------------------------------------------------------------------------
 
 #[account]
-#[derive(InitSpace)]
+#[derive(InitSpace, Copy, PartialEq, Eq, Debug)]
 pub struct Config {
     pub admin: Pubkey,
     pub bling_mint: Pubkey,
@@ -52,7 +52,7 @@ impl Config {
 }
 
 #[account]
-#[derive(InitSpace)]
+#[derive(InitSpace, Copy, PartialEq, Eq, Debug)]
 pub struct ValidPayment {
     pub token_mint: Pubkey,
     /// how much is 1 token in BLING units -
@@ -74,7 +74,7 @@ impl ValidPayment {
 }
 
 #[account]
-#[derive(InitSpace)]
+#[derive(InitSpace, Copy, PartialEq, Eq, Debug)]
 pub struct UserAccount {
     pub user: Pubkey,      // user wallet pubkey
     pub social_score: i64, // can drive withdraw penalty etc.
@@ -90,7 +90,7 @@ impl UserAccount {
     }
 }
 
-#[derive(AnchorSerialize, AnchorDeserialize, Clone, Copy, PartialEq, Eq, InitSpace)]
+#[derive(AnchorSerialize, AnchorDeserialize, Clone, Copy, PartialEq, Eq, InitSpace, Debug)]
 pub enum PostType {
     Original,
     Child { parent: Pubkey },
@@ -103,7 +103,7 @@ pub struct PotPayout {
 }
 
 #[account]
-#[derive(InitSpace)]
+#[derive(InitSpace, Copy, PartialEq, Eq, Debug)]
 pub struct PostAccount {
     pub creator_user: Pubkey, // wallet key
     pub post_id_hash: [u8; 32],
@@ -156,7 +156,7 @@ impl PostAccount {
 }
 
 #[account]
-#[derive(InitSpace)]
+#[derive(InitSpace, Copy, PartialEq, Eq, Debug)]
 pub struct PostMintPayout {
     pub post: Pubkey,
     pub token_mint: Pubkey,
@@ -183,7 +183,7 @@ impl PostMintPayout {
 }
 
 #[account]
-#[derive(InitSpace)]
+#[derive(InitSpace, Copy, PartialEq, Eq, Debug)]
 pub struct UserPostPosition {
     pub user: Pubkey,
     pub post: Pubkey,
@@ -204,7 +204,7 @@ impl UserPostPosition {
 
 // For reward claims - token mint specific
 #[account]
-#[derive(InitSpace)]
+#[derive(InitSpace, Copy, PartialEq, Eq, Debug)]
 pub struct UserPostMintClaim {
     pub user: Pubkey,
     pub post: Pubkey,
@@ -229,18 +229,19 @@ impl UserPostMintClaim {
 // ENUMS
 // -----------------------------------------------------------------------------
 
-#[derive(AnchorSerialize, AnchorDeserialize, Clone, Copy, PartialEq, Eq, InitSpace)]
+#[derive(AnchorSerialize, AnchorDeserialize, Clone, Copy, PartialEq, Eq, InitSpace, Debug)]
 pub enum Side {
     Pump,
     Smack,
 }
 
-#[derive(AnchorSerialize, AnchorDeserialize, Clone, Copy, PartialEq, Eq, InitSpace)]
+#[derive(AnchorSerialize, AnchorDeserialize, Clone, Copy, PartialEq, Eq, InitSpace, Debug)]
 pub enum PostState {
     Open,
     Settled,
 }
 
+#[derive(AnchorSerialize, AnchorDeserialize, Clone, Copy, PartialEq, Eq, InitSpace, Debug)]
 pub struct Vote {
     pub side: Side,
     pub units: u32,

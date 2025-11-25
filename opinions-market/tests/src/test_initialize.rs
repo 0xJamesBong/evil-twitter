@@ -401,10 +401,10 @@ async fn test_setup() {
             .await;
         }
 
-        wait_seconds(TIME_CONFIG_FAST.max_duration_secs as u64).await;
         //         Note: In a real test, you'd need to wait for the post to expire before settling
         // For now, we'll just show the settle function exists
         {
+            // wait_seconds(TIME_CONFIG_FAST.max_duration_secs as u64).await;
             println!("Settling post P1");
             test_phenomena_settle_post(
                 &rpc,
