@@ -359,8 +359,13 @@ pub struct ForceSettlePost<'info> {
 
 
 #[derive(Accounts)]
+#[instruction(post_id_hash: [u8; 32])]
 pub struct SettlePost<'info> {
-    #[account(mut)]
+    #[account(
+        mut,
+        seeds = [POST_ACCOUNT_SEED, post_id_hash.as_ref()],
+        bump,
+    )]
     pub post: Account<'info, PostAccount>,
 
     #[account(

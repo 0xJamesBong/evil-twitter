@@ -318,15 +318,9 @@ async fn test_setup() {
             .await
         };
 
-        {
-            test_phenomena_force_settle_post(&rpc, &opinions_market, &payer, &post_p1_pda).await;
-
-            println!("\n\n");
-            println!(" 🟪🟪🟪🟪🟪🟪🟪🟪🟪🟪🟪🟪🟪");
-            println!("🟪 GOD LOVES ME 🟪");
-            println!(" 🟪🟪🟪🟪🟪🟪🟪🟪🟪🟪🟪🟪🟪");
-            panic!();
-        }
+        // {
+        //     test_phenomena_force_settle_post(&rpc, &opinions_market, &payer, &post_p1_pda).await;
+        // }
         let (post_p2_pda, post_p2_id_hash) = {
             println!("user 2 creates a child post P2 of user 1's post P1");
             test_phenomena_create_post(
@@ -427,6 +421,14 @@ async fn test_setup() {
         }
 
         {
+            println!("\n\n");
+            println!(" 🟪🟪🟪🟪🟪🟪🟪🟪🟪🟪🟪🟪🟪");
+            println!("🟪 GOD LOVES ME 🟪");
+            println!(" 🟪🟪🟪🟪🟪🟪🟪🟪🟪🟪🟪🟪🟪");
+            panic!();
+        }
+
+        {
             // {
             //     println!("user 3 trying to make a post");
             println!("user 1 claims their reward from user 2's post");
@@ -443,7 +445,5 @@ async fn test_setup() {
         //     )
         //     .await;
         // }
-
-        {}
     }
 }

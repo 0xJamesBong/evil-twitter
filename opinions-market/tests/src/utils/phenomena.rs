@@ -834,30 +834,7 @@ pub async fn test_phenomena_settle_post(
         .account::<opinions_market::state::PostAccount>(*post_pda)
         .await
         .unwrap();
-
-    // Ensure on-chain time is past the post's end_time before calling settle.
-    // let mut chain_time = current_chain_timestamp(rpc).await;
-    // let mut waits = 0;
-    // while chain_time < post_account.end_time && waits < 3 {
-    //     let wait_secs = (post_account.end_time - chain_time + 1) as u64;
-    //     println!(
-    //         "⏳ Post still active on-chain (now={}, end_time={}). Waiting {}s before settling...",
-    //         chain_time, post_account.end_time, wait_secs
-    //     );
-    //     sleep(Duration::from_secs(wait_secs)).await;
-    //     chain_time = current_chain_timestamp(rpc).await;
-    //     waits += 1;
-    //     println!(
-    //         "⏱️ Chain time after wait {}: {} (post end_time: {})",
-    //         waits, chain_time, post_account.end_time
-    //     );
-    // }
-    // assert!(
-    //     chain_time >= post_account.end_time,
-    //     "Chain time never passed post end_time (now={}, end_time={})",
-    //     chain_time,
-    //     post_account.end_time
-    // );
+    let post_id_hash = post_account.post_id_hash.clone();
 
     let post_pot_token_account_pda = Pubkey::find_program_address(
         &[
@@ -911,6 +888,9 @@ pub async fn test_phenomena_settle_post(
             payer: payer.pubkey(),
             token_program: spl_token::ID,
             system_program: system_program::ID,
+        })
+        .args(opinions_market::instruction::SettlePost {
+            post_id_hash: post_id_hash,
         })
         .instructions()
         .unwrap();

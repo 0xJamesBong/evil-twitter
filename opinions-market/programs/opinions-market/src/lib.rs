@@ -374,7 +374,8 @@ pub mod opinions_market {
     //instructions together, each parametrized by individual token mints, and send it
     // off in one transaction.
     // Naturally this means we cannot require the PostState to be open, we only require it to be past the settlement time.
-    pub fn settle_post(ctx: Context<SettlePost>) -> Result<()> {
+    pub fn settle_post(ctx: Context<SettlePost>, post_id_hash: [u8; 32]) -> Result<()> {
+        msg!("\n🌟🌟🌟🌟🌟 Settling post 🌟🌟🌟🌟🌟");
         let post = &mut ctx.accounts.post;
 
         let clock = Clock::get()?;
@@ -383,52 +384,52 @@ pub mod opinions_market {
         msg!("clock.unix_timestamp: {}", clock.unix_timestamp);
         msg!("post.end_time: {}", post.end_time);
 
-        // // * * * * this must not be adopted.
-        // // * * * * require!(post.state == PostState::Open, ErrorCode::PostNotOpen);
-        // // If still within time limit, exit early.
-        // // if (post.within_time_limit(now)) {
-        // //     msg!("Post is still within time limit, not doing anything and exiting early!");
-        // //     return Ok(());
-        // // }
-
-        // // Determine winner — ties and zero votes = Pump side wins
-        // let (winner, total_winning_votes) = match post.upvotes.cmp(&post.downvotes) {
-        //     std::cmp::Ordering::Greater => (Side::Pump, post.upvotes),
-        //     std::cmp::Ordering::Less => (Side::Smack, post.downvotes),
-        //     std::cmp::Ordering::Equal => (Side::Pump, post.upvotes), // tie → Pump wins
-        // };
-        // let pot_amount = ctx.accounts.post_pot_token_account.amount;
-
-        // // payout_per_winning_vote guards against 0
-        // let payout_per_winning_vote = if total_winning_votes == 0 {
-        //     0 as u64
-        // } else {
-        //     pot_amount
-        //         .checked_mul(PRECISION) // scale up to avoid division by 0
-        //         .unwrap()
-        //         .checked_div(total_winning_votes)
-        //         .ok_or(ErrorCode::MathOverflow)?
-        // };
-
-        // // Save payout snapshot for claims
-        // let payout = &mut ctx.accounts.post_mint_payout;
-        // let new_payout = PostMintPayout::new(
-        //     post.key(),
-        //     ctx.accounts.token_mint.key(),
-        //     pot_amount,
-        //     payout_per_winning_vote,
-        //     ctx.bumps.post_mint_payout,
-        // );
-
-        // payout.post = new_payout.post;
-        // payout.token_mint = new_payout.token_mint;
-        // payout.total_payout = new_payout.total_payout;
-        // payout.payout_per_winning_vote = new_payout.payout_per_winning_vote;
-        // payout.bump = new_payout.bump;
-
-        // if post.winning_side.is_none() {
-        //     post.winning_side = Some(winner);
+        // * * * * this must not be adopted.
+        // * * * * require!(post.state == PostState::Open, ErrorCode::PostNotOpen);
+        // If still within time limit, exit early.
+        // if (post.within_time_limit(now)) {
+        //     msg!("Post is still within time limit, not doing anything and exiting early!");
+        //     return Ok(());
         // }
+
+        // Determine winner — ties and zero votes = Pump side wins
+        let (winner, total_winning_votes) = match post.upvotes.cmp(&post.downvotes) {
+            std::cmp::Ordering::Greater => (Side::Pump, post.upvotes),
+            std::cmp::Ordering::Less => (Side::Smack, post.downvotes),
+            std::cmp::Ordering::Equal => (Side::Pump, post.upvotes), // tie → Pump wins
+        };
+        let pot_amount = ctx.accounts.post_pot_token_account.amount;
+
+        // payout_per_winning_vote guards against 0
+        let payout_per_winning_vote = if total_winning_votes == 0 {
+            0 as u64
+        } else {
+            pot_amount
+                .checked_mul(PRECISION) // scale up to avoid division by 0
+                .unwrap()
+                .checked_div(total_winning_votes)
+                .ok_or(ErrorCode::MathOverflow)?
+        };
+
+        // Save payout snapshot for claims
+        let payout = &mut ctx.accounts.post_mint_payout;
+        let new_payout = PostMintPayout::new(
+            post.key(),
+            ctx.accounts.token_mint.key(),
+            pot_amount,
+            payout_per_winning_vote,
+            ctx.bumps.post_mint_payout,
+        );
+
+        payout.post = new_payout.post;
+        payout.token_mint = new_payout.token_mint;
+        payout.total_payout = new_payout.total_payout;
+        payout.payout_per_winning_vote = new_payout.payout_per_winning_vote;
+        payout.bump = new_payout.bump;
+
+        if post.winning_side.is_none() {
+            post.winning_side = Some(winner);
+        }
 
         if post.state == PostState::Open {
             post.state = PostState::Settled;
