@@ -208,8 +208,15 @@ async fn test_setup() {
                 token_program: spl_token::ID,
             })
             .args(opinions_market::instruction::Initialize {
-                protocol_fee_bps: 0,
-                creator_fee_bps_pump: 0,
+                protocol_vote_fee_bps: 0,
+                protocol_vote_settlement_fee_bps: 0,
+                creator_pump_vote_fee_bps: 0,
+                creator_vote_settlement_fee_bps: 0,
+                base_duration_secs: 24 * 3600,
+                max_duration_secs: 48 * 3600,
+                extension_per_vote_secs: 60,
+                vote_per_bling_base_cost: 1_000_000 * LAMPORTS_PER_SOL,
+                user_initial_social_score: 10_000,
             })
             .instructions()
             .unwrap();

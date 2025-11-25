@@ -29,6 +29,40 @@ pub struct Config {
     pub padding: [u8; 7], // 7
 }
 
+impl Config {
+    pub fn new(
+        admin: Pubkey,
+        bling_mint: Pubkey,
+        protocol_vote_fee_bps: u16,
+        protocol_vote_settlement_fee_bps: u16,
+        creator_pump_vote_fee_bps: u16,
+        creator_vote_settlement_fee_bps: u16,
+        base_duration_secs: u32,
+        max_duration_secs: u32,
+        extension_per_vote_secs: u32,
+        vote_per_bling_base_cost: u64,
+        user_initial_social_score: i64,
+        bump: u8,
+        padding: [u8; 7],
+    ) -> Self {
+        Self {
+            admin,
+            bling_mint,
+            protocol_vote_fee_bps,
+            protocol_vote_settlement_fee_bps,
+            creator_pump_vote_fee_bps,
+            creator_vote_settlement_fee_bps,
+            base_duration_secs,
+            max_duration_secs,
+            extension_per_vote_secs,
+            vote_per_bling_base_cost,
+            user_initial_social_score,
+            bump,
+            padding,
+        }
+    }
+}
+
 #[account]
 #[derive(InitSpace)]
 pub struct ValidPayment {

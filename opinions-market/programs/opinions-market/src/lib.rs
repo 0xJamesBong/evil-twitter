@@ -56,19 +56,47 @@ pub mod opinions_market {
     }
     pub fn initialize(
         ctx: Context<Initialize>,
-        protocol_fee_bps: u16,
-        creator_fee_bps_pump: u16,
+        protocol_vote_fee_bps: u16,
+        protocol_vote_settlement_fee_bps: u16,
+        creator_pump_vote_fee_bps: u16,
+        creator_vote_settlement_fee_bps: u16,
+        base_duration_secs: u32,
+        max_duration_secs: u32,
+        extension_per_vote_secs: u32,
+        vote_per_bling_base_cost: u64,
+        user_initial_social_score: i64,
     ) -> Result<()> {
         let cfg = &mut ctx.accounts.config;
-        cfg.admin = *ctx.accounts.admin.key;
-        cfg.bling_mint = ctx.accounts.bling_mint.key();
-        cfg.protocol_vote_fee_bps = protocol_fee_bps;
-        cfg.creator_pump_vote_fee_bps = creator_fee_bps_pump;
-        cfg.base_duration_secs = 24 * 3600;
-        cfg.max_duration_secs = 48 * 3600;
-        cfg.extension_per_vote_secs = 60;
-        cfg.bump = ctx.bumps.config;
-        cfg.padding = [0; 7];
+
+        let new_cfg = Config::new(
+            *ctx.accounts.admin.key,
+            ctx.accounts.bling_mint.key(),
+            protocol_vote_fee_bps,
+            protocol_vote_settlement_fee_bps,
+            creator_pump_vote_fee_bps,
+            creator_vote_settlement_fee_bps,
+            base_duration_secs,
+            max_duration_secs,
+            extension_per_vote_secs,
+            vote_per_bling_base_cost,
+            user_initial_social_score,
+            ctx.bumps.config,
+            [0; 7],
+        );
+
+        cfg.admin = new_cfg.admin;
+        cfg.bling_mint = new_cfg.bling_mint;
+        cfg.protocol_vote_fee_bps = new_cfg.protocol_vote_fee_bps;
+        cfg.protocol_vote_settlement_fee_bps = new_cfg.protocol_vote_settlement_fee_bps;
+        cfg.creator_pump_vote_fee_bps = new_cfg.creator_pump_vote_fee_bps;
+        cfg.creator_vote_settlement_fee_bps = new_cfg.creator_vote_settlement_fee_bps;
+        cfg.base_duration_secs = new_cfg.base_duration_secs;
+        cfg.max_duration_secs = new_cfg.max_duration_secs;
+        cfg.extension_per_vote_secs = new_cfg.extension_per_vote_secs;
+        cfg.vote_per_bling_base_cost = new_cfg.vote_per_bling_base_cost;
+        cfg.user_initial_social_score = new_cfg.user_initial_social_score;
+        cfg.bump = new_cfg.bump;
+        cfg.padding = new_cfg.padding;
 
         let valid_payment = &mut ctx.accounts.valid_payment;
 
