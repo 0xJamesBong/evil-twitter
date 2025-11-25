@@ -9,7 +9,7 @@ use solana_sdk::{signature::Keypair, signer::Signer};
 
 use crate::config::TIME_CONFIG_FAST;
 use crate::utils::rates::RATES;
-use crate::utils::utils::send_tx;
+use crate::utils::utils::{send_tx, wait_for_post_to_expire};
 use opinions_market::pda_seeds::*;
 
 pub async fn test_phenomena() {}
@@ -775,11 +775,6 @@ pub async fn test_phenomena_vote_on_post(
     println!("   ✅ End time extended by {} seconds", actual_extension);
 }
 
-async fn current_chain_timestamp(rpc: &RpcClient) -> i64 {
-    let slot = rpc.get_slot().await.unwrap();
-    rpc.get_block_time(slot).await.unwrap()
-}
-
 pub async fn test_phenomena_settle_post(
     rpc: &RpcClient,
     opinions_market: &Program<&Keypair>,
@@ -834,6 +829,9 @@ pub async fn test_phenomena_settle_post(
         opinions_market::state::PostType::Child { parent } => Some(parent),
         opinions_market::state::PostType::Original => None,
     };
+
+    // wait for post to be expired
+    wait_for_post_to_expire(rpc, opinions_market, post_pda).await;
 
     let settle_ix = opinions_market
         .request()

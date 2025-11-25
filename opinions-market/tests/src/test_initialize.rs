@@ -20,7 +20,7 @@ use crate::utils::phenomena::{
 };
 use crate::utils::utils::{
     airdrop_sol_to_users, send_tx, setup_token_mint, setup_token_mint_ata_and_mint_to,
-    setup_token_mint_ata_and_mint_to_many_users, wait_seconds,
+    setup_token_mint_ata_and_mint_to_many_users, wait_for_post_to_expire,
 };
 use opinions_market::pda_seeds::*;
 use std::collections::HashMap;

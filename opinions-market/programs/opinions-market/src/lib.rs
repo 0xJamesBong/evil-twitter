@@ -377,13 +377,13 @@ pub mod opinions_market {
         msg!("clock.unix_timestamp: {}", clock.unix_timestamp);
         msg!("post.end_time: {}", post.end_time);
 
-        // * * * * this must not be adopted.
+        // * * * * this require! must not be adopted.
         // * * * * require!(post.state == PostState::Open, ErrorCode::PostNotOpen);
         // If still within time limit, exit early.
-        // if (post.within_time_limit(now)) {
-        //     msg!("Post is still within time limit, not doing anything and exiting early!");
-        //     return Ok(());
-        // }
+        if (post.within_time_limit(now)) {
+            msg!("Post is still within time limit, not doing anything and exiting early!");
+            return Ok(());
+        }
 
         // Determine winner — ties and zero votes = Pump side wins
         let (winner, total_winning_votes) = match post.upvotes.cmp(&post.downvotes) {
