@@ -370,7 +370,6 @@ pub mod opinions_market {
     pub fn settle_post(ctx: Context<SettlePost>, post_id_hash: [u8; 32]) -> Result<()> {
         msg!("\n🌟🌟🌟🌟🌟 Settling post 🌟🌟🌟🌟🌟");
         let post = &mut ctx.accounts.post;
-
         let clock = Clock::get()?;
         let now = clock.unix_timestamp;
 
