@@ -347,20 +347,10 @@ pub struct VoteOnPost<'info> {
 
 #[derive(Accounts)]
 #[instruction(post_id_hash: [u8; 32])]
-pub struct ForceSettlePost<'info> {
-    #[account(
-        mut,
-        seeds = [POST_ACCOUNT_SEED, post_id_hash.as_ref()],
-        bump,
-    )]
-    pub post: Account<'info, PostAccount>,
-}
-
-
-
-#[derive(Accounts)]
-#[instruction(post_id_hash: [u8; 32])]
 pub struct SettlePost<'info> {
+    #[account(mut)]
+    pub payer: Signer<'info>,
+
     #[account(
         mut,
         seeds = [POST_ACCOUNT_SEED, post_id_hash.as_ref()],
@@ -409,21 +399,25 @@ pub struct SettlePost<'info> {
     pub config: Account<'info, Config>,
     pub token_mint: Account<'info, Mint>,
 
-    #[account(mut)]
-    pub payer: Signer<'info>,
-
+    
     pub token_program: Program<'info, Token>,
     pub system_program: Program<'info, System>,
 }
 
 
 #[derive(Accounts)]
+#[instruction(post_id_hash: [u8; 32])]
 pub struct ClaimPostReward<'info> {
     #[account(mut)]
     pub user: Signer<'info>,
     #[account(mut)]
     pub payer: Signer<'info>,
 
+    #[account(
+        mut,
+        seeds = [POST_ACCOUNT_SEED, post_id_hash.as_ref()],
+        bump,
+    )]
     pub post: Account<'info, PostAccount>,
     #[account(mut)]
     pub position: Account<'info, UserPostPosition>,

@@ -363,13 +363,6 @@ pub mod opinions_market {
         Ok(())
     }
 
-    pub fn force_settle_post(ctx: Context<ForceSettlePost>, post_id_hash: [u8; 32]) -> Result<()> {
-        msg!("\n🌟🌟🌟🌟🌟 Force settling post 🌟🌟🌟🌟🌟");
-        let post = &mut ctx.accounts.post;
-        post.state = PostState::Settled;
-        Ok(())
-    }
-
     // This is token mint specific - to settle the pots for all tokens, chain all the
     //instructions together, each parametrized by individual token mints, and send it
     // off in one transaction.
@@ -440,7 +433,7 @@ pub mod opinions_market {
         Ok(())
     }
 
-    pub fn claim_post_reward(ctx: Context<ClaimPostReward>) -> Result<()> {
+    pub fn claim_post_reward(ctx: Context<ClaimPostReward>, post_id_hash: [u8; 32]) -> Result<()> {
         let post = &ctx.accounts.post;
         let pos = &mut ctx.accounts.position;
         let claim = &mut ctx.accounts.user_post_mint_claim;
