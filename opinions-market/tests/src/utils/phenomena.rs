@@ -828,7 +828,11 @@ pub async fn test_phenomena_settle_post(
     .0;
 
     let post_mint_payout_pda = Pubkey::find_program_address(
-        &[POST_MINT_PAYOUT_SEED, post_pda.as_ref()],
+        &[
+            POST_MINT_PAYOUT_SEED,
+            post_pda.as_ref(),
+            token_mint.as_ref(),
+        ],
         &opinions_market.id(),
     )
     .0;
