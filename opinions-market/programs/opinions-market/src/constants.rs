@@ -6,3 +6,5 @@ pub const POST_MAX_DURATION_SECS: u32 = 7 * 24 * 3600; // 7 days
 pub const VOTE_PER_BLING_BASE_COST: u64 = 1_000_000 * LAMPORTS_PER_SOL; // 1 VOTE = 1_000_000 BLING
 
 pub const USER_INITIAL_SOCIAL_SCORE: i64 = 10_000;
+
+pub const PRECISION: u64 = 1_000_000; // 1e6 fixed-point scale

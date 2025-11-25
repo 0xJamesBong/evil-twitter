@@ -99,14 +99,24 @@ pub struct PostAccount {
 #[derive(InitSpace)]
 pub struct PostMintPayout {
     pub post: Pubkey,
+    pub token_mint: Pubkey,
+    pub total_payout: u64,
     pub payout_per_winning_vote: u64,
     pub bump: u8,
 }
 impl PostMintPayout {
-    pub fn new(post: Pubkey, bump: u8) -> Self {
+    pub fn new(
+        post: Pubkey,
+        token_mint: Pubkey,
+        total_payout: u64,
+        payout_per_winning_vote: u64,
+        bump: u8,
+    ) -> Self {
         Self {
             post,
-            payout_per_winning_vote: 0,
+            token_mint,
+            total_payout,
+            payout_per_winning_vote,
             bump,
         }
     }
@@ -161,7 +171,6 @@ pub struct UserPostPosition {
     pub post: Pubkey,
     pub upvotes: u32,
     pub downvotes: u32,
-    pub claimed: bool,
 }
 
 impl UserPostPosition {
@@ -171,10 +180,33 @@ impl UserPostPosition {
             post,
             upvotes: 0,
             downvotes: 0,
-            claimed: false,
         }
     }
 }
+
+// For reward claims - token mint specific
+#[account]
+#[derive(InitSpace)]
+pub struct UserPostMintClaim {
+    pub user: Pubkey,
+    pub post: Pubkey,
+    pub mint: Pubkey,
+    pub claimed: bool,
+    pub bump: u8,
+}
+
+impl UserPostMintClaim {
+    pub fn new(user: Pubkey, post: Pubkey, mint: Pubkey, bump: u8) -> Self {
+        Self {
+            user,
+            post,
+            mint,
+            claimed: false,
+            bump,
+        }
+    }
+}
+
 // -----------------------------------------------------------------------------
 // ENUMS
 // -----------------------------------------------------------------------------

@@ -394,9 +394,19 @@ pub struct SettlePost<'info> {
 
 #[derive(Accounts)]
 pub struct ClaimPostReward<'info> {
+    #[account(mut)]
+    pub user: Signer<'info>,
+    #[account(mut)]
+    pub payer: Signer<'info>,
+    
     pub post: Account<'info, PostAccount>,
     #[account(mut)]
     pub position: Account<'info, UserPostPosition>,
+    #[account(
+        init_if_needed, 
+        payer = payer, 
+        seeds = [USER_POST_MINT_CLAIM_SEED, post.key().as_ref(), token_mint.key().as_ref()], bump, space = 8 + UserPostMintClaim::INIT_SPACE)]
+    pub user_post_mint_claim: Account<'info, UserPostMintClaim>,
 
     #[account(
         seeds = [POST_MINT_PAYOUT_SEED, post.key().as_ref(), token_mint.key().as_ref()],
@@ -425,6 +435,7 @@ pub struct ClaimPostReward<'info> {
 
     pub token_mint: Account<'info, Mint>,
     pub token_program: Program<'info, Token>,
+    pub system_program: Program<'info, System>,
 }
 
 // -----------------------------------------------------------------------------

@@ -224,7 +224,6 @@ pub mod opinions_market {
             pos.post = new_pos.post;
             pos.upvotes = new_pos.upvotes;
             pos.downvotes = new_pos.downvotes;
-            pos.claimed = new_pos.claimed;
         }
 
         //
@@ -348,41 +347,67 @@ pub mod opinions_market {
         Ok(())
     }
 
+    // This is token mint specific - to settle the pots for all tokens, chain all the
+    //instructions together, each parametrized by individual token mints, and send it
+    // off in one transaction.
+    // Naturally this means we cannot require the PostState to be open, we only require it to be past the settlement time.
     pub fn settle_post(ctx: Context<SettlePost>) -> Result<()> {
         let post = &mut ctx.accounts.post;
 
         let clock = Clock::get()?;
+        let now = clock.unix_timestamp;
 
         msg!("clock.unix_timestamp: {}", clock.unix_timestamp);
         msg!("post.end_time: {}", post.end_time);
 
-        require!(post.state == PostState::Open, ErrorCode::PostNotOpen);
-        require!(
-            clock.unix_timestamp > post.end_time,
-            ErrorCode::PostNotExpired
-        );
+        // * * * * this must not be adopted.
+        // * * * * require!(post.state == PostState::Open, ErrorCode::PostNotOpen);
+        // If still within time limit, exit early.
+        if (post.within_time_limit(now)) {
+            return Ok(());
+        }
 
-        // Determine winner — ties favour Pump side
-        let (winner, total_weight) = match post.upvotes.cmp(&post.downvotes) {
+        // Determine winner — ties and zero votes = Pump side wins
+        let (winner, total_winning_votes) = match post.upvotes.cmp(&post.downvotes) {
             std::cmp::Ordering::Greater => (Side::Pump, post.upvotes),
             std::cmp::Ordering::Less => (Side::Smack, post.downvotes),
             std::cmp::Ordering::Equal => (Side::Pump, post.upvotes), // tie → Pump wins
         };
+        let pot_amount = ctx.accounts.post_pot_token_account.amount;
 
-        // Compute payout per unit
-        let payout_per_vote = position
-            .upvotes
-            .checked_div(total_weight)
-            .ok_or(ErrorCode::MathOverflow)?;
+        // payout_per_winning_vote guards against 0
+        let payout_per_winning_vote = if total_winning_votes == 0 {
+            0 as u64
+        } else {
+            pot_amount
+                .checked_mul(PRECISION) // scale up to avoid division by 0
+                .unwrap()
+                .checked_div(total_winning_votes)
+                .ok_or(ErrorCode::MathOverflow)?
+        };
 
         // Save payout snapshot for claims
         let payout = &mut ctx.accounts.post_mint_payout;
-        payout.post = post.key();
-        payout.payout_per_winning_vote = payout_per_unit;
-        payout.bump = ctx.bumps.post_mint_payout;
+        let new_payout = PostMintPayout::new(
+            post.key(),
+            ctx.accounts.token_mint.key(),
+            pot_amount,
+            payout_per_winning_vote,
+            ctx.bumps.post_mint_payout,
+        );
 
-        post.state = PostState::Settled;
-        post.winning_side = Some(winner);
+        payout.post = new_payout.post;
+        payout.token_mint = new_payout.token_mint;
+        payout.total_payout = new_payout.total_payout;
+        payout.payout_per_winning_vote = new_payout.payout_per_winning_vote;
+        payout.bump = new_payout.bump;
+
+        if post.state == PostState::Open {
+            post.state = PostState::Settled;
+        }
+        if post.winning_side.is_none() {
+            post.winning_side = Some(winner);
+        }
 
         Ok(())
     }
@@ -390,9 +415,10 @@ pub mod opinions_market {
     pub fn claim_post_reward(ctx: Context<ClaimPostReward>) -> Result<()> {
         let post = &ctx.accounts.post;
         let pos = &mut ctx.accounts.position;
+        let claim = &mut ctx.accounts.user_post_mint_claim;
 
         require!(post.state == PostState::Settled, ErrorCode::PostNotSettled);
-        require!(!pos.claimed, ErrorCode::AlreadyClaimed);
+        require!(!claim.claimed, ErrorCode::AlreadyClaimed);
 
         let winning_side = post.winning_side.ok_or(ErrorCode::NoWinner)?;
 
@@ -402,18 +428,24 @@ pub mod opinions_market {
         };
 
         if user_units == 0 {
-            pos.claimed = true;
-            return Ok(());
+            claim.claimed = true;
+            return Ok(()); // non-winner → no payout
         }
 
         let payout = &ctx.accounts.post_mint_payout;
-        let reward = user_units
+
+        // SCALE → unscale before transfer
+        let scaled = user_units
             .checked_mul(payout.payout_per_winning_vote)
             .ok_or(ErrorCode::MathOverflow)?;
 
+        let reward = scaled
+            .checked_div(PRECISION)
+            .ok_or(ErrorCode::MathOverflow)?;
+
         if reward == 0 {
-            pos.claimed = true;
-            return Ok(());
+            claim.claimed = true;
+            return Ok(()); // too small to matter, claim and exit
         }
 
         // Transfer reward
@@ -422,6 +454,7 @@ pub mod opinions_market {
             &[POST_POT_AUTHORITY_SEED, post_key.as_ref()],
             ctx.program_id,
         );
+
         let bump_array = [bump];
         let seeds_array = [POST_POT_AUTHORITY_SEED, post_key.as_ref(), &bump_array];
         let seeds: &[&[&[u8]]] = &[&seeds_array];
@@ -438,7 +471,7 @@ pub mod opinions_market {
 
         anchor_spl::token::transfer(cpi, reward)?;
 
-        pos.claimed = true;
+        claim.claimed = true;
         Ok(())
     }
 }
