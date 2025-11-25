@@ -71,30 +71,20 @@ pub mod opinions_market {
         let new_cfg = Config::new(
             *ctx.accounts.admin.key,
             ctx.accounts.bling_mint.key(),
-            protocol_vote_fee_bps,
-            protocol_vote_settlement_fee_bps,
-            creator_pump_vote_fee_bps,
-            creator_vote_settlement_fee_bps,
             base_duration_secs,
             max_duration_secs,
             extension_per_vote_secs,
-            vote_per_bling_base_cost,
-            user_initial_social_score,
             ctx.bumps.config,
             [0; 7],
         );
 
         cfg.admin = new_cfg.admin;
         cfg.bling_mint = new_cfg.bling_mint;
-        cfg.protocol_vote_fee_bps = new_cfg.protocol_vote_fee_bps;
-        cfg.protocol_vote_settlement_fee_bps = new_cfg.protocol_vote_settlement_fee_bps;
-        cfg.creator_pump_vote_fee_bps = new_cfg.creator_pump_vote_fee_bps;
-        cfg.creator_vote_settlement_fee_bps = new_cfg.creator_vote_settlement_fee_bps;
+
         cfg.base_duration_secs = new_cfg.base_duration_secs;
         cfg.max_duration_secs = new_cfg.max_duration_secs;
         cfg.extension_per_vote_secs = new_cfg.extension_per_vote_secs;
-        cfg.vote_per_bling_base_cost = new_cfg.vote_per_bling_base_cost;
-        cfg.user_initial_social_score = new_cfg.user_initial_social_score;
+
         cfg.bump = new_cfg.bump;
         cfg.padding = new_cfg.padding;
 
@@ -139,8 +129,7 @@ pub mod opinions_market {
     pub fn create_user(ctx: Context<CreateUser>) -> Result<()> {
         let config = &mut ctx.accounts.config;
         let user_account = &mut ctx.accounts.user_account;
-        let new_user_account =
-            UserAccount::new(ctx.accounts.user.key(), config, ctx.bumps.user_account);
+        let new_user_account = UserAccount::new(ctx.accounts.user.key(), ctx.bumps.user_account);
 
         user_account.user = new_user_account.user;
         user_account.social_score = new_user_account.social_score;
@@ -269,14 +258,14 @@ pub mod opinions_market {
         msg!("cost_bling: {}", cost_bling);
         msg!("post.upvotes BEFORE: {}", post.upvotes);
 
-        let protocol_fee = cost_bling * (cfg.protocol_vote_fee_bps as u64) / 10_000;
-        let creator_fee = match side {
-            Side::Pump => cost_bling * (cfg.creator_pump_vote_fee_bps as u64) / 10_000,
+        let protocol_fee = cost_bling * (PARAMS.protocol_vote_fee_bps as u64) / 10_000;
+        let creator_pump_fee = match side {
+            Side::Pump => cost_bling * (PARAMS.creator_pump_fee_bps as u64) / 10_000,
             Side::Smack => 0,
         };
 
         let pot_increment = cost_bling
-            .checked_sub(protocol_fee + creator_fee)
+            .checked_sub(protocol_fee + creator_pump_fee)
             .ok_or(ErrorCode::MathOverflow)?;
 
         //
@@ -309,7 +298,7 @@ pub mod opinions_market {
         }
 
         // creator fee
-        if creator_fee > 0 {
+        if creator_pump_fee > 0 {
             anchor_spl::token::transfer(
                 CpiContext::new_with_signer(
                     ctx.accounts.token_program.to_account_info(),
@@ -323,7 +312,7 @@ pub mod opinions_market {
                     },
                     user_authority_seeds,
                 ),
-                creator_fee,
+                creator_pump_fee,
             )?;
         }
 

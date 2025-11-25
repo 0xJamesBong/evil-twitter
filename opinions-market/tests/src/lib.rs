@@ -1,3 +1,4 @@
+mod config;
 #[cfg(test)]
 mod test_clock;
 #[cfg(test)]

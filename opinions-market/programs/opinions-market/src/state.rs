@@ -1,4 +1,4 @@
-use crate::ErrorCode;
+use crate::{constants::PARAMS, ErrorCode};
 use anchor_lang::prelude::*;
 
 // -----------------------------------------------------------------------------
@@ -11,19 +11,18 @@ pub struct Config {
     pub admin: Pubkey,
     pub bling_mint: Pubkey,
 
-    pub protocol_vote_fee_bps: u16,
-    pub protocol_vote_settlement_fee_bps: u16,
+    // pub protocol_vote_fee_bps: u16,
+    // pub protocol_vote_settlement_fee_bps: u16,
 
-    pub creator_pump_vote_fee_bps: u16,
-    pub creator_vote_settlement_fee_bps: u16,
-
+    // pub creator_pump_vote_fee_bps: u16,
+    // pub creator_vote_settlement_fee_bps: u16,
     pub base_duration_secs: u32,
     pub max_duration_secs: u32,
     pub extension_per_vote_secs: u32,
 
-    pub vote_per_bling_base_cost: u64,
-    /// 1 vote = 1 * LAMPORTS_PER_SOL by default
-    pub user_initial_social_score: i64,
+    // pub vote_per_bling_base_cost: u64,
+    // /// 1 vote = 1 * LAMPORTS_PER_SOL by default
+    // pub user_initial_social_score: i64,
     /// 10_000 by default
     pub bump: u8,
     pub padding: [u8; 7], // 7
@@ -33,30 +32,19 @@ impl Config {
     pub fn new(
         admin: Pubkey,
         bling_mint: Pubkey,
-        protocol_vote_fee_bps: u16,
-        protocol_vote_settlement_fee_bps: u16,
-        creator_pump_vote_fee_bps: u16,
-        creator_vote_settlement_fee_bps: u16,
         base_duration_secs: u32,
         max_duration_secs: u32,
         extension_per_vote_secs: u32,
-        vote_per_bling_base_cost: u64,
-        user_initial_social_score: i64,
         bump: u8,
         padding: [u8; 7],
     ) -> Self {
         Self {
             admin,
             bling_mint,
-            protocol_vote_fee_bps,
-            protocol_vote_settlement_fee_bps,
-            creator_pump_vote_fee_bps,
-            creator_vote_settlement_fee_bps,
+
             base_duration_secs,
             max_duration_secs,
             extension_per_vote_secs,
-            vote_per_bling_base_cost,
-            user_initial_social_score,
             bump,
             padding,
         }
@@ -93,10 +81,10 @@ pub struct UserAccount {
     pub bump: u8,
 }
 impl UserAccount {
-    pub fn new(user: Pubkey, config: &Config, bump: u8) -> Self {
+    pub fn new(user: Pubkey, bump: u8) -> Self {
         Self {
             user,
-            social_score: config.user_initial_social_score,
+            social_score: PARAMS.user_initial_social_score,
             bump,
         }
     }
