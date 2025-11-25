@@ -803,10 +803,14 @@ pub async fn test_phenomena_settle_post(
     opinions_market_engine: &Program<&Keypair>,
     payer: &Keypair,
     post_pda: &Pubkey,
-    token_mint: &Pubkey,
+    valid_payment_token_mints: &[&Pubkey],
     config_pda: &Pubkey,
 ) {
-    println!("Settling post {:?}", post_pda);
+    println!(
+        "Settling post {:?} for {} token mints",
+        post_pda,
+        valid_payment_token_mints.len()
+    );
 
     // Get post account to check if it's a child post
     let post_account = opinions_market_engine
@@ -814,6 +818,236 @@ pub async fn test_phenomena_settle_post(
         .await
         .unwrap();
 
+    // Handle parent post if this is a child post
+    let parent_post_pda = match post_account.post_type {
+        opinions_market_engine::state::PostType::Child { parent } => Some(parent),
+        opinions_market_engine::state::PostType::Original => None,
+    };
+
+    // Build settle instructions for each valid payment token mint
+    let mut settle_instructions = Vec::new();
+
+    for token_mint in valid_payment_token_mints {
+        println!(
+            "  - Building settle instruction for token mint: {}",
+            token_mint
+        );
+
+        let post_pot_token_account_pda = Pubkey::find_program_address(
+            &[
+                POST_POT_TOKEN_ACCOUNT_SEED,
+                post_pda.as_ref(),
+                token_mint.as_ref(),
+            ],
+            &opinions_market_engine.id(),
+        )
+        .0;
+
+        let post_pot_authority_pda = Pubkey::find_program_address(
+            &[POST_POT_AUTHORITY_SEED, post_pda.as_ref()],
+            &opinions_market_engine.id(),
+        )
+        .0;
+
+        let post_mint_payout_pda = Pubkey::find_program_address(
+            &[
+                POST_MINT_PAYOUT_SEED,
+                post_pda.as_ref(),
+                token_mint.as_ref(),
+            ],
+            &opinions_market_engine.id(),
+        )
+        .0;
+
+        let protocol_treasury_token_account_pda = Pubkey::find_program_address(
+            &[PROTOCOL_TREASURY_TOKEN_ACCOUNT_SEED, token_mint.as_ref()],
+            &opinions_market_engine.id(),
+        )
+        .0;
+
+        let settle_ix = opinions_market_engine
+            .request()
+            .accounts(opinions_market_engine::accounts::SettlePost {
+                post: *post_pda,
+                post_pot_token_account: post_pot_token_account_pda,
+                post_pot_authority: post_pot_authority_pda,
+                post_mint_payout: post_mint_payout_pda,
+                protocol_token_treasury_token_account: protocol_treasury_token_account_pda,
+                parent_post: parent_post_pda,
+                config: *config_pda,
+                token_mint: **token_mint,
+                payer: payer.pubkey(),
+                token_program: spl_token::ID,
+                system_program: system_program::ID,
+            })
+            .instructions()
+            .unwrap();
+
+        settle_instructions.extend(settle_ix);
+    }
+
+    // Send all settle instructions in one transaction
+    let settle_tx = send_tx(&rpc, settle_instructions, &payer.pubkey(), &[&payer])
+        .await
+        .unwrap();
+    println!("settle post tx: {:?}", settle_tx);
+
+    // Verify post was settled
+    let settled_post = opinions_market_engine
+        .account::<opinions_market_engine::state::PostAccount>(*post_pda)
+        .await
+        .unwrap();
+
+    match settled_post.state {
+        opinions_market_engine::state::PostState::Settled => {}
+        _ => panic!("Post should be in Settled state"),
+    }
+
+    // Verify post_mint_payout was created for each token mint
+    for token_mint in valid_payment_token_mints {
+        let post_mint_payout_pda = Pubkey::find_program_address(
+            &[
+                POST_MINT_PAYOUT_SEED,
+                post_pda.as_ref(),
+                token_mint.as_ref(),
+            ],
+            &opinions_market_engine.id(),
+        )
+        .0;
+
+        let payout_account = opinions_market_engine
+            .account::<opinions_market_engine::state::PostMintPayout>(post_mint_payout_pda)
+            .await
+            .unwrap();
+
+        assert_eq!(payout_account.post, *post_pda);
+        assert_eq!(payout_account.mint, **token_mint);
+
+        // Check if payout was stored in the payout account
+        if settled_post.upvotes > settled_post.downvotes
+            || settled_post.downvotes > settled_post.upvotes
+        {
+            assert!(
+                payout_account.payout_per_unit > 0,
+                "Payout per unit should be > 0 for winning post (token: {})",
+                token_mint
+            );
+        }
+
+        println!("  ✅ Verified payout for token mint: {}", token_mint);
+    }
+
+    println!(
+        "✅ Post settled successfully for all {} token mints",
+        valid_payment_token_mints.len()
+    );
+}
+
+pub async fn test_phenomena_claim_post_reward(
+    rpc: &RpcClient,
+    opinions_market_engine: &Program<&Keypair>,
+    payer: &Keypair,
+    user: &Keypair,
+    post_pda: &Pubkey,
+    token_mint: &Pubkey,
+) {
+    let token_name = format!("token_{}", token_mint);
+    println!(
+        "{:} claiming post reward for post {:} in {}",
+        user.pubkey(),
+        post_pda,
+        token_name
+    );
+
+    // Get post account to verify it's settled
+    let post_account = opinions_market_engine
+        .account::<opinions_market_engine::state::PostAccount>(*post_pda)
+        .await
+        .unwrap();
+
+    match post_account.state {
+        opinions_market_engine::state::PostState::Settled => {
+            println!("✅ Post is in Settled state");
+        }
+        _ => panic!("Post must be in Settled state to claim rewards"),
+    }
+
+    // Get position account
+    let position_pda = Pubkey::find_program_address(
+        &[POSITION_SEED, post_pda.as_ref(), user.pubkey().as_ref()],
+        &opinions_market_engine.id(),
+    )
+    .0;
+
+    let position_before = opinions_market_engine
+        .account::<opinions_market_engine::state::UserPostPosition>(position_pda)
+        .await
+        .unwrap();
+
+    println!("📊 Position state BEFORE claim:");
+    println!(
+        "   - Upvotes: {}, Downvotes: {}",
+        position_before.upvotes, position_before.downvotes
+    );
+    println!("   - Claimed: {}", position_before.claimed);
+
+    // Get post_mint_payout to verify payout info
+    let post_mint_payout_pda = Pubkey::find_program_address(
+        &[
+            POST_MINT_PAYOUT_SEED,
+            post_pda.as_ref(),
+            token_mint.as_ref(),
+        ],
+        &opinions_market_engine.id(),
+    )
+    .0;
+
+    let payout_account = opinions_market_engine
+        .account::<opinions_market_engine::state::PostMintPayout>(post_mint_payout_pda)
+        .await
+        .unwrap();
+
+    println!("💰 Payout info:");
+    println!("   - Payout per unit: {}", payout_account.payout_per_unit);
+
+    // Calculate expected reward
+    let winning_side = post_account
+        .winning_side
+        .expect("Post must have a winning side");
+    let user_units = match winning_side {
+        opinions_market_engine::state::Side::Pump => position_before.upvotes as u64,
+        opinions_market_engine::state::Side::Smack => position_before.downvotes as u64,
+    };
+
+    let expected_reward = if user_units > 0 && payout_account.payout_per_unit > 0 {
+        user_units * payout_account.payout_per_unit
+    } else {
+        0
+    };
+
+    println!("   - User units on winning side: {}", user_units);
+    println!("   - Expected reward: {}", expected_reward);
+
+    // Get user vault token account to check balance before
+    let user_vault_token_account_pda = Pubkey::find_program_address(
+        &[
+            USER_VAULT_TOKEN_ACCOUNT_SEED,
+            user.pubkey().as_ref(),
+            token_mint.as_ref(),
+        ],
+        &opinions_market_engine.id(),
+    )
+    .0;
+
+    let vault_balance_before = opinions_market_engine
+        .account::<anchor_spl::token::TokenAccount>(user_vault_token_account_pda)
+        .await
+        .map(|acc| acc.amount)
+        .unwrap_or(0);
+
+    println!("   - User vault balance before: {}", vault_balance_before);
+
+    // Build claim instruction
     let post_pot_token_account_pda = Pubkey::find_program_address(
         &[
             POST_POT_TOKEN_ACCOUNT_SEED,
@@ -830,88 +1064,58 @@ pub async fn test_phenomena_settle_post(
     )
     .0;
 
-    let post_mint_payout_pda = Pubkey::find_program_address(
-        &[
-            POST_MINT_PAYOUT_SEED,
-            post_pda.as_ref(),
-            token_mint.as_ref(),
-        ],
-        &opinions_market_engine.id(),
-    )
-    .0;
-
-    let protocol_treasury_token_account_pda = Pubkey::find_program_address(
-        &[PROTOCOL_TREASURY_TOKEN_ACCOUNT_SEED, token_mint.as_ref()],
-        &opinions_market_engine.id(),
-    )
-    .0;
-
-    // Handle parent post if this is a child post
-    let parent_post_pda = match post_account.post_type {
-        opinions_market_engine::state::PostType::Child { parent } => Some(parent),
-        opinions_market_engine::state::PostType::Original => None,
-    };
-
-    let settle_ix = opinions_market_engine
+    let claim_ix = opinions_market_engine
         .request()
-        .accounts(opinions_market_engine::accounts::SettlePost {
+        .accounts(opinions_market_engine::accounts::ClaimPostReward {
             post: *post_pda,
+            position: position_pda,
+            post_mint_payout: post_mint_payout_pda,
             post_pot_token_account: post_pot_token_account_pda,
             post_pot_authority: post_pot_authority_pda,
-            post_mint_payout: post_mint_payout_pda,
-            protocol_token_treasury_token_account: protocol_treasury_token_account_pda,
-            parent_post: parent_post_pda,
-            config: *config_pda,
+            user_vault_token_account: user_vault_token_account_pda,
             token_mint: *token_mint,
-            payer: payer.pubkey(),
             token_program: spl_token::ID,
-            system_program: system_program::ID,
         })
         .instructions()
         .unwrap();
 
-    let settle_tx = send_tx(&rpc, settle_ix, &payer.pubkey(), &[&payer])
+    let claim_tx = send_tx(&rpc, claim_ix, &payer.pubkey(), &[&payer, &user])
         .await
         .unwrap();
-    println!("settle post tx: {:?}", settle_tx);
-    let tx_details = rpc
-        .get_transaction(&settle_tx, UiTransactionEncoding::Json)
-        .await
-        .unwrap();
+    println!("claim reward tx: {:?}", claim_tx);
 
-    println!("{:#?}", tx_details.transaction.meta.unwrap().log_messages);
-
-    // Verify post was settled
-    let settled_post = opinions_market_engine
-        .account::<opinions_market_engine::state::PostAccount>(*post_pda)
+    // Verify position was updated (claimed flag set)
+    let position_after = opinions_market_engine
+        .account::<opinions_market_engine::state::UserPostPosition>(position_pda)
         .await
         .unwrap();
 
-    match settled_post.state {
-        opinions_market_engine::state::PostState::Settled => {}
-        _ => panic!("Post should be in Settled state"),
-    }
+    println!("📊 Position state AFTER claim:");
+    println!("   - Claimed: {}", position_after.claimed);
 
-    // Verify post_mint_payout was created and has payout info
-    let payout_account = opinions_market_engine
-        .account::<opinions_market_engine::state::PostMintPayout>(post_mint_payout_pda)
-        .await
-        .unwrap();
+    // Verify vault balance increased if reward was expected
+    if expected_reward > 0 {
+        let vault_balance_after = opinions_market_engine
+            .account::<anchor_spl::token::TokenAccount>(user_vault_token_account_pda)
+            .await
+            .unwrap()
+            .amount;
 
-    assert_eq!(payout_account.post, *post_pda);
-    assert_eq!(payout_account.mint, *token_mint);
+        println!("   - User vault balance after: {}", vault_balance_after);
+        println!(
+            "   - Balance increase: {}",
+            vault_balance_after - vault_balance_before
+        );
 
-    // Check if payout was stored in the payout account
-    if settled_post.upvotes > settled_post.downvotes
-        || settled_post.downvotes > settled_post.upvotes
-    {
-        assert!(
-            payout_account.payout_per_unit > 0,
-            "Payout per unit should be > 0 for winning post"
+        assert_eq!(
+            vault_balance_after,
+            vault_balance_before + expected_reward,
+            "Vault balance should increase by expected reward amount"
         );
     }
 
-    println!("✅ Post settled successfully");
+    println!(
+        "✅ Reward claimed successfully for token mint: {}",
+        token_mint
+    );
 }
-
-// pub async fn test_phenomena_claim_post_reward() {}

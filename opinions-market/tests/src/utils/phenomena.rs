@@ -888,7 +888,7 @@ pub async fn test_phenomena_settle_post(
         .unwrap();
 
     assert_eq!(payout_account.post, *post_pda);
-    assert_eq!(payout_account.mint, *token_mint);
+    assert_eq!(payout_account.token_mint, *token_mint);
 
     // Check if payout was stored in the payout account
     if settled_post.upvotes > settled_post.downvotes

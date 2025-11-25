@@ -12,9 +12,9 @@ use solana_sdk::{
 
 use crate::utils::definitions::RATES;
 use crate::utils::phenomena::{
-    test_phenomena_add_valid_payment, test_phenomena_create_post, test_phenomena_create_user,
-    test_phenomena_deposit, test_phenomena_settle_post, test_phenomena_vote_on_post,
-    test_phenomena_withdraw,
+    test_phenomena_add_valid_payment, test_phenomena_claim_post_reward, test_phenomena_create_post,
+    test_phenomena_create_user, test_phenomena_deposit, test_phenomena_settle_post,
+    test_phenomena_vote_on_post, test_phenomena_withdraw,
 };
 use crate::utils::utils::{
     airdrop_sol_to_users, send_tx, setup_token_mint, setup_token_mint_ata_and_mint_to,
@@ -386,22 +386,44 @@ async fn test_setup() {
         //         Note: In a real test, you'd need to wait for the post to expire before settling
         // For now, we'll just show the settle function exists
         {
-            println!("Settling post P1");
+            println!("Settling post P1 for all valid payment tokens");
+            // Settle post for all valid payment tokens (BLING and USDC) in one transaction
+            let valid_payment_tokens = vec![&bling_pubkey, &usdc_pubkey];
             test_phenomena_settle_post(
                 &rpc,
                 &opinions_market_engine,
                 &payer,
                 &post_p1_pda,
-                &bling_pubkey,
+                &valid_payment_tokens,
                 &config_pda,
             )
             .await;
         }
 
         {
-            // {
-            //     println!("user 3 trying to make a post");
-            println!("user 1 claims their reward from user 2's post");
+            println!("user 1 claims their reward from post P1 in BLING");
+            test_phenomena_claim_post_reward(
+                &rpc,
+                &opinions_market_engine,
+                &payer,
+                &user_1,
+                &post_p1_pda,
+                &bling_pubkey,
+            )
+            .await;
+        }
+
+        {
+            println!("user 1 claims their reward from post P1 in USDC");
+            test_phenomena_claim_post_reward(
+                &rpc,
+                &opinions_market_engine,
+                &payer,
+                &user_1,
+                &post_p1_pda,
+                &usdc_pubkey,
+            )
+            .await;
         }
 
         //     // This would Cause an error because user 3 is not a user in the system
