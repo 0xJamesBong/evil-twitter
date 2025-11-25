@@ -14,9 +14,9 @@ use solana_sdk::{
 
 use crate::config::TIME_CONFIG_FAST;
 use crate::utils::phenomena::{
-    test_phenomena_add_valid_payment, test_phenomena_create_post, test_phenomena_create_user,
-    test_phenomena_deposit, test_phenomena_settle_post, test_phenomena_vote_on_post,
-    test_phenomena_withdraw,
+    test_phenomena_add_valid_payment, test_phenomena_claim_post_reward, test_phenomena_create_post,
+    test_phenomena_create_user, test_phenomena_deposit, test_phenomena_settle_post,
+    test_phenomena_vote_on_post, test_phenomena_withdraw,
 };
 use crate::utils::utils::{
     airdrop_sol_to_users, send_tx, setup_token_mint, setup_token_mint_ata_and_mint_to,
@@ -340,7 +340,7 @@ async fn test_setup() {
                 &user_2,
                 &post_p1_pda,
                 opinions_market::state::Side::Pump,
-                1,
+                100,
                 &bling_pubkey,
                 &bling_atas,
                 &config_pda,
@@ -417,18 +417,19 @@ async fn test_setup() {
             .await;
         }
 
-        // {
-        //     println!("user 1 claims their reward from user 2's post");
-        //     test_phenomena_claim_post_reward(
-        //         &rpc,
-        //         &opinions_market,
-        //         &payer,
-        //         &user_1,
-        //         &post_p1_pda,
-        //         &bling_pubkey,
-        //     )
-        //     .await;
-        // }
+        {
+            println!("\n user 2 claims their reward from user 's post");
+            test_phenomena_claim_post_reward(
+                &rpc,
+                &opinions_market,
+                &payer,
+                &user_2,
+                &post_p1_pda,
+                &bling_pubkey,
+                &tokens,
+            )
+            .await;
+        }
 
         // {
         //     println!("user 3 trying to make a post");
@@ -447,7 +448,7 @@ async fn test_setup() {
         {
             println!("\n\n");
             println!(" 🟪🟪🟪🟪🟪🟪🟪🟪🟪🟪🟪🟪🟪🟪🟪🟪🟪");
-            println!(" 🟪 🟪 🟪 GOD LOVES ME 🟪 🟪 🟪");
+            println!(" 🟪 🟪 🟪 🟪 GOD LOVES ME 🟪 🟪 🟪 🟪");
             println!(" 🟪🟪🟪🟪🟪🟪🟪🟪🟪🟪🟪🟪🟪🟪🟪🟪🟪");
             panic!();
         }

@@ -55,7 +55,7 @@ impl Config {
 #[derive(InitSpace, Copy, PartialEq, Eq, Debug)]
 pub struct ValidPayment {
     pub token_mint: Pubkey,
-    /// how much is 1 token in BLING units -
+    /// how much is 1 token in BLING votes -
     /// 1 USDC = 10_000 BLING for example
     /// 1 SOL = 1_000_000_000 BLING for example
     pub price_in_bling: u64,
@@ -99,7 +99,7 @@ pub enum PostType {
 #[derive(InitSpace, AnchorSerialize, AnchorDeserialize, Clone, Copy)]
 pub struct PotPayout {
     pub mint: Pubkey,
-    pub payout_per_unit: u64,
+    pub payout_per_vote: u64,
 }
 
 #[account]
@@ -244,16 +244,16 @@ pub enum PostState {
 #[derive(AnchorSerialize, AnchorDeserialize, Clone, Copy, PartialEq, Eq, InitSpace, Debug)]
 pub struct Vote {
     pub side: Side,
-    pub units: u32,
+    pub votes: u32,
     pub user_pubkey: Pubkey,
     pub post_pubkey: Pubkey,
 }
 
 impl Vote {
-    pub fn new(side: Side, units: u32, user_pubkey: Pubkey, post_pubkey: Pubkey) -> Self {
+    pub fn new(side: Side, votes: u32, user_pubkey: Pubkey, post_pubkey: Pubkey) -> Self {
         Self {
             side,
-            units,
+            votes,
             user_pubkey,
             post_pubkey,
         }
@@ -263,12 +263,12 @@ impl Vote {
     // USER-ADJUSTED COST
     //
     // Caps:
-    //   units ≤ 1_000_000
+    //   votes ≤ 1_000_000
     //   prev  ≤ 1_000_000
     //   side_mult ∈ {1,10}
     //   social_mult_bps ∈ [5_000, 20_000]
     //
-    // raw = units * side_mult * (prev + 1)
+    // raw = votes * side_mult * (prev + 1)
     // max raw = 1_000_000 * 10 * 1_000_001 = 1e13 → fits in u64 safely
     // After BPS scaling raw*20000 / 10000 → < 2e13 → safe
     // -------------------------------------------------------------------------
@@ -278,7 +278,7 @@ impl Vote {
         user_account: &UserAccount,
     ) -> Result<u64> {
         // ---- FIXED CAPS (core overflow prevention) ----
-        let units = (self.units as u64).min(1_000_000);
+        let votes = (self.votes as u64).min(1_000_000);
 
         let prev = match self.side {
             Side::Pump => user_position.upvotes as u64,
@@ -310,7 +310,7 @@ impl Vote {
         //
         // raw max = 1_000_000 * 10 * 1_000_001 ≈ 1e13 → safe in u64 (limit ≈1e19)
         //
-        let raw = units * side_mult * (prev + 1);
+        let raw = votes * side_mult * (prev + 1);
 
         // ---- APPLY SOCIAL MULTIPLIER (BPS) ----
         //
@@ -325,7 +325,7 @@ impl Vote {
     // POST-ADJUSTED COST
     //
     // Caps:
-    //   post_units ≤ 1_000_000
+    //   post_votes ≤ 1_000_000
     //   curve_mult_bps ∈ [10_000, 1_000_000]
     //
     // cost = base * curve_mult_bps / 10_000
@@ -334,14 +334,14 @@ impl Vote {
     // so max cost = 2e15 → still fits u64 comfortably
     // -------------------------------------------------------------------------
     fn post_adjusted_cost(&self, post: &PostAccount, base: u64) -> Result<u64> {
-        let post_units = match self.side {
+        let post_votes = match self.side {
             Side::Pump => post.upvotes as u64,
             Side::Smack => post.downvotes as u64,
         }
         .min(1_000_000);
 
-        // Bonding curve: 10_000 → 10_000 + post_units*5
-        let curve_mult_bps = (10_000 + post_units * 5).clamp(10_000, 1_000_000);
+        // Bonding curve: 10_000 → 10_000 + post_votes*5
+        let curve_mult_bps = (10_000 + post_votes * 5).clamp(10_000, 1_000_000);
 
         // base ≤ ~2e13
         // curve_mult_bps ≤ 1_000_000

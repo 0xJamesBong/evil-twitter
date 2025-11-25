@@ -29,8 +29,8 @@ pub enum ErrorCode {
     AlreadyClaimed,
     #[msg("Math overflow")]
     MathOverflow,
-    #[msg("Zero units not allowed")]
-    ZeroUnits,
+    #[msg("Zero votes not allowed")]
+    ZeroVotes,
     #[msg("Mint is not enabled")]
     MintNotEnabled,
     #[msg("BLING cannot be registered as an alternative payment")]
@@ -97,7 +97,7 @@ pub mod opinions_market {
 
     pub fn register_valid_payment(
         ctx: Context<RegisterValidPayment>,
-        price_in_bling: u64, // How much is 1 token in BLING units -
+        price_in_bling: u64, // How much is 1 token in BLING -
     ) -> Result<()> {
         let cfg = &ctx.accounts.config;
 
@@ -208,15 +208,15 @@ pub mod opinions_market {
     }
 
     /// Core MVP voting instruction.
-    /// User pays from their vault; everything is denominated in BLING units.
+    /// User pays from their vault; everything is denominated in BLING.
 
     pub fn vote_on_post(
         ctx: Context<VoteOnPost>,
         side: Side,
-        units: u32,
+        votes: u32,
         post_id_hash: [u8; 32], // do not remove this - this is used to derive the post pda!
     ) -> Result<()> {
-        require!(units > 0, ErrorCode::ZeroUnits);
+        require!(votes > 0, ErrorCode::ZeroVotes);
 
         let cfg = &ctx.accounts.config;
         let post = &mut ctx.accounts.post;
@@ -246,7 +246,7 @@ pub mod opinions_market {
         // ---- 1. Compute BLING cost ----
         //
 
-        let vote = Vote::new(side, units, ctx.accounts.voter.key(), post.key());
+        let vote = Vote::new(side, votes, ctx.accounts.voter.key(), post.key());
         let cost_bling =
             vote.compute_cost_in_bling(post, pos, &ctx.accounts.voter_user_account, cfg)?;
 
@@ -338,20 +338,20 @@ pub mod opinions_market {
                     .upvotes
                     .checked_add(cost_bling)
                     .ok_or(ErrorCode::MathOverflow)?;
-                pos.upvotes += units;
+                pos.upvotes += votes;
             }
             Side::Smack => {
                 post.downvotes = post
                     .downvotes
                     .checked_add(cost_bling)
                     .ok_or(ErrorCode::MathOverflow)?;
-                pos.downvotes += units;
+                pos.downvotes += votes;
             }
         }
 
         // Extend post duration
         let ext = (cfg.extension_per_vote_secs as i64)
-            .checked_mul(units as i64)
+            .checked_mul(votes as i64)
             .ok_or(ErrorCode::MathOverflow)?;
 
         post.end_time = post
@@ -442,12 +442,12 @@ pub mod opinions_market {
 
         let winning_side = post.winning_side.ok_or(ErrorCode::NoWinner)?;
 
-        let user_units = match winning_side {
+        let user_votes = match winning_side {
             Side::Pump => pos.upvotes as u64,
             Side::Smack => pos.downvotes as u64,
         };
 
-        if user_units == 0 {
+        if user_votes == 0 {
             claim.claimed = true;
             return Ok(()); // non-winner → no payout
         }
@@ -455,7 +455,7 @@ pub mod opinions_market {
         let payout = &ctx.accounts.post_mint_payout;
 
         // SCALE → unscale before transfer
-        let scaled = user_units
+        let scaled = user_votes
             .checked_mul(payout.payout_per_winning_vote)
             .ok_or(ErrorCode::MathOverflow)?;
 
