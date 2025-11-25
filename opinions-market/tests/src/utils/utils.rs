@@ -24,6 +24,11 @@ use solana_sdk::{pubkey::Pubkey, signer::Signer};
 /// If parent_post_pda is provided, also incorporates it for child post uniqueness.
 use rand::RngCore;
 
+pub async fn wait_seconds(seconds: u64) {
+    println!("\n⏳ Waiting {} seconds...", seconds);
+    tokio::time::sleep(tokio::time::Duration::from_secs(seconds)).await;
+    println!("✅ Wait complete\n");
+}
 pub fn generate_post_id_hash() -> [u8; 32] {
     let mut h = [0u8; 32];
     rand::thread_rng().fill_bytes(&mut h);

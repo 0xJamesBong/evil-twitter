@@ -20,7 +20,7 @@ use crate::utils::phenomena::{
 };
 use crate::utils::utils::{
     airdrop_sol_to_users, send_tx, setup_token_mint, setup_token_mint_ata_and_mint_to,
-    setup_token_mint_ata_and_mint_to_many_users,
+    setup_token_mint_ata_and_mint_to_many_users, wait_seconds,
 };
 use opinions_market::pda_seeds::*;
 use std::collections::HashMap;
@@ -401,6 +401,7 @@ async fn test_setup() {
             .await;
         }
 
+        wait_seconds(TIME_CONFIG_FAST.max_duration_secs as u64).await;
         //         Note: In a real test, you'd need to wait for the post to expire before settling
         // For now, we'll just show the settle function exists
         {
