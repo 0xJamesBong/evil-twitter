@@ -31,6 +31,14 @@ export interface TweetEnergyState {
   heightInitial: number;
 }
 
+export interface PostStateNode {
+  state: string;
+  upvotes: number;
+  downvotes: number;
+  winningSide?: string;
+  endTime: number;
+}
+
 export interface TweetNode {
   id: string | null;
   ownerId: string;
@@ -47,4 +55,6 @@ export interface TweetNode {
   updatedAt: string | null;
   createdAt: string;
   replyDepth: number;
+  postIdHash?: string;
+  postState?: PostStateNode;
 }

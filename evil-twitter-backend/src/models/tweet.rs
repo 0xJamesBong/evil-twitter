@@ -57,6 +57,11 @@ pub struct Tweet {
 
     #[serde(default)]
     pub energy_state: TweetEnergyState,
+
+    /// Post ID hash for on-chain post creation (32 bytes, stored as hex string)
+    #[serde(default)]
+    #[schema(value_type = String, example = "a1b2c3d4e5f6...")]
+    pub post_id_hash: Option<String>,
 }
 
 /// Aggregated engagement data tracked for each tweet.

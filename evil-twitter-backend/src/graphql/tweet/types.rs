@@ -1,9 +1,11 @@
 use async_graphql::{Context, Enum, ID, Object, Result, SimpleObject};
 use std::sync::Arc;
+use mongodb::bson::doc;
 
 use crate::app_state::AppState;
 use crate::graphql::user::types::ProfileNode;
 use crate::models::tweet::{TweetMetrics, TweetType, TweetView};
+use crate::models::post_state::PostState;
 use crate::utils::tweet::TweetThreadResponse;
 
 // ============================================================================
@@ -138,6 +140,33 @@ impl TweetNode {
     async fn reply_depth(&self) -> i32 {
         self.view.tweet.reply_depth
     }
+
+    /// Get post state from on-chain data (cached in MongoDB)
+    async fn post_state(&self, ctx: &Context<'_>) -> Result<Option<PostStateNode>> {
+        let app_state = ctx.data::<Arc<AppState>>()?;
+        
+        // Only fetch post state if tweet has a post_id_hash
+        let post_id_hash = match &self.view.tweet.post_id_hash {
+            Some(hash) => hash,
+            None => return Ok(None),
+        };
+
+        // Fetch from MongoDB post_states collection
+        let post_states_collection: mongodb::Collection<PostState> = 
+            app_state.mongo_service.db().collection(PostState::COLLECTION_NAME);
+        
+        let post_state = post_states_collection
+            .find_one(doc! { "post_id_hash": post_id_hash })
+            .await
+            .map_err(|e| async_graphql::Error::new(format!("Failed to fetch post state: {}", e)))?;
+
+        Ok(post_state.map(PostStateNode::from))
+    }
+
+    /// Get post ID hash
+    async fn post_id_hash(&self) -> Option<String> {
+        self.view.tweet.post_id_hash.clone()
+    }
 }
 
 // ============================================================================
@@ -159,6 +188,31 @@ impl From<TweetType> for TweetTypeOutput {
             TweetType::Retweet => TweetTypeOutput::Retweet,
             TweetType::Quote => TweetTypeOutput::Quote,
             TweetType::Reply => TweetTypeOutput::Reply,
+        }
+    }
+}
+
+// ============================================================================
+// Post State Node
+// ============================================================================
+
+#[derive(SimpleObject, Clone)]
+pub struct PostStateNode {
+    pub state: String,
+    pub upvotes: u64,
+    pub downvotes: u64,
+    pub winning_side: Option<String>,
+    pub end_time: i64,
+}
+
+impl From<PostState> for PostStateNode {
+    fn from(state: PostState) -> Self {
+        Self {
+            state: state.state,
+            upvotes: state.upvotes,
+            downvotes: state.downvotes,
+            winning_side: state.winning_side,
+            end_time: state.end_time,
         }
     }
 }

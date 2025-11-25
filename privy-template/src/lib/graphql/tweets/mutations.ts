@@ -265,3 +265,32 @@ export interface TweetLikeResult {
     energy: number;
   };
 }
+
+export const TWEET_VOTE_MUTATION = `
+  mutation TweetVote($input: TweetVoteInput!) {
+    tweetVote(input: $input) {
+      id
+      likeCount
+      smackCount
+      likedByViewer
+      energy
+    }
+  }
+`;
+
+export interface TweetVoteInput {
+  tweetId: string;
+  side: string; // "pump" or "smack"
+  votes: number;
+  tokenMint?: string; // Optional, defaults to BLING
+}
+
+export interface TweetVoteResult {
+  tweetVote: {
+    id: string;
+    likeCount: number;
+    smackCount: number;
+    likedByViewer: boolean;
+    energy: number;
+  };
+}

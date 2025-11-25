@@ -6,6 +6,7 @@ import {
   TWEET_QUOTE_MUTATION,
   TWEET_RETWEET_MUTATION,
   TWEET_LIKE_MUTATION,
+  TWEET_VOTE_MUTATION,
   TweetCreateInput,
   TweetCreateResult,
   TweetReplyInput,
@@ -14,6 +15,8 @@ import {
   TweetQuoteResult,
   TweetRetweetResult,
   TweetLikeResult,
+  TweetVoteInput,
+  TweetVoteResult,
 } from "../graphql/tweets/mutations";
 import {
   TIMELINE_QUERY,
@@ -101,6 +104,13 @@ type TweetStoreActions = {
     identityToken: string,
     tweetId: string
   ) => Promise<{ liked: boolean; likeCount: number }>;
+  voteOnTweet: (
+    identityToken: string,
+    tweetId: string,
+    side: "pump" | "smack",
+    votes: number,
+    tokenMint?: string
+  ) => Promise<void>;
 
   // Utility operations
   addTweetToTimeline: (tweet: TweetNode) => void;
@@ -434,6 +444,45 @@ export const useTweetStore = create<TweetStoreState & TweetStoreActions>(
       } catch (error) {
         const errorMessage =
           error instanceof Error ? error.message : "Failed to like tweet";
+        set({ error: errorMessage });
+        throw error;
+      }
+    },
+
+    voteOnTweet: async (
+      identityToken: string,
+      tweetId: string,
+      side: "pump" | "smack",
+      votes: number,
+      tokenMint?: string
+    ) => {
+      try {
+        const input: TweetVoteInput = {
+          tweetId,
+          side,
+          votes,
+          tokenMint,
+        };
+
+        const data = await graphqlRequest<TweetVoteResult>(
+          TWEET_VOTE_MUTATION,
+          { input },
+          identityToken
+        );
+
+        // Update tweet in store with new vote counts
+        // Note: The backend returns updated metrics, but postState should be refetched
+        get().updateTweetInStore(tweetId, (tweet) => ({
+          ...tweet,
+          metrics: {
+            ...tweet.metrics,
+            likes: data.tweetVote.likeCount,
+            smacks: data.tweetVote.smackCount,
+          },
+        }));
+      } catch (error) {
+        const errorMessage =
+          error instanceof Error ? error.message : "Failed to vote on tweet";
         set({ error: errorMessage });
         throw error;
       }

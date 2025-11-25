@@ -4,6 +4,7 @@ use mongodb::{
     Collection, Database,
     bson::{doc, oid::ObjectId},
 };
+use rand::RngCore;
 
 use crate::{
     models::{
@@ -58,6 +59,11 @@ impl TweetService {
         let now = mongodb::bson::DateTime::now();
         let tweet_id = ObjectId::new();
 
+        // Generate post_id_hash (32 random bytes) for on-chain post creation
+        let mut post_id_hash_bytes = [0u8; 32];
+        rand::thread_rng().fill_bytes(&mut post_id_hash_bytes);
+        let post_id_hash = Some(hex::encode(post_id_hash_bytes));
+
         let tweet = Tweet {
             id: Some(tweet_id),
             owner_id,
@@ -72,6 +78,7 @@ impl TweetService {
             metrics: TweetMetrics::default(),
             viewer_context: TweetViewerContext::default(),
             energy_state: TweetEnergyState::default(),
+            post_id_hash,
         };
 
         tweet_collection
@@ -270,6 +277,7 @@ impl TweetService {
             reply_depth: replied_tweet.reply_depth + 1,
             created_at: now,
             updated_at: Some(now),
+            post_id_hash: None, // Replies don't create on-chain posts
             metrics: TweetMetrics::default(),
             viewer_context: TweetViewerContext::default(),
             energy_state: TweetEnergyState::default(),
@@ -325,6 +333,7 @@ impl TweetService {
             reply_depth: 0,
             created_at: now,
             updated_at: Some(now),
+            post_id_hash: None, // Quotes don't create on-chain posts
             metrics: TweetMetrics::default(),
             viewer_context: TweetViewerContext::default(),
             energy_state: TweetEnergyState::default(),
@@ -379,6 +388,7 @@ impl TweetService {
             reply_depth: 0,
             created_at: now,
             updated_at: Some(now),
+            post_id_hash: None, // Retweets don't create on-chain posts
             metrics: TweetMetrics::default(),
             viewer_context: TweetViewerContext::default(),
             energy_state: TweetEnergyState::default(),

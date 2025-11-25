@@ -6,6 +6,7 @@ pub mod graphql;
 pub mod models;
 pub mod routes;
 pub mod services;
+pub mod solana;
 pub mod utils;
 
 use crate::app_state::AppState;

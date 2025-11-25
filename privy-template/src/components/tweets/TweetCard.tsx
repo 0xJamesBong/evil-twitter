@@ -20,6 +20,7 @@ import {
 import { formatDistanceToNow } from "date-fns";
 import { useRouter } from "next/navigation";
 import { TweetNode } from "@/lib/graphql/tweets/types";
+import { VoteButtons } from "./VoteButtons";
 
 interface TweetCardProps {
     tweet: TweetNode;
@@ -315,6 +316,9 @@ export function TweetCard({
                             </Box>
                         </Stack>
                     </Box>
+                    
+                    {/* Voting buttons for original tweets with post_id_hash */}
+                    {tweet.postIdHash && <VoteButtons tweet={tweet} />}
                 </Stack>
             </CardContent>
         </Card>
