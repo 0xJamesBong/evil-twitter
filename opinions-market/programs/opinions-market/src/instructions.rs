@@ -344,6 +344,20 @@ pub struct VoteOnPost<'info> {
     pub system_program: Program<'info, System>,
 }
 
+
+#[derive(Accounts)]
+#[instruction(post_id_hash: [u8; 32])]
+pub struct ForceSettlePost<'info> {
+    #[account(
+        mut,
+        seeds = [POST_ACCOUNT_SEED, post_id_hash.as_ref()],
+        bump,
+    )]
+    pub post: Account<'info, PostAccount>,
+}
+
+
+
 #[derive(Accounts)]
 pub struct SettlePost<'info> {
     #[account(mut)]

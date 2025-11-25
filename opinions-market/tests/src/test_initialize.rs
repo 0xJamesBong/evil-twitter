@@ -15,8 +15,8 @@ use solana_sdk::{
 use crate::config::TIME_CONFIG_FAST;
 use crate::utils::phenomena::{
     test_phenomena_add_valid_payment, test_phenomena_create_post, test_phenomena_create_user,
-    test_phenomena_deposit, test_phenomena_settle_post, test_phenomena_vote_on_post,
-    test_phenomena_withdraw,
+    test_phenomena_deposit, test_phenomena_force_settle_post, test_phenomena_settle_post,
+    test_phenomena_vote_on_post, test_phenomena_withdraw,
 };
 use crate::utils::utils::{
     airdrop_sol_to_users, send_tx, setup_token_mint, setup_token_mint_ata_and_mint_to,
@@ -318,6 +318,15 @@ async fn test_setup() {
             .await
         };
 
+        {
+            test_phenomena_force_settle_post(&rpc, &opinions_market, &payer, &post_p1_pda).await;
+
+            println!("\n\n");
+            println!(" 🟪🟪🟪🟪🟪🟪🟪🟪🟪🟪🟪🟪🟪");
+            println!("🟪 GOD LOVES ME 🟪");
+            println!(" 🟪🟪🟪🟪🟪🟪🟪🟪🟪🟪🟪🟪🟪");
+            panic!();
+        }
         let (post_p2_pda, post_p2_id_hash) = {
             println!("user 2 creates a child post P2 of user 1's post P1");
             test_phenomena_create_post(
@@ -436,11 +445,5 @@ async fn test_setup() {
         // }
 
         {}
-
-        println!("\n\n");
-        println!(" 🟪🟪🟪🟪🟪🟪🟪🟪🟪🟪🟪🟪🟪");
-        println!("🟪 GOD LOVES ME 🟪");
-        println!(" 🟪🟪🟪🟪🟪🟪🟪🟪🟪🟪🟪🟪🟪");
-        panic!();
     }
 }

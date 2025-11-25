@@ -780,6 +780,45 @@ async fn current_chain_timestamp(rpc: &RpcClient) -> i64 {
     rpc.get_block_time(slot).await.unwrap()
 }
 
+pub async fn test_phenomena_force_settle_post(
+    rpc: &RpcClient,
+    opinions_market: &Program<&Keypair>,
+    payer: &Keypair,
+    post_pda: &Pubkey,
+) {
+    println!("Force settling post {:?}", post_pda);
+
+    let post_account = opinions_market
+        .account::<opinions_market::state::PostAccount>(*post_pda)
+        .await
+        .unwrap();
+    let post_id_hash = post_account.post_id_hash.clone();
+    println!("post_id_hash: {}", hex::encode(post_id_hash));
+    let force_settle_ix = opinions_market
+        .request()
+        .accounts(opinions_market::accounts::ForceSettlePost { post: *post_pda })
+        .args(opinions_market::instruction::ForceSettlePost { post_id_hash })
+        .instructions()
+        .unwrap();
+    let force_settle_tx = send_tx(&rpc, force_settle_ix, &payer.pubkey(), &[&payer])
+        .await
+        .unwrap();
+    println!("force settle post tx: {:?}", force_settle_tx);
+
+    // Verify post was settled
+    let settled_post = opinions_market
+        .account::<opinions_market::state::PostAccount>(*post_pda)
+        .await
+        .unwrap();
+    assert_eq!(
+        settled_post.state,
+        opinions_market::state::PostState::Settled
+    );
+    assert!(settled_post.state != opinions_market::state::PostState::Open);
+    println!("✅ Post state is Settled");
+    println!("✅ Post force settled successfully");
+}
+
 pub async fn test_phenomena_settle_post(
     rpc: &RpcClient,
     opinions_market: &Program<&Keypair>,
