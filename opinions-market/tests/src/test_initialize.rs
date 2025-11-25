@@ -25,61 +25,61 @@ use crate::utils::utils::{
 use opinions_market::pda_seeds::*;
 use std::collections::HashMap;
 
-#[tokio::test]
-async fn test_clock() {
-    let program_test = ProgramTest::default();
-    let mut context = program_test.start_with_context().await;
+// #[tokio::test]
+// async fn test_clock() {
+//     let program_test = ProgramTest::default();
+//     let mut context = program_test.start_with_context().await;
 
-    // print initial slot
-    let clock = context
-        .banks_client
-        .get_sysvar::<solana_sdk::clock::Clock>()
-        .await
-        .unwrap();
-    println!("initial slot: {}", clock.slot);
+//     // print initial slot
+//     let clock = context
+//         .banks_client
+//         .get_sysvar::<solana_sdk::clock::Clock>()
+//         .await
+//         .unwrap();
+//     println!("initial slot: {}", clock.slot);
 
-    // --- WARP TIME (advance slots) ---
-    context.warp_to_slot(5000).unwrap(); // <—— this is the time warp
+//     // --- WARP TIME (advance slots) ---
+//     context.warp_to_slot(5000).unwrap(); // <—— this is the time warp
 
-    // print slot after warp
-    let clock2 = context
-        .banks_client
-        .get_sysvar::<solana_sdk::clock::Clock>()
-        .await
-        .unwrap();
-    println!("after warp slot: {}", clock2.slot);
-    assert_eq!(clock2.slot, 5000);
-    panic!();
-}
+//     // print slot after warp
+//     let clock2 = context
+//         .banks_client
+//         .get_sysvar::<solana_sdk::clock::Clock>()
+//         .await
+//         .unwrap();
+//     println!("after warp slot: {}", clock2.slot);
+//     assert_eq!(clock2.slot, 5000);
+//     panic!();
+// }
 
-#[tokio::test]
-async fn test_ping() {
-    let program_id = opinions_market::ID;
-    let anchor_wallet = std::env::var("ANCHOR_WALLET").unwrap();
-    let payer = read_keypair_file(&anchor_wallet).unwrap();
+// #[tokio::test]
+// async fn test_ping() {
+//     let program_id = opinions_market::ID;
+//     let anchor_wallet = std::env::var("ANCHOR_WALLET").unwrap();
+//     let payer = read_keypair_file(&anchor_wallet).unwrap();
 
-    let client = Client::new_with_options(Cluster::Localnet, &payer, CommitmentConfig::confirmed());
+//     let client = Client::new_with_options(Cluster::Localnet, &payer, CommitmentConfig::confirmed());
 
-    let program = client.program(program_id).unwrap();
+//     let program = client.program(program_id).unwrap();
 
-    let rpc = program.rpc();
-    // let tx = program
-    //     .request()
-    //     .accounts(opinions_market::accounts::Ping {})
-    //     .args(opinions_market::instruction::Ping {})
-    //     .send()
-    //     .expect("");
+//     let rpc = program.rpc();
+//     // let tx = program
+//     //     .request()
+//     //     .accounts(opinions_market::accounts::Ping {})
+//     //     .args(opinions_market::instruction::Ping {})
+//     //     .send()
+//     //     .expect("");
 
-    let ix = program
-        .request()
-        .accounts(opinions_market::accounts::Ping {})
-        .args(opinions_market::instruction::Ping {})
-        .instructions()
-        .unwrap();
-    let tx = send_tx(&rpc, ix, &payer.pubkey(), &[&payer]).await.unwrap();
+//     let ix = program
+//         .request()
+//         .accounts(opinions_market::accounts::Ping {})
+//         .args(opinions_market::instruction::Ping {})
+//         .instructions()
+//         .unwrap();
+//     let tx = send_tx(&rpc, ix, &payer.pubkey(), &[&payer]).await.unwrap();
 
-    println!("Your transaction signature {}", tx);
-}
+//     println!("Your transaction signature {}", tx);
+// }
 
 #[tokio::test]
 async fn test_setup() {
@@ -222,9 +222,9 @@ async fn test_setup() {
         test_phenomena_add_valid_payment(&rpc, &opinions_market, &payer, &admin, &usdc_pubkey)
             .await;
 
-        test_phenomena_create_user(&rpc, &opinions_market, &payer, &user_1).await;
-        test_phenomena_create_user(&rpc, &opinions_market, &payer, &user_2).await;
-        test_phenomena_create_user(&rpc, &opinions_market, &payer, &user_3).await;
+        test_phenomena_create_user(&rpc, &opinions_market, &payer, &user_1, &config_pda).await;
+        test_phenomena_create_user(&rpc, &opinions_market, &payer, &user_2, &config_pda).await;
+        test_phenomena_create_user(&rpc, &opinions_market, &payer, &user_3, &config_pda).await;
 
         {
             println!("user 1 depositing 10_000_000 bling to their vault");

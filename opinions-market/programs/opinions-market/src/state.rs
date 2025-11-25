@@ -1,10 +1,4 @@
-use crate::{
-    constants::{
-        POST_INIT_DURATION_SECS, POST_MAX_DURATION_SECS, USER_INITIAL_SOCIAL_SCORE,
-        VOTE_PER_BLING_BASE_COST,
-    },
-    ErrorCode,
-};
+use crate::ErrorCode;
 use anchor_lang::prelude::*;
 
 // -----------------------------------------------------------------------------
@@ -26,6 +20,11 @@ pub struct Config {
     pub base_duration_secs: u32,
     pub max_duration_secs: u32,
     pub extension_per_vote_secs: u32,
+
+    pub vote_per_bling_base_cost: u64,
+    /// 1 vote = 1 * LAMPORTS_PER_SOL by default
+    pub user_initial_social_score: i64,
+    /// 10_000 by default
     pub bump: u8,
     pub padding: [u8; 7], // 7
 }
@@ -60,10 +59,10 @@ pub struct UserAccount {
     pub bump: u8,
 }
 impl UserAccount {
-    pub fn new(user: Pubkey, bump: u8) -> Self {
+    pub fn new(user: Pubkey, config: &Config, bump: u8) -> Self {
         Self {
             user,
-            social_score: USER_INITIAL_SOCIAL_SCORE,
+            social_score: config.user_initial_social_score,
             bump,
         }
     }
@@ -95,6 +94,45 @@ pub struct PostAccount {
     pub winning_side: Option<Side>,
 }
 
+impl PostAccount {
+    pub fn new(
+        creator_user: Pubkey,
+        post_id_hash: [u8; 32],
+        post_type: PostType,
+        now: i64,
+        config: &Config,
+    ) -> Self {
+        let end_time = now + config.base_duration_secs as i64;
+        Self {
+            creator_user,
+            post_id_hash,
+            post_type,
+            start_time: now,
+            end_time,
+            state: PostState::Open,
+            upvotes: 0,
+            downvotes: 0,
+            winning_side: None,
+        }
+    }
+
+    pub fn extend_time_limit(&mut self, current_time: i64, config: &Config) -> Result<i64> {
+        let naive_new_end = self.end_time.max(current_time) + config.extension_per_vote_secs as i64;
+
+        // Cap it so it's never more than max_duration_secs from *now*
+        let cap = current_time + config.max_duration_secs as i64;
+
+        let new_end = naive_new_end.min(cap);
+
+        self.end_time = new_end;
+        Ok(new_end)
+    }
+
+    pub fn within_time_limit(&self, current_time: i64) -> bool {
+        (current_time < self.end_time)
+    }
+}
+
 #[account]
 #[derive(InitSpace)]
 pub struct PostMintPayout {
@@ -119,48 +157,6 @@ impl PostMintPayout {
             payout_per_winning_vote,
             bump,
         }
-    }
-}
-
-impl PostAccount {
-    pub fn new(
-        creator_user: Pubkey,
-        post_id_hash: [u8; 32],
-        post_type: PostType,
-        now: i64,
-    ) -> Self {
-        let end_time = now + POST_INIT_DURATION_SECS as i64;
-        Self {
-            creator_user,
-            post_id_hash,
-            post_type,
-            start_time: now,
-            end_time,
-            state: PostState::Open,
-            upvotes: 0,
-            downvotes: 0,
-            winning_side: None,
-        }
-    }
-
-    pub fn extend_time_limit(
-        &mut self,
-        current_time: i64,
-        extension_per_vote_secs: u32,
-    ) -> Result<i64> {
-        let naive_new_end = self.end_time.max(current_time) + extension_per_vote_secs as i64;
-
-        // Cap it so it's never more than MAX_AUCTION_DURATION from *now*
-        let cap = current_time + POST_MAX_DURATION_SECS as i64;
-
-        let new_end = naive_new_end.min(cap);
-
-        self.end_time = new_end;
-        Ok(new_end)
-    }
-
-    pub fn within_time_limit(&self, current_time: i64) -> bool {
-        (current_time < self.end_time)
     }
 }
 

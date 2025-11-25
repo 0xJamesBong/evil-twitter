@@ -109,8 +109,10 @@ pub mod opinions_market {
 
     // when the user first signs in, we will need the user to create a user, which will create their deposit vault
     pub fn create_user(ctx: Context<CreateUser>) -> Result<()> {
+        let config = &mut ctx.accounts.config;
         let user_account = &mut ctx.accounts.user_account;
-        let new_user_account = UserAccount::new(ctx.accounts.user.key(), ctx.bumps.user_account);
+        let new_user_account =
+            UserAccount::new(ctx.accounts.user.key(), config, ctx.bumps.user_account);
 
         user_account.user = new_user_account.user;
         user_account.social_score = new_user_account.social_score;
@@ -166,6 +168,7 @@ pub mod opinions_market {
         parent_post_pda: Option<Pubkey>,
     ) -> Result<()> {
         let clock = Clock::get()?;
+        let config = &ctx.accounts.config;
         let now = clock.unix_timestamp;
         let post = &mut ctx.accounts.post;
         let new_post = PostAccount::new(
@@ -176,6 +179,7 @@ pub mod opinions_market {
                 None => PostType::Original,
             },
             now,
+            config,
         );
 
         post.creator_user = new_post.creator_user;

@@ -121,6 +121,12 @@ pub struct CreateUser<'info> {
         space = 8 + 64,
     )]
     pub user_account: Account<'info, UserAccount>,
+    
+    #[account(mut,
+        seeds = [CONFIG_SEED],
+        bump,
+    )]
+    pub config: Account<'info, Config>,
     pub system_program: Program<'info, System>,
 }
 
@@ -363,7 +369,7 @@ pub struct SettlePost<'info> {
     #[account(
         init_if_needed,
         payer = payer,
-        seeds = [POST_MINT_PAYOUT_SEED, post.key().as_ref()],
+        seeds = [POST_MINT_PAYOUT_SEED, post.key().as_ref(), token_mint.key().as_ref()],
         bump,
         space = 8 + PostMintPayout::INIT_SPACE
     )]
@@ -398,7 +404,7 @@ pub struct ClaimPostReward<'info> {
     pub user: Signer<'info>,
     #[account(mut)]
     pub payer: Signer<'info>,
-    
+
     pub post: Account<'info, PostAccount>,
     #[account(mut)]
     pub position: Account<'info, UserPostPosition>,

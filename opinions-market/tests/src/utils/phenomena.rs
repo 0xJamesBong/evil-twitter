@@ -99,6 +99,7 @@ pub async fn test_phenomena_create_user(
     opinions_market: &Program<&Keypair>,
     payer: &Keypair,
     user: &Keypair,
+    config_pda: &Pubkey,
 ) {
     println!("creating user 1");
     let user_account_pda = Pubkey::find_program_address(
@@ -113,6 +114,7 @@ pub async fn test_phenomena_create_user(
             user: user.pubkey(),
             payer: payer.pubkey(),
             user_account: user_account_pda,
+            config: *config_pda,
             system_program: system_program::ID,
         })
         .args(opinions_market::instruction::CreateUser {})
@@ -826,11 +828,7 @@ pub async fn test_phenomena_settle_post(
     .0;
 
     let post_mint_payout_pda = Pubkey::find_program_address(
-        &[
-            POST_MINT_PAYOUT_SEED,
-            post_pda.as_ref(),
-            token_mint.as_ref(),
-        ],
+        &[POST_MINT_PAYOUT_SEED, post_pda.as_ref()],
         &opinions_market.id(),
     )
     .0;
