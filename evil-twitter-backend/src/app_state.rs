@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use mongodb::{Client, Database};
 
-use crate::services::mongo_service::MongoService;
+use crate::services::{PrivyService, mongo_service::MongoService};
 
 /// Application state shared across all handlers
 ///
@@ -14,6 +14,8 @@ use crate::services::mongo_service::MongoService;
 pub struct AppState {
     /// Services - all database operations go through services
     pub mongo_service: Arc<MongoService>,
+    /// Privy service for authentication
+    pub privy_service: Arc<PrivyService>,
     // pub cache: Arc<RedisClient>,
     // pub email: Arc<EmailService>,
     // pub s3: Arc<S3Service>,
@@ -21,8 +23,29 @@ pub struct AppState {
 
 impl AppState {
     pub fn new(client: Client, db: Database) -> Self {
+        let app_id =
+            std::env::var("PRIVY_APP_ID").expect("PRIVY_APP_ID environment variable must be set");
+        let app_secret = std::env::var("PRIVY_APP_SECRET")
+            .expect("PRIVY_APP_SECRET environment variable must be set");
+
+        // Validate that values are not empty
+        if app_id.is_empty() {
+            panic!("PRIVY_APP_ID is set but empty");
+        }
+        if app_secret.is_empty() {
+            panic!("PRIVY_APP_SECRET is set but empty");
+        }
+
+        // Log that Privy is configured (without exposing secrets)
+        println!(
+            "✅ Privy configured with App ID: {}...{}",
+            &app_id[..app_id.len().min(8)],
+            &app_id[app_id.len().saturating_sub(4)..]
+        );
+
         Self {
             mongo_service: Arc::new(MongoService::new(client.clone(), db.clone())),
+            privy_service: Arc::new(PrivyService::new(app_id, app_secret)),
         }
     }
 }

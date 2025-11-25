@@ -1,4 +1,5 @@
 use async_graphql::{Context, ID, Object, Result};
+use axum::http::HeaderMap;
 use futures::TryStreamExt;
 use mongodb::{Collection, bson::doc};
 
@@ -7,6 +8,7 @@ use std::sync::Arc;
 use crate::app_state::AppState;
 use crate::graphql::user::types::UserNode;
 use crate::models::user::User;
+use crate::utils::auth;
 
 // Helper functions
 fn parse_object_id(id: &ID) -> Result<mongodb::bson::oid::ObjectId> {
@@ -27,18 +29,21 @@ pub struct UserQuery;
 
 #[Object]
 impl UserQuery {
+    async fn me(&self, ctx: &Context<'_>) -> Result<Option<UserNode>> {
+        me_resolver(ctx).await
+    }
     /// Fetch a single user by identifier with optional nested resources.
     async fn user(&self, ctx: &Context<'_>, id: ID) -> Result<Option<UserNode>> {
         user_resolver(ctx, id).await
     }
 
-    /// Find user by Supabase ID
-    async fn user_by_supabase_id(
+    /// Find user by Privy ID (DID)
+    async fn user_by_privy_id(
         &self,
         ctx: &Context<'_>,
-        supabase_id: String,
+        privy_id: String,
     ) -> Result<Option<UserNode>> {
-        user_by_supabase_id_resolver(ctx, supabase_id).await
+        user_by_privy_id_resolver(ctx, privy_id).await
     }
 
     /// Flexible user search for discovery surfaces.
@@ -64,7 +69,30 @@ impl UserQuery {
 // ============================================================================
 // Query Resolvers (internal functions)
 // ============================================================================
+/// Get current authetnicated user from token
+pub async fn me_resolver(ctx: &Context<'_>) -> Result<Option<UserNode>> {
+    let app_state = ctx.data::<Arc<AppState>>()?;
+    let headers = ctx
+        .data::<HeaderMap>()
+        .map_err(|_| async_graphql::Error::new("Failed to get headers from context"))?;
 
+    // Reuse the same helper as onboard_user
+    let privy_id = auth::get_privy_id_from_header(&app_state.privy_service, headers)
+        .await
+        .map_err(|(status, json)| {
+            let error_msg = json
+                .get("error")
+                .and_then(|v| v.as_str())
+                .unwrap_or("Authentication failed");
+            async_graphql::Error::new(format!("{} (status {})", error_msg, status))
+        })?;
+    let user = app_state
+        .mongo_service
+        .users
+        .get_user_by_privy_id(&privy_id)
+        .await?;
+    Ok(user.map(UserNode::from))
+}
 /// Fetch a single user by identifier with optional nested resources.
 pub async fn user_resolver(ctx: &Context<'_>, id: ID) -> Result<Option<UserNode>> {
     let app_state = ctx.data::<Arc<AppState>>()?;
@@ -79,17 +107,17 @@ pub async fn user_resolver(ctx: &Context<'_>, id: ID) -> Result<Option<UserNode>
     Ok(user.map(UserNode::from))
 }
 
-/// Find user by Supabase ID
-pub async fn user_by_supabase_id_resolver(
+/// Find user by Privy ID (DID)
+pub async fn user_by_privy_id_resolver(
     ctx: &Context<'_>,
-    supabase_id: String,
+    privy_id: String,
 ) -> Result<Option<UserNode>> {
     let app_state = ctx.data::<Arc<AppState>>()?;
 
     let user = app_state
         .mongo_service
         .users
-        .get_user_by_supabase_id(&supabase_id)
+        .get_user_by_privy_id(&privy_id)
         .await?;
 
     Ok(user.map(UserNode::from))

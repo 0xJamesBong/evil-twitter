@@ -1,11 +1,13 @@
 use mongodb::{Client, Collection, Database};
 
-use crate::models::{follow::Follow, like::Like, tweet::Tweet, user::User};
+use crate::models::{follow::Follow, like::Like, profile::Profile, tweet::Tweet, user::User};
 
 // MongoDB service modules
+pub mod profiles;
 pub mod tweets;
 pub mod users;
 
+use profiles::ProfileService;
 use tweets::TweetService;
 use users::UserService;
 
@@ -18,17 +20,21 @@ pub struct MongoService {
     pub tweets: TweetService,
     /// User-related database operations
     pub users: UserService,
+    /// Profile-related database operations
+    pub profiles: ProfileService,
 }
 
 impl MongoService {
     pub fn new(client: Client, db: Database) -> Self {
         let tweet_service = TweetService::new(db.clone());
         let user_service = UserService::new(db.clone());
+        let profile_service = ProfileService::new(db.clone());
         Self {
             client,
             db,
             tweets: tweet_service,
             users: user_service,
+            profiles: profile_service,
         }
     }
 
@@ -59,5 +65,10 @@ impl MongoService {
     /// Get the follows collection
     pub fn follow_collection(&self) -> Collection<Follow> {
         self.db.collection(Follow::COLLECTION_NAME)
+    }
+
+    /// Get the profiles collection
+    pub fn profile_collection(&self) -> Collection<Profile> {
+        self.db.collection(Profile::COLLECTION_NAME)
     }
 }

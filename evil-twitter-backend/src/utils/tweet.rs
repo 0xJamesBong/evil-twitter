@@ -8,7 +8,8 @@ use serde_json::Value;
 use std::collections::{HashMap, HashSet};
 
 use crate::models::{
-    tweet::{Tweet, TweetAuthorSnapshot, TweetView},
+    profile::Profile,
+    tweet::{Tweet, TweetView},
     user::User,
 };
 
@@ -34,63 +35,12 @@ pub struct TweetThreadResponse {
     pub replies: Vec<TweetView>,
 }
 
-fn apply_author_snapshot(tweet: &mut Tweet, user: &User) {
-    tweet.author_snapshot = TweetAuthorSnapshot {
-        username: Some(user.username.clone()),
-        display_name: Some(user.display_name.clone()),
-        avatar_url: user.avatar_url.clone(),
-    }
-}
-
-async fn ensure_author_snapshots(
-    tweets: &mut [Tweet],
-    user_collection: &Collection<User>,
-) -> ApiResult<()> {
-    let missing_owner_ids: HashSet<ObjectId> = tweets
-        .iter()
-        .filter(|tweet| {
-            tweet.author_snapshot.username.is_none() || tweet.author_snapshot.display_name.is_none()
-        })
-        .map(|tweet| tweet.owner_id)
-        .collect();
-
-    if missing_owner_ids.is_empty() {
-        return Ok(());
-    }
-
-    let owner_list: Vec<ObjectId> = missing_owner_ids.into_iter().collect();
-    let mut cursor = user_collection
-        .find(doc! {"_id": {"$in": &owner_list}})
-        .await
-        .map_err(|_| internal_error("Database error fetching users for tweets"))?;
-
-    let mut user_map: HashMap<ObjectId, User> = HashMap::new();
-    while let Some(user) = cursor
-        .try_next()
-        .await
-        .map_err(|_| internal_error("Database error reading user cursor"))?
-    {
-        if let Some(id) = user.id {
-            user_map.insert(id, user);
-        }
-    }
-
-    for tweet in tweets.iter_mut() {
-        if let Some(user) = user_map.get(&tweet.owner_id) {
-            apply_author_snapshot(tweet, user);
-        }
-    }
-
-    Ok(())
-}
-
 async fn hydrate_tweets_with_references(
-    mut tweets: Vec<Tweet>,
+    tweets: Vec<Tweet>,
     tweet_collection: &Collection<Tweet>,
-    user_collection: &Collection<User>,
+    _user_collection: &Collection<User>,
+    _profile_collection: &mongodb::Collection<crate::models::profile::Profile>,
 ) -> ApiResult<Vec<TweetView>> {
-    ensure_author_snapshots(&mut tweets, user_collection).await?;
-
     let mut referenced_ids: HashSet<ObjectId> = HashSet::new();
     for tweet in &tweets {
         if let Some(id) = tweet.quoted_tweet_id {
@@ -116,8 +66,6 @@ async fn hydrate_tweets_with_references(
         {
             referenced_tweets.push(tweet);
         }
-
-        ensure_author_snapshots(&mut referenced_tweets, user_collection).await?;
 
         for tweet in referenced_tweets {
             if let Some(id) = tweet.id {
@@ -154,8 +102,17 @@ pub async fn enrich_tweets_with_references(
     tweets: Vec<Tweet>,
     tweet_collection: &Collection<Tweet>,
     user_collection: &Collection<User>,
+    db: &mongodb::Database,
 ) -> ApiResult<Vec<TweetView>> {
-    hydrate_tweets_with_references(tweets, tweet_collection, user_collection).await
+    // Get profile collection from the database (needed for the function signature, but not used)
+    let profile_collection: Collection<crate::models::profile::Profile> = db.collection("profiles");
+    hydrate_tweets_with_references(
+        tweets,
+        tweet_collection,
+        user_collection,
+        &profile_collection,
+    )
+    .await
 }
 
 pub async fn assemble_thread_response(
@@ -164,6 +121,7 @@ pub async fn assemble_thread_response(
 ) -> Result<TweetThreadResponse, ApiError> {
     let tweet_collection: Collection<Tweet> = db.collection("tweets");
     let user_collection: Collection<User> = db.collection("users");
+    let profile_collection: Collection<Profile> = db.collection("profiles");
 
     let target_tweet = tweet_collection
         .find_one(doc! {"_id": tweet_id})
@@ -244,13 +202,20 @@ pub async fn assemble_thread_response(
     let parents_view = if parent_chain.is_empty() {
         Vec::new()
     } else {
-        hydrate_tweets_with_references(parent_chain, &tweet_collection, &user_collection).await?
+        hydrate_tweets_with_references(
+            parent_chain,
+            &tweet_collection,
+            &user_collection,
+            &profile_collection,
+        )
+        .await?
     };
 
     let mut target_view = hydrate_tweets_with_references(
         vec![target_tweet.clone()],
         &tweet_collection,
         &user_collection,
+        &profile_collection,
     )
     .await?;
     let target_view = target_view
@@ -260,7 +225,13 @@ pub async fn assemble_thread_response(
     let replies_view = if descendants.is_empty() {
         Vec::new()
     } else {
-        hydrate_tweets_with_references(descendants, &tweet_collection, &user_collection).await?
+        hydrate_tweets_with_references(
+            descendants,
+            &tweet_collection,
+            &user_collection,
+            &profile_collection,
+        )
+        .await?
     };
 
     Ok(TweetThreadResponse {

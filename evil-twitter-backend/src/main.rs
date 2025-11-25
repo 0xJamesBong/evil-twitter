@@ -18,6 +18,16 @@ async fn main() -> anyhow::Result<()> {
     // Create application state (includes services and database)
     let app_state = Arc::new(AppState::new(client, db));
 
+    // Ensure database indexes are created
+    println!("Creating database indexes...");
+    if let Err(e) = app_state.mongo_service.users.ensure_indexes().await {
+        eprintln!("Warning: Failed to create user indexes: {:?}", e);
+    }
+    if let Err(e) = app_state.mongo_service.profiles.ensure_indexes().await {
+        eprintln!("Warning: Failed to create profile indexes: {:?}", e);
+    }
+    println!("Database indexes ready");
+
     let app = app(app_state.clone()).await;
 
     let port = std::env::var("PORT")
