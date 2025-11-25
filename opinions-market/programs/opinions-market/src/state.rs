@@ -138,8 +138,14 @@ impl PostAccount {
         }
     }
 
-    pub fn extend_time_limit(&mut self, current_time: i64, config: &Config) -> Result<i64> {
-        let naive_new_end = self.end_time.max(current_time) + config.extension_per_vote_secs as i64;
+    pub fn extend_time_limit(
+        &mut self,
+        current_time: i64,
+        votes: u32,
+        config: &Config,
+    ) -> Result<i64> {
+        let naive_new_end =
+            self.end_time.max(current_time) + config.extension_per_vote_secs as i64 * votes as i64;
 
         // Cap it so it's never more than max_duration_secs from *now*
         let cap = current_time + config.max_duration_secs as i64;
@@ -187,8 +193,8 @@ impl PostMintPayout {
 pub struct UserPostPosition {
     pub user: Pubkey,
     pub post: Pubkey,
-    pub upvotes: u32,
-    pub downvotes: u32,
+    pub upvotes: u64,
+    pub downvotes: u64,
 }
 
 impl UserPostPosition {
@@ -244,13 +250,13 @@ pub enum PostState {
 #[derive(AnchorSerialize, AnchorDeserialize, Clone, Copy, PartialEq, Eq, InitSpace, Debug)]
 pub struct Vote {
     pub side: Side,
-    pub votes: u32,
+    pub votes: u64,
     pub user_pubkey: Pubkey,
     pub post_pubkey: Pubkey,
 }
 
 impl Vote {
-    pub fn new(side: Side, votes: u32, user_pubkey: Pubkey, post_pubkey: Pubkey) -> Self {
+    pub fn new(side: Side, votes: u64, user_pubkey: Pubkey, post_pubkey: Pubkey) -> Self {
         Self {
             side,
             votes,

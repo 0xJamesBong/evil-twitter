@@ -213,13 +213,27 @@ pub mod opinions_market {
     pub fn vote_on_post(
         ctx: Context<VoteOnPost>,
         side: Side,
-        votes: u32,
+        votes: u64,
         post_id_hash: [u8; 32], // do not remove this - this is used to derive the post pda!
     ) -> Result<()> {
         require!(votes > 0, ErrorCode::ZeroVotes);
 
         let cfg = &ctx.accounts.config;
         let post = &mut ctx.accounts.post;
+        let current = match side {
+            Side::Pump => post.upvotes,
+            Side::Smack => post.downvotes,
+        };
+
+        let requested = votes as u64;
+        let remaining_capacity = u64::MAX - current;
+
+        // Cap valid votes at safe capacity
+        let valid_votes = requested.min(remaining_capacity);
+
+        if valid_votes < requested {
+            msg!("⚠ Overflow prevented: {} votes requested, only {} applied. Full cost still charged.", requested, valid_votes);
+        }
 
         let clock = Clock::get()?;
 
@@ -246,7 +260,7 @@ pub mod opinions_market {
         // ---- 1. Compute BLING cost ----
         //
 
-        let vote = Vote::new(side, votes, ctx.accounts.voter.key(), post.key());
+        let vote = Vote::new(side, valid_votes, ctx.accounts.voter.key(), post.key());
         let cost_bling =
             vote.compute_cost_in_bling(post, pos, &ctx.accounts.voter_user_account, cfg)?;
 
@@ -334,31 +348,17 @@ pub mod opinions_market {
 
         match side {
             Side::Pump => {
-                post.upvotes = post
-                    .upvotes
-                    .checked_add(cost_bling)
-                    .ok_or(ErrorCode::MathOverflow)?;
-                pos.upvotes += votes;
+                post.upvotes += valid_votes;
+                pos.upvotes = pos.upvotes.saturating_add(valid_votes);
             }
             Side::Smack => {
-                post.downvotes = post
-                    .downvotes
-                    .checked_add(cost_bling)
-                    .ok_or(ErrorCode::MathOverflow)?;
-                pos.downvotes += votes;
+                post.downvotes += valid_votes;
+                pos.downvotes = pos.downvotes.saturating_add(valid_votes);
             }
         }
 
         // Extend post duration
-        let ext = (cfg.extension_per_vote_secs as i64)
-            .checked_mul(votes as i64)
-            .ok_or(ErrorCode::MathOverflow)?;
-
-        post.end_time = post
-            .end_time
-            .checked_add(ext)
-            .unwrap()
-            .min(post.start_time + cfg.max_duration_secs as i64);
+        post.extend_time_limit(clock.unix_timestamp, valid_votes as u32, cfg)?;
 
         Ok(())
     }

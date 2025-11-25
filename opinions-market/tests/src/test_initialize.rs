@@ -340,7 +340,7 @@ async fn test_setup() {
                 &user_2,
                 &post_p1_pda,
                 opinions_market::state::Side::Pump,
-                100,
+                1,
                 &bling_pubkey,
                 &bling_atas,
                 &config_pda,

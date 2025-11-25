@@ -462,7 +462,7 @@ pub async fn test_phenomena_vote_on_post(
     voter: &Keypair,
     post_pda: &Pubkey,
     side: opinions_market::state::Side,
-    votes: u32,
+    votes: u64,
     token_mint: &Pubkey,
     token_atas: &HashMap<Pubkey, Pubkey>,
     config_pda: &Pubkey,

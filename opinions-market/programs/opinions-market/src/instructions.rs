@@ -243,7 +243,7 @@ pub struct CreatePost<'info> {
 
 
 #[derive(Accounts)]
-#[instruction(side: Side, votes: u32, post_id_hash: [u8; 32])]
+#[instruction(side: Side, votes:u64, post_id_hash: [u8; 32])]
 pub struct VoteOnPost<'info> {
     #[account(mut)]
     pub config: Box<Account<'info, Config>>,
