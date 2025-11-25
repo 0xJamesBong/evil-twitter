@@ -56,15 +56,10 @@ pub mod opinions_market {
     }
     pub fn initialize(
         ctx: Context<Initialize>,
-        protocol_vote_fee_bps: u16,
-        protocol_vote_settlement_fee_bps: u16,
-        creator_pump_vote_fee_bps: u16,
-        creator_vote_settlement_fee_bps: u16,
+
         base_duration_secs: u32,
         max_duration_secs: u32,
         extension_per_vote_secs: u32,
-        vote_per_bling_base_cost: u64,
-        user_initial_social_score: i64,
     ) -> Result<()> {
         let cfg = &mut ctx.accounts.config;
 

@@ -7,7 +7,8 @@ use solana_client::nonblocking::rpc_client::RpcClient;
 use solana_sdk::pubkey::Pubkey;
 use solana_sdk::{signature::Keypair, signer::Signer};
 
-use crate::utils::definitions::RATES;
+use crate::config::TIME_CONFIG_FAST;
+use crate::utils::rates::RATES;
 use crate::utils::utils::send_tx;
 use opinions_market::pda_seeds::*;
 use solana_transaction_status_client_types::UiTransactionEncoding;
@@ -406,11 +407,12 @@ pub async fn test_phenomena_create_post(
         "Post start_time should be set to a valid timestamp"
     );
 
-    // Verify end_time is start_time + POST_INIT_DURATION_SECS (24 hours = 86400 seconds)
-    let expected_end_time = post_account.start_time + (24 * 3600) as i64;
+    // Verify end_time is start_time + base_duration_secs
+    let expected_end_time = post_account.start_time + (TIME_CONFIG_FAST.base_duration_secs) as i64;
     assert_eq!(
         post_account.end_time, expected_end_time,
-        "Post end_time should be start_time + 24 hours (POST_INIT_DURATION_SECS = 86400 seconds)"
+        "Post end_time should be start_time + {} seconds (base_duration_secs)",
+        TIME_CONFIG_FAST.base_duration_secs
     );
 
     // Verify end_time is after start_time
@@ -532,22 +534,17 @@ pub async fn test_phenomena_vote_on_post(
         initial_upvotes, initial_downvotes
     );
 
-    // Get config to know extension_per_vote_secs
-    let config = opinions_market
-        .account::<opinions_market::state::Config>(*config_pda)
-        .await
-        .unwrap();
-
+    // Use TIME_CONFIG_FAST for time calculations (matches what we initialized with)
     // Calculate expected end_time extension
-    let expected_extension = (config.extension_per_vote_secs as i64) * (units as i64);
+    let expected_extension = (TIME_CONFIG_FAST.extension_per_vote_secs as i64) * (units as i64);
     let naive_new_end_time = initial_end_time + expected_extension;
-    let max_allowed_end_time = initial_start_time + (config.max_duration_secs as i64);
+    let max_allowed_end_time = initial_start_time + (TIME_CONFIG_FAST.max_duration_secs as i64);
     let expected_end_time = naive_new_end_time.min(max_allowed_end_time);
     let expected_actual_extension = expected_end_time - initial_end_time;
 
     println!(
         "📅 Expected time extension: {} seconds ({} units × {} secs/unit)",
-        expected_extension, units, config.extension_per_vote_secs
+        expected_extension, units, TIME_CONFIG_FAST.extension_per_vote_secs
     );
     println!("   - Naive new end_time: {}", naive_new_end_time);
     println!("   - Max allowed end_time: {}", max_allowed_end_time);

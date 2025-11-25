@@ -12,7 +12,7 @@ use solana_sdk::{
     signature::{Keypair, Signer},
 }; // Add this import
 
-use crate::utils::definitions::RATES;
+use crate::config::TIME_CONFIG_FAST;
 use crate::utils::phenomena::{
     test_phenomena_add_valid_payment, test_phenomena_create_post, test_phenomena_create_user,
     test_phenomena_deposit, test_phenomena_settle_post, test_phenomena_vote_on_post,
@@ -208,15 +208,9 @@ async fn test_setup() {
                 token_program: spl_token::ID,
             })
             .args(opinions_market::instruction::Initialize {
-                protocol_vote_fee_bps: 0,
-                protocol_vote_settlement_fee_bps: 0,
-                creator_pump_vote_fee_bps: 0,
-                creator_vote_settlement_fee_bps: 0,
-                base_duration_secs: 24 * 3600,
-                max_duration_secs: 48 * 3600,
-                extension_per_vote_secs: 60,
-                vote_per_bling_base_cost: 1_000_000 * LAMPORTS_PER_SOL,
-                user_initial_social_score: 10_000,
+                base_duration_secs: TIME_CONFIG_FAST.base_duration_secs,
+                max_duration_secs: TIME_CONFIG_FAST.max_duration_secs,
+                extension_per_vote_secs: TIME_CONFIG_FAST.extension_per_vote_secs,
             })
             .instructions()
             .unwrap();
