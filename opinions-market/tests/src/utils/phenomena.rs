@@ -895,7 +895,7 @@ pub async fn test_phenomena_settle_post(
         || settled_post.downvotes > settled_post.upvotes
     {
         assert!(
-            payout_account.payout_per_unit > 0,
+            payout_account.payout_per_winning_vote > 0,
             "Payout per unit should be > 0 for winning post"
         );
     }

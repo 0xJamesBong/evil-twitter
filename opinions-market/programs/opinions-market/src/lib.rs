@@ -210,7 +210,6 @@ pub mod opinions_market {
         msg!("clock.unix_timestamp: {}", clock.unix_timestamp);
         msg!("post.end_time: {}", post.end_time);
 
-        panic!("🌟 SHIT SHIT SHIT SHIT SHIT ");
         require!(post.state == PostState::Open, ErrorCode::PostNotOpen);
         require!(
             post.within_time_limit(clock.unix_timestamp),
@@ -351,67 +350,35 @@ pub mod opinions_market {
 
     pub fn settle_post(ctx: Context<SettlePost>) -> Result<()> {
         let post = &mut ctx.accounts.post;
+
         let clock = Clock::get()?;
 
         msg!("clock.unix_timestamp: {}", clock.unix_timestamp);
         msg!("post.end_time: {}", post.end_time);
-        panic!("🌟 SHIT SHIT SHIT SHIT SHIT ");
+
         require!(post.state == PostState::Open, ErrorCode::PostNotOpen);
         require!(
             clock.unix_timestamp > post.end_time,
             ErrorCode::PostNotExpired
         );
 
-        // Determine winner
-        let (winner, total_weight) = if post.upvotes > post.downvotes {
-            (Side::Pump, post.upvotes)
-        } else if post.downvotes > post.upvotes {
-            (Side::Smack, post.downvotes)
-        } else {
-            // tie → sweep pot to treasury
-            let pot_amount = ctx.accounts.post_pot_token_account.amount;
-            if pot_amount > 0 {
-                let post_key = post.key();
-                let (_, bump) = Pubkey::find_program_address(
-                    &[POST_POT_AUTHORITY_SEED, post_key.as_ref()],
-                    ctx.program_id,
-                );
-                let seeds: &[&[&[u8]]] = &[&[POST_POT_AUTHORITY_SEED, post_key.as_ref(), &[bump]]];
-
-                let cpi = CpiContext::new_with_signer(
-                    ctx.accounts.token_program.to_account_info(),
-                    anchor_spl::token::Transfer {
-                        from: ctx.accounts.post_pot_token_account.to_account_info(),
-                        to: ctx
-                            .accounts
-                            .protocol_token_treasury_token_account
-                            .to_account_info(),
-                        authority: ctx.accounts.post_pot_authority.to_account_info(),
-                    },
-                    seeds,
-                );
-
-                anchor_spl::token::transfer(cpi, pot_amount)?;
-            }
-
-            post.state = PostState::Settled;
-            post.winning_side = None;
-            return Ok(());
+        // Determine winner — ties favour Pump side
+        let (winner, total_weight) = match post.upvotes.cmp(&post.downvotes) {
+            std::cmp::Ordering::Greater => (Side::Pump, post.upvotes),
+            std::cmp::Ordering::Less => (Side::Smack, post.downvotes),
+            std::cmp::Ordering::Equal => (Side::Pump, post.upvotes), // tie → Pump wins
         };
 
-        // Compute payout_per_unit
-        let pot_amount = ctx.accounts.post_pot_token_account.amount;
-        let payout_per_unit = if total_weight > 0 {
-            pot_amount / total_weight
-        } else {
-            0
-        };
+        // Compute payout per unit
+        let payout_per_vote = position
+            .upvotes
+            .checked_div(total_weight)
+            .ok_or(ErrorCode::MathOverflow)?;
 
-        // Write the payout snapshot
+        // Save payout snapshot for claims
         let payout = &mut ctx.accounts.post_mint_payout;
         payout.post = post.key();
-        payout.mint = ctx.accounts.token_mint.key();
-        payout.payout_per_unit = payout_per_unit;
+        payout.payout_per_winning_vote = payout_per_unit;
         payout.bump = ctx.bumps.post_mint_payout;
 
         post.state = PostState::Settled;
@@ -441,7 +408,7 @@ pub mod opinions_market {
 
         let payout = &ctx.accounts.post_mint_payout;
         let reward = user_units
-            .checked_mul(payout.payout_per_unit)
+            .checked_mul(payout.payout_per_winning_vote)
             .ok_or(ErrorCode::MathOverflow)?;
 
         if reward == 0 {
@@ -455,7 +422,9 @@ pub mod opinions_market {
             &[POST_POT_AUTHORITY_SEED, post_key.as_ref()],
             ctx.program_id,
         );
-        let seeds: &[&[&[u8]]] = &[&[POST_POT_AUTHORITY_SEED, post_key.as_ref(), &[bump]]];
+        let bump_array = [bump];
+        let seeds_array = [POST_POT_AUTHORITY_SEED, post_key.as_ref(), &bump_array];
+        let seeds: &[&[&[u8]]] = &[&seeds_array];
 
         let cpi = CpiContext::new_with_signer(
             ctx.accounts.token_program.to_account_info(),

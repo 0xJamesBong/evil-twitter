@@ -363,7 +363,7 @@ pub struct SettlePost<'info> {
     #[account(
         init_if_needed,
         payer = payer,
-        seeds = [POST_MINT_PAYOUT_SEED, post.key().as_ref(), token_mint.key().as_ref()],
+        seeds = [POST_MINT_PAYOUT_SEED, post.key().as_ref()],
         bump,
         space = 8 + PostMintPayout::INIT_SPACE
     )]

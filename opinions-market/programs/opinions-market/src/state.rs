@@ -99,9 +99,17 @@ pub struct PostAccount {
 #[derive(InitSpace)]
 pub struct PostMintPayout {
     pub post: Pubkey,
-    pub mint: Pubkey,
-    pub payout_per_unit: u64,
+    pub payout_per_winning_vote: u64,
     pub bump: u8,
+}
+impl PostMintPayout {
+    pub fn new(post: Pubkey, bump: u8) -> Self {
+        Self {
+            post,
+            payout_per_winning_vote: 0,
+            bump,
+        }
+    }
 }
 
 impl PostAccount {
