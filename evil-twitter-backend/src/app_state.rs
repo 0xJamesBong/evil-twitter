@@ -2,8 +2,12 @@ use std::sync::Arc;
 
 use mongodb::{Client, Database};
 
-use crate::services::{PrivyService, mongo_service::MongoService, SolanaService};
-use crate::solana::{SolanaConnection, SolanaProgram, program::parse_keypair_from_base58, program::parse_pubkey};
+use crate::services::{PrivyService, SolanaService, mongo_service::MongoService};
+use crate::solana::{
+    SolanaConnection, SolanaProgram,
+    program::{parse_pubkey, read_keypair_from_file},
+};
+use solana_sdk::signer::Signer;
 
 /// Application state shared across all handlers
 ///
@@ -47,32 +51,41 @@ impl AppState {
         );
 
         // Initialize Solana service
-        let solana_rpc_url = std::env::var("SOLANA_RPC_URL")
-            .unwrap_or_else(|_| "http://localhost:8899".to_string());
-        let solana_network = std::env::var("SOLANA_NETWORK")
-            .unwrap_or_else(|_| "localnet".to_string());
+        let solana_rpc_url =
+            std::env::var("SOLANA_RPC_URL").unwrap_or_else(|_| "http://localhost:8899".to_string());
+        let solana_network =
+            std::env::var("SOLANA_NETWORK").unwrap_or_else(|_| "localnet".to_string());
         let solana_program_id_str = std::env::var("SOLANA_PROGRAM_ID")
             .unwrap_or_else(|_| "4z5rjroGdWmgGX13SdFsh4wRM4jJkMUrcvYrNpV3gezm".to_string());
-        let solana_program_id = parse_pubkey(&solana_program_id_str)
-            .expect("Invalid SOLANA_PROGRAM_ID");
-        
-        let bling_mint_str = std::env::var("BLING_MINT")
-            .expect("BLING_MINT environment variable must be set");
-        let bling_mint = parse_pubkey(&bling_mint_str)
-            .expect("Invalid BLING_MINT");
+        let solana_program_id =
+            parse_pubkey(&solana_program_id_str).expect("Invalid SOLANA_PROGRAM_ID");
 
-        // Get payer keypair (backend signer)
-        let payer_keypair_str = std::env::var("SOLANA_PAYER_KEYPAIR")
-            .expect("SOLANA_PAYER_KEYPAIR environment variable must be set");
-        let payer_keypair = parse_keypair_from_base58(&payer_keypair_str)
-            .expect("Invalid SOLANA_PAYER_KEYPAIR");
+        let bling_mint_str =
+            std::env::var("BLING_MINT").expect("BLING_MINT environment variable must be set");
+        let bling_mint = parse_pubkey(&bling_mint_str).expect("Invalid BLING_MINT");
+
+        // Get payer keypair (backend signer) from .secrets file
+        let payer_keypair_path = std::env::var("SOLANA_PAYER_KEYPAIR_PATH")
+            .expect("SOLANA_PAYER_KEYPAIR_PATH environment variable must be set");
+        let payer_keypair = read_keypair_from_file(&payer_keypair_path)
+            .expect(&format!("Failed to read keypair from {}. Make sure the file exists and the backend is run from the evil-twitter-backend directory.", payer_keypair_path));
+
+        println!(
+            "✅ Solana payer keypair loaded from {} (pubkey: {})",
+            payer_keypair_path,
+            payer_keypair.pubkey()
+        );
 
         let solana_connection = Arc::new(SolanaConnection::new(solana_rpc_url, solana_network));
         let solana_program = Arc::new(
             SolanaProgram::new(solana_program_id, payer_keypair, solana_connection.clone())
-                .expect("Failed to create Solana program")
+                .expect("Failed to create Solana program"),
         );
-        let solana_service = Arc::new(SolanaService::new(solana_program, solana_program_id, bling_mint));
+        let solana_service = Arc::new(SolanaService::new(
+            solana_program,
+            solana_program_id,
+            bling_mint,
+        ));
 
         Self {
             mongo_service: Arc::new(MongoService::new(client.clone(), db.clone())),

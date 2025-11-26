@@ -1,7 +1,10 @@
 use crate::solana::connection::SolanaConnection;
 use crate::solana::errors::SolanaError;
 use solana_client::rpc_client::RpcClient;
-use solana_sdk::{pubkey::Pubkey, signature::Keypair};
+use solana_sdk::{
+    pubkey::Pubkey,
+    signature::{Keypair, read_keypair_file},
+};
 use std::sync::Arc;
 
 pub struct SolanaProgram {
@@ -40,7 +43,17 @@ impl SolanaProgram {
     }
 }
 
-/// Helper function to parse a base58-encoded keypair from string
+/// Helper function to read a keypair from a JSON file
+pub fn read_keypair_from_file(file_path: &str) -> Result<Keypair, SolanaError> {
+    read_keypair_file(file_path).map_err(|e| {
+        SolanaError::KeypairError(format!(
+            "Failed to read keypair from file {}: {}",
+            file_path, e
+        ))
+    })
+}
+
+/// Helper function to parse a base58-encoded keypair from string (kept for backward compatibility)
 pub fn parse_keypair_from_base58(base58_str: &str) -> Result<Keypair, SolanaError> {
     let bytes = bs58::decode(base58_str)
         .into_vec()
