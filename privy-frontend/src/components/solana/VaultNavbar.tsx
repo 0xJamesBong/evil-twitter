@@ -39,9 +39,10 @@ export function VaultNavbar() {
   const { identityToken } = useIdentityToken();
 
   // Try to find Privy embedded wallet first, then fall back to any Solana wallet
+  // Note: useWallets() from @privy-io/react-auth/solana already returns only Solana wallets
+  // so we don't need to check chainType
   const solanaWallet =
-    wallets.find((w: any) => w.chainType === "solana" && w.walletClientType === "privy") ||
-    wallets.find((w: any) => w.chainType === "solana");
+    wallets.find((w: any) => w.walletClientType === "privy") || wallets[0];
 
   const { deposit, loading: depositLoading, error: depositError } = useDeposit();
   const { withdraw, loading: withdrawLoading, error: withdrawError } = useWithdraw();
@@ -76,6 +77,13 @@ export function VaultNavbar() {
     return () => clearInterval(interval);
   }, [authenticated, identityToken, refreshMe]);
 
+  // Debug logging to help diagnose wallet detection issues
+  useEffect(() => {
+    console.log("VaultNavbar - Wallets:", wallets);
+    console.log("VaultNavbar - Selected wallet:", solanaWallet);
+    console.log("VaultNavbar - Authenticated:", authenticated);
+  }, [wallets, solanaWallet, authenticated]);
+
   // Fetch on-chain account status and vault balance when wallet is available
   useEffect(() => {
     if (authenticated && solanaWallet?.address) {
@@ -100,8 +108,15 @@ export function VaultNavbar() {
     hasOnchainAccountFromGraphQL !== null ? hasOnchainAccountFromGraphQL : hasOnchainAccount;
 
   const handleOpenCreateAccount = () => {
+    if (!authenticated) {
+      enqueueSnackbar("Please log in first", { variant: "error" });
+      return;
+    }
     if (!solanaWallet) {
-      enqueueSnackbar("Please connect a Solana wallet", { variant: "error" });
+      enqueueSnackbar(
+        "Please connect a Solana wallet. You may need to create a Solana wallet in your Privy account.",
+        { variant: "error" }
+      );
       return;
     }
     setDialogMode("create");
@@ -109,8 +124,15 @@ export function VaultNavbar() {
   };
 
   const handleOpenDialog = (mode: "deposit" | "withdraw") => {
+    if (!authenticated) {
+      enqueueSnackbar("Please log in first", { variant: "error" });
+      return;
+    }
     if (!solanaWallet) {
-      enqueueSnackbar("Please connect a Solana wallet", { variant: "error" });
+      enqueueSnackbar(
+        "Please connect a Solana wallet. You may need to create a Solana wallet in your Privy account.",
+        { variant: "error" }
+      );
       return;
     }
 
@@ -130,8 +152,15 @@ export function VaultNavbar() {
   };
 
   const handleCreateUser = async () => {
+    if (!authenticated) {
+      enqueueSnackbar("Please log in first", { variant: "error" });
+      return;
+    }
     if (!solanaWallet) {
-      enqueueSnackbar("No Solana wallet connected", { variant: "error" });
+      enqueueSnackbar(
+        "Please connect a Solana wallet. You may need to create a Solana wallet in your Privy account.",
+        { variant: "error" }
+      );
       return;
     }
 
@@ -161,8 +190,15 @@ export function VaultNavbar() {
   };
 
   const handleDeposit = async () => {
+    if (!authenticated) {
+      enqueueSnackbar("Please log in first", { variant: "error" });
+      return;
+    }
     if (!solanaWallet) {
-      enqueueSnackbar("No Solana wallet connected", { variant: "error" });
+      enqueueSnackbar(
+        "Please connect a Solana wallet. You may need to create a Solana wallet in your Privy account.",
+        { variant: "error" }
+      );
       return;
     }
 
@@ -196,8 +232,15 @@ export function VaultNavbar() {
   };
 
   const handleWithdraw = async () => {
+    if (!authenticated) {
+      enqueueSnackbar("Please log in first", { variant: "error" });
+      return;
+    }
     if (!solanaWallet) {
-      enqueueSnackbar("No Solana wallet connected", { variant: "error" });
+      enqueueSnackbar(
+        "Please connect a Solana wallet. You may need to create a Solana wallet in your Privy account.",
+        { variant: "error" }
+      );
       return;
     }
 
