@@ -29,6 +29,7 @@
     "react-dom": "19.1.0",
     "react-toastify": "^11.0.5",
     "viem": "^2.37.6",
+
     "zustand": "^5.0.8"
   },
   "devDependencies": {

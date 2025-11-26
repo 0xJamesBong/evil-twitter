@@ -30,7 +30,7 @@ anchor build;
 anchor deploy;
 cargo run -p bootstrap
 pwd
-cp "$(pwd)/target/idl/opinions_market.json" "$(pwd)/../privy-template/src/lib/solana/idl/opinions_market.json"
+cp "$(pwd)/target/idl/opinions_market.json" "$(pwd)/../privy-frontend/src/lib/solana/idl/opinions_market.json"
 cp "$(pwd)/target/idl/opinions_market.json" "$(pwd)/../evil-twitter-backend/src/solana/idl/opinions_market.json"
 """
 
