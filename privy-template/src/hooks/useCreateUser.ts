@@ -14,6 +14,7 @@ import {
   TOKEN_PROGRAM_ID,
   ASSOCIATED_TOKEN_PROGRAM_ID,
 } from "@solana/spl-token";
+import { useWallets } from "@privy-io/react-auth";
 
 /**
  * Hook to create on-chain user account (user-signed)
@@ -30,6 +31,9 @@ export function useCreateUser() {
   // Prefer Privy embedded wallet, but fall back to any Solana wallet
   const solanaWallet =
     wallets.find((w) => w.walletClientType === "privy") || wallets[0];
+
+  const { wallets: allWallets } = useWallets();
+  //   console.log("createUser | allWallets", allWallets);
 
   const createUser = async (): Promise<string> => {
     if (!solanaWallet) {

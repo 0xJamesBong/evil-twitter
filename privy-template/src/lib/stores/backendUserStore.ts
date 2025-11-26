@@ -63,13 +63,16 @@ export const useBackendUserStore = create<
   fetchMe: async (identityToken: string) => {
     set({ isLoading: true, error: null });
     try {
+      console.log("fetchMe | identityToken", identityToken);
       const data = await graphqlRequest<MeQueryResult>(
         ME_QUERY,
         undefined,
         identityToken
       );
+      console.log("fetchMe | data", data);
       set({ user: data.me, isLoading: false });
     } catch (e) {
+      console.error("fetchMe | error", e);
       set({
         error: e instanceof Error ? e.message : "Failed to fetch user",
         isLoading: false,

@@ -562,31 +562,22 @@ impl SolanaService {
         let (vault_token_account_pda, _) =
             get_user_vault_token_account_pda(&self.program_id, user_wallet, token_mint);
 
-        let account = connection
-            .get_account(&vault_token_account_pda)
-            .map_err(|e| {
-                SolanaError::AccountNotFound(format!("Failed to fetch vault account: {}", e))
-            })?;
+        // If account doesn't exist, return 0 (user hasn't created account or deposited yet)
+        // This is a normal state, not an error
+        let account = match connection.get_account(&vault_token_account_pda) {
+            Ok(acc) => acc,
+            Err(_) => return Ok(0),
+        };
 
-        let account_data = account.data;
-
-        if account_data.is_empty() {
-            return Ok(0);
-        }
-
-        // Deserialize token account (skip 8-byte discriminator for Anchor accounts)
-        // For SPL Token accounts, the format is different
-        // This is a simplified version - in production, use proper SPL Token deserialization
-        if account_data.len() < 72 {
+        if account.data.len() < 72 {
             return Ok(0);
         }
 
         // Token account amount is at offset 64 (after mint, owner, amount starts at 64)
-        let amount_bytes: [u8; 8] = account_data[64..72].try_into().map_err(|_| {
-            SolanaError::InvalidAccountData("Invalid token account data".to_string())
-        })?;
-        let amount = u64::from_le_bytes(amount_bytes);
+        let amount_bytes: [u8; 8] = account.data[64..72]
+            .try_into()
+            .map_err(|_| SolanaError::InvalidAccountData("Invalid token account".to_string()))?;
 
-        Ok(amount)
+        Ok(u64::from_le_bytes(amount_bytes))
     }
 }
