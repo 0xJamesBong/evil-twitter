@@ -1,6 +1,7 @@
 use async_graphql::{Context, Enum, ID, InputObject, Object, Result};
 use futures::TryStreamExt;
 use mongodb::{Collection, bson::doc};
+use std::str::FromStr;
 
 use std::sync::Arc;
 
@@ -186,6 +187,35 @@ impl UserNode {
             .map_err(|e| async_graphql::Error::new(e.to_string()))?;
 
         Ok(exists.is_some())
+    }
+
+    /// Get user's vault balance for a specific token mint
+    async fn vault_balance(
+        &self,
+        ctx: &Context<'_>,
+        #[graphql(name = "tokenMint")] token_mint: Option<String>,
+    ) -> Result<u64> {
+        let app_state = ctx.data::<Arc<AppState>>()?;
+        
+        // Parse user's Solana wallet
+        let user_wallet = solana_sdk::pubkey::Pubkey::from_str(&self.inner.wallet)
+            .map_err(|e| async_graphql::Error::new(format!("Invalid user wallet: {}", e)))?;
+
+        // Get token mint (default to BLING)
+        let token_mint_pubkey = if let Some(mint_str) = token_mint {
+            solana_sdk::pubkey::Pubkey::from_str(&mint_str)
+                .map_err(|e| async_graphql::Error::new(format!("Invalid token_mint: {}", e)))?
+        } else {
+            *app_state.solana_service.get_bling_mint()
+        };
+
+        // Get vault balance
+        let balance = app_state
+            .solana_service
+            .get_user_vault_balance(&user_wallet, &token_mint_pubkey)
+            .map_err(|e| async_graphql::Error::new(format!("Failed to get vault balance: {}", e)))?;
+
+        Ok(balance)
     }
 }
 

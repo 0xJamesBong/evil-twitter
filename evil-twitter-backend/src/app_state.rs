@@ -2,7 +2,9 @@ use std::sync::Arc;
 
 use mongodb::{Client, Database};
 
-use crate::services::{PrivyService, SolanaService, mongo_service::MongoService};
+use crate::services::{
+    PrivyService, SolanaService, mongo_service::MongoService, post_sync_service::PostSyncService,
+};
 use crate::solana::{
     SolanaConnection, SolanaProgram,
     program::{parse_pubkey, read_keypair_from_file},
@@ -23,6 +25,8 @@ pub struct AppState {
     pub privy_service: Arc<PrivyService>,
     /// Solana service for on-chain operations
     pub solana_service: Arc<SolanaService>,
+    /// Post sync service for syncing on-chain post state to MongoDB
+    pub post_sync_service: Arc<PostSyncService>,
     // pub cache: Arc<RedisClient>,
     // pub email: Arc<EmailService>,
     // pub s3: Arc<S3Service>,
@@ -87,10 +91,13 @@ impl AppState {
             bling_mint,
         ));
 
+        let post_sync_service = Arc::new(PostSyncService::new(db.clone(), solana_service.clone()));
+
         Self {
             mongo_service: Arc::new(MongoService::new(client.clone(), db.clone())),
             privy_service: Arc::new(PrivyService::new(app_id, app_secret)),
             solana_service,
+            post_sync_service,
         }
     }
 }

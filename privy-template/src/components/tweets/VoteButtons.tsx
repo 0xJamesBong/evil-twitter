@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { usePrivy } from "@privy-io/react-auth";
+import { useSnackbar } from "notistack";
 import { useTweetStore } from "../../lib/stores/tweetStore";
 import { TweetNode } from "../../lib/graphql/tweets/types";
 
@@ -14,19 +15,49 @@ export function VoteButtons({ tweet }: VoteButtonsProps) {
   const [loading, setLoading] = useState(false);
   const { getAccessToken } = usePrivy();
   const { voteOnTweet } = useTweetStore();
+  const { enqueueSnackbar } = useSnackbar();
 
   const handleVote = async (side: "pump" | "smack") => {
     if (!tweet.id) return;
 
+    // Validate post state
+    if (!isOpen) {
+      enqueueSnackbar("This post is no longer open for voting", { variant: "error" });
+      return;
+    }
+
+    if (votes <= 0) {
+      enqueueSnackbar("Please enter a valid vote amount", { variant: "error" });
+      return;
+    }
+
     setLoading(true);
     try {
       const token = await getAccessToken();
-      await voteOnTweet(token || "", tweet.id, side, votes);
+      if (!token) {
+        enqueueSnackbar("Please log in to vote", { variant: "error" });
+        return;
+      }
+      await voteOnTweet(token, tweet.id, side, votes);
+      enqueueSnackbar(`Successfully voted ${side}!`, { variant: "success" });
       // Reset votes input after successful vote
       setVotes(1);
     } catch (error) {
       console.error("Failed to vote:", error);
-      // Error is handled by the store
+      const errorMessage = error instanceof Error ? error.message : "Failed to vote";
+      
+      // Show user-friendly error messages
+      if (errorMessage.includes("Insufficient")) {
+        enqueueSnackbar("Insufficient vault balance. Please deposit more tokens.", { variant: "error" });
+      } else if (errorMessage.includes("expired") || errorMessage.includes("Expired")) {
+        enqueueSnackbar("This post has expired and can no longer be voted on", { variant: "error" });
+      } else if (errorMessage.includes("settled") || errorMessage.includes("Settled")) {
+        enqueueSnackbar("This post has already been settled", { variant: "error" });
+      } else if (errorMessage.includes("not open") || errorMessage.includes("Not open")) {
+        enqueueSnackbar("This post is not open for voting", { variant: "error" });
+      } else {
+        enqueueSnackbar(errorMessage, { variant: "error" });
+      }
     } finally {
       setLoading(false);
     }

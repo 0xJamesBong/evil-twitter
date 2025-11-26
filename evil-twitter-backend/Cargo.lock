@@ -2009,6 +2009,7 @@ dependencies = [
  "axum 0.8.4",
  "axum-extra",
  "base64 0.21.7",
+ "borsh 1.5.7",
  "bs58 0.5.1",
  "bson",
  "chrono",

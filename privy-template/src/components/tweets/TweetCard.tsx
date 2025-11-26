@@ -157,6 +157,56 @@ export function TweetCard({
                             </Box>
                         )}
 
+                        {/* Post State Display for Original Tweets */}
+                        {tweet.postIdHash && tweet.postState && (
+                            <Box
+                                sx={{
+                                    mt: 1,
+                                    mb: 1,
+                                    p: 1.5,
+                                    bgcolor: tweet.postState.state === "Open" ? "info.50" : "grey.100",
+                                    borderRadius: 1,
+                                    border: 1,
+                                    borderColor: tweet.postState.state === "Open" ? "info.200" : "grey.300",
+                                }}
+                            >
+                                <Stack direction="row" spacing={2} alignItems="center" flexWrap="wrap">
+                                    <Chip
+                                        label={tweet.postState.state}
+                                        size="small"
+                                        color={tweet.postState.state === "Open" ? "info" : "default"}
+                                        sx={{ fontWeight: 600 }}
+                                    />
+                                    <Typography variant="body2" color="text.secondary">
+                                        Pump: {tweet.postState.upvotes.toLocaleString()}
+                                    </Typography>
+                                    <Typography variant="body2" color="text.secondary">
+                                        Smack: {tweet.postState.downvotes.toLocaleString()}
+                                    </Typography>
+                                    {tweet.postState.state === "Settled" && tweet.postState.winningSide && (
+                                        <Chip
+                                            label={`Winner: ${tweet.postState.winningSide}`}
+                                            size="small"
+                                            color="success"
+                                            sx={{ fontWeight: 600 }}
+                                        />
+                                    )}
+                                    {tweet.postState.state === "Open" && (
+                                        <Typography variant="caption" color="text.secondary">
+                                            Ends: {new Date(tweet.postState.endTime * 1000).toLocaleString()}
+                                        </Typography>
+                                    )}
+                                </Stack>
+                            </Box>
+                        )}
+
+                        {/* Voting Buttons for Original Tweets */}
+                        {tweet.postIdHash && (
+                            <Box sx={{ mt: 1, mb: 1 }}>
+                                <VoteButtons tweet={tweet} />
+                            </Box>
+                        )}
+
                         {/* Action Buttons */}
                         <Stack direction="row" spacing={4} sx={{ mt: 2, maxWidth: 500 }}>
                             {/* Reply */}
@@ -316,9 +366,6 @@ export function TweetCard({
                             </Box>
                         </Stack>
                     </Box>
-                    
-                    {/* Voting buttons for original tweets with post_id_hash */}
-                    {tweet.postIdHash && <VoteButtons tweet={tweet} />}
                 </Stack>
             </CardContent>
         </Card>

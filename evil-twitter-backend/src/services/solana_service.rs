@@ -7,6 +7,7 @@ use solana_sdk::{
     transaction::Transaction,
 };
 use std::sync::Arc;
+use std::io::{Cursor, Read};
 
 // Re-export state types for use in service
 // These will be deserialized from on-chain accounts
@@ -130,17 +131,82 @@ impl SolanaService {
     /// Vote on a post
     pub fn vote_on_post(
         &self,
-        _voter_wallet: &Pubkey,
-        _post_id_hash: [u8; 32],
-        _side: u8, // 0 = Pump, 1 = Smack
-        _votes: u64,
-        _token_mint: &Pubkey,
+        voter_wallet: &Pubkey,
+        post_id_hash: [u8; 32],
+        side: u8, // 0 = Pump, 1 = Smack
+        votes: u64,
+        token_mint: &Pubkey,
     ) -> Result<Signature, SolanaError> {
-        // This is a complex instruction with many accounts
-        // Will need to derive all PDAs and build the instruction
-        Err(SolanaError::RpcError(
-            "vote_on_post not yet implemented".to_string(),
-        ))
+        let connection = self.program.get_connection();
+        let payer = self.program.get_payer();
+
+        // First, get the post account to get creator_user
+        let post_account = self.get_post_account(post_id_hash)?
+            .ok_or_else(|| SolanaError::AccountNotFound("Post account not found".to_string()))?;
+
+        // Derive all PDAs
+        let (config_pda, _) = get_config_pda(&self.program_id);
+        let (post_pda, _) = get_post_pda(&self.program_id, &post_id_hash);
+        let (voter_user_account_pda, _) = get_user_account_pda(&self.program_id, voter_wallet);
+        let (voter_vault_token_account_pda, _) = get_user_vault_token_account_pda(&self.program_id, voter_wallet, token_mint);
+        let (position_pda, _) = get_position_pda(&self.program_id, &post_pda, voter_wallet);
+        let (vault_authority_pda, _) = get_vault_authority_pda(&self.program_id);
+        let (post_pot_token_account_pda, _) = get_post_pot_token_account_pda(&self.program_id, &post_pda, token_mint);
+        let (post_pot_authority_pda, _) = get_post_pot_authority_pda(&self.program_id, &post_pda);
+        let (protocol_treasury_token_account_pda, _) = get_protocol_treasury_token_account_pda(&self.program_id, token_mint);
+        let (creator_vault_token_account_pda, _) = get_user_vault_token_account_pda(&self.program_id, &post_account.creator_user, token_mint);
+        let (valid_payment_pda, _) = get_valid_payment_pda(&self.program_id, token_mint);
+
+        // Build instruction accounts in the exact order from IDL
+        let accounts = vec![
+            AccountMeta::new(config_pda, false), // config
+            AccountMeta::new(*voter_wallet, true), // voter (signer)
+            AccountMeta::new(payer.pubkey(), true), // payer (signer)
+            AccountMeta::new(post_pda, false), // post
+            AccountMeta::new_readonly(voter_user_account_pda, false), // voter_user_account
+            AccountMeta::new(voter_vault_token_account_pda, false), // voter_user_vault_token_account
+            AccountMeta::new(position_pda, false), // position
+            AccountMeta::new_readonly(vault_authority_pda, false), // vault_authority
+            AccountMeta::new(post_pot_token_account_pda, false), // post_pot_token_account
+            AccountMeta::new_readonly(post_pot_authority_pda, false), // post_pot_authority
+            AccountMeta::new(protocol_treasury_token_account_pda, false), // protocol_token_treasury_token_account
+            AccountMeta::new(creator_vault_token_account_pda, false), // creator_vault_token_account
+            AccountMeta::new_readonly(valid_payment_pda, false), // valid_payment
+            AccountMeta::new_readonly(*token_mint, false), // token_mint
+            AccountMeta::new_readonly(anchor_spl::token::spl_token::ID, false), // token_program
+            AccountMeta::new_readonly(system_program::id(), false), // system_program
+        ];
+
+        // Build instruction data
+        // Discriminator for vote_on_post: [220, 160, 255, 192, 61, 83, 169, 65]
+        let mut instruction_data = vec![220u8, 160, 255, 192, 61, 83, 169, 65];
+        // side: enum (1 byte: 0 = Pump, 1 = Smack)
+        instruction_data.push(side);
+        // votes: u64 (8 bytes, little-endian)
+        instruction_data.extend_from_slice(&votes.to_le_bytes());
+        // post_id_hash: [u8; 32]
+        instruction_data.extend_from_slice(&post_id_hash);
+
+        let instruction = Instruction {
+            program_id: self.program_id,
+            accounts,
+            data: instruction_data,
+        };
+
+        let mut transaction = Transaction::new_with_payer(&[instruction], Some(&payer.pubkey()));
+
+        let connection_service = self.program.get_connection_service();
+        let recent_blockhash = connection_service.get_latest_blockhash()?;
+
+        transaction.sign(&[payer], recent_blockhash);
+
+        let signature = connection
+            .send_and_confirm_transaction(&transaction)
+            .map_err(|e| {
+                SolanaError::TransactionError(format!("Failed to send transaction: {}", e))
+            })?;
+
+        Ok(signature)
     }
 
     /// Settle a post
@@ -186,9 +252,115 @@ impl SolanaService {
             return Ok(None);
         }
 
-        // This is a simplified deserialization - in production, use proper Anchor deserialization
-        // For now, return None to indicate it needs proper implementation
-        Ok(None)
+        // Minimum size check: discriminator (8) + creator_user (32) + post_id_hash (32) + post_type (1) + start_time (8) + end_time (8) + state (1) + upvotes (8) + downvotes (8) + winning_side (1-2)
+        if account_data.len() < 8 + 32 + 32 + 1 + 8 + 8 + 1 + 8 + 8 + 1 {
+            return Ok(None);
+        }
+
+        let mut cursor = Cursor::new(&account_data[8..]); // Skip discriminator
+
+        // creator_user: Pubkey (32 bytes)
+        let creator_user_bytes: [u8; 32] = {
+            let mut buf = [0u8; 32];
+            cursor.read_exact(&mut buf).map_err(|e| {
+                SolanaError::InvalidAccountData(format!("Failed to read creator_user: {}", e))
+            })?;
+            buf
+        };
+        let creator_user = Pubkey::from(creator_user_bytes);
+
+        // post_id_hash: [u8; 32]
+        let mut post_id_hash_bytes = [0u8; 32];
+        cursor.read_exact(&mut post_id_hash_bytes).map_err(|e| {
+            SolanaError::InvalidAccountData(format!("Failed to read post_id_hash: {}", e))
+        })?;
+
+        // post_type: enum (1 byte for variant, then optional parent Pubkey if Child)
+        let post_type_variant = {
+            let mut buf = [0u8; 1];
+            cursor.read_exact(&mut buf).map_err(|e| {
+                SolanaError::InvalidAccountData(format!("Failed to read post_type: {}", e))
+            })?;
+            buf[0]
+        };
+        // If post_type is Child (1), skip the parent Pubkey (32 bytes)
+        if post_type_variant == 1 {
+            cursor.set_position(cursor.position() + 32);
+        }
+
+        // start_time: i64 (8 bytes, little-endian)
+        let start_time = {
+            let mut buf = [0u8; 8];
+            cursor.read_exact(&mut buf).map_err(|e| {
+                SolanaError::InvalidAccountData(format!("Failed to read start_time: {}", e))
+            })?;
+            i64::from_le_bytes(buf)
+        };
+
+        // end_time: i64 (8 bytes, little-endian)
+        let end_time = {
+            let mut buf = [0u8; 8];
+            cursor.read_exact(&mut buf).map_err(|e| {
+                SolanaError::InvalidAccountData(format!("Failed to read end_time: {}", e))
+            })?;
+            i64::from_le_bytes(buf)
+        };
+
+        // state: enum (1 byte: 0 = Open, 1 = Settled)
+        let state = {
+            let mut buf = [0u8; 1];
+            cursor.read_exact(&mut buf).map_err(|e| {
+                SolanaError::InvalidAccountData(format!("Failed to read state: {}", e))
+            })?;
+            buf[0]
+        };
+
+        // upvotes: u64 (8 bytes, little-endian)
+        let upvotes = {
+            let mut buf = [0u8; 8];
+            cursor.read_exact(&mut buf).map_err(|e| {
+                SolanaError::InvalidAccountData(format!("Failed to read upvotes: {}", e))
+            })?;
+            u64::from_le_bytes(buf)
+        };
+
+        // downvotes: u64 (8 bytes, little-endian)
+        let downvotes = {
+            let mut buf = [0u8; 8];
+            cursor.read_exact(&mut buf).map_err(|e| {
+                SolanaError::InvalidAccountData(format!("Failed to read downvotes: {}", e))
+            })?;
+            u64::from_le_bytes(buf)
+        };
+
+        // winning_side: Option<Side> (1 byte for Some/None, then 1 byte for variant if Some)
+        let winning_side = {
+            let mut buf = [0u8; 1];
+            cursor.read_exact(&mut buf).map_err(|e| {
+                SolanaError::InvalidAccountData(format!("Failed to read winning_side option: {}", e))
+            })?;
+            if buf[0] == 1 {
+                // Some variant
+                let mut variant_buf = [0u8; 1];
+                cursor.read_exact(&mut variant_buf).map_err(|e| {
+                    SolanaError::InvalidAccountData(format!("Failed to read winning_side variant: {}", e))
+                })?;
+                Some(variant_buf[0]) // 0 = Pump, 1 = Smack
+            } else {
+                None
+            }
+        };
+
+        Ok(Some(PostAccount {
+            creator_user,
+            post_id_hash: post_id_hash_bytes,
+            start_time,
+            end_time,
+            state,
+            upvotes,
+            downvotes,
+            winning_side,
+        }))
     }
 
     /// Get user account from chain
@@ -205,11 +377,46 @@ impl SolanaService {
 
         let account_data = account.data;
 
-        if account_data.len() < 8 {
+        // Minimum size: discriminator (8) + user (32) + social_score (8) + bump (1)
+        if account_data.len() < 8 + 32 + 8 + 1 {
             return Ok(None);
         }
 
-        Ok(None) // Needs proper deserialization
+        let mut cursor = Cursor::new(&account_data[8..]); // Skip discriminator
+
+        // user: Pubkey (32 bytes)
+        let user_bytes: [u8; 32] = {
+            let mut buf = [0u8; 32];
+            cursor.read_exact(&mut buf).map_err(|e| {
+                SolanaError::InvalidAccountData(format!("Failed to read user: {}", e))
+            })?;
+            buf
+        };
+        let user = Pubkey::from(user_bytes);
+
+        // social_score: i64 (8 bytes, little-endian)
+        let social_score = {
+            let mut buf = [0u8; 8];
+            cursor.read_exact(&mut buf).map_err(|e| {
+                SolanaError::InvalidAccountData(format!("Failed to read social_score: {}", e))
+            })?;
+            i64::from_le_bytes(buf)
+        };
+
+        // bump: u8 (1 byte)
+        let bump = {
+            let mut buf = [0u8; 1];
+            cursor.read_exact(&mut buf).map_err(|e| {
+                SolanaError::InvalidAccountData(format!("Failed to read bump: {}", e))
+            })?;
+            buf[0]
+        };
+
+        Ok(Some(UserAccount {
+            user,
+            social_score,
+            bump,
+        }))
     }
 
     /// Get user position for a post
@@ -228,11 +435,57 @@ impl SolanaService {
 
         let account_data = account.data;
 
-        if account_data.len() < 8 {
+        // Minimum size: discriminator (8) + user (32) + post (32) + upvotes (8) + downvotes (8)
+        if account_data.len() < 8 + 32 + 32 + 8 + 8 {
             return Ok(None);
         }
 
-        Ok(None) // Needs proper deserialization
+        let mut cursor = Cursor::new(&account_data[8..]); // Skip discriminator
+
+        // user: Pubkey (32 bytes)
+        let user_bytes: [u8; 32] = {
+            let mut buf = [0u8; 32];
+            cursor.read_exact(&mut buf).map_err(|e| {
+                SolanaError::InvalidAccountData(format!("Failed to read user: {}", e))
+            })?;
+            buf
+        };
+        let user = Pubkey::from(user_bytes);
+
+        // post: Pubkey (32 bytes)
+        let post_bytes: [u8; 32] = {
+            let mut buf = [0u8; 32];
+            cursor.read_exact(&mut buf).map_err(|e| {
+                SolanaError::InvalidAccountData(format!("Failed to read post: {}", e))
+            })?;
+            buf
+        };
+        let post = Pubkey::from(post_bytes);
+
+        // upvotes: u64 (8 bytes, little-endian)
+        let upvotes = {
+            let mut buf = [0u8; 8];
+            cursor.read_exact(&mut buf).map_err(|e| {
+                SolanaError::InvalidAccountData(format!("Failed to read upvotes: {}", e))
+            })?;
+            u64::from_le_bytes(buf)
+        };
+
+        // downvotes: u64 (8 bytes, little-endian)
+        let downvotes = {
+            let mut buf = [0u8; 8];
+            cursor.read_exact(&mut buf).map_err(|e| {
+                SolanaError::InvalidAccountData(format!("Failed to read downvotes: {}", e))
+            })?;
+            u64::from_le_bytes(buf)
+        };
+
+        Ok(Some(UserPostPosition {
+            user,
+            post,
+            upvotes,
+            downvotes,
+        }))
     }
 
     /// Get user vault balance

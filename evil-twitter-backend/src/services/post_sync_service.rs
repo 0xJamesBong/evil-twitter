@@ -18,7 +18,7 @@ impl PostSyncService {
     }
 
     /// Sync a single post's state from chain to MongoDB
-    pub fn sync_post_state(&self, post_id_hash: &str) -> Result<(), SolanaError> {
+    pub async fn sync_post_state(&self, post_id_hash: &str) -> Result<(), SolanaError> {
         // Parse post_id_hash from hex to [u8; 32]
         let post_id_hash_bytes = hex::decode(post_id_hash)
             .map_err(|e| SolanaError::InvalidAccountData(format!("Invalid post_id_hash: {}", e)))?;
@@ -40,9 +40,85 @@ impl PostSyncService {
             return Ok(());
         }
 
-        // TODO: Properly deserialize PostAccount from chain
-        // For now, this is a placeholder that needs proper implementation
-        // The PostAccount struct in solana_service.rs needs to match the on-chain structure
+        let post_account = post_account.unwrap();
+
+        // Derive post PDA
+        let (post_pda, _) = crate::solana::pda::get_post_pda(
+            self.solana_service.get_program_id(),
+            &post_id_hash_array,
+        );
+
+        // Convert state enum to string
+        let state = match post_account.state {
+            0 => "Open".to_string(),
+            1 => "Settled".to_string(),
+            _ => "Unknown".to_string(),
+        };
+
+        // Convert winning_side to string
+        let winning_side = post_account.winning_side.map(|side| {
+            match side {
+                0 => "Pump".to_string(),
+                1 => "Smack".to_string(),
+                _ => "Unknown".to_string(),
+            }
+        });
+
+        // Create PostState document
+        let post_state = PostState {
+            id: None, // Will be set by MongoDB on insert
+            post_id_hash: post_id_hash.to_string(),
+            post_pda: post_pda.to_string(),
+            state,
+            upvotes: post_account.upvotes,
+            downvotes: post_account.downvotes,
+            winning_side,
+            start_time: post_account.start_time,
+            end_time: post_account.end_time,
+            last_synced_at: DateTime::now(),
+        };
+
+        // Upsert into MongoDB - first try to find existing, then insert or replace
+        let collection: Collection<PostState> = self.db.collection(PostState::COLLECTION_NAME);
+        let filter = doc! { "post_id_hash": post_id_hash };
+        
+        // Check if document exists
+        let existing = collection
+            .find_one(filter.clone())
+            .await
+            .map_err(|e| {
+                SolanaError::RpcError(format!("Failed to check existing post state: {}", e))
+            })?;
+        
+        if existing.is_some() {
+            // Update existing document
+            let update = doc! {
+                "$set": {
+                    "post_pda": &post_state.post_pda,
+                    "state": &post_state.state,
+                    "upvotes": post_state.upvotes as i64,
+                    "downvotes": post_state.downvotes as i64,
+                    "winning_side": &post_state.winning_side,
+                    "start_time": post_state.start_time,
+                    "end_time": post_state.end_time,
+                    "last_synced_at": post_state.last_synced_at,
+                }
+            };
+            collection
+                .update_one(filter, update)
+                .await
+                .map_err(|e| {
+                    SolanaError::RpcError(format!("Failed to update post state: {}", e))
+                })?;
+        } else {
+            // Insert new document
+            collection
+                .insert_one(&post_state)
+                .await
+                .map_err(|e| {
+                    SolanaError::RpcError(format!("Failed to insert post state: {}", e))
+                })?;
+        }
 
         Ok(())
     }

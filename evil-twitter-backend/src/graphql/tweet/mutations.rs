@@ -350,18 +350,51 @@ pub async fn tweet_vote_resolver(
         *app_state.solana_service.get_bling_mint()
     };
 
-    // Validate user has sufficient vault balance (simplified check)
-    let _vault_balance = app_state.solana_service.get_user_vault_balance(&user_wallet, &token_mint)
+    // Validate user has sufficient vault balance
+    let vault_balance = app_state.solana_service.get_user_vault_balance(&user_wallet, &token_mint)
         .map_err(|e| async_graphql::Error::new(format!("Failed to check vault balance: {}", e)))?;
+
+    if vault_balance < input.votes {
+        return Err(async_graphql::Error::new(format!(
+            "Insufficient vault balance. You have {} but need {}",
+            vault_balance, input.votes
+        )));
+    }
+
+    // Check post state before voting (optional - can also check on-chain)
+    // For now, we'll let the on-chain program handle state validation
 
     // Call vote_on_post on-chain (backend signs transaction)
     match app_state.solana_service.vote_on_post(&user_wallet, post_id_hash, side, input.votes, &token_mint) {
         Ok(signature) => {
             eprintln!("✅ Voted on post on-chain: {}", signature);
-            // TODO: Sync post state after vote
+            // Sync post state after vote
+            if let Err(e) = app_state.post_sync_service.sync_post_state(&post_id_hash_hex).await {
+                eprintln!("⚠️ Failed to sync post state after vote: {}", e);
+                // Don't fail the vote if sync fails, but log it
+            }
         }
         Err(e) => {
-            return Err(async_graphql::Error::new(format!("Failed to vote on-chain: {}", e)));
+            // Map Solana errors to user-friendly messages
+            let error_message = match e {
+                crate::solana::errors::SolanaError::InsufficientFunds => {
+                    "Insufficient vault balance".to_string()
+                }
+                crate::solana::errors::SolanaError::PostNotOpen => {
+                    "Post is not open for voting".to_string()
+                }
+                crate::solana::errors::SolanaError::PostExpired => {
+                    "Post has expired and can no longer be voted on".to_string()
+                }
+                crate::solana::errors::SolanaError::PostAlreadySettled => {
+                    "Post has already been settled".to_string()
+                }
+                crate::solana::errors::SolanaError::TransactionError(msg) => {
+                    format!("Transaction failed: {}", msg)
+                }
+                _ => format!("Failed to vote: {}", e),
+            };
+            return Err(async_graphql::Error::new(error_message));
         }
     }
 

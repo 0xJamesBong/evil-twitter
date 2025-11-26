@@ -48,6 +48,7 @@ anchor-spl = "0.30.1"
 spl-token = "4.0"
 rand = "0.8"
 hex = "0.4"
+borsh = "1.5"
 
 [[bin]]
 name = "create_fake_users"
