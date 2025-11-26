@@ -1,4 +1,3 @@
 pub mod phenomena;
-pub mod utils;
-
 pub mod rates;
+pub mod utils;

@@ -1,0 +1,103 @@
+use anchor_client::{
+    anchor_lang::prelude::*,
+    solana_sdk::{
+        signature::{read_keypair_file, Keypair},
+        signer::Signer,
+        commitment_config::CommitmentConfig
+    },
+    Client, Cluster,
+};
+
+use anchor_spl::associated_token::get_associated_token_address;
+use solana_sdk::native_token::LAMPORTS_PER_SOL;
+use std::collections::HashMap;
+
+use opinions_market::pda_seeds::*;
+use opinions_market::ID;
+
+use tests::utils::utils::{
+    airdrop_sol_to_users,
+    setup_token_mint,
+    setup_token_mint_ata_and_mint_to_many_users,
+    send_tx,
+};
+
+#[tokio::main]
+async fn main() {
+    let anchor_wallet = std::env::var("ANCHOR_WALLET").unwrap();
+    let payer = read_keypair_file(&anchor_wallet).unwrap();
+
+    let program_id = ID;
+    let client = Client::new_with_options(Cluster::Localnet, &payer, CommitmentConfig::processed());
+    let opinions_market = client.program(program_id).unwrap();
+    let rpc = opinions_market.rpc();
+
+    // --- USERS ---
+    let admin = Keypair::new();
+    let admin_pubkey = admin.pubkey();
+
+    let everyone = HashMap::from([
+        (payer.pubkey(), "payer".to_string()),
+        (admin.pubkey(), "admin".to_string()),
+    ]);
+
+    // --- TOKEN MINT KEYS ---
+    let bling_mint = read_keypair_file("token-keys/bling-mint.json").unwrap();
+    let usdc_mint = read_keypair_file("token-keys/usdc-mint.json").unwrap();
+    let stablecoin_mint = read_keypair_file("token-keys/stablecoin-mint.json").unwrap();
+
+    // --- AIRDROP ---
+    airdrop_sol_to_users(&rpc, &everyone).await;
+
+    // --- CREATE MINTS ---
+    setup_token_mint(&rpc, &payer, &payer, &opinions_market, &bling_mint).await;
+    setup_token_mint(&rpc, &payer, &payer, &opinions_market, &usdc_mint).await;
+    setup_token_mint(&rpc, &payer, &payer, &opinions_market, &stablecoin_mint).await;
+
+    setup_token_mint_ata_and_mint_to_many_users(
+        &rpc,
+        &payer,
+        &payer,
+        &everyone.keys().cloned().collect::<Vec<Pubkey>>(),
+        &opinions_market,
+        &bling_mint,
+        1_000_000_000 * LAMPORTS_PER_SOL,
+        &bling_mint,
+        &usdc_mint,
+        &stablecoin_mint,
+    ).await;
+
+    // --- CONFIG PDA ---
+    let config_pda = Pubkey::find_program_address(&[CONFIG_SEED], &program_id).0;
+    let protocol_bling_treasury = Pubkey::find_program_address(&[PROTOCOL_TREASURY_TOKEN_ACCOUNT_SEED, bling_mint.pubkey().as_ref()], &program_id).0;
+    let valid_payment_pda = Pubkey::find_program_address(&[VALID_PAYMENT_SEED, bling_mint.pubkey().as_ref()], &program_id).0;
+
+    // --- INITIALIZE PROGRAM ---
+    let initialize_ix = opinions_market
+        .request()
+        .accounts(opinions_market::accounts::Initialize {
+            admin: admin_pubkey,
+            payer: payer.pubkey(),
+            config: config_pda,
+            bling_mint: bling_mint.pubkey(),
+            usdc_mint: usdc_mint.pubkey(),
+            protocol_bling_treasury,
+            valid_payment: valid_payment_pda,
+            system_program: anchor_lang::solana_program::system_program::ID,
+            token_program: anchor_spl::token::spl_token::ID,
+        })
+        .args(opinions_market::instruction::Initialize {
+            base_duration_secs: 30,
+            max_duration_secs: 120,
+            extension_per_vote_secs: 5,
+        })
+        .instructions()
+        .unwrap();
+
+    send_tx(&rpc, initialize_ix, &payer.pubkey(), &[&payer, &admin]).await.unwrap();
+
+    println!("BLING_MINT: {}", bling_mint.pubkey());
+    println!("USDC_MINT: {}", usdc_mint.pubkey());
+    println!("CONFIG PDA: {}", config_pda);
+    println!("OK. Local environment ready.");
+}

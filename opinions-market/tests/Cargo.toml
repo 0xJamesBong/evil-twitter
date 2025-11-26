@@ -4,6 +4,10 @@ version = "0.1.0"
 description = "Created with Anchor"
 edition = "2021"
 
+[lib]
+name = "tests"
+path = "src/lib.rs"
+
 [dependencies]
 
 opinions-market = { version = "0.1.0", path = "../programs/opinions-market" }
