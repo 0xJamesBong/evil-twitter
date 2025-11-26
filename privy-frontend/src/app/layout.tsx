@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import localFont from "next/font/local";
 import "./globals.css";
 import Providers from "@/providers/providers";
+import { AuthenticatedLayout } from "@/components/layout/AuthenticatedLayout";
 
 const inter = localFont({
   src: "../../public/fonts/InterVariable.ttf",
@@ -30,7 +31,9 @@ export default function RootLayout({
       <body
         className={`${inter.variable} ${abcFavorit.variable} antialiased`}
       >
-        <Providers>{children}</Providers>
+        <Providers>
+          <AuthenticatedLayout>{children}</AuthenticatedLayout>
+        </Providers>
       </body>
     </html>
   );
