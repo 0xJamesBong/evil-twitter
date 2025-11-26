@@ -1,9 +1,9 @@
 import { create } from "zustand";
-import { ME_QUERY, MeQueryResult } from "../graphql/user/queries";
+import { ME_QUERY, MeQueryResult } from "../graphql/users/queries";
 import {
   ONBOARD_USER_MUTATION,
   OnboardUserResult,
-} from "../graphql/user/mutations";
+} from "../graphql/users/mutations";
 import { graphqlRequest } from "../graphql/client";
 
 type BackendUser = MeQueryResult["me"];

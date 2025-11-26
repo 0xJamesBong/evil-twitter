@@ -19,36 +19,42 @@ export default function Providers({ children }: { children: React.ReactNode }) {
       >
         <PrivyProvider
           appId={process.env.NEXT_PUBLIC_PRIVY_APP_ID!}
-          {...(process.env.NEXT_PUBLIC_PRIVY_CLIENT_ID && {
-            clientId: process.env.NEXT_PUBLIC_PRIVY_CLIENT_ID,
-          })}
+          clientId={process.env.NEXT_PUBLIC_PRIVY_CLIENT_ID!}
           config={{
-            appearance: {
-              accentColor: "#00A2C7", // Teal 500
-              theme: "#FFFFFF",
-              showWalletLoginFirst: false,
-              logo: "https://auth.privy.io/logos/privy-logo.png",
-              walletChainType: "ethereum-and-solana",
+            "appearance": {
+              "accentColor": "#00A2C7", // Teal 500
+              "theme": "#FFFFFF",
+              "showWalletLoginFirst": false,
+              "logo": "https://auth.privy.io/logos/privy-logo.png",
+              "walletChainType": "solana-only",
+              "walletList": [
+                "detected_solana_wallets",
+                "phantom",
+              ]
             },
-            loginMethods: ["email", "wallet"],
-            fundingMethodConfig: {
-              moonpay: {
-                useSandbox: true,
-              },
+            "loginMethods": [
+              "email",
+              "wallet"
+            ],
+            "fundingMethodConfig": {
+              "moonpay": {
+                "useSandbox": true
+              }
             },
-            embeddedWallets: {
-              showWalletUIs: true,
-              ethereum: {
-                createOnLogin: "users-without-wallets",
+            "embeddedWallets": {
+              "showWalletUIs": true,
+              "ethereum": {
+                "createOnLogin": "off"
               },
-              solana: {
-                createOnLogin: "users-without-wallets",
-              },
+              "solana": {
+                "createOnLogin": "users-without-wallets"
+              }
             },
-            mfa: {
-              noPromptOnMfaRequired: false,
+            "mfa": {
+              "noPromptOnMfaRequired": false
             },
             externalWallets: { solana: { connectors: toSolanaWalletConnectors() } },
+
           }}
         >
           <SyncPrivy />

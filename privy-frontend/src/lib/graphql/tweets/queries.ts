@@ -74,6 +74,14 @@ export const TIMELINE_QUERY = `
           rootTweetId
           quotedTweetId
           repliedToTweetId
+          postIdHash
+          postState {
+            state
+            upvotes
+            downvotes
+            winningSide
+            endTime
+          }
         }
       }
     }
