@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { useSolanaWallets, useIdentityToken } from "@privy-io/react-auth";
+import { useSolanaWallets, useIdentityToken, usePrivy } from "@privy-io/react-auth";
 import { PublicKey } from "@solana/web3.js";
 import {
   Box,
@@ -20,6 +20,7 @@ import {
   Add as AddIcon,
   Remove as RemoveIcon,
   AccountCircle as AccountCircleIcon,
+  Login as LoginIcon,
 } from "@mui/icons-material";
 import { useSnackbar } from "notistack";
 import { useDeposit } from "../../hooks/useDeposit";
@@ -35,6 +36,7 @@ const PROGRAM_ID = new PublicKey("4z5rjroGdWmgGX13SdFsh4wRM4jJkMUrcvYrNpV3gezm")
 const BLING_MINT = new PublicKey("bbb9w3ZidNJJGm4TKbhkCXqB9XSnzsjTedmJ5F2THX8");
 
 export function VaultNavbar() {
+  const { authenticated, login } = usePrivy();
   const { wallets } = useSolanaWallets();
   const { identityToken } = useIdentityToken();
   // Try to find Privy embedded wallet first, then fall back to any Solana wallet
@@ -47,9 +49,9 @@ export function VaultNavbar() {
   // Use Zustand store for user data
   const { user, isLoading: queryLoading, refreshMe } = useBackendUserStore();
 
-  // Fetch user data on mount and set up polling
+  // Fetch user data on mount and set up polling (only if authenticated)
   useEffect(() => {
-    if (!identityToken) return;
+    if (!authenticated || !identityToken) return;
 
     // Initial fetch
     useBackendUserStore.getState().fetchMe(identityToken);
@@ -62,7 +64,7 @@ export function VaultNavbar() {
     }, 10000);
 
     return () => clearInterval(interval);
-  }, [identityToken, refreshMe]);
+  }, [authenticated, identityToken, refreshMe]);
 
   const [dialogOpen, setDialogOpen] = useState(false);
   const [dialogMode, setDialogMode] = useState<"deposit" | "withdraw" | "create">("deposit");
@@ -251,77 +253,94 @@ export function VaultNavbar() {
 
   const isLoading = depositLoading || withdrawLoading || createUserLoading;
 
+  // Handle login button click
+  const handleLogin = () => {
+    login();
+  };
+
   return (
     <>
       <Box sx={{ display: "flex", alignItems: "center", gap: 2 }}>
-        {/* Vault Balance Display */}
-        <Box
-          sx={{
-            display: "flex",
-            alignItems: "center",
-            gap: 1,
-            px: 2,
-            py: 0.5,
-            borderRadius: 1,
-            backgroundColor: "action.hover",
-          }}
-        >
-          <WalletIcon sx={{ fontSize: 18, color: "text.secondary" }} />
-          <Typography variant="body2" sx={{ fontWeight: 500, color: "text.primary" }}>
-            Vault:
-          </Typography>
-          {loadingBalance || queryLoading ? (
-            <CircularProgress size={14} />
-          ) : (
-            <Typography variant="body2" sx={{ fontWeight: 600, color: "text.primary" }}>
-              {displayBalance !== null ? displayBalance.toLocaleString() : "N/A"}
-            </Typography>
-          )}
-        </Box>
-
-        {/* Show message if no wallet, otherwise show buttons */}
-        {!solanaWallet ? (
-          <Typography variant="body2" color="text.secondary" sx={{ fontSize: "0.75rem" }}>
-            Connect Solana wallet
-          </Typography>
-        ) : !hasOnchainAccount && !queryLoading ? (
+        {/* Show login button if not authenticated */}
+        {!authenticated ? (
           <Button
             variant="contained"
             color="primary"
             size="small"
-            startIcon={<AccountCircleIcon />}
-            onClick={handleOpenCreateAccount}
-            sx={{ minWidth: 140 }}
+            startIcon={<LoginIcon />}
+            onClick={handleLogin}
+            sx={{ minWidth: 100 }}
           >
-            Create Account
+            Log in
           </Button>
         ) : (
           <>
-            {/* Deposit Button */}
-            <Button
-              variant="contained"
-              color="success"
-              size="small"
-              startIcon={<AddIcon />}
-              onClick={() => handleOpenDialog("deposit")}
-              sx={{ minWidth: 100 }}
-              disabled={queryLoading}
+            {/* Vault Balance Display - only show if authenticated */}
+            <Box
+              sx={{
+                display: "flex",
+                alignItems: "center",
+                gap: 1,
+                px: 2,
+                py: 0.5,
+                borderRadius: 1,
+                backgroundColor: "action.hover",
+              }}
             >
-              Deposit
-            </Button>
+              <WalletIcon sx={{ fontSize: 18, color: "text.secondary" }} />
+              <Typography variant="body2" sx={{ fontWeight: 500, color: "text.primary" }}>
+                Vault:
+              </Typography>
+              {loadingBalance || queryLoading ? (
+                <CircularProgress size={14} />
+              ) : (
+                <Typography variant="body2" sx={{ fontWeight: 600, color: "text.primary" }}>
+                  {displayBalance !== null ? displayBalance.toLocaleString() : "N/A"}
+                </Typography>
+              )}
+            </Box>
 
-            {/* Withdraw Button */}
-            <Button
-              variant="outlined"
-              color="error"
-              size="small"
-              startIcon={<RemoveIcon />}
-              onClick={() => handleOpenDialog("withdraw")}
-              sx={{ minWidth: 100 }}
-              disabled={queryLoading}
-            >
-              Withdraw
-            </Button>
+            {/* Show Create Account button if no on-chain account, otherwise show Deposit/Withdraw */}
+            {!hasOnchainAccount && !queryLoading ? (
+              <Button
+                variant="contained"
+                color="primary"
+                size="small"
+                startIcon={<AccountCircleIcon />}
+                onClick={handleOpenCreateAccount}
+                sx={{ minWidth: 140 }}
+              >
+                Create Account
+              </Button>
+            ) : (
+              <>
+                {/* Deposit Button */}
+                <Button
+                  variant="contained"
+                  color="success"
+                  size="small"
+                  startIcon={<AddIcon />}
+                  onClick={() => handleOpenDialog("deposit")}
+                  sx={{ minWidth: 100 }}
+                  disabled={queryLoading}
+                >
+                  Deposit
+                </Button>
+
+                {/* Withdraw Button */}
+                <Button
+                  variant="outlined"
+                  color="error"
+                  size="small"
+                  startIcon={<RemoveIcon />}
+                  onClick={() => handleOpenDialog("withdraw")}
+                  sx={{ minWidth: 100 }}
+                  disabled={queryLoading}
+                >
+                  Withdraw
+                </Button>
+              </>
+            )}
           </>
         )}
       </Box>
