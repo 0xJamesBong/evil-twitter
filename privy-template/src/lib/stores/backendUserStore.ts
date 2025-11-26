@@ -22,6 +22,7 @@ type BackendUserActions = {
     displayName: string
   ) => Promise<void>;
   fetchMe: (identityToken: string) => Promise<void>;
+  refreshMe: (identityToken: string) => Promise<void>;
   clear: () => void;
 };
 
@@ -74,6 +75,20 @@ export const useBackendUserStore = create<
         isLoading: false,
       });
       throw e;
+    }
+  },
+  refreshMe: async (identityToken: string) => {
+    // Refresh without showing loading state (for polling)
+    try {
+      const data = await graphqlRequest<MeQueryResult>(
+        ME_QUERY,
+        undefined,
+        identityToken
+      );
+      set({ user: data.me });
+    } catch (e) {
+      // Silently fail on refresh to avoid disrupting UX
+      console.error("Failed to refresh user data:", e);
     }
   },
   clear: () => {

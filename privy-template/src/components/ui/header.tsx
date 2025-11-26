@@ -1,6 +1,7 @@
 "use client";
 
 import { Box, AppBar, Toolbar, Typography } from "@mui/material";
+import { VaultNavbar } from "@/components/solana/VaultNavbar";
 
 export function Header() {
   return (
@@ -33,6 +34,7 @@ export function Header() {
           </Typography>
         </Box>
 
+        <VaultNavbar />
       </Toolbar>
     </AppBar>
   );

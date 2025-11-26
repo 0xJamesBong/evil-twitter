@@ -8,6 +8,8 @@ export const ME_QUERY = `
       email
       status
       createdAt
+      hasOnchainAccount
+      vaultBalance
       profile {
         id
         userId
@@ -31,6 +33,8 @@ export interface MeQueryResult {
     email: string | null;
     status: string;
     createdAt: string;
+    hasOnchainAccount: boolean | null;
+    vaultBalance: number | null;
     profile: {
       id: string;
       userId: string;

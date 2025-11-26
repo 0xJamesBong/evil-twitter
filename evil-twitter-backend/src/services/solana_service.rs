@@ -6,8 +6,8 @@ use solana_sdk::{
     system_program,
     transaction::Transaction,
 };
-use std::sync::Arc;
 use std::io::{Cursor, Read};
+use std::sync::Arc;
 
 // Re-export state types for use in service
 // These will be deserialized from on-chain accounts
@@ -62,12 +62,62 @@ impl SolanaService {
     }
 
     /// Create a user account on-chain
-    pub fn create_user(&self, _user_wallet: &Pubkey) -> Result<Signature, SolanaError> {
-        // This will be implemented using anchor-client or manual transaction building
-        // For now, return an error indicating it needs implementation
-        Err(SolanaError::RpcError(
-            "create_user not yet implemented".to_string(),
-        ))
+    pub fn create_user(&self, user_wallet: &Pubkey) -> Result<Signature, SolanaError> {
+        let connection = self.program.get_connection();
+        let payer = self.program.get_payer();
+
+        // Derive PDAs
+        let (config_pda, _) = get_config_pda(&self.program_id);
+        let (user_account_pda, _) = get_user_account_pda(&self.program_id, user_wallet);
+
+        // Build instruction accounts in the exact order from IDL
+        // create_user accounts: user (signer), payer (signer), user_account (PDA), config (PDA), system_program
+        let accounts = vec![
+            AccountMeta::new(*user_wallet, true),      // user (signer)
+            AccountMeta::new(payer.pubkey(), true),    // payer (signer)
+            AccountMeta::new(user_account_pda, false), // user_account (PDA, writable)
+            AccountMeta::new(config_pda, false),       // config (PDA, writable)
+            AccountMeta::new_readonly(system_program::id(), false), // system_program
+        ];
+
+        // Build instruction data
+        // Discriminator for create_user: [108, 227, 130, 130, 252, 109, 75, 218]
+        // No args for create_user
+        let instruction_data = vec![108u8, 227, 130, 130, 252, 109, 75, 218];
+
+        let instruction = Instruction {
+            program_id: self.program_id,
+            accounts,
+            data: instruction_data,
+        };
+
+        let mut transaction = Transaction::new_with_payer(&[instruction], Some(&payer.pubkey()));
+
+        let connection_service = self.program.get_connection_service();
+        let recent_blockhash = connection_service.get_latest_blockhash()?;
+
+        // TODO: The program currently requires `user: Signer<'info>`, but according to the architecture,
+        // we should be able to create the user account with just the backend payer signing.
+        // The program needs to be updated to make the user signer optional or allow the payer to sign instead.
+        // For now, this will fail because we can't sign as the user from the backend.
+        //
+        // The program should be updated to:
+        // - Remove the `user: Signer<'info>` constraint, OR
+        // - Allow the payer to act as the user signer
+        //
+        // Once updated, we can sign with just the payer:
+        transaction.sign(&[payer], recent_blockhash);
+
+        let signature = connection
+            .send_and_confirm_transaction(&transaction)
+            .map_err(|e| {
+                SolanaError::TransactionError(format!(
+                    "Failed to send create_user transaction: {}",
+                    e
+                ))
+            })?;
+
+        Ok(signature)
     }
 
     /// Create a post on-chain
@@ -141,40 +191,48 @@ impl SolanaService {
         let payer = self.program.get_payer();
 
         // First, get the post account to get creator_user
-        let post_account = self.get_post_account(post_id_hash)?
+        let post_account = self
+            .get_post_account(post_id_hash)?
             .ok_or_else(|| SolanaError::AccountNotFound("Post account not found".to_string()))?;
 
         // Derive all PDAs
         let (config_pda, _) = get_config_pda(&self.program_id);
         let (post_pda, _) = get_post_pda(&self.program_id, &post_id_hash);
         let (voter_user_account_pda, _) = get_user_account_pda(&self.program_id, voter_wallet);
-        let (voter_vault_token_account_pda, _) = get_user_vault_token_account_pda(&self.program_id, voter_wallet, token_mint);
+        let (voter_vault_token_account_pda, _) =
+            get_user_vault_token_account_pda(&self.program_id, voter_wallet, token_mint);
         let (position_pda, _) = get_position_pda(&self.program_id, &post_pda, voter_wallet);
         let (vault_authority_pda, _) = get_vault_authority_pda(&self.program_id);
-        let (post_pot_token_account_pda, _) = get_post_pot_token_account_pda(&self.program_id, &post_pda, token_mint);
+        let (post_pot_token_account_pda, _) =
+            get_post_pot_token_account_pda(&self.program_id, &post_pda, token_mint);
         let (post_pot_authority_pda, _) = get_post_pot_authority_pda(&self.program_id, &post_pda);
-        let (protocol_treasury_token_account_pda, _) = get_protocol_treasury_token_account_pda(&self.program_id, token_mint);
-        let (creator_vault_token_account_pda, _) = get_user_vault_token_account_pda(&self.program_id, &post_account.creator_user, token_mint);
+        let (protocol_treasury_token_account_pda, _) =
+            get_protocol_treasury_token_account_pda(&self.program_id, token_mint);
+        let (creator_vault_token_account_pda, _) = get_user_vault_token_account_pda(
+            &self.program_id,
+            &post_account.creator_user,
+            token_mint,
+        );
         let (valid_payment_pda, _) = get_valid_payment_pda(&self.program_id, token_mint);
 
         // Build instruction accounts in the exact order from IDL
         let accounts = vec![
-            AccountMeta::new(config_pda, false), // config
-            AccountMeta::new(*voter_wallet, true), // voter (signer)
+            AccountMeta::new(config_pda, false),    // config
+            AccountMeta::new(*voter_wallet, true),  // voter (signer)
             AccountMeta::new(payer.pubkey(), true), // payer (signer)
-            AccountMeta::new(post_pda, false), // post
+            AccountMeta::new(post_pda, false),      // post
             AccountMeta::new_readonly(voter_user_account_pda, false), // voter_user_account
             AccountMeta::new(voter_vault_token_account_pda, false), // voter_user_vault_token_account
-            AccountMeta::new(position_pda, false), // position
-            AccountMeta::new_readonly(vault_authority_pda, false), // vault_authority
-            AccountMeta::new(post_pot_token_account_pda, false), // post_pot_token_account
+            AccountMeta::new(position_pda, false),                  // position
+            AccountMeta::new_readonly(vault_authority_pda, false),  // vault_authority
+            AccountMeta::new(post_pot_token_account_pda, false),    // post_pot_token_account
             AccountMeta::new_readonly(post_pot_authority_pda, false), // post_pot_authority
             AccountMeta::new(protocol_treasury_token_account_pda, false), // protocol_token_treasury_token_account
             AccountMeta::new(creator_vault_token_account_pda, false), // creator_vault_token_account
-            AccountMeta::new_readonly(valid_payment_pda, false), // valid_payment
-            AccountMeta::new_readonly(*token_mint, false), // token_mint
+            AccountMeta::new_readonly(valid_payment_pda, false),      // valid_payment
+            AccountMeta::new_readonly(*token_mint, false),            // token_mint
             AccountMeta::new_readonly(anchor_spl::token::spl_token::ID, false), // token_program
-            AccountMeta::new_readonly(system_program::id(), false), // system_program
+            AccountMeta::new_readonly(system_program::id(), false),   // system_program
         ];
 
         // Build instruction data
@@ -337,13 +395,19 @@ impl SolanaService {
         let winning_side = {
             let mut buf = [0u8; 1];
             cursor.read_exact(&mut buf).map_err(|e| {
-                SolanaError::InvalidAccountData(format!("Failed to read winning_side option: {}", e))
+                SolanaError::InvalidAccountData(format!(
+                    "Failed to read winning_side option: {}",
+                    e
+                ))
             })?;
             if buf[0] == 1 {
                 // Some variant
                 let mut variant_buf = [0u8; 1];
                 cursor.read_exact(&mut variant_buf).map_err(|e| {
-                    SolanaError::InvalidAccountData(format!("Failed to read winning_side variant: {}", e))
+                    SolanaError::InvalidAccountData(format!(
+                        "Failed to read winning_side variant: {}",
+                        e
+                    ))
                 })?;
                 Some(variant_buf[0]) // 0 = Pump, 1 = Smack
             } else {

@@ -196,7 +196,7 @@ impl UserNode {
         #[graphql(name = "tokenMint")] token_mint: Option<String>,
     ) -> Result<u64> {
         let app_state = ctx.data::<Arc<AppState>>()?;
-        
+
         // Parse user's Solana wallet
         let user_wallet = solana_sdk::pubkey::Pubkey::from_str(&self.inner.wallet)
             .map_err(|e| async_graphql::Error::new(format!("Invalid user wallet: {}", e)))?;
@@ -213,9 +213,24 @@ impl UserNode {
         let balance = app_state
             .solana_service
             .get_user_vault_balance(&user_wallet, &token_mint_pubkey)
-            .map_err(|e| async_graphql::Error::new(format!("Failed to get vault balance: {}", e)))?;
+            .map_err(|e| {
+                async_graphql::Error::new(format!("Failed to get vault balance: {}", e))
+            })?;
 
         Ok(balance)
+    }
+
+    /// Check if the user account exists on-chain
+    async fn has_onchain_account(&self, ctx: &Context<'_>) -> Result<bool> {
+        let app_state = ctx.data::<Arc<AppState>>()?;
+        let user_wallet = solana_sdk::pubkey::Pubkey::from_str(&self.inner.wallet)
+            .map_err(|e| async_graphql::Error::new(format!("Invalid user wallet: {}", e)))?;
+
+        match app_state.solana_service.get_user_account(&user_wallet) {
+            Ok(Some(_)) => Ok(true),
+            Ok(None) => Ok(false),
+            Err(_) => Ok(false), // Account doesn't exist if we can't fetch it
+        }
     }
 }
 

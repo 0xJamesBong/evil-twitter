@@ -1,5 +1,6 @@
 use async_graphql::{Context, InputObject, Object, Result, SimpleObject};
 use axum::http::HeaderMap;
+use std::str::FromStr;
 
 use std::sync::Arc;
 
@@ -29,9 +30,10 @@ impl UserMutation {
         onboard_user_resolver(ctx, input).await
     }
 
-    /// Placeholder mutation - user mutations will be added here as needed
-    async fn _placeholder(&self) -> String {
-        "placeholder".to_string()
+    /// Create on-chain user account (backend-signed)
+    /// This creates the user's PDA account on Solana without requiring user wallet signature
+    async fn create_onchain_user(&self, ctx: &Context<'_>) -> Result<CreateOnchainUserPayload> {
+        create_onchain_user_resolver(ctx).await
     }
 }
 
@@ -56,6 +58,12 @@ pub struct OnboardUserPayload {
 
 #[derive(SimpleObject)]
 pub struct UserCreatePayload {
+    pub user: UserNode,
+}
+
+#[derive(SimpleObject)]
+pub struct CreateOnchainUserPayload {
+    pub signature: String,
     pub user: UserNode,
 }
 
@@ -244,6 +252,65 @@ pub async fn onboard_user_resolver(
     };
 
     Ok(OnboardUserPayload {
+        user: UserNode::from(user),
+    })
+}
+
+/// Create on-chain user account (backend-signed)
+pub async fn create_onchain_user_resolver(ctx: &Context<'_>) -> Result<CreateOnchainUserPayload> {
+    let app_state = ctx.data::<Arc<AppState>>()?;
+    let headers = ctx
+        .data::<HeaderMap>()
+        .map_err(|_| async_graphql::Error::new("Failed to get headers from context"))?;
+
+    // Verify Privy token and get Privy ID
+    let privy_id = auth::get_privy_id_from_header(&app_state.privy_service, headers)
+        .await
+        .map_err(|(status, json)| {
+            let error_msg = json
+                .get("error")
+                .and_then(|v| v.as_str())
+                .unwrap_or("Authentication failed");
+            async_graphql::Error::new(format!("{} (status {})", error_msg, status))
+        })?;
+
+    // Get user from database
+    let user = app_state
+        .mongo_service
+        .users
+        .get_user_by_privy_id(&privy_id)
+        .await?
+        .ok_or_else(|| async_graphql::Error::new("User not found. Please onboard first."))?;
+
+    // Parse user's Solana wallet
+    let user_wallet = solana_sdk::pubkey::Pubkey::from_str(&user.wallet)
+        .map_err(|e| async_graphql::Error::new(format!("Invalid user wallet: {}", e)))?;
+
+    // Check if user account already exists on-chain
+    match app_state.solana_service.get_user_account(&user_wallet) {
+        Ok(Some(_)) => {
+            return Err(async_graphql::Error::new(
+                "User account already exists on-chain",
+            ));
+        }
+        Ok(None) => {
+            // Account doesn't exist, proceed with creation
+        }
+        Err(_) => {
+            // Error fetching account, assume it doesn't exist and proceed
+        }
+    }
+
+    // Create user account on-chain (backend signs)
+    let signature = app_state
+        .solana_service
+        .create_user(&user_wallet)
+        .map_err(|e| {
+            async_graphql::Error::new(format!("Failed to create on-chain user account: {}", e))
+        })?;
+
+    Ok(CreateOnchainUserPayload {
+        signature: signature.to_string(),
         user: UserNode::from(user),
     })
 }
