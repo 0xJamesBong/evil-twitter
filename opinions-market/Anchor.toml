@@ -18,6 +18,17 @@ wallet = "~/Documents/evil-twitter/opinions-market/.secrets/assFUvBMqjyWvtRLEbWX
 
 [scripts]
 test = "cargo test -- --nocapture"
-local = "cargo run -p bootstrap"
+#local = "cargo run -p bootstrap"
+
+local = """
+solana config set --url http://127.0.0.1:8899;
+solana config set --keypair ~/Documents/evil-twitter/opinions-market/.secrets/assFUvBMqjyWvtRLEbWXuN84T4UdTihCjfzC8JaXtrh.json;
+solana-test-validator --reset > /dev/null 2>&1 & sleep 3;
+solana airdrop 20;
+anchor build;
+anchor deploy;
+cargo run -p bootstrap
+"""
+
 
 
