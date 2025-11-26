@@ -3,8 +3,9 @@ import { Connection, PublicKey } from "@solana/web3.js";
 import { WalletContextState } from "@solana/wallet-adapter-react";
 import idl from "./idl/opinions_market.json";
 
-const PROGRAM_ID = new PublicKey(
-  "4z5rjroGdWmgGX13SdFsh4wRM4jJkMUrcvYrNpV3gezm"
+// Read PROGRAM_ID from IDL
+export const PROGRAM_ID = new PublicKey(
+  (idl as any).address || "4z5rjroGdWmgGX13SdFsh4wRM4jJkMUrcvYrNpV3gezm"
 );
 
 export interface OpinionsMarket {

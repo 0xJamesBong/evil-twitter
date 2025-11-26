@@ -29,8 +29,7 @@ import { useCreateUser } from "../../hooks/useCreateUser";
 import { getConnection } from "../../lib/solana/connection";
 import { getUserVaultTokenAccountPda } from "../../lib/solana/pda";
 import { useBackendUserStore } from "../../lib/stores/backendUserStore";
-
-const PROGRAM_ID = new PublicKey("4z5rjroGdWmgGX13SdFsh4wRM4jJkMUrcvYrNpV3gezm");
+import { PROGRAM_ID } from "../../lib/solana/program";
 
 // Default BLING mint - should match backend
 const BLING_MINT = new PublicKey("bbb9w3ZidNJJGm4TKbhkCXqB9XSnzsjTedmJ5F2THX8");
