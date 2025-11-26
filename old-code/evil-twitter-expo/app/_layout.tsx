@@ -61,7 +61,7 @@ export default function RootLayout() {
               >
                 <Sidebar compact={isCompactSidebar} />
               </View>
-
+              <View>SHIT</View>
               <View
                 style={[
                   styles.timelineWrapper,

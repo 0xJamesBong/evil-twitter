@@ -30,7 +30,7 @@ export function Header() {
               color: "text.primary",
             }}
           >
-            Network State
+            SHIT
           </Typography>
         </Box>
 
