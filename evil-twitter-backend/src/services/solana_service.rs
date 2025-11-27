@@ -2,7 +2,9 @@ use anchor_client::Client;
 use anchor_client::Cluster;
 use anchor_client::Program;
 
-use anchor_lang::Idl;
+use serde_json::Value;
+
+use anchor_client::anchor_lang::prelude::*;
 
 use solana_client::nonblocking::rpc_client::RpcClient;
 use solana_sdk::commitment_config::CommitmentConfig;
@@ -16,19 +18,34 @@ pub struct SolanaService {
     payer: Arc<Keypair>,
 }
 
+fn read_program_id_from_idl() -> Pubkey {
+    let raw = include_str!("../solana/idl/opinions_market.json");
+    let v: Value = serde_json::from_str(raw).unwrap();
+
+    let addr = v["metadata"]["address"]
+        .as_str()
+        .expect("address field missing in IDL");
+
+    addr.parse().unwrap()
+}
+
 impl SolanaService {
     pub fn new(rpc: Arc<RpcClient>, payer: Arc<Keypair>) -> Self {
         Self { rpc, payer }
     }
-
     fn program(&self) -> Program<Arc<Keypair>> {
+        let payer = self.payer.clone();
         let client = Client::new_with_options(
             Cluster::Localnet,
-            self.payer.clone(),
+            payer.clone(),
             CommitmentConfig::confirmed(),
         );
-        let idl: Idl = serde_json::from_str(include_str!("idl/opinions_market.json"))?;
-        let program = client.program_with_idl(program_id, idl)?;
+
+        let program_id = read_program_id_from_idl();
+        println!("program_id: {}", program_id);
+
+        let program = client.program(program_id).unwrap();
+
         program
     }
 
