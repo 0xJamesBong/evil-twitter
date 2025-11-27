@@ -9,6 +9,7 @@ use anchor_lang::prelude::*;
 #[derive(InitSpace, Copy, PartialEq, Eq, Debug)]
 pub struct Config {
     pub admin: Pubkey,
+    pub payer_authroity: Pubkey,
     pub bling_mint: Pubkey,
 
     // pub protocol_vote_fee_bps: u16,
@@ -31,6 +32,7 @@ pub struct Config {
 impl Config {
     pub fn new(
         admin: Pubkey,
+        payer_authroity: Pubkey,
         bling_mint: Pubkey,
         base_duration_secs: u32,
         max_duration_secs: u32,
@@ -40,8 +42,8 @@ impl Config {
     ) -> Self {
         Self {
             admin,
+            payer_authroity,
             bling_mint,
-
             base_duration_secs,
             max_duration_secs,
             extension_per_vote_secs,
