@@ -72,17 +72,13 @@ impl SolanaService {
         &self.bling_mint
     }
 
-    /// Get opinions_market_program - creates Client/Program in blocking thread pool
-    pub async fn opinions_market_program(&self) -> Program<Arc<Keypair>> {
-        let payer = self.payer.clone();
-        let program_id = self.program_id;
-        tokio::task::spawn_blocking(move || {
-            let client =
-                Client::new_with_options(Cluster::Localnet, payer, CommitmentConfig::confirmed());
-            client.program(program_id).expect("Failed to init program")
-        })
-        .await
-        .expect("spawn_blocking failed")
+    /// Get opinions_market_program using the async Anchor client (no nested runtimes)
+    pub fn opinions_market_program(&self) -> Program<Arc<Keypair>> {
+        let client =
+            Client::new_with_options(Cluster::Localnet, self.payer.clone(), CommitmentConfig::confirmed());
+        client
+            .program(self.program_id)
+            .expect("Failed to init program")
     }
 
     pub async fn partial_sign_tx<T: Signers + ?Sized>(
@@ -133,7 +129,7 @@ impl SolanaService {
     }
 
     pub async fn build_partial_signed_ping_tx(&self) -> anyhow::Result<String> {
-        let opinions_market = self.opinions_market_program().await;
+        let opinions_market = self.opinions_market_program();
 
         let ix = opinions_market
             .request()
@@ -188,10 +184,13 @@ impl SolanaService {
         &self,
         user_wallet: &Pubkey,
     ) -> anyhow::Result<Option<opinions_market::state::UserAccount>> {
-        let opinions_market = self.opinions_market_program().await;
+        let opinions_market = self.opinions_market_program();
         let (user_account_pda, _) = get_user_account_pda(&self.program_id, user_wallet);
 
-        match opinions_market.account::<opinions_market::state::UserAccount>(user_account_pda) {
+        match opinions_market
+            .account::<opinions_market::state::UserAccount>(user_account_pda)
+            .await
+        {
             Ok(user_account) => Ok(Some(user_account)),
             Err(_) => Ok(None), // Account doesn't exist
         }
@@ -227,7 +226,7 @@ impl SolanaService {
         &self,
         user_wallet: Pubkey,
     ) -> anyhow::Result<(String, Pubkey)> {
-        let opinions_market = self.opinions_market_program().await;
+        let opinions_market = self.opinions_market_program();
         let (user_account_pda, _) = get_user_account_pda(&self.program_id, &user_wallet);
         let (config_pda, _) = get_config_pda(&self.program_id);
 
