@@ -1,4 +1,5 @@
 use std::collections::HashMap;
+use std::fs;
 
 use anchor_client::anchor_lang::solana_program::example_mocks::solana_sdk::system_instruction;
 use anchor_client::anchor_lang::solana_program::example_mocks::solana_sdk::system_program;
@@ -41,25 +42,36 @@ use crate::solana::{get_user_account_pda, get_user_vault_token_account_pda};
 pub struct SolanaService {
     rpc: Arc<RpcClient>,
     payer: Arc<Keypair>,
+    opinions_market_program: Program<Arc<Keypair>>,
     bling_mint: Pubkey,
 }
 
 fn read_program_id_from_idl() -> Pubkey {
-    let raw = include_str!("../solana/idl/opinions_market.json");
-    let v: Value = serde_json::from_str(raw).unwrap();
+    let file =
+        fs::read_to_string("src/solana/idl/opinions_market.json").expect("IDL file not found");
+    let v: Value = serde_json::from_str(&file).expect("Invalid JSON in IDL");
 
-    let addr = v["metadata"]["address"]
-        .as_str()
-        .expect("address field missing in IDL");
+    let addr = v["address"].as_str().expect("IDL missing address field");
 
-    addr.parse().unwrap()
+    addr.parse().expect("Invalid program ID format")
 }
 
 impl SolanaService {
     pub fn new(rpc: Arc<RpcClient>, payer: Arc<Keypair>, bling_mint: Pubkey) -> Self {
+        let program_id = read_program_id_from_idl();
+
+        let client = Client::new_with_options(
+            Cluster::Localnet,
+            payer.clone(),
+            CommitmentConfig::confirmed(),
+        );
+
+        let opinions_market_program = client.program(program_id).expect("Failed to init program");
+
         Self {
             rpc,
             payer,
+            opinions_market_program,
             bling_mint,
         }
     }
@@ -67,21 +79,7 @@ impl SolanaService {
     pub fn get_bling_mint(&self) -> &Pubkey {
         &self.bling_mint
     }
-    fn opinions_market_program(&self) -> Program<Arc<Keypair>> {
-        let payer = self.payer.clone();
-        let client = Client::new_with_options(
-            Cluster::Localnet,
-            payer.clone(),
-            CommitmentConfig::confirmed(),
-        );
 
-        let program_id = read_program_id_from_idl();
-        println!("program_id: {}", program_id);
-
-        let program = client.program(program_id).unwrap();
-
-        program
-    }
     pub async fn partial_sign_tx<T: Signers + ?Sized>(
         &self,
         ixs: Vec<Instruction>,
@@ -130,7 +128,7 @@ impl SolanaService {
     }
 
     pub async fn build_partial_signed_ping_tx(&self) -> anyhow::Result<String> {
-        let opinions_market = self.opinions_market_program();
+        let opinions_market = &self.opinions_market_program;
 
         let ix = opinions_market
             .request()
@@ -185,7 +183,7 @@ impl SolanaService {
         &self,
         user_wallet: &Pubkey,
     ) -> anyhow::Result<Option<opinions_market::state::UserAccount>> {
-        let opinions_market = self.opinions_market_program();
+        let opinions_market = &self.opinions_market_program;
 
         let (user_account_pda, _) = get_user_account_pda(&opinions_market::ID, user_wallet);
 
@@ -200,7 +198,7 @@ impl SolanaService {
         user_wallet: &Pubkey,
         token_mint: &Pubkey,
     ) -> anyhow::Result<u64> {
-        let opinions_market = self.opinions_market_program();
+        let opinions_market = &self.opinions_market_program;
         let (vault_token_account_pda, _) =
             get_user_vault_token_account_pda(&opinions_market::ID, user_wallet, token_mint);
 
@@ -226,7 +224,7 @@ impl SolanaService {
         &self,
         user_wallet: Pubkey,
     ) -> anyhow::Result<(String, Pubkey)> {
-        let opinions_market = self.opinions_market_program();
+        let opinions_market = &self.opinions_market_program;
         let (user_account_pda, _) = get_user_account_pda(&opinions_market::ID, &user_wallet);
         let (config_pda, _) = get_config_pda(&opinions_market::ID);
 
@@ -252,7 +250,7 @@ impl SolanaService {
     //  **** FOR LATER!
 
     // pub async fn ping(&self) -> anyhow::Result<String> {
-    //     let opinions_market = self.opinions_market_program();
+    //     let opinions_market = self.opinions_market_program;
 
     //     let ix = opinions_market
     //         .request()
@@ -267,7 +265,7 @@ impl SolanaService {
     // }
 
     // pub fn build_create_user_tx(&self, user_wallet: Pubkey) -> anyhow::Result<(String, Pubkey)> {
-    //     let opinions_market = self.opinions_market_program();
+    //     let opinions_market = self.opinions_market_program;
     //     let (user_account_pda, _) = get_user_account_pda(&opinions_market::ID, &user_wallet);
     //     let (config_pda, _) = get_config_pda(&PROGRAM_ID);
 
