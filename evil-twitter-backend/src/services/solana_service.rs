@@ -70,17 +70,16 @@ impl SolanaService {
     }
 
     pub async fn send_tx<T: Signers + ?Sized>(
-        rpc: &RpcClient,
+        &self,
         ixs: Vec<Instruction>,
-        payer: &Pubkey,
         signer: &T,
     ) -> anyhow::Result<Signature> {
-        let blockhash = rpc.get_latest_blockhash().await?;
-        let message = Message::try_compile(payer, &ixs, &[], blockhash)?;
+        let blockhash = self.rpc.get_latest_blockhash().await?;
+        let message = Message::try_compile(&self.payer.pubkey(), &ixs, &[], blockhash)?;
         let v0_message = VersionedMessage::V0(message);
         let tx = VersionedTransaction::try_new(v0_message, signer)?;
 
-        let result = rpc.send_and_confirm_transaction(&tx).await;
+        let result = self.rpc.send_and_confirm_transaction(&tx).await;
 
         // inspect error if any
         match result {
@@ -91,7 +90,7 @@ impl SolanaService {
             }
             Ok(signature) => {
                 // Verify the transaction actually succeeded
-                let status = rpc.get_signature_status(&signature).await?;
+                let status = self.rpc.get_signature_status(&signature).await?;
 
                 if let Some(transaction_status) = status {
                     if let Some(err) = transaction_status.err() {
@@ -114,35 +113,35 @@ impl SolanaService {
             .instructions()
             .unwrap();
 
-        let tx = self
-            .send_tx(&self.rpc, ix, &self.payer.pubkey(), &[&self.payer])
-            .await?;
+        let tx = self.send_tx(ix, &[&self.payer]).await?;
 
-        Ok(tx)
+        Ok(tx.to_string())
     }
 
-    pub fn build_create_user_tx(&self, user_wallet: Pubkey) -> anyhow::Result<(String, Pubkey)> {
-        let opinions_market = self.opinions_market_program();
-        let (user_account_pda, _) = get_user_account_pda(&opinions_market::ID, &user_wallet);
-        let (config_pda, _) = get_config_pda(&PROGRAM_ID);
+    // pub fn build_create_user_tx(&self, user_wallet: Pubkey) -> anyhow::Result<(String, Pubkey)> {
+    //     let opinions_market = self.opinions_market_program();
+    //     let (user_account_pda, _) = get_user_account_pda(&opinions_market::ID, &user_wallet);
+    //     let (config_pda, _) = get_config_pda(&PROGRAM_ID);
 
-        let ix = opinions_market
-            .request()
-            .accounts(opinions_market::accounts::CreateUser {
-                config: config_pda,
-                user: user_wallet,
-                payer: self.payer.pubkey(),
-                user_account: user_account_pda,
-                system_program: system_program::ID,
-            })
-            .args(opinions_market::instruction::CreateUser {})
-            .instructions()
-            .unwrap();
+    //     let ix = opinions_market
+    //         .request()
+    //         .accounts(opinions_market::accounts::CreateUser {
+    //             config: config_pda,
+    //             user: user_wallet,
+    //             payer: self.payer.pubkey(),
+    //             user_account: user_account_pda,
+    //             system_program: system_program::ID,
+    //         })
+    //         .args(opinions_market::instruction::CreateUser {})
+    //         .instructions()
+    //         .unwrap();
 
-        let blockhash = self.rpc.get_latest_blockhash()?;
-        let mut tx = Transaction::new_with_payer(&[ix], Some(&self.payer.pubkey()));
-        tx.partial_sign(&[self.payer.as_ref()], blockhash);
+    //     let blockhash = self.rpc.get_latest_blockhash()?;
+    //     let mut tx = Transaction::new_with_payer(&[ix], Some(&self.payer.pubkey()));
+    //     tx.partial_sign(&[self.payer.as_ref()], blockhash);
 
-        Ok((base64::encode(tx.serialize()), user_account_pda))
-    }
+    //     Ok((base64::encode(tx.serialize()), user_account_pda))
+    // }
+
+    // pub async
 }
