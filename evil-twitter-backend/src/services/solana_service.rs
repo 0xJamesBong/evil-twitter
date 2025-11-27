@@ -42,7 +42,7 @@ use crate::solana::{get_user_account_pda, get_user_vault_token_account_pda};
 pub struct SolanaService {
     rpc: Arc<RpcClient>,
     payer: Arc<Keypair>,
-    opinions_market_program: Program<Arc<Keypair>>,
+    program_id: Pubkey,
     bling_mint: Pubkey,
 }
 
@@ -60,24 +60,29 @@ impl SolanaService {
     pub fn new(rpc: Arc<RpcClient>, payer: Arc<Keypair>, bling_mint: Pubkey) -> Self {
         let program_id = read_program_id_from_idl();
 
-        let client = Client::new_with_options(
-            Cluster::Localnet,
-            payer.clone(),
-            CommitmentConfig::confirmed(),
-        );
-
-        let opinions_market_program = client.program(program_id).expect("Failed to init program");
-
         Self {
             rpc,
             payer,
-            opinions_market_program,
+            program_id,
             bling_mint,
         }
     }
 
     pub fn get_bling_mint(&self) -> &Pubkey {
         &self.bling_mint
+    }
+
+    /// Get opinions_market_program - creates Client/Program in blocking thread pool
+    pub async fn opinions_market_program(&self) -> Program<Arc<Keypair>> {
+        let payer = self.payer.clone();
+        let program_id = self.program_id;
+        tokio::task::spawn_blocking(move || {
+            let client =
+                Client::new_with_options(Cluster::Localnet, payer, CommitmentConfig::confirmed());
+            client.program(program_id).expect("Failed to init program")
+        })
+        .await
+        .expect("spawn_blocking failed")
     }
 
     pub async fn partial_sign_tx<T: Signers + ?Sized>(
@@ -128,7 +133,7 @@ impl SolanaService {
     }
 
     pub async fn build_partial_signed_ping_tx(&self) -> anyhow::Result<String> {
-        let opinions_market = &self.opinions_market_program;
+        let opinions_market = self.opinions_market_program().await;
 
         let ix = opinions_market
             .request()
@@ -183,9 +188,8 @@ impl SolanaService {
         &self,
         user_wallet: &Pubkey,
     ) -> anyhow::Result<Option<opinions_market::state::UserAccount>> {
-        let opinions_market = &self.opinions_market_program;
-
-        let (user_account_pda, _) = get_user_account_pda(&opinions_market::ID, user_wallet);
+        let opinions_market = self.opinions_market_program().await;
+        let (user_account_pda, _) = get_user_account_pda(&self.program_id, user_wallet);
 
         match opinions_market.account::<opinions_market::state::UserAccount>(user_account_pda) {
             Ok(user_account) => Ok(Some(user_account)),
@@ -198,9 +202,8 @@ impl SolanaService {
         user_wallet: &Pubkey,
         token_mint: &Pubkey,
     ) -> anyhow::Result<u64> {
-        let opinions_market = &self.opinions_market_program;
         let (vault_token_account_pda, _) =
-            get_user_vault_token_account_pda(&opinions_market::ID, user_wallet, token_mint);
+            get_user_vault_token_account_pda(&self.program_id, user_wallet, token_mint);
 
         let account = match self.rpc.get_account(&vault_token_account_pda).await {
             Ok(account) => account,
@@ -224,9 +227,9 @@ impl SolanaService {
         &self,
         user_wallet: Pubkey,
     ) -> anyhow::Result<(String, Pubkey)> {
-        let opinions_market = &self.opinions_market_program;
-        let (user_account_pda, _) = get_user_account_pda(&opinions_market::ID, &user_wallet);
-        let (config_pda, _) = get_config_pda(&opinions_market::ID);
+        let opinions_market = self.opinions_market_program().await;
+        let (user_account_pda, _) = get_user_account_pda(&self.program_id, &user_wallet);
+        let (config_pda, _) = get_config_pda(&self.program_id);
 
         let ix = opinions_market
             .request()
