@@ -17,7 +17,7 @@ use std::sync::Arc;
 use tower_http::cors::CorsLayer;
 use utoipa_swagger_ui::SwaggerUi;
 
-use crate::routes::{ping::ping_handler, tx::{create_user_tx, ping_tx}};
+use crate::routes::{ping::ping_handler, tx::{create_user_tx, ping_tx, ping_submit}};
 
 /// API documentation
 #[derive(OpenApi)]
@@ -61,6 +61,7 @@ pub async fn app(app_state: Arc<AppState>) -> Router {
     let app = app
         .route("/api/tx/createUser", post(create_user_tx))
         .route("/api/tx/ping", post(ping_tx))
+        .route("/api/tx/ping/submit", post(ping_submit))
         .with_state(app_state.clone())
         .merge(graphql_routes)
         .merge(SwaggerUi::new("/doc").url("/api-docs/openapi.json", api))

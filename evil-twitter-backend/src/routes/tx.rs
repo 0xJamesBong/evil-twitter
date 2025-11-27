@@ -1,4 +1,5 @@
 use axum::{Json, extract::State, http::StatusCode};
+use base64::{Engine as _, engine::general_purpose};
 use serde::{Deserialize, Serialize};
 use solana_sdk::pubkey::Pubkey;
 use std::str::FromStr;
@@ -34,7 +35,8 @@ pub async fn create_user_tx(
     // Build partially-signed transaction
     let (serialized_tx, user_account_pda) = app_state
         .solana_service
-        .build_create_user_tx(&user_pubkey)
+        .build_partial_signed_create_user_tx(user_pubkey)
+        .await
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
 
     Ok(Json(CreateUserTxResponse {
@@ -53,10 +55,44 @@ pub struct PingTxResponse {
 pub async fn ping_tx(
     State(app_state): State<Arc<AppState>>,
 ) -> Result<Json<PingTxResponse>, (StatusCode, String)> {
-    let tx = app_state
+    let tx_base64 = app_state
         .solana_service
-        .build_ping_tx()
+        .build_partial_signed_ping_tx()
+        .await
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
 
-    Ok(Json(PingTxResponse { transaction: tx }))
+    Ok(Json(PingTxResponse {
+        transaction: tx_base64,
+    }))
+}
+
+#[derive(Deserialize)]
+pub struct PingSubmitRequest {
+    pub transaction: String, // Base64 encoded user-signed transaction
+}
+
+#[derive(Serialize)]
+pub struct PingSubmitResponse {
+    pub signature: String, // Transaction signature
+}
+
+/// Receive user-signed ping transaction, optionally add backend payer signature, and broadcast
+pub async fn ping_submit(
+    State(app_state): State<Arc<AppState>>,
+    Json(req): Json<PingSubmitRequest>,
+) -> Result<Json<PingSubmitResponse>, (StatusCode, String)> {
+    let signature = app_state
+        .solana_service
+        .submit_user_signed_tx(req.transaction)
+        .await
+        .map_err(|e| {
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                format!("Failed to submit transaction: {}", e),
+            )
+        })?;
+
+    Ok(Json(PingSubmitResponse {
+        signature: signature.to_string(),
+    }))
 }

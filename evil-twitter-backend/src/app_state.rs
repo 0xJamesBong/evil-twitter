@@ -3,7 +3,10 @@ use std::sync::Arc;
 use mongodb::{Client, Database};
 
 use crate::services::{
-    PrivyService, SolanaService, mongo_service::MongoService, post_sync_service::PostSyncService,
+    PrivyService,
+    SolanaService,
+    mongo_service::MongoService,
+    // post_sync_service::PostSyncService,
 };
 use crate::solana::{
     SolanaConnection, SolanaProgram,
@@ -25,8 +28,8 @@ pub struct AppState {
     pub privy_service: Arc<PrivyService>,
     /// Solana service for on-chain operations
     pub solana_service: Arc<SolanaService>,
-    /// Post sync service for syncing on-chain post state to MongoDB
-    pub post_sync_service: Arc<PostSyncService>,
+    // Post sync service for syncing on-chain post state to MongoDB
+    // pub post_sync_service: Arc<PostSyncService>,
     // pub cache: Arc<RedisClient>,
     // pub email: Arc<EmailService>,
     // pub s3: Arc<S3Service>,
@@ -80,20 +83,32 @@ impl AppState {
             payer_keypair.pubkey()
         );
 
-        let solana_connection = Arc::new(SolanaConnection::new(solana_rpc_url, solana_network));
+        let solana_connection = Arc::new(SolanaConnection::new(
+            solana_rpc_url.clone(),
+            solana_network,
+        ));
         let solana_program = Arc::new(
             SolanaProgram::new(solana_program_id, payer_keypair, solana_connection.clone())
                 .expect("Failed to create Solana program"),
         );
-        let solana_service = Arc::new(SolanaService::new(solana_program));
 
-        let post_sync_service = Arc::new(PostSyncService::new(db.clone(), solana_service.clone()));
+        // Create RPC client for SolanaService
+        let rpc_client = Arc::new(solana_client::nonblocking::rpc_client::RpcClient::new(
+            solana_rpc_url,
+        ));
+        let solana_service = Arc::new(SolanaService::new(
+            rpc_client,
+            solana_program.get_payer().clone(),
+            bling_mint,
+        ));
+
+        // let post_sync_service = Arc::new(PostSyncService::new(db.clone(), solana_service.clone()));
 
         Self {
             mongo_service: Arc::new(MongoService::new(client.clone(), db.clone())),
             privy_service: Arc::new(PrivyService::new(app_id, app_secret)),
             solana_service,
-            post_sync_service,
+            // post_sync_service,
         }
     }
 }

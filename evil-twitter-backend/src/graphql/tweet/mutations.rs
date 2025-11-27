@@ -155,8 +155,13 @@ impl TweetMutation {
     }
 
     /// Vote on a tweet (Pump or Smack)
-    async fn tweet_vote(&self, ctx: &Context<'_>, input: TweetVoteInput) -> Result<TweetMetricsPayload> {
-        tweet_vote_resolver(ctx, input).await
+    async fn tweet_vote(
+        &self,
+        ctx: &Context<'_>,
+        input: TweetVoteInput,
+    ) -> Result<TweetMetricsPayload> {
+        // tweet_vote_resolver(ctx, input).await
+        todo!()
     }
 }
 
@@ -188,7 +193,7 @@ pub async fn tweet_create_resolver(
         // Parse post_id_hash from hex to [u8; 32]
         let post_id_hash_bytes = hex::decode(post_id_hash_hex)
             .map_err(|e| async_graphql::Error::new(format!("Invalid post_id_hash: {}", e)))?;
-        
+
         if post_id_hash_bytes.len() != 32 {
             return Err(async_graphql::Error::new("post_id_hash must be 32 bytes"));
         }
@@ -197,16 +202,19 @@ pub async fn tweet_create_resolver(
         post_id_hash.copy_from_slice(&post_id_hash_bytes);
 
         // Call create_post on-chain (backend signs transaction)
-        match app_state.solana_service.create_post(&user_wallet, post_id_hash, None) {
-            Ok(signature) => {
-                eprintln!("✅ Created post on-chain: {}", signature);
-            }
-            Err(e) => {
-                eprintln!("⚠️ Failed to create post on-chain: {}", e);
-                // Don't fail the tweet creation if on-chain creation fails
-                // The tweet is already in MongoDB, on-chain can be retried
-            }
-        }
+        // match app_state
+        //     .solana_service
+        //     .create_post(&user_wallet, post_id_hash, None)
+        // {
+        //     Ok(signature) => {
+        //         eprintln!("✅ Created post on-chain: {}", signature);
+        //     }
+        //     Err(e) => {
+        //         eprintln!("⚠️ Failed to create post on-chain: {}", e);
+        //         // Don't fail the tweet creation if on-chain creation fails
+        //         // The tweet is already in MongoDB, on-chain can be retried
+        //     }
+        // }
     }
 
     Ok(TweetPayload {
@@ -300,111 +308,111 @@ pub async fn tweet_retweet_resolver(ctx: &Context<'_>, id: ID) -> Result<TweetPa
     })
 }
 
-/// Vote on a tweet (Pump or Smack)
-pub async fn tweet_vote_resolver(
-    ctx: &Context<'_>,
-    input: TweetVoteInput,
-) -> Result<TweetMetricsPayload> {
-    let app_state = ctx.data::<Arc<AppState>>()?;
-    let user = get_authenticated_user_from_ctx(ctx).await?;
-    let tweet_id = parse_object_id(&input.tweet_id)?;
+// Vote on a tweet (Pump or Smack)
+// pub async fn tweet_vote_resolver(
+//     ctx: &Context<'_>,
+//     input: TweetVoteInput,
+// ) -> Result<TweetMetricsPayload> {
+//     let app_state = ctx.data::<Arc<AppState>>()?;
+//     let user = get_authenticated_user_from_ctx(ctx).await?;
+//     let tweet_id = parse_object_id(&input.tweet_id)?;
 
-    // Get tweet to extract post_id_hash
-    let tweet = app_state
-        .mongo_service
-        .tweets
-        .get_tweet_by_id(tweet_id)
-        .await?
-        .ok_or_else(|| async_graphql::Error::new("Tweet not found"))?;
+//     // Get tweet to extract post_id_hash
+//     let tweet = app_state
+//         .mongo_service
+//         .tweets
+//         .get_tweet_by_id(tweet_id)
+//         .await?
+//         .ok_or_else(|| async_graphql::Error::new("Tweet not found"))?;
 
-    let post_id_hash_hex = tweet.post_id_hash
-        .ok_or_else(|| async_graphql::Error::new("Tweet does not have a post_id_hash (not an original tweet)"))?;
+//     let post_id_hash_hex = tweet.post_id_hash
+//         .ok_or_else(|| async_graphql::Error::new("Tweet does not have a post_id_hash (not an original tweet)"))?;
 
-    // Parse user's Solana wallet
-    let user_wallet = solana_sdk::pubkey::Pubkey::from_str(&user.wallet)
-        .map_err(|e| async_graphql::Error::new(format!("Invalid user wallet: {}", e)))?;
+//     // Parse user's Solana wallet
+//     let user_wallet = solana_sdk::pubkey::Pubkey::from_str(&user.wallet)
+//         .map_err(|e| async_graphql::Error::new(format!("Invalid user wallet: {}", e)))?;
 
-    // Parse post_id_hash from hex to [u8; 32]
-    let post_id_hash_bytes = hex::decode(&post_id_hash_hex)
-        .map_err(|e| async_graphql::Error::new(format!("Invalid post_id_hash: {}", e)))?;
-    
-    if post_id_hash_bytes.len() != 32 {
-        return Err(async_graphql::Error::new("post_id_hash must be 32 bytes"));
-    }
+//     // Parse post_id_hash from hex to [u8; 32]
+//     let post_id_hash_bytes = hex::decode(&post_id_hash_hex)
+//         .map_err(|e| async_graphql::Error::new(format!("Invalid post_id_hash: {}", e)))?;
 
-    let mut post_id_hash = [0u8; 32];
-    post_id_hash.copy_from_slice(&post_id_hash_bytes);
+//     if post_id_hash_bytes.len() != 32 {
+//         return Err(async_graphql::Error::new("post_id_hash must be 32 bytes"));
+//     }
 
-    // Parse side (pump = 0, smack = 1)
-    let side = match input.side.to_lowercase().as_str() {
-        "pump" => 0u8,
-        "smack" => 1u8,
-        _ => return Err(async_graphql::Error::new("side must be 'pump' or 'smack'")),
-    };
+//     let mut post_id_hash = [0u8; 32];
+//     post_id_hash.copy_from_slice(&post_id_hash_bytes);
 
-    // Get token mint (default to BLING)
-    let token_mint = if let Some(mint_str) = input.token_mint {
-        solana_sdk::pubkey::Pubkey::from_str(&mint_str)
-            .map_err(|e| async_graphql::Error::new(format!("Invalid token_mint: {}", e)))?
-    } else {
-        *app_state.solana_service.get_bling_mint()
-    };
+//     // Parse side (pump = 0, smack = 1)
+//     let side = match input.side.to_lowercase().as_str() {
+//         "pump" => 0u8,
+//         "smack" => 1u8,
+//         _ => return Err(async_graphql::Error::new("side must be 'pump' or 'smack'")),
+//     };
 
-    // Validate user has sufficient vault balance
-    let vault_balance = app_state.solana_service.get_user_vault_balance(&user_wallet, &token_mint)
-        .map_err(|e| async_graphql::Error::new(format!("Failed to check vault balance: {}", e)))?;
+//     // Get token mint (default to BLING)
+//     let token_mint = if let Some(mint_str) = input.token_mint {
+//         solana_sdk::pubkey::Pubkey::from_str(&mint_str)
+//             .map_err(|e| async_graphql::Error::new(format!("Invalid token_mint: {}", e)))?
+//     } else {
+//         *app_state.solana_service.get_bling_mint()
+//     };
 
-    if vault_balance < input.votes {
-        return Err(async_graphql::Error::new(format!(
-            "Insufficient vault balance. You have {} but need {}",
-            vault_balance, input.votes
-        )));
-    }
+//     // Validate user has sufficient vault balance
+//     let vault_balance = app_state.solana_service.get_user_vault_balance(&user_wallet, &token_mint)
+//         .map_err(|e| async_graphql::Error::new(format!("Failed to check vault balance: {}", e)))?;
 
-    // Check post state before voting (optional - can also check on-chain)
-    // For now, we'll let the on-chain program handle state validation
+//     if vault_balance < input.votes {
+//         return Err(async_graphql::Error::new(format!(
+//             "Insufficient vault balance. You have {} but need {}",
+//             vault_balance, input.votes
+//         )));
+//     }
 
-    // Call vote_on_post on-chain (backend signs transaction)
-    match app_state.solana_service.vote_on_post(&user_wallet, post_id_hash, side, input.votes, &token_mint) {
-        Ok(signature) => {
-            eprintln!("✅ Voted on post on-chain: {}", signature);
-            // Sync post state after vote
-            if let Err(e) = app_state.post_sync_service.sync_post_state(&post_id_hash_hex).await {
-                eprintln!("⚠️ Failed to sync post state after vote: {}", e);
-                // Don't fail the vote if sync fails, but log it
-            }
-        }
-        Err(e) => {
-            // Map Solana errors to user-friendly messages
-            let error_message = match e {
-                crate::solana::errors::SolanaError::InsufficientFunds => {
-                    "Insufficient vault balance".to_string()
-                }
-                crate::solana::errors::SolanaError::PostNotOpen => {
-                    "Post is not open for voting".to_string()
-                }
-                crate::solana::errors::SolanaError::PostExpired => {
-                    "Post has expired and can no longer be voted on".to_string()
-                }
-                crate::solana::errors::SolanaError::PostAlreadySettled => {
-                    "Post has already been settled".to_string()
-                }
-                crate::solana::errors::SolanaError::TransactionError(msg) => {
-                    format!("Transaction failed: {}", msg)
-                }
-                _ => format!("Failed to vote: {}", e),
-            };
-            return Err(async_graphql::Error::new(error_message));
-        }
-    }
+//     // Check post state before voting (optional - can also check on-chain)
+//     // For now, we'll let the on-chain program handle state validation
 
-    // Return updated metrics (will be synced from chain state)
-    // For now, return current metrics
-    Ok(TweetMetricsPayload {
-        id: input.tweet_id,
-        like_count: tweet.metrics.likes,
-        smack_count: tweet.metrics.smacks,
-        liked_by_viewer: tweet.viewer_context.is_liked,
-        energy: tweet.energy_state.energy,
-    })
-}
+//     // Call vote_on_post on-chain (backend signs transaction)
+//     match app_state.solana_service.vote_on_post(&user_wallet, post_id_hash, side, input.votes, &token_mint) {
+//         Ok(signature) => {
+//             eprintln!("✅ Voted on post on-chain: {}", signature);
+//             // Sync post state after vote
+//             if let Err(e) = app_state.post_sync_service.sync_post_state(&post_id_hash_hex).await {
+//                 eprintln!("⚠️ Failed to sync post state after vote: {}", e);
+//                 // Don't fail the vote if sync fails, but log it
+//             }
+//         }
+//         Err(e) => {
+//             // Map Solana errors to user-friendly messages
+//             let error_message = match e {
+//                 crate::solana::errors::SolanaError::InsufficientFunds => {
+//                     "Insufficient vault balance".to_string()
+//                 }
+//                 crate::solana::errors::SolanaError::PostNotOpen => {
+//                     "Post is not open for voting".to_string()
+//                 }
+//                 crate::solana::errors::SolanaError::PostExpired => {
+//                     "Post has expired and can no longer be voted on".to_string()
+//                 }
+//                 crate::solana::errors::SolanaError::PostAlreadySettled => {
+//                     "Post has already been settled".to_string()
+//                 }
+//                 crate::solana::errors::SolanaError::TransactionError(msg) => {
+//                     format!("Transaction failed: {}", msg)
+//                 }
+//                 _ => format!("Failed to vote: {}", e),
+//             };
+//             return Err(async_graphql::Error::new(error_message));
+//         }
+//     }
+
+//     // Return updated metrics (will be synced from chain state)
+//     // For now, return current metrics
+//     Ok(TweetMetricsPayload {
+//         id: input.tweet_id,
+//         like_count: tweet.metrics.likes,
+//         smack_count: tweet.metrics.smacks,
+//         liked_by_viewer: tweet.viewer_context.is_liked,
+//         energy: tweet.energy_state.energy,
+//     })
+// }
