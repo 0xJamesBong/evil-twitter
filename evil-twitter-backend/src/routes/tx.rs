@@ -1,5 +1,4 @@
 use axum::{Json, extract::State, http::StatusCode};
-use base64::{Engine as _, engine::general_purpose};
 use serde::{Deserialize, Serialize};
 use solana_sdk::pubkey::Pubkey;
 use std::str::FromStr;
@@ -42,4 +41,22 @@ pub async fn create_user_tx(
         transaction: serialized_tx,
         user_account_pda: user_account_pda.to_string(),
     }))
+}
+
+#[derive(Serialize)]
+pub struct PingTxResponse {
+    pub transaction: String,
+}
+
+/// Build and partially sign a ping transaction
+/// Backend signs as payer, user signs to prove they initiated it
+pub async fn ping_tx(
+    State(app_state): State<Arc<AppState>>,
+) -> Result<Json<PingTxResponse>, (StatusCode, String)> {
+    let tx = app_state
+        .solana_service
+        .build_ping_tx()
+        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+
+    Ok(Json(PingTxResponse { transaction: tx }))
 }

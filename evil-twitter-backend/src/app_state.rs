@@ -85,11 +85,7 @@ impl AppState {
             SolanaProgram::new(solana_program_id, payer_keypair, solana_connection.clone())
                 .expect("Failed to create Solana program"),
         );
-        let solana_service = Arc::new(SolanaService::new(
-            solana_program,
-            solana_program_id,
-            bling_mint,
-        ));
+        let solana_service = Arc::new(SolanaService::new(solana_program));
 
         let post_sync_service = Arc::new(PostSyncService::new(db.clone(), solana_service.clone()));
 
