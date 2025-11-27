@@ -89,6 +89,11 @@ export function useWithdraw() {
         })
         .transaction();
 
+      // Set recent blockhash to dummy value so Privy can fill it in automatically
+      // This is required by Privy's API - see: https://docs.privy.io/wallets/using-wallets/solana/send-a-transaction
+      tx.recentBlockhash = "11111111111111111111111111111111" as any;
+      tx.feePayer = userPubkey;
+
       // Sign the transaction using Privy's hook
       const signedTx = await signTransaction({
         transaction: tx,

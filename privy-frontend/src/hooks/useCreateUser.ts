@@ -1,5 +1,10 @@
+"use client";
 import { useState } from "react";
-import { useWallets, useSignTransaction } from "@privy-io/react-auth/solana";
+import {
+  useWallets,
+  useSignTransaction,
+  useSignAndSendTransaction,
+} from "@privy-io/react-auth/solana";
 import { PublicKey, Transaction } from "@solana/web3.js";
 import { getConnection } from "../lib/solana/connection";
 import { getUserAccountPda, getConfigPda } from "../lib/solana/pda";
@@ -8,61 +13,61 @@ import idl from "../lib/solana/idl/opinions_market.json";
 import { PROGRAM_ID } from "../lib/solana/program";
 import { SystemProgram } from "@solana/web3.js";
 import { useSolanaStore } from "../lib/stores/solanaStore";
+import { useSendTransaction } from "@privy-io/react-auth";
+import { createSolanaRpc } from "@solana/kit";
+import { useSolanaProgram } from "@/lib/solana/solanaProgramContext";
 
 /**
  * Hook to create on-chain user account (user-signed)
  * This calls the Solana program directly and requires the user to sign the transaction
  * User must sign because the program requires user: Signer<'info>
  */
+
 export function useCreateUser() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
   const { wallets } = useWallets();
+  const { getProgramForWallet, connection } = useSolanaProgram();
+
+  const { signAndSendTransaction } = useSignAndSendTransaction();
   const { signTransaction } = useSignTransaction();
   const { fetchOnchainAccountStatus } = useSolanaStore();
 
-  // Support both Privy embedded wallet and external wallets (e.g., Phantom)
-  // Prefer Privy embedded wallet, but fall back to any Solana wallet
-  const solanaWallet =
-    wallets.find((w: any) => w.walletClientType === "privy") || wallets[0];
-
   const createUser = async (): Promise<string> => {
-    if (!solanaWallet) {
-      throw new Error("No Solana wallet connected");
-    }
+    const connection = getConnection();
+
+    const solanaWallet =
+      wallets.find((w: any) => w.walletClientType === "privy") || wallets[0];
+
+    if (!solanaWallet) throw new Error("No Solana wallet connected");
+    console.log("useCreateUser | solanaWallet", solanaWallet);
 
     setLoading(true);
     setError(null);
 
     try {
-      const connection = getConnection();
+      console.log("trying: useCreateUser");
       const userPubkey = new PublicKey(solanaWallet.address);
 
-      // Derive PDAs
       const [userAccountPda] = getUserAccountPda(PROGRAM_ID, userPubkey);
       const [configPda] = getConfigPda(PROGRAM_ID);
+      const program = getProgramForWallet(solanaWallet);
 
-      // Create a minimal wallet adapter for Anchor to build the instruction
-      // We won't use this for signing - Privy will sign instead
-      // Note: payer is required by Wallet type but won't be used for signing
-      const dummyWallet = {
-        publicKey: userPubkey,
-        signTransaction: async <T extends Transaction | any>(
-          tx: T
-        ): Promise<T> => tx,
-        signAllTransactions: async <T extends Transaction | any>(
-          txs: T[]
-        ): Promise<T[]> => txs,
-      } as Wallet;
+      console.log("useCreateUser | userPubkey", userPubkey);
+      console.log("useCreateUser | connection", connection);
+      console.log("useCreateUser | PROGRAM_ID", PROGRAM_ID.toBase58());
 
-      const provider = new AnchorProvider(connection, dummyWallet, {
-        commitment: "confirmed",
-      });
+      const { getLatestBlockhash } = createSolanaRpc("http://localhost:8899");
 
-      const program = new (Program as any)(idl, PROGRAM_ID, provider);
+      // Get the latest blockhash
+      const { value } = await getLatestBlockhash().send();
 
-      // Build the transaction (unsigned)
-      const tx = await (program.methods as any)
+      console.log("useCreateUser | userAccountPda", userAccountPda);
+      console.log("useCreateUser | configPda", configPda);
+      console.log("useCreateUser | program", program);
+
+      const ix = await program.methods
         .createUser()
         .accounts({
           user: userPubkey,
@@ -71,43 +76,46 @@ export function useCreateUser() {
           config: configPda,
           systemProgram: SystemProgram.programId,
         })
-        .transaction();
+        .instruction();
 
-      // Sign the transaction using Privy's hook
-      const signedTx = await signTransaction({
-        transaction: tx,
-        wallet: solanaWallet,
+      const latest = await connection.getLatestBlockhash();
+      const tx = new Transaction({
+        feePayer: userPubkey,
+        recentBlockhash: latest.blockhash,
+      }).add(ix);
+
+      console.log("useCreateUser | wallet", solanaWallet);
+
+      // if (solanaWallet.walletClientType === "privy") {
+      //   // Embedded wallet path
+      //   signature = await signAndSendTransaction({
+      //     transaction: tx,
+      //     wallet: solanaWallet,
+      //   });
+      // } else {
+      // Phantom / Backpack / External
+      const signature = await solanaWallet.signAndSendTransaction!({
+        chain: "solana:devnet",
+        transaction: new Uint8Array(
+          tx.serialize({
+            requireAllSignatures: false,
+            verifySignatures: false,
+          })
+        ),
       });
 
-      // Send the signed transaction
-      // Note: signedTx may be a Transaction or SignTransactionOutput
-      const txToSend = (signedTx as any).transaction || signedTx;
-      const signature = await connection.sendRawTransaction(
-        txToSend.serialize(),
-        {
-          skipPreflight: false,
-        }
-      );
-
-      await connection.confirmTransaction(signature, "confirmed");
-
-      // Update store after successful transaction
+      // await connection.confirmTransaction(signature, "confirmed");
       await fetchOnchainAccountStatus(userPubkey);
-
-      return signature;
+      return Buffer.from(signature.signature).toString("base64");
     } catch (err) {
-      const errorMessage =
-        err instanceof Error ? err.message : "Failed to create user";
-      setError(errorMessage);
-      throw new Error(errorMessage);
+      const msg = err instanceof Error ? err.message : "Failed to create user";
+      console.log("useCreateUser | error", err);
+      setError(msg);
+      throw new Error(msg);
     } finally {
       setLoading(false);
     }
   };
 
-  return {
-    createUser,
-    loading,
-    error,
-  };
+  return { createUser, loading, error };
 }

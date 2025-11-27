@@ -40,5 +40,5 @@ export function getProgram(
     commitment: "confirmed",
   });
 
-  return new Program(idl as any, PROGRAM_ID, provider);
+  return new Program(idl as any, PROGRAM_ID as any, provider as any);
 }

@@ -7,6 +7,13 @@ import { ThemeProvider } from "@mui/material/styles";
 import CssBaseline from "@mui/material/CssBaseline";
 import { SnackbarProvider } from "notistack";
 import { theme } from "@/theme/theme";
+import { AnchorProvider } from "@coral-xyz/anchor";
+import { getConnection } from "@/lib/solana/connection";
+import { SolanaProgramProvider } from "@/lib/solana/solanaProgramContext";
+
+
+
+
 
 export default function Providers({ children }: { children: React.ReactNode }) {
   return (
@@ -58,9 +65,14 @@ export default function Providers({ children }: { children: React.ReactNode }) {
           }}
         >
           <SyncPrivy />
-          {children}
+          <SolanaProgramProvider>
+            {children}
+          </SolanaProgramProvider>
         </PrivyProvider>
       </SnackbarProvider>
     </ThemeProvider>
   );
 }
+
+
+
