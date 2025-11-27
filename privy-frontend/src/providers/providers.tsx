@@ -9,9 +9,6 @@ import { SnackbarProvider } from "notistack";
 import { theme } from "@/theme/theme";
 import { AnchorProvider } from "@coral-xyz/anchor";
 import { getConnection } from "@/lib/solana/connection";
-import { SolanaProgramProvider } from "@/lib/solana/solanaProgramContext";
-
-
 
 
 
@@ -65,12 +62,12 @@ export default function Providers({ children }: { children: React.ReactNode }) {
           }}
         >
           <SyncPrivy />
-          <SolanaProgramProvider>
-            {children}
-          </SolanaProgramProvider>
+
+          {children}
+
         </PrivyProvider>
       </SnackbarProvider>
-    </ThemeProvider>
+    </ThemeProvider >
   );
 }
 
