@@ -13,8 +13,8 @@ use solana_sdk::{
 };
 use std::sync::Arc;
 
-use opinions_market::accounts::Ping;
-use opinions_market::instruction::Ping;
+use opinions_market::accounts::*;
+use opinions_market::instructions::*;
 
 pub struct SolanaService {
     rpc: Arc<RpcClient>,
