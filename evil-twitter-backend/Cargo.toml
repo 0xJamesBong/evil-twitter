@@ -42,15 +42,23 @@ utoipa-swagger-ui = { version = "9.0.2", features = ["axum"] }
 mongodb-gridfs = "0.2.7"
 
 
-anchor-client = "0.30.1"
-solana-client = "1.18"
-solana-sdk = "1.18"
+
+anchor-client = "0.31.1"
+anchor-spl = "0.31.1"
+
+
+solana-client = "2.2.1"
+solana-sdk = "2.2.1"
 bs58 = "0.5"
-anchor-spl = "0.30.1"
+
 spl-token = "4.0"
 rand = "0.8"
 hex = "0.4"
 borsh = "1.5"
+
+
+
+
 
 [[bin]]
 name = "create_fake_users"
