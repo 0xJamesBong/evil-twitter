@@ -59,6 +59,9 @@ borsh = "1.5"
 
 
 
+opinions-market = { path = "../opinions-market/programs/opinions-market" }
+
+
 
 
 [[bin]]

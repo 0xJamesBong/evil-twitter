@@ -13,6 +13,9 @@ use solana_sdk::{
 };
 use std::sync::Arc;
 
+use opinions_market::accounts::Ping;
+use opinions_market::instruction::Ping;
+
 pub struct SolanaService {
     rpc: Arc<RpcClient>,
     payer: Arc<Keypair>,
@@ -33,7 +36,7 @@ impl SolanaService {
     pub fn new(rpc: Arc<RpcClient>, payer: Arc<Keypair>) -> Self {
         Self { rpc, payer }
     }
-    fn program(&self) -> Program<Arc<Keypair>> {
+    fn opinions_market_program(&self) -> Program<Arc<Keypair>> {
         let payer = self.payer.clone();
         let client = Client::new_with_options(
             Cluster::Localnet,
@@ -50,8 +53,13 @@ impl SolanaService {
     }
 
     pub fn build_ping_tx(&self) -> anyhow::Result<String> {
-        let program = self.program();
-        let ix = program.methods().ping().instruction()?;
+        let opinions_market = self.opinions_market_program();
+        let ix = opinions_market
+            .request()
+            .accounts(opinions_market::accounts::Ping {})
+            .args(opinions_market::instruction::Ping {})
+            .instructions()
+            .unwrap();
 
         let blockhash = self.rpc.get_latest_blockhash()?;
         let mut tx = Transaction::new_with_payer(&[ix], Some(&self.payer.pubkey()));
@@ -61,21 +69,22 @@ impl SolanaService {
     }
 
     pub fn build_create_user_tx(&self, user_wallet: Pubkey) -> anyhow::Result<(String, Pubkey)> {
-        let program = self.program();
-        let (user_account_pda, _) = get_user_account_pda(&PROGRAM_ID, &user_wallet);
+        let opinions_market = self.opinions_market_program();
+        let (user_account_pda, _) = get_user_account_pda(&opinions_market::ID, &user_wallet);
         let (config_pda, _) = get_config_pda(&PROGRAM_ID);
 
-        let ix = program
-            .methods()
-            .create_user()
-            .accounts(CreateUser {
+        let ix = opinions_market
+            .request()
+            .accounts(opinions_market::accounts::CreateUser {
                 config: config_pda,
                 user: user_wallet,
                 payer: self.payer.pubkey(),
                 user_account: user_account_pda,
                 system_program: system_program::ID,
             })
-            .instruction()?;
+            .args(opinions_market::instruction::CreateUser {})
+            .instructions()
+            .unwrap();
 
         let blockhash = self.rpc.get_latest_blockhash()?;
         let mut tx = Transaction::new_with_payer(&[ix], Some(&self.payer.pubkey()));
