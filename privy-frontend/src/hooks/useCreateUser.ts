@@ -1,8 +1,7 @@
 "use client";
 import { useState } from "react";
 import { useWallets, useSignTransaction } from "@privy-io/react-auth/solana";
-import { PublicKey, Transaction } from "@solana/web3.js";
-import { getConnection } from "../lib/solana/connection";
+import { PublicKey, VersionedTransaction } from "@solana/web3.js";
 import { useSolanaStore } from "../lib/stores/solanaStore";
 import { API_BASE_URL } from "../lib/config";
 
@@ -11,7 +10,7 @@ import { API_BASE_URL } from "../lib/config";
  * Flow:
  * 1. Request partially-signed transaction from backend (backend signs as payer)
  * 2. User signs the transaction (as user authority)
- * 3. Send fully-signed transaction to chain
+ * 3. Send signed transaction back to backend for final signature and broadcast
  * Result: User can create account without SOL, backend pays fees
  */
 export function useCreateUser() {
@@ -22,7 +21,6 @@ export function useCreateUser() {
   const { fetchOnchainAccountStatus } = useSolanaStore();
 
   const createUser = async (): Promise<string> => {
-    const connection = getConnection();
     const solanaWallet =
       wallets.find((w: any) => w.walletClientType === "privy") || wallets[0];
 
@@ -52,35 +50,43 @@ export function useCreateUser() {
 
       const { transaction: base64Tx } = await response.json();
 
-      // Step 2: Deserialize partially-signed transaction
+      // Step 2: Deserialize partially-signed VersionedTransaction
       const txBuffer = Buffer.from(base64Tx, "base64");
-      const tx = Transaction.from(txBuffer);
+      const tx = VersionedTransaction.deserialize(txBuffer);
 
       // Step 3: User signs the transaction using Privy's hook
-      // Note: The transaction from backend is already partially signed by backend payer
-      // We just need to add the user's signature
-      // Type assertion needed because Privy's types expect specific transaction format
       const signedTxResult = await signTransaction({
         transaction: tx as any,
         wallet: solanaWallet,
       });
 
       // Extract the signed transaction from the result
-      // Note: signedTx may be a Transaction or SignTransactionOutput
       const signedTx = (signedTxResult as any).transaction || signedTxResult;
 
-      // Step 4: Send fully-signed transaction to chain
-      const signature = await connection.sendRawTransaction(
-        signedTx.serialize(),
+      // Step 4: Serialize signed transaction and send to backend for final signature and broadcast
+      const signedTxBase64 = Buffer.from(signedTx.serialize()).toString(
+        "base64"
+      );
+
+      const submitResponse = await fetch(
+        `${API_BASE_URL}/api/tx/createUser/submit`,
         {
-          skipPreflight: false,
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ transaction: signedTxBase64 }),
         }
       );
 
-      // Step 5: Wait for confirmation
-      await connection.confirmTransaction(signature, "confirmed");
+      if (!submitResponse.ok) {
+        const errorText = await submitResponse.text();
+        throw new Error(`Backend submit error: ${errorText}`);
+      }
 
-      // Step 6: Update store
+      const { signature } = await submitResponse.json();
+
+      // Step 5: Update store
       await fetchOnchainAccountStatus(userPubkey);
 
       return signature;

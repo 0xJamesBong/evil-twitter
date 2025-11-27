@@ -80,7 +80,15 @@ function TestContent() {
                             </Typography>
                             <Button
                                 variant="contained"
-                                onClick={ping}
+                                onClick={async () => {
+                                    try {
+                                        const signature = await ping();
+                                        // Show success message with signature
+                                        console.log("Ping successful, signature:", signature);
+                                    } catch (e) {
+                                        console.error("Ping failed:", e);
+                                    }
+                                }}
                                 disabled={isPinging}
                                 sx={{ mb: 2 }}
                             >
@@ -93,11 +101,6 @@ function TestContent() {
                                     "Ping Backend"
                                 )}
                             </Button>
-                            {response && (
-                                <Alert severity="success" sx={{ mt: 2 }}>
-                                    <strong>Response:</strong> {response}
-                                </Alert>
-                            )}
                             {pingError && (
                                 <Alert severity="error" sx={{ mt: 2 }}>
                                     <strong>Error:</strong> {pingError}

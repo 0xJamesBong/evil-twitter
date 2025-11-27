@@ -96,3 +96,34 @@ pub async fn ping_submit(
         signature: signature.to_string(),
     }))
 }
+
+#[derive(Deserialize)]
+pub struct CreateUserSubmitRequest {
+    pub transaction: String, // Base64 encoded user-signed transaction
+}
+
+#[derive(Serialize)]
+pub struct CreateUserSubmitResponse {
+    pub signature: String, // Transaction signature
+}
+
+/// Receive user-signed createUser transaction, add backend payer signature, and broadcast
+pub async fn create_user_submit(
+    State(app_state): State<Arc<AppState>>,
+    Json(req): Json<CreateUserSubmitRequest>,
+) -> Result<Json<CreateUserSubmitResponse>, (StatusCode, String)> {
+    let signature = app_state
+        .solana_service
+        .submit_user_signed_tx(req.transaction)
+        .await
+        .map_err(|e| {
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                format!("Failed to submit transaction: {}", e),
+            )
+        })?;
+
+    Ok(Json(CreateUserSubmitResponse {
+        signature: signature.to_string(),
+    }))
+}
