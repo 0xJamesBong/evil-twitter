@@ -68,6 +68,18 @@ impl SolanaService {
 
         program
     }
+    pub async fn partial_sign_tx<T: Signers + ?Sized>(
+        &self,
+        ixs: Vec<Instruction>,
+        signer: &T,
+    ) -> anyhow::Result<VersionedTransaction> {
+        let blockhash = self.rpc.get_latest_blockhash().await?;
+        let message = Message::try_compile(&self.payer.pubkey(), &ixs, &[], blockhash)?;
+        let v0_message = VersionedMessage::V0(message);
+        let partial_signed_tx = VersionedTransaction::try_new(v0_message, signer)?;
+
+        Ok(partial_signed_tx)
+    }
 
     pub async fn send_tx<T: Signers + ?Sized>(
         &self,
@@ -103,7 +115,7 @@ impl SolanaService {
         }
     }
 
-    pub async fn build_ping_tx(&self) -> anyhow::Result<String> {
+    pub async fn build_partial_signed_ping_tx(&self) -> anyhow::Result<VersionedTransaction> {
         let opinions_market = self.opinions_market_program();
 
         let ix = opinions_market
@@ -113,10 +125,26 @@ impl SolanaService {
             .instructions()
             .unwrap();
 
-        let tx = self.send_tx(ix, &[&self.payer]).await?;
-
-        Ok(tx.to_string())
+        let partial_signed_tx = self.partial_sign_tx(ix, &[&self.payer]).await?;
+        Ok(partial_signed_tx)
     }
+
+    //  **** FOR LATER!
+
+    // pub async fn ping(&self) -> anyhow::Result<String> {
+    //     let opinions_market = self.opinions_market_program();
+
+    //     let ix = opinions_market
+    //         .request()
+    //         .accounts(opinions_market::accounts::Ping {})
+    //         .args(opinions_market::instruction::Ping {})
+    //         .instructions()
+    //         .unwrap();
+
+    //     let tx = self.send_tx(ix, &[&self.payer]).await?;
+
+    //     Ok(tx.to_string())
+    // }
 
     // pub fn build_create_user_tx(&self, user_wallet: Pubkey) -> anyhow::Result<(String, Pubkey)> {
     //     let opinions_market = self.opinions_market_program();
@@ -143,5 +171,5 @@ impl SolanaService {
     //     Ok((base64::encode(tx.serialize()), user_account_pda))
     // }
 
-    // pub async
+    // // pub async
 }
