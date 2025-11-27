@@ -10,10 +10,11 @@ import React, { useMemo, createContext, useContext } from "react";
 import { PublicKey } from "@solana/web3.js";
 import { PROGRAM_ID } from "./program";
 import idl from "./idl/opinions_market.json";
+import { OpinionsMarket } from "./types/opinions_market";
 
 type SolanaProgramContextType = {
     connection: ReturnType<typeof getConnection>;
-    getProgramForWallet: (wallet: ConnectedStandardSolanaWallet) => Program;
+    getProgramForWallet: (wallet: ConnectedStandardSolanaWallet) => Program<OpinionsMarket>;
 };
 
 export const SolanaProgramContext =
@@ -39,7 +40,7 @@ export const SolanaProgramProvider = ({
                 { commitment: "confirmed" }
             );
 
-            return new Program(idl as any, PROGRAM_ID as any, provider as any);
+            return new Program(idl as any, idl.address as any, provider as any) as Program<OpinionsMarket>;
         };
     }, [connection]);
 
