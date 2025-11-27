@@ -40,4 +40,3 @@ export async function graphqlRequest<T>(
 
   return json.data;
 }
-

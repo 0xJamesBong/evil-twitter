@@ -32,6 +32,7 @@ cargo run -p bootstrap
 pwd
 cp "$(pwd)/target/idl/opinions_market.json" "$(pwd)/../privy-template/src/lib/solana/idl/opinions_market.json"
 cp "$(pwd)/target/idl/opinions_market.json" "$(pwd)/../evil-twitter-backend/src/solana/idl/opinions_market.json"
+cp "$(pwd)/target/types/opinions_market.ts" "$(pwd)/../evil-twitter-backend/src/solana/types/opinions_market.ts"
 """
 
 

@@ -213,6 +213,7 @@ impl UserNode {
         let balance = app_state
             .solana_service
             .get_user_vault_balance(&user_wallet, &token_mint_pubkey)
+            .await
             .map_err(|e| {
                 async_graphql::Error::new(format!("Failed to get vault balance: {}", e))
             })?;
@@ -226,7 +227,11 @@ impl UserNode {
         let user_wallet = solana_sdk::pubkey::Pubkey::from_str(&self.inner.wallet)
             .map_err(|e| async_graphql::Error::new(format!("Invalid user wallet: {}", e)))?;
 
-        match app_state.solana_service.get_user_account(&user_wallet) {
+        match app_state
+            .solana_service
+            .get_user_account(&user_wallet)
+            .await
+        {
             Ok(Some(_)) => Ok(true),
             Ok(None) => Ok(false),
             Err(_) => Ok(false), // Account doesn't exist if we can't fetch it

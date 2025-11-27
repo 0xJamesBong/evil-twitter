@@ -1,26 +1,24 @@
 "use client";
 import { useState } from "react";
 import { useWallets, useSignTransaction } from "@privy-io/react-auth/solana";
-import { PublicKey, VersionedTransaction } from "@solana/web3.js";
-import { useSolanaStore } from "../lib/stores/solanaStore";
+import { VersionedTransaction } from "@solana/web3.js";
 import { API_BASE_URL } from "../lib/config";
 
 /**
- * Hook to create on-chain user account (user-signed, backend-payer)
+ * Hook to ping the Solana program (user-signed, backend-payer)
  * Flow:
  * 1. Request partially-signed transaction from backend (backend signs as payer)
- * 2. User signs the transaction (as user authority)
+ * 2. User signs the transaction
  * 3. Send signed transaction back to backend for final signature and broadcast
- * Result: User can create account without SOL, backend pays fees
+ * Result: User can ping program without SOL, backend pays fees
  */
-export function useCreateUser() {
+export function usePing() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const { wallets } = useWallets();
   const { signTransaction } = useSignTransaction();
-  const { fetchOnchainAccountStatus } = useSolanaStore();
 
-  const createUser = async (): Promise<string> => {
+  const ping = async (): Promise<string> => {
     const solanaWallet =
       wallets.find((w: any) => w.walletClientType === "privy") || wallets[0];
 
@@ -30,17 +28,12 @@ export function useCreateUser() {
     setError(null);
 
     try {
-      const userPubkey = new PublicKey(solanaWallet.address);
-
       // Step 1: Request partially-signed transaction from backend
-      const response = await fetch(`${API_BASE_URL}/api/tx/createUser`, {
+      const response = await fetch(`${API_BASE_URL}/api/tx/ping`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({
-          user_pubkey: userPubkey.toBase58(),
-        }),
       });
 
       if (!response.ok) {
@@ -64,20 +57,15 @@ export function useCreateUser() {
       const signedTx = (signedTxResult as any).transaction || signedTxResult;
 
       // Step 4: Serialize signed transaction and send to backend for final signature and broadcast
-      const signedTxBase64 = Buffer.from(signedTx.serialize()).toString(
-        "base64"
-      );
+      const signedTxBase64 = Buffer.from(signedTx.serialize()).toString("base64");
 
-      const submitResponse = await fetch(
-        `${API_BASE_URL}/api/tx/createUser/submit`,
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({ transaction: signedTxBase64 }),
-        }
-      );
+      const submitResponse = await fetch(`${API_BASE_URL}/api/tx/ping/submit`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ transaction: signedTxBase64 }),
+      });
 
       if (!submitResponse.ok) {
         const errorText = await submitResponse.text();
@@ -86,12 +74,9 @@ export function useCreateUser() {
 
       const { signature } = await submitResponse.json();
 
-      // Step 5: Update store
-      await fetchOnchainAccountStatus(userPubkey);
-
       return signature;
     } catch (err) {
-      const msg = err instanceof Error ? err.message : "Failed to create user";
+      const msg = err instanceof Error ? err.message : "Failed to ping";
       setError(msg);
       throw new Error(msg);
     } finally {
@@ -99,5 +84,5 @@ export function useCreateUser() {
     }
   };
 
-  return { createUser, loading, error };
+  return { ping, loading, error };
 }

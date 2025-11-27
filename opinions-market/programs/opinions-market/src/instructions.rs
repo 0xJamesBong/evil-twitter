@@ -109,9 +109,18 @@ pub struct ModifyAcceptedMint<'info> {
 // This initializes the UserAccount PDA only
 #[derive(Accounts)]
 pub struct CreateUser<'info> {
+    #[account(mut,
+        seeds = [CONFIG_SEED],
+        bump,
+    )]
+    pub config: Account<'info, Config>,
+    // This is the only case where the user remains a signer - keeps it real bro.
     #[account(mut)]
     pub user: Signer<'info>,
-    #[account(mut)]
+
+    #[account(mut,
+        constraint = payer.key() == config.payer_authroity || payer.key() == user.key()
+    )]
     pub payer: Signer<'info>,
     #[account(
         init,
@@ -122,11 +131,7 @@ pub struct CreateUser<'info> {
     )]
     pub user_account: Account<'info, UserAccount>,
     
-    #[account(mut,
-        seeds = [CONFIG_SEED],
-        bump,
-    )]
-    pub config: Account<'info, Config>,
+    
     pub system_program: Program<'info, System>,
 }
 
@@ -134,8 +139,12 @@ pub struct CreateUser<'info> {
 /// Also initializes the program-controlled vault if it doesn't exist.
 #[derive(Accounts)]
 pub struct Deposit<'info> {
+    // Here the user must be a signer. If we want to use someone else to pay other than our centralized payer, just pass user into payer.
     #[account(mut)]
     pub user: Signer<'info>,
+
+    #[account(mut)]
+    pub payer: Signer<'info>,
 
     #[account(
         seeds = [USER_ACCOUNT_SEED, user.key().as_ref()],
@@ -164,7 +173,7 @@ pub struct Deposit<'info> {
 
     #[account(
         init_if_needed,
-        payer = user,
+        payer = payer,
         seeds = [USER_VAULT_TOKEN_ACCOUNT_SEED, user.key().as_ref(), token_mint.key().as_ref()],
         bump,
         token::mint = token_mint,
@@ -180,8 +189,12 @@ pub struct Deposit<'info> {
 
 #[derive(Accounts)]
 pub struct Withdraw<'info> {
+    // Here the user must be a signer. If we want to use someone else to pay other than our centralized payer, just pass user into payer.
     #[account(mut)]
-    pub user: Signer<'info>,
+    pub user: Signer<'info>,    
+
+    #[account(mut)]
+    pub payer: Signer<'info>,
 
     #[account(
         seeds = [USER_ACCOUNT_SEED, user.key().as_ref()],
@@ -213,14 +226,24 @@ pub struct Withdraw<'info> {
     pub token_program: Program<'info, Token>,
 }
 
+// The User-uncheckedAccount and payer-Signer pattern is used to allow for dual signing - so the user doesn't need to see a signature prompt pop-up
 #[derive(Accounts)]
 #[instruction(post_id_hash: [u8; 32])]
 pub struct CreatePost<'info> {
+    #[account(mut,
+        seeds = [CONFIG_SEED],
+        bump,
+    )]
     pub config: Account<'info, Config>,
+    /// CHECK: User is marked as an UncheckedAccount so that it could be just a pubkey or a signer - allowing for dual signing - in the case where the user wants to directly interact with the program and not use our centralized payer, just pass its own keypair to payer and user as the same keypair.
     #[account(mut)]
-    pub user: Signer<'info>,
+    pub user: UncheckedAccount<'info>,
 
-    #[account(mut)]
+    
+    #[account(
+        mut,
+        constraint = payer.key() == config.payer_authroity || payer.key() == user.key()
+    )]
     pub payer: Signer<'info>,
 
     #[account(
@@ -241,16 +264,24 @@ pub struct CreatePost<'info> {
 }
 
 
-
+// The User-uncheckedAccount and payer-Signer pattern is used to allow for dual signing - so the user doesn't need to see a signature prompt pop-up
 #[derive(Accounts)]
 #[instruction(side: Side, votes:u64, post_id_hash: [u8; 32])]
 pub struct VoteOnPost<'info> {
-    #[account(mut)]
+    #[account(mut,
+        seeds = [CONFIG_SEED],
+        bump,
+    )]
     pub config: Box<Account<'info, Config>>,
 
+    /// CHECK: Voter is marked as an UncheckedAccount so that it could be just a pubkey or a signer - allowing for dual signing - in the case where the user wants to directly interact with the program and not use our centralized payer, just pass its own keypair to payer and voter as the same keypair.
     #[account(mut)]
-    pub voter: Signer<'info>,
-    #[account(mut)]
+    pub voter: UncheckedAccount<'info>,
+    
+    #[account(
+        mut,
+        constraint = payer.key() == config.payer_authroity || payer.key() == voter.key()
+    )]
     pub payer: Signer<'info>,
 
     #[account(
@@ -405,12 +436,23 @@ pub struct SettlePost<'info> {
 }
 
 
+// The User-uncheckedAccount and payer-Signer pattern is used to allow for dual signing - so the user doesn't need to see a signature prompt pop-up
+
 #[derive(Accounts)]
 #[instruction(post_id_hash: [u8; 32])]
 pub struct ClaimPostReward<'info> {
+    #[account(mut,
+        seeds = [CONFIG_SEED],
+        bump,
+    )]
+    pub config: Account<'info, Config>,
+    /// CHECK: User is marked as an UncheckedAccount so that it could be just a pubkey or a signer - allowing for dual signing - in the case where the user wants to directly interact with the program and not use our centralized payer, just pass its own keypair to payer and user as the same keypair.
     #[account(mut)]
-    pub user: Signer<'info>,
-    #[account(mut)]
+    pub user: UncheckedAccount<'info>,
+    #[account(
+        mut,
+        constraint = payer.key() == config.payer_authroity || payer.key() == user.key()
+    )]
     pub payer: Signer<'info>,
 
     #[account(

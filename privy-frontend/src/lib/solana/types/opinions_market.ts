@@ -1,14 +1,20 @@
-{
+/**
+ * Program IDL in camelCase format in order to be used in JS/TS.
+ *
+ * Note that this is only a type helper and is not the actual IDL. The original
+ * IDL can be found at `target/idl/opinions_market.json`.
+ */
+export type OpinionsMarket = {
   "address": "4z5rjroGdWmgGX13SdFsh4wRM4jJkMUrcvYrNpV3gezm",
   "metadata": {
-    "name": "opinions_market",
+    "name": "opinionsMarket",
     "version": "0.1.0",
     "spec": "0.1.0",
     "description": "Created with Anchor"
   },
   "instructions": [
     {
-      "name": "claim_post_reward",
+      "name": "claimPostReward",
       "discriminator": [
         225,
         10,
@@ -21,27 +27,9 @@
       ],
       "accounts": [
         {
-          "name": "config",
-          "writable": true,
-          "pda": {
-            "seeds": [
-              {
-                "kind": "const",
-                "value": [
-                  99,
-                  111,
-                  110,
-                  102,
-                  105,
-                  103
-                ]
-              }
-            ]
-          }
-        },
-        {
           "name": "user",
-          "writable": true
+          "writable": true,
+          "signer": true
         },
         {
           "name": "payer",
@@ -72,7 +60,7 @@
               },
               {
                 "kind": "arg",
-                "path": "post_id_hash"
+                "path": "postIdHash"
               }
             ]
           }
@@ -82,7 +70,7 @@
           "writable": true
         },
         {
-          "name": "user_post_mint_claim",
+          "name": "userPostMintClaim",
           "writable": true,
           "pda": {
             "seeds": [
@@ -117,13 +105,13 @@
               },
               {
                 "kind": "account",
-                "path": "token_mint"
+                "path": "tokenMint"
               }
             ]
           }
         },
         {
-          "name": "post_mint_payout",
+          "name": "postMintPayout",
           "pda": {
             "seeds": [
               {
@@ -153,13 +141,13 @@
               },
               {
                 "kind": "account",
-                "path": "token_mint"
+                "path": "tokenMint"
               }
             ]
           }
         },
         {
-          "name": "post_pot_token_account",
+          "name": "postPotTokenAccount",
           "writable": true,
           "pda": {
             "seeds": [
@@ -196,13 +184,13 @@
               },
               {
                 "kind": "account",
-                "path": "token_mint"
+                "path": "tokenMint"
               }
             ]
           }
         },
         {
-          "name": "post_pot_authority",
+          "name": "postPotAuthority",
           "pda": {
             "seeds": [
               {
@@ -236,24 +224,24 @@
           }
         },
         {
-          "name": "user_vault_token_account",
+          "name": "userVaultTokenAccount",
           "writable": true
         },
         {
-          "name": "token_mint"
+          "name": "tokenMint"
         },
         {
-          "name": "token_program",
+          "name": "tokenProgram",
           "address": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
         },
         {
-          "name": "system_program",
+          "name": "systemProgram",
           "address": "11111111111111111111111111111111"
         }
       ],
       "args": [
         {
-          "name": "post_id_hash",
+          "name": "postIdHash",
           "type": {
             "array": [
               "u8",
@@ -264,7 +252,7 @@
       ]
     },
     {
-      "name": "create_post",
+      "name": "createPost",
       "discriminator": [
         123,
         92,
@@ -277,27 +265,12 @@
       ],
       "accounts": [
         {
-          "name": "config",
-          "writable": true,
-          "pda": {
-            "seeds": [
-              {
-                "kind": "const",
-                "value": [
-                  99,
-                  111,
-                  110,
-                  102,
-                  105,
-                  103
-                ]
-              }
-            ]
-          }
+          "name": "config"
         },
         {
           "name": "user",
-          "writable": true
+          "writable": true,
+          "signer": true
         },
         {
           "name": "payer",
@@ -305,7 +278,7 @@
           "signer": true
         },
         {
-          "name": "user_account",
+          "name": "userAccount",
           "pda": {
             "seeds": [
               {
@@ -356,19 +329,19 @@
               },
               {
                 "kind": "arg",
-                "path": "post_id_hash"
+                "path": "postIdHash"
               }
             ]
           }
         },
         {
-          "name": "system_program",
+          "name": "systemProgram",
           "address": "11111111111111111111111111111111"
         }
       ],
       "args": [
         {
-          "name": "post_id_hash",
+          "name": "postIdHash",
           "type": {
             "array": [
               "u8",
@@ -377,7 +350,7 @@
           }
         },
         {
-          "name": "parent_post_pda",
+          "name": "parentPostPda",
           "type": {
             "option": "pubkey"
           }
@@ -385,7 +358,7 @@
       ]
     },
     {
-      "name": "create_user",
+      "name": "createUser",
       "discriminator": [
         108,
         227,
@@ -398,25 +371,6 @@
       ],
       "accounts": [
         {
-          "name": "config",
-          "writable": true,
-          "pda": {
-            "seeds": [
-              {
-                "kind": "const",
-                "value": [
-                  99,
-                  111,
-                  110,
-                  102,
-                  105,
-                  103
-                ]
-              }
-            ]
-          }
-        },
-        {
           "name": "user",
           "writable": true,
           "signer": true
@@ -427,7 +381,7 @@
           "signer": true
         },
         {
-          "name": "user_account",
+          "name": "userAccount",
           "writable": true,
           "pda": {
             "seeds": [
@@ -456,7 +410,26 @@
           }
         },
         {
-          "name": "system_program",
+          "name": "config",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  99,
+                  111,
+                  110,
+                  102,
+                  105,
+                  103
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "systemProgram",
           "address": "11111111111111111111111111111111"
         }
       ],
@@ -484,12 +457,7 @@
           "signer": true
         },
         {
-          "name": "payer",
-          "writable": true,
-          "signer": true
-        },
-        {
-          "name": "user_account",
+          "name": "userAccount",
           "pda": {
             "seeds": [
               {
@@ -517,10 +485,10 @@
           }
         },
         {
-          "name": "token_mint"
+          "name": "tokenMint"
         },
         {
-          "name": "valid_payment",
+          "name": "validPayment",
           "pda": {
             "seeds": [
               {
@@ -543,17 +511,17 @@
               },
               {
                 "kind": "account",
-                "path": "token_mint"
+                "path": "tokenMint"
               }
             ]
           }
         },
         {
-          "name": "user_token_ata",
+          "name": "userTokenAta",
           "writable": true
         },
         {
-          "name": "vault_authority",
+          "name": "vaultAuthority",
           "pda": {
             "seeds": [
               {
@@ -580,7 +548,7 @@
           }
         },
         {
-          "name": "user_vault_token_account",
+          "name": "userVaultTokenAccount",
           "writable": true,
           "pda": {
             "seeds": [
@@ -619,17 +587,17 @@
               },
               {
                 "kind": "account",
-                "path": "token_mint"
+                "path": "tokenMint"
               }
             ]
           }
         },
         {
-          "name": "token_program",
+          "name": "tokenProgram",
           "address": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
         },
         {
-          "name": "system_program",
+          "name": "systemProgram",
           "address": "11111111111111111111111111111111"
         }
       ],
@@ -683,13 +651,13 @@
           }
         },
         {
-          "name": "bling_mint"
+          "name": "blingMint"
         },
         {
-          "name": "usdc_mint"
+          "name": "usdcMint"
         },
         {
-          "name": "valid_payment",
+          "name": "validPayment",
           "writable": true,
           "pda": {
             "seeds": [
@@ -713,13 +681,13 @@
               },
               {
                 "kind": "account",
-                "path": "bling_mint"
+                "path": "blingMint"
               }
             ]
           }
         },
         {
-          "name": "protocol_bling_treasury",
+          "name": "protocolBlingTreasury",
           "writable": true,
           "pda": {
             "seeds": [
@@ -761,31 +729,31 @@
               },
               {
                 "kind": "account",
-                "path": "bling_mint"
+                "path": "blingMint"
               }
             ]
           }
         },
         {
-          "name": "system_program",
+          "name": "systemProgram",
           "address": "11111111111111111111111111111111"
         },
         {
-          "name": "token_program",
+          "name": "tokenProgram",
           "address": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
         }
       ],
       "args": [
         {
-          "name": "base_duration_secs",
+          "name": "baseDurationSecs",
           "type": "u32"
         },
         {
-          "name": "max_duration_secs",
+          "name": "maxDurationSecs",
           "type": "u32"
         },
         {
-          "name": "extension_per_vote_secs",
+          "name": "extensionPerVoteSecs",
           "type": "u32"
         }
       ]
@@ -806,7 +774,7 @@
       "args": []
     },
     {
-      "name": "register_valid_payment",
+      "name": "registerValidPayment",
       "discriminator": [
         17,
         178,
@@ -828,10 +796,10 @@
           "signer": true
         },
         {
-          "name": "token_mint"
+          "name": "tokenMint"
         },
         {
-          "name": "valid_payment",
+          "name": "validPayment",
           "writable": true,
           "pda": {
             "seeds": [
@@ -855,13 +823,13 @@
               },
               {
                 "kind": "account",
-                "path": "token_mint"
+                "path": "tokenMint"
               }
             ]
           }
         },
         {
-          "name": "protocol_token_treasury_token_account",
+          "name": "protocolTokenTreasuryTokenAccount",
           "docs": [
             "NEW treasury token account for this mint, canonical PDA."
           ],
@@ -906,29 +874,29 @@
               },
               {
                 "kind": "account",
-                "path": "token_mint"
+                "path": "tokenMint"
               }
             ]
           }
         },
         {
-          "name": "system_program",
+          "name": "systemProgram",
           "address": "11111111111111111111111111111111"
         },
         {
-          "name": "token_program",
+          "name": "tokenProgram",
           "address": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
         }
       ],
       "args": [
         {
-          "name": "price_in_bling",
+          "name": "priceInBling",
           "type": "u64"
         }
       ]
     },
     {
-      "name": "settle_post",
+      "name": "settlePost",
       "discriminator": [
         233,
         212,
@@ -969,13 +937,13 @@
               },
               {
                 "kind": "arg",
-                "path": "post_id_hash"
+                "path": "postIdHash"
               }
             ]
           }
         },
         {
-          "name": "post_pot_token_account",
+          "name": "postPotTokenAccount",
           "writable": true,
           "pda": {
             "seeds": [
@@ -1012,13 +980,13 @@
               },
               {
                 "kind": "account",
-                "path": "token_mint"
+                "path": "tokenMint"
               }
             ]
           }
         },
         {
-          "name": "post_pot_authority",
+          "name": "postPotAuthority",
           "pda": {
             "seeds": [
               {
@@ -1052,7 +1020,7 @@
           }
         },
         {
-          "name": "post_mint_payout",
+          "name": "postMintPayout",
           "writable": true,
           "pda": {
             "seeds": [
@@ -1083,13 +1051,13 @@
               },
               {
                 "kind": "account",
-                "path": "token_mint"
+                "path": "tokenMint"
               }
             ]
           }
         },
         {
-          "name": "protocol_token_treasury_token_account",
+          "name": "protocolTokenTreasuryTokenAccount",
           "writable": true,
           "pda": {
             "seeds": [
@@ -1131,33 +1099,33 @@
               },
               {
                 "kind": "account",
-                "path": "token_mint"
+                "path": "tokenMint"
               }
             ]
           }
         },
         {
-          "name": "parent_post",
+          "name": "parentPost",
           "optional": true
         },
         {
           "name": "config"
         },
         {
-          "name": "token_mint"
+          "name": "tokenMint"
         },
         {
-          "name": "token_program",
+          "name": "tokenProgram",
           "address": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
         },
         {
-          "name": "system_program",
+          "name": "systemProgram",
           "address": "11111111111111111111111111111111"
         }
       ],
       "args": [
         {
-          "name": "post_id_hash",
+          "name": "postIdHash",
           "type": {
             "array": [
               "u8",
@@ -1168,7 +1136,7 @@
       ]
     },
     {
-      "name": "vote_on_post",
+      "name": "voteOnPost",
       "docs": [
         "Core MVP voting instruction.",
         "User pays from their vault; everything is denominated in BLING."
@@ -1186,26 +1154,12 @@
       "accounts": [
         {
           "name": "config",
-          "writable": true,
-          "pda": {
-            "seeds": [
-              {
-                "kind": "const",
-                "value": [
-                  99,
-                  111,
-                  110,
-                  102,
-                  105,
-                  103
-                ]
-              }
-            ]
-          }
+          "writable": true
         },
         {
           "name": "voter",
-          "writable": true
+          "writable": true,
+          "signer": true
         },
         {
           "name": "payer",
@@ -1236,13 +1190,13 @@
               },
               {
                 "kind": "arg",
-                "path": "post_id_hash"
+                "path": "postIdHash"
               }
             ]
           }
         },
         {
-          "name": "voter_user_account",
+          "name": "voterUserAccount",
           "pda": {
             "seeds": [
               {
@@ -1270,7 +1224,7 @@
           }
         },
         {
-          "name": "voter_user_vault_token_account",
+          "name": "voterUserVaultTokenAccount",
           "writable": true,
           "pda": {
             "seeds": [
@@ -1309,7 +1263,7 @@
               },
               {
                 "kind": "account",
-                "path": "token_mint"
+                "path": "tokenMint"
               }
             ]
           }
@@ -1344,7 +1298,7 @@
           }
         },
         {
-          "name": "vault_authority",
+          "name": "vaultAuthority",
           "pda": {
             "seeds": [
               {
@@ -1371,7 +1325,7 @@
           }
         },
         {
-          "name": "post_pot_token_account",
+          "name": "postPotTokenAccount",
           "writable": true,
           "pda": {
             "seeds": [
@@ -1408,13 +1362,13 @@
               },
               {
                 "kind": "account",
-                "path": "token_mint"
+                "path": "tokenMint"
               }
             ]
           }
         },
         {
-          "name": "post_pot_authority",
+          "name": "postPotAuthority",
           "pda": {
             "seeds": [
               {
@@ -1448,7 +1402,7 @@
           }
         },
         {
-          "name": "protocol_token_treasury_token_account",
+          "name": "protocolTokenTreasuryTokenAccount",
           "writable": true,
           "pda": {
             "seeds": [
@@ -1490,13 +1444,13 @@
               },
               {
                 "kind": "account",
-                "path": "token_mint"
+                "path": "tokenMint"
               }
             ]
           }
         },
         {
-          "name": "creator_vault_token_account",
+          "name": "creatorVaultTokenAccount",
           "writable": true,
           "pda": {
             "seeds": [
@@ -1532,17 +1486,17 @@
               {
                 "kind": "account",
                 "path": "post.creator_user",
-                "account": "PostAccount"
+                "account": "postAccount"
               },
               {
                 "kind": "account",
-                "path": "token_mint"
+                "path": "tokenMint"
               }
             ]
           }
         },
         {
-          "name": "valid_payment",
+          "name": "validPayment",
           "pda": {
             "seeds": [
               {
@@ -1565,20 +1519,20 @@
               },
               {
                 "kind": "account",
-                "path": "token_mint"
+                "path": "tokenMint"
               }
             ]
           }
         },
         {
-          "name": "token_mint"
+          "name": "tokenMint"
         },
         {
-          "name": "token_program",
+          "name": "tokenProgram",
           "address": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
         },
         {
-          "name": "system_program",
+          "name": "systemProgram",
           "address": "11111111111111111111111111111111"
         }
       ],
@@ -1587,7 +1541,7 @@
           "name": "side",
           "type": {
             "defined": {
-              "name": "Side"
+              "name": "side"
             }
           }
         },
@@ -1596,7 +1550,7 @@
           "type": "u64"
         },
         {
-          "name": "post_id_hash",
+          "name": "postIdHash",
           "type": {
             "array": [
               "u8",
@@ -1630,12 +1584,7 @@
           "signer": true
         },
         {
-          "name": "payer",
-          "writable": true,
-          "signer": true
-        },
-        {
-          "name": "user_account",
+          "name": "userAccount",
           "pda": {
             "seeds": [
               {
@@ -1663,14 +1612,14 @@
           }
         },
         {
-          "name": "token_mint"
+          "name": "tokenMint"
         },
         {
-          "name": "user_token_dest_ata",
+          "name": "userTokenDestAta",
           "writable": true
         },
         {
-          "name": "user_vault_token_account",
+          "name": "userVaultTokenAccount",
           "writable": true,
           "pda": {
             "seeds": [
@@ -1709,13 +1658,13 @@
               },
               {
                 "kind": "account",
-                "path": "token_mint"
+                "path": "tokenMint"
               }
             ]
           }
         },
         {
-          "name": "vault_authority",
+          "name": "vaultAuthority",
           "pda": {
             "seeds": [
               {
@@ -1742,7 +1691,7 @@
           }
         },
         {
-          "name": "token_program",
+          "name": "tokenProgram",
           "address": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
         }
       ],
@@ -1756,7 +1705,7 @@
   ],
   "accounts": [
     {
-      "name": "Config",
+      "name": "config",
       "discriminator": [
         155,
         12,
@@ -1769,7 +1718,7 @@
       ]
     },
     {
-      "name": "PostAccount",
+      "name": "postAccount",
       "discriminator": [
         85,
         236,
@@ -1782,7 +1731,7 @@
       ]
     },
     {
-      "name": "PostMintPayout",
+      "name": "postMintPayout",
       "discriminator": [
         109,
         227,
@@ -1795,7 +1744,7 @@
       ]
     },
     {
-      "name": "UserAccount",
+      "name": "userAccount",
       "discriminator": [
         211,
         33,
@@ -1808,7 +1757,7 @@
       ]
     },
     {
-      "name": "UserPostMintClaim",
+      "name": "userPostMintClaim",
       "discriminator": [
         19,
         128,
@@ -1821,7 +1770,7 @@
       ]
     },
     {
-      "name": "UserPostPosition",
+      "name": "userPostPosition",
       "discriminator": [
         204,
         98,
@@ -1834,7 +1783,7 @@
       ]
     },
     {
-      "name": "ValidPayment",
+      "name": "validPayment",
       "discriminator": [
         56,
         136,
@@ -1850,78 +1799,78 @@
   "errors": [
     {
       "code": 6000,
-      "name": "PostNotOpen",
+      "name": "postNotOpen",
       "msg": "Post is not open"
     },
     {
       "code": 6001,
-      "name": "PostExpired",
+      "name": "postExpired",
       "msg": "Post is expired"
     },
     {
       "code": 6002,
-      "name": "PostAlreadySettled",
+      "name": "postAlreadySettled",
       "msg": "Post already settled"
     },
     {
       "code": 6003,
-      "name": "PostNotExpired",
+      "name": "postNotExpired",
       "msg": "Post not yet expired"
     },
     {
       "code": 6004,
-      "name": "PostNotSettled",
+      "name": "postNotSettled",
       "msg": "Post not settled"
     },
     {
       "code": 6005,
-      "name": "NoWinner",
+      "name": "noWinner",
       "msg": "No winner for this post"
     },
     {
       "code": 6006,
-      "name": "AlreadyClaimed",
+      "name": "alreadyClaimed",
       "msg": "Reward already claimed"
     },
     {
       "code": 6007,
-      "name": "MathOverflow",
+      "name": "mathOverflow",
       "msg": "Math overflow"
     },
     {
       "code": 6008,
-      "name": "ZeroVotes",
+      "name": "zeroVotes",
       "msg": "Zero votes not allowed"
     },
     {
       "code": 6009,
-      "name": "MintNotEnabled",
+      "name": "mintNotEnabled",
       "msg": "Mint is not enabled"
     },
     {
       "code": 6010,
-      "name": "BlingCannotBeAlternativePayment",
+      "name": "blingCannotBeAlternativePayment",
       "msg": "BLING cannot be registered as an alternative payment"
     },
     {
       "code": 6011,
-      "name": "AlternativePaymentAlreadyRegistered",
+      "name": "alternativePaymentAlreadyRegistered",
       "msg": "Alternative payment already registered for this mint"
     },
     {
       "code": 6012,
-      "name": "Unauthorized",
+      "name": "unauthorized",
       "msg": "Unauthorized: user account does not belong to the payer"
     },
     {
       "code": 6013,
-      "name": "InvalidParentPost",
+      "name": "invalidParentPost",
       "msg": "Invalid parent post"
     }
   ],
   "types": [
     {
-      "name": "Config",
+      "name": "config",
       "type": {
         "kind": "struct",
         "fields": [
@@ -1930,23 +1879,19 @@
             "type": "pubkey"
           },
           {
-            "name": "payer_authroity",
+            "name": "blingMint",
             "type": "pubkey"
           },
           {
-            "name": "bling_mint",
-            "type": "pubkey"
-          },
-          {
-            "name": "base_duration_secs",
+            "name": "baseDurationSecs",
             "type": "u32"
           },
           {
-            "name": "max_duration_secs",
+            "name": "maxDurationSecs",
             "type": "u32"
           },
           {
-            "name": "extension_per_vote_secs",
+            "name": "extensionPerVoteSecs",
             "type": "u32"
           },
           {
@@ -1969,16 +1914,16 @@
       }
     },
     {
-      "name": "PostAccount",
+      "name": "postAccount",
       "type": {
         "kind": "struct",
         "fields": [
           {
-            "name": "creator_user",
+            "name": "creatorUser",
             "type": "pubkey"
           },
           {
-            "name": "post_id_hash",
+            "name": "postIdHash",
             "type": {
               "array": [
                 "u8",
@@ -1987,26 +1932,26 @@
             }
           },
           {
-            "name": "post_type",
+            "name": "postType",
             "type": {
               "defined": {
-                "name": "PostType"
+                "name": "postType"
               }
             }
           },
           {
-            "name": "start_time",
+            "name": "startTime",
             "type": "i64"
           },
           {
-            "name": "end_time",
+            "name": "endTime",
             "type": "i64"
           },
           {
             "name": "state",
             "type": {
               "defined": {
-                "name": "PostState"
+                "name": "postState"
               }
             }
           },
@@ -2019,11 +1964,11 @@
             "type": "u64"
           },
           {
-            "name": "winning_side",
+            "name": "winningSide",
             "type": {
               "option": {
                 "defined": {
-                  "name": "Side"
+                  "name": "side"
                 }
               }
             }
@@ -2032,7 +1977,7 @@
       }
     },
     {
-      "name": "PostMintPayout",
+      "name": "postMintPayout",
       "type": {
         "kind": "struct",
         "fields": [
@@ -2041,15 +1986,15 @@
             "type": "pubkey"
           },
           {
-            "name": "token_mint",
+            "name": "tokenMint",
             "type": "pubkey"
           },
           {
-            "name": "total_payout",
+            "name": "totalPayout",
             "type": "u64"
           },
           {
-            "name": "payout_per_winning_vote",
+            "name": "payoutPerWinningVote",
             "type": "u64"
           },
           {
@@ -2060,29 +2005,29 @@
       }
     },
     {
-      "name": "PostState",
+      "name": "postState",
       "type": {
         "kind": "enum",
         "variants": [
           {
-            "name": "Open"
+            "name": "open"
           },
           {
-            "name": "Settled"
+            "name": "settled"
           }
         ]
       }
     },
     {
-      "name": "PostType",
+      "name": "postType",
       "type": {
         "kind": "enum",
         "variants": [
           {
-            "name": "Original"
+            "name": "original"
           },
           {
-            "name": "Child",
+            "name": "child",
             "fields": [
               {
                 "name": "parent",
@@ -2094,21 +2039,21 @@
       }
     },
     {
-      "name": "Side",
+      "name": "side",
       "type": {
         "kind": "enum",
         "variants": [
           {
-            "name": "Pump"
+            "name": "pump"
           },
           {
-            "name": "Smack"
+            "name": "smack"
           }
         ]
       }
     },
     {
-      "name": "UserAccount",
+      "name": "userAccount",
       "type": {
         "kind": "struct",
         "fields": [
@@ -2117,7 +2062,7 @@
             "type": "pubkey"
           },
           {
-            "name": "social_score",
+            "name": "socialScore",
             "type": "i64"
           },
           {
@@ -2128,7 +2073,7 @@
       }
     },
     {
-      "name": "UserPostMintClaim",
+      "name": "userPostMintClaim",
       "type": {
         "kind": "struct",
         "fields": [
@@ -2156,7 +2101,7 @@
       }
     },
     {
-      "name": "UserPostPosition",
+      "name": "userPostPosition",
       "type": {
         "kind": "struct",
         "fields": [
@@ -2180,16 +2125,16 @@
       }
     },
     {
-      "name": "ValidPayment",
+      "name": "validPayment",
       "type": {
         "kind": "struct",
         "fields": [
           {
-            "name": "token_mint",
+            "name": "tokenMint",
             "type": "pubkey"
           },
           {
-            "name": "price_in_bling",
+            "name": "priceInBling",
             "docs": [
               "how much is 1 token in BLING votes -",
               "1 USDC = 10_000 BLING for example",
@@ -2209,4 +2154,4 @@
       }
     }
   ]
-}
+};

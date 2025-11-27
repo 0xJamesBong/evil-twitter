@@ -65,6 +65,7 @@ pub mod opinions_market {
 
         let new_cfg = Config::new(
             *ctx.accounts.admin.key,
+            ctx.accounts.payer.key(),
             ctx.accounts.bling_mint.key(),
             base_duration_secs,
             max_duration_secs,
@@ -74,6 +75,7 @@ pub mod opinions_market {
         );
 
         cfg.admin = new_cfg.admin;
+        cfg.payer_authroity = new_cfg.payer_authroity;
         cfg.bling_mint = new_cfg.bling_mint;
 
         cfg.base_duration_secs = new_cfg.base_duration_secs;

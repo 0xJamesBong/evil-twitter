@@ -1,583 +1,295 @@
-use crate::solana::{errors::SolanaError, pda::*, program::SolanaProgram};
-use solana_sdk::{
-    instruction::{AccountMeta, Instruction},
-    pubkey::Pubkey,
-    signature::{Signature, Signer},
-    system_program,
-    transaction::Transaction,
+use std::collections::HashMap;
+use std::fs;
+
+use anchor_client::anchor_lang::solana_program::example_mocks::solana_sdk::system_instruction;
+use anchor_client::anchor_lang::solana_program::example_mocks::solana_sdk::system_program;
+use anchor_spl::associated_token::spl_associated_token_account::instruction::create_associated_token_account;
+use anchor_spl::{
+    associated_token::spl_associated_token_account::{self},
+    token::spl_token,
 };
-use std::io::{Cursor, Read};
+use solana_client::nonblocking::rpc_client::RpcClient;
+use solana_sdk::{
+    instruction::Instruction,
+    message::{VersionedMessage, v0::Message},
+    native_token::LAMPORTS_PER_SOL,
+    program_pack::Pack,
+    signature::{Keypair, Signature},
+    signers::Signers,
+    transaction::VersionedTransaction,
+}; // Add this import
+use solana_sdk::{pubkey::Pubkey, signer::Signer};
+
+use anchor_client::Client;
+use anchor_client::Cluster;
+use anchor_client::Program;
+
+use serde_json::Value;
+
+use anchor_client::anchor_lang::prelude::*;
+
+use base64::{Engine as _, engine::general_purpose};
+use bincode;
+use solana_sdk::commitment_config::CommitmentConfig;
 use std::sync::Arc;
 
-// Re-export state types for use in service
-// These will be deserialized from on-chain accounts
-#[derive(Debug, Clone)]
-pub struct PostAccount {
-    pub creator_user: Pubkey,
-    pub post_id_hash: [u8; 32],
-    pub start_time: i64,
-    pub end_time: i64,
-    pub state: u8, // 0 = Open, 1 = Settled
-    pub upvotes: u64,
-    pub downvotes: u64,
-    pub winning_side: Option<u8>, // 0 = Pump, 1 = Smack
-}
+use opinions_market::accounts::*;
+use opinions_market::instructions::*;
 
-#[derive(Debug, Clone)]
-pub struct UserAccount {
-    pub user: Pubkey,
-    pub social_score: i64,
-    pub bump: u8,
-}
-
-#[derive(Debug, Clone)]
-pub struct UserPostPosition {
-    pub user: Pubkey,
-    pub post: Pubkey,
-    pub upvotes: u64,
-    pub downvotes: u64,
-}
+use crate::solana::get_config_pda;
+use crate::solana::{get_user_account_pda, get_user_vault_token_account_pda};
 
 pub struct SolanaService {
-    program: Arc<SolanaProgram>,
+    rpc: Arc<RpcClient>,
+    payer: Arc<Keypair>,
     program_id: Pubkey,
     bling_mint: Pubkey,
 }
 
+fn read_program_id_from_idl() -> Pubkey {
+    let file =
+        fs::read_to_string("src/solana/idl/opinions_market.json").expect("IDL file not found");
+    let v: Value = serde_json::from_str(&file).expect("Invalid JSON in IDL");
+
+    let addr = v["address"].as_str().expect("IDL missing address field");
+
+    addr.parse().expect("Invalid program ID format")
+}
+
 impl SolanaService {
-    pub fn new(program: Arc<SolanaProgram>, program_id: Pubkey, bling_mint: Pubkey) -> Self {
+    pub fn new(rpc: Arc<RpcClient>, payer: Arc<Keypair>, bling_mint: Pubkey) -> Self {
+        let program_id = read_program_id_from_idl();
+
         Self {
-            program,
+            rpc,
+            payer,
             program_id,
             bling_mint,
         }
-    }
-
-    pub fn get_program_id(&self) -> &Pubkey {
-        &self.program_id
     }
 
     pub fn get_bling_mint(&self) -> &Pubkey {
         &self.bling_mint
     }
 
-    /// Create a user account on-chain
-    pub fn create_user(&self, user_wallet: &Pubkey) -> Result<Signature, SolanaError> {
-        let connection = self.program.get_connection();
-        let payer = self.program.get_payer();
-
-        // Derive PDAs
-        let (config_pda, _) = get_config_pda(&self.program_id);
-        let (user_account_pda, _) = get_user_account_pda(&self.program_id, user_wallet);
-
-        // Build instruction accounts in the exact order from IDL
-        // create_user accounts: user (signer), payer (signer), user_account (PDA), config (PDA), system_program
-        let accounts = vec![
-            AccountMeta::new(*user_wallet, true),      // user (signer)
-            AccountMeta::new(payer.pubkey(), true),    // payer (signer)
-            AccountMeta::new(user_account_pda, false), // user_account (PDA, writable)
-            AccountMeta::new(config_pda, false),       // config (PDA, writable)
-            AccountMeta::new_readonly(system_program::id(), false), // system_program
-        ];
-
-        // Build instruction data
-        // Discriminator for create_user: [108, 227, 130, 130, 252, 109, 75, 218]
-        // No args for create_user
-        let instruction_data = vec![108u8, 227, 130, 130, 252, 109, 75, 218];
-
-        let instruction = Instruction {
-            program_id: self.program_id,
-            accounts,
-            data: instruction_data,
-        };
-
-        let mut transaction = Transaction::new_with_payer(&[instruction], Some(&payer.pubkey()));
-
-        let connection_service = self.program.get_connection_service();
-        let recent_blockhash = connection_service.get_latest_blockhash()?;
-
-        // TODO: The program currently requires `user: Signer<'info>`, but according to the architecture,
-        // we should be able to create the user account with just the backend payer signing.
-        // The program needs to be updated to make the user signer optional or allow the payer to sign instead.
-        // For now, this will fail because we can't sign as the user from the backend.
-        //
-        // The program should be updated to:
-        // - Remove the `user: Signer<'info>` constraint, OR
-        // - Allow the payer to act as the user signer
-        //
-        // Once updated, we can sign with just the payer:
-        transaction.sign(&[payer], recent_blockhash);
-
-        let signature = connection
-            .send_and_confirm_transaction(&transaction)
-            .map_err(|e| {
-                SolanaError::TransactionError(format!(
-                    "Failed to send create_user transaction: {}",
-                    e
-                ))
-            })?;
-
-        Ok(signature)
+    /// Get opinions_market_program using the async Anchor client (no nested runtimes)
+    pub fn opinions_market_program(&self) -> Program<Arc<Keypair>> {
+        let client =
+            Client::new_with_options(Cluster::Localnet, self.payer.clone(), CommitmentConfig::confirmed());
+        client
+            .program(self.program_id)
+            .expect("Failed to init program")
     }
 
-    /// Create a post on-chain
-    pub fn create_post(
+    pub async fn partial_sign_tx<T: Signers + ?Sized>(
         &self,
-        user_wallet: &Pubkey,
-        post_id_hash: [u8; 32],
-        parent_post_pda: Option<Pubkey>,
-    ) -> Result<Signature, SolanaError> {
-        let connection = self.program.get_connection();
-        let payer = self.program.get_payer();
+        ixs: Vec<Instruction>,
+        signer: &T,
+    ) -> anyhow::Result<VersionedTransaction> {
+        let blockhash = self.rpc.get_latest_blockhash().await?;
+        let message = Message::try_compile(&self.payer.pubkey(), &ixs, &[], blockhash)?;
+        let v0_message = VersionedMessage::V0(message);
+        let partial_signed_tx = VersionedTransaction::try_new(v0_message, signer)?;
 
-        // Derive PDAs
-        let (config_pda, _) = get_config_pda(&self.program_id);
-        let (user_account_pda, _) = get_user_account_pda(&self.program_id, user_wallet);
-        let (post_pda, _) = get_post_pda(&self.program_id, &post_id_hash);
-
-        // Build instruction accounts
-        let accounts = vec![
-            AccountMeta::new_readonly(config_pda, false),
-            AccountMeta::new(*user_wallet, true), // user signer
-            AccountMeta::new(payer.pubkey(), true), // payer signer
-            AccountMeta::new_readonly(user_account_pda, false),
-            AccountMeta::new(post_pda, false),
-            AccountMeta::new_readonly(system_program::id(), false),
-        ];
-
-        // Build instruction data
-        // Discriminator for create_post: [123, 92, 184, 29, 231, 24, 15, 202]
-        let mut instruction_data = vec![123u8, 92, 184, 29, 231, 24, 15, 202];
-        instruction_data.extend_from_slice(&post_id_hash);
-        if let Some(parent) = parent_post_pda {
-            instruction_data.push(1); // Some variant
-            instruction_data.extend_from_slice(&parent.to_bytes());
-        } else {
-            instruction_data.push(0); // None variant
-        }
-
-        let instruction = Instruction {
-            program_id: self.program_id,
-            accounts,
-            data: instruction_data,
-        };
-
-        let mut transaction = Transaction::new_with_payer(&[instruction], Some(&payer.pubkey()));
-
-        let connection_service = self.program.get_connection_service();
-        let recent_blockhash = connection_service.get_latest_blockhash()?;
-
-        transaction.sign(&[payer], recent_blockhash);
-
-        let signature = connection
-            .send_and_confirm_transaction(&transaction)
-            .map_err(|e| {
-                SolanaError::TransactionError(format!("Failed to send transaction: {}", e))
-            })?;
-
-        Ok(signature)
+        Ok(partial_signed_tx)
     }
 
-    /// Vote on a post
-    pub fn vote_on_post(
+    pub async fn send_tx<T: Signers + ?Sized>(
         &self,
-        voter_wallet: &Pubkey,
-        post_id_hash: [u8; 32],
-        side: u8, // 0 = Pump, 1 = Smack
-        votes: u64,
-        token_mint: &Pubkey,
-    ) -> Result<Signature, SolanaError> {
-        let connection = self.program.get_connection();
-        let payer = self.program.get_payer();
+        ixs: Vec<Instruction>,
+        signer: &T,
+    ) -> anyhow::Result<Signature> {
+        let blockhash = self.rpc.get_latest_blockhash().await?;
+        let message = Message::try_compile(&self.payer.pubkey(), &ixs, &[], blockhash)?;
+        let v0_message = VersionedMessage::V0(message);
+        let tx = VersionedTransaction::try_new(v0_message, signer)?;
 
-        // First, get the post account to get creator_user
-        let post_account = self
-            .get_post_account(post_id_hash)?
-            .ok_or_else(|| SolanaError::AccountNotFound("Post account not found".to_string()))?;
+        let result = self.rpc.send_and_confirm_transaction(&tx).await;
 
-        // Derive all PDAs
-        let (config_pda, _) = get_config_pda(&self.program_id);
-        let (post_pda, _) = get_post_pda(&self.program_id, &post_id_hash);
-        let (voter_user_account_pda, _) = get_user_account_pda(&self.program_id, voter_wallet);
-        let (voter_vault_token_account_pda, _) =
-            get_user_vault_token_account_pda(&self.program_id, voter_wallet, token_mint);
-        let (position_pda, _) = get_position_pda(&self.program_id, &post_pda, voter_wallet);
-        let (vault_authority_pda, _) = get_vault_authority_pda(&self.program_id);
-        let (post_pot_token_account_pda, _) =
-            get_post_pot_token_account_pda(&self.program_id, &post_pda, token_mint);
-        let (post_pot_authority_pda, _) = get_post_pot_authority_pda(&self.program_id, &post_pda);
-        let (protocol_treasury_token_account_pda, _) =
-            get_protocol_treasury_token_account_pda(&self.program_id, token_mint);
-        let (creator_vault_token_account_pda, _) = get_user_vault_token_account_pda(
-            &self.program_id,
-            &post_account.creator_user,
-            token_mint,
-        );
-        let (valid_payment_pda, _) = get_valid_payment_pda(&self.program_id, token_mint);
-
-        // Build instruction accounts in the exact order from IDL
-        let accounts = vec![
-            AccountMeta::new(config_pda, false),    // config
-            AccountMeta::new(*voter_wallet, true),  // voter (signer)
-            AccountMeta::new(payer.pubkey(), true), // payer (signer)
-            AccountMeta::new(post_pda, false),      // post
-            AccountMeta::new_readonly(voter_user_account_pda, false), // voter_user_account
-            AccountMeta::new(voter_vault_token_account_pda, false), // voter_user_vault_token_account
-            AccountMeta::new(position_pda, false),                  // position
-            AccountMeta::new_readonly(vault_authority_pda, false),  // vault_authority
-            AccountMeta::new(post_pot_token_account_pda, false),    // post_pot_token_account
-            AccountMeta::new_readonly(post_pot_authority_pda, false), // post_pot_authority
-            AccountMeta::new(protocol_treasury_token_account_pda, false), // protocol_token_treasury_token_account
-            AccountMeta::new(creator_vault_token_account_pda, false), // creator_vault_token_account
-            AccountMeta::new_readonly(valid_payment_pda, false),      // valid_payment
-            AccountMeta::new_readonly(*token_mint, false),            // token_mint
-            AccountMeta::new_readonly(anchor_spl::token::spl_token::ID, false), // token_program
-            AccountMeta::new_readonly(system_program::id(), false),   // system_program
-        ];
-
-        // Build instruction data
-        // Discriminator for vote_on_post: [220, 160, 255, 192, 61, 83, 169, 65]
-        let mut instruction_data = vec![220u8, 160, 255, 192, 61, 83, 169, 65];
-        // side: enum (1 byte: 0 = Pump, 1 = Smack)
-        instruction_data.push(side);
-        // votes: u64 (8 bytes, little-endian)
-        instruction_data.extend_from_slice(&votes.to_le_bytes());
-        // post_id_hash: [u8; 32]
-        instruction_data.extend_from_slice(&post_id_hash);
-
-        let instruction = Instruction {
-            program_id: self.program_id,
-            accounts,
-            data: instruction_data,
-        };
-
-        let mut transaction = Transaction::new_with_payer(&[instruction], Some(&payer.pubkey()));
-
-        let connection_service = self.program.get_connection_service();
-        let recent_blockhash = connection_service.get_latest_blockhash()?;
-
-        transaction.sign(&[payer], recent_blockhash);
-
-        let signature = connection
-            .send_and_confirm_transaction(&transaction)
-            .map_err(|e| {
-                SolanaError::TransactionError(format!("Failed to send transaction: {}", e))
-            })?;
-
-        Ok(signature)
-    }
-
-    /// Settle a post
-    pub fn settle_post(
-        &self,
-        _post_id_hash: [u8; 32],
-        _token_mint: &Pubkey,
-    ) -> Result<Signature, SolanaError> {
-        Err(SolanaError::RpcError(
-            "settle_post not yet implemented".to_string(),
-        ))
-    }
-
-    /// Claim post reward
-    pub fn claim_post_reward(
-        &self,
-        _user_wallet: &Pubkey,
-        _post_id_hash: [u8; 32],
-        _token_mint: &Pubkey,
-    ) -> Result<Signature, SolanaError> {
-        Err(SolanaError::RpcError(
-            "claim_post_reward not yet implemented".to_string(),
-        ))
-    }
-
-    /// Get post account from chain
-    pub fn get_post_account(
-        &self,
-        post_id_hash: [u8; 32],
-    ) -> Result<Option<PostAccount>, SolanaError> {
-        let connection = self.program.get_connection();
-        let (post_pda, _) = get_post_pda(&self.program_id, &post_id_hash);
-
-        let account = connection.get_account(&post_pda).map_err(|e| {
-            SolanaError::AccountNotFound(format!("Failed to fetch post account: {}", e))
-        })?;
-
-        let account_data = account.data;
-
-        // Deserialize PostAccount from account data
-        // Skip the 8-byte discriminator
-        if account_data.len() < 8 {
-            return Ok(None);
-        }
-
-        // Minimum size check: discriminator (8) + creator_user (32) + post_id_hash (32) + post_type (1) + start_time (8) + end_time (8) + state (1) + upvotes (8) + downvotes (8) + winning_side (1-2)
-        if account_data.len() < 8 + 32 + 32 + 1 + 8 + 8 + 1 + 8 + 8 + 1 {
-            return Ok(None);
-        }
-
-        let mut cursor = Cursor::new(&account_data[8..]); // Skip discriminator
-
-        // creator_user: Pubkey (32 bytes)
-        let creator_user_bytes: [u8; 32] = {
-            let mut buf = [0u8; 32];
-            cursor.read_exact(&mut buf).map_err(|e| {
-                SolanaError::InvalidAccountData(format!("Failed to read creator_user: {}", e))
-            })?;
-            buf
-        };
-        let creator_user = Pubkey::from(creator_user_bytes);
-
-        // post_id_hash: [u8; 32]
-        let mut post_id_hash_bytes = [0u8; 32];
-        cursor.read_exact(&mut post_id_hash_bytes).map_err(|e| {
-            SolanaError::InvalidAccountData(format!("Failed to read post_id_hash: {}", e))
-        })?;
-
-        // post_type: enum (1 byte for variant, then optional parent Pubkey if Child)
-        let post_type_variant = {
-            let mut buf = [0u8; 1];
-            cursor.read_exact(&mut buf).map_err(|e| {
-                SolanaError::InvalidAccountData(format!("Failed to read post_type: {}", e))
-            })?;
-            buf[0]
-        };
-        // If post_type is Child (1), skip the parent Pubkey (32 bytes)
-        if post_type_variant == 1 {
-            cursor.set_position(cursor.position() + 32);
-        }
-
-        // start_time: i64 (8 bytes, little-endian)
-        let start_time = {
-            let mut buf = [0u8; 8];
-            cursor.read_exact(&mut buf).map_err(|e| {
-                SolanaError::InvalidAccountData(format!("Failed to read start_time: {}", e))
-            })?;
-            i64::from_le_bytes(buf)
-        };
-
-        // end_time: i64 (8 bytes, little-endian)
-        let end_time = {
-            let mut buf = [0u8; 8];
-            cursor.read_exact(&mut buf).map_err(|e| {
-                SolanaError::InvalidAccountData(format!("Failed to read end_time: {}", e))
-            })?;
-            i64::from_le_bytes(buf)
-        };
-
-        // state: enum (1 byte: 0 = Open, 1 = Settled)
-        let state = {
-            let mut buf = [0u8; 1];
-            cursor.read_exact(&mut buf).map_err(|e| {
-                SolanaError::InvalidAccountData(format!("Failed to read state: {}", e))
-            })?;
-            buf[0]
-        };
-
-        // upvotes: u64 (8 bytes, little-endian)
-        let upvotes = {
-            let mut buf = [0u8; 8];
-            cursor.read_exact(&mut buf).map_err(|e| {
-                SolanaError::InvalidAccountData(format!("Failed to read upvotes: {}", e))
-            })?;
-            u64::from_le_bytes(buf)
-        };
-
-        // downvotes: u64 (8 bytes, little-endian)
-        let downvotes = {
-            let mut buf = [0u8; 8];
-            cursor.read_exact(&mut buf).map_err(|e| {
-                SolanaError::InvalidAccountData(format!("Failed to read downvotes: {}", e))
-            })?;
-            u64::from_le_bytes(buf)
-        };
-
-        // winning_side: Option<Side> (1 byte for Some/None, then 1 byte for variant if Some)
-        let winning_side = {
-            let mut buf = [0u8; 1];
-            cursor.read_exact(&mut buf).map_err(|e| {
-                SolanaError::InvalidAccountData(format!(
-                    "Failed to read winning_side option: {}",
-                    e
-                ))
-            })?;
-            if buf[0] == 1 {
-                // Some variant
-                let mut variant_buf = [0u8; 1];
-                cursor.read_exact(&mut variant_buf).map_err(|e| {
-                    SolanaError::InvalidAccountData(format!(
-                        "Failed to read winning_side variant: {}",
-                        e
-                    ))
-                })?;
-                Some(variant_buf[0]) // 0 = Pump, 1 = Smack
-            } else {
-                None
+        // inspect error if any
+        match result {
+            Err(e) => {
+                // eprintln!("❌ Transaction failed: {:#?}", e);
+                eprintln!("❌ Transaction failed: {}", e);
+                return Err(e.into());
             }
-        };
+            Ok(signature) => {
+                // Verify the transaction actually succeeded
+                let status = self.rpc.get_signature_status(&signature).await?;
 
-        Ok(Some(PostAccount {
-            creator_user,
-            post_id_hash: post_id_hash_bytes,
-            start_time,
-            end_time,
-            state,
-            upvotes,
-            downvotes,
-            winning_side,
-        }))
+                if let Some(transaction_status) = status {
+                    if let Some(err) = transaction_status.err() {
+                        return Err(anyhow::anyhow!("Transaction failed: {:?}", err));
+                    }
+                }
+
+                Ok(signature)
+            }
+        }
     }
 
-    /// Get user account from chain
-    pub fn get_user_account(
+    pub async fn build_partial_signed_ping_tx(&self) -> anyhow::Result<String> {
+        let opinions_market = self.opinions_market_program();
+
+        let ix = opinions_market
+            .request()
+            .accounts(opinions_market::accounts::Ping {})
+            .args(opinions_market::instruction::Ping {})
+            .instructions()
+            .unwrap();
+
+        let partial_signed_tx = self.partial_sign_tx(ix, &[&self.payer]).await?;
+        let serialized_bytes = bincode::serialize(&partial_signed_tx)
+            .map_err(|e| anyhow::anyhow!("Failed to serialize transaction: {}", e))?;
+        let serialized = general_purpose::STANDARD.encode(serialized_bytes);
+        Ok(serialized)
+    }
+
+    /// Submit a user-signed transaction (deserialize, optionally re-sign, and broadcast)
+    pub async fn submit_user_signed_tx(&self, tx_base64: String) -> anyhow::Result<Signature> {
+        // Deserialize VersionedTransaction from base64
+        let tx_bytes = general_purpose::STANDARD
+            .decode(&tx_base64)
+            .map_err(|e| anyhow::anyhow!("Invalid base64: {}", e))?;
+
+        let tx: VersionedTransaction = bincode::deserialize(&tx_bytes)
+            .map_err(|e| anyhow::anyhow!("Failed to deserialize transaction: {}", e))?;
+
+        // Transaction is already signed by both backend payer and user
+        // No need to re-sign - just broadcast it
+        // Broadcast transaction
+        let result = self.rpc.send_and_confirm_transaction(&tx).await;
+
+        match result {
+            Err(e) => {
+                eprintln!("❌ Transaction failed: {}", e);
+                Err(e.into())
+            }
+            Ok(signature) => {
+                // Verify the transaction actually succeeded
+                let status = self.rpc.get_signature_status(&signature).await?;
+
+                if let Some(transaction_status) = status {
+                    if let Some(err) = transaction_status.err() {
+                        return Err(anyhow::anyhow!("Transaction failed: {:?}", err));
+                    }
+                }
+
+                Ok(signature)
+            }
+        }
+    }
+
+    pub async fn get_user_account(
         &self,
         user_wallet: &Pubkey,
-    ) -> Result<Option<UserAccount>, SolanaError> {
-        let connection = self.program.get_connection();
+    ) -> anyhow::Result<Option<opinions_market::state::UserAccount>> {
+        let opinions_market = self.opinions_market_program();
         let (user_account_pda, _) = get_user_account_pda(&self.program_id, user_wallet);
 
-        let account = connection.get_account(&user_account_pda).map_err(|e| {
-            SolanaError::AccountNotFound(format!("Failed to fetch user account: {}", e))
-        })?;
-
-        let account_data = account.data;
-
-        // Minimum size: discriminator (8) + user (32) + social_score (8) + bump (1)
-        if account_data.len() < 8 + 32 + 8 + 1 {
-            return Ok(None);
+        match opinions_market
+            .account::<opinions_market::state::UserAccount>(user_account_pda)
+            .await
+        {
+            Ok(user_account) => Ok(Some(user_account)),
+            Err(_) => Ok(None), // Account doesn't exist
         }
-
-        let mut cursor = Cursor::new(&account_data[8..]); // Skip discriminator
-
-        // user: Pubkey (32 bytes)
-        let user_bytes: [u8; 32] = {
-            let mut buf = [0u8; 32];
-            cursor.read_exact(&mut buf).map_err(|e| {
-                SolanaError::InvalidAccountData(format!("Failed to read user: {}", e))
-            })?;
-            buf
-        };
-        let user = Pubkey::from(user_bytes);
-
-        // social_score: i64 (8 bytes, little-endian)
-        let social_score = {
-            let mut buf = [0u8; 8];
-            cursor.read_exact(&mut buf).map_err(|e| {
-                SolanaError::InvalidAccountData(format!("Failed to read social_score: {}", e))
-            })?;
-            i64::from_le_bytes(buf)
-        };
-
-        // bump: u8 (1 byte)
-        let bump = {
-            let mut buf = [0u8; 1];
-            cursor.read_exact(&mut buf).map_err(|e| {
-                SolanaError::InvalidAccountData(format!("Failed to read bump: {}", e))
-            })?;
-            buf[0]
-        };
-
-        Ok(Some(UserAccount {
-            user,
-            social_score,
-            bump,
-        }))
     }
 
-    /// Get user position for a post
-    pub fn get_user_position(
-        &self,
-        post_id_hash: [u8; 32],
-        user_wallet: &Pubkey,
-    ) -> Result<Option<UserPostPosition>, SolanaError> {
-        let connection = self.program.get_connection();
-        let (post_pda, _) = get_post_pda(&self.program_id, &post_id_hash);
-        let (position_pda, _) = get_position_pda(&self.program_id, &post_pda, user_wallet);
-
-        let account = connection.get_account(&position_pda).map_err(|e| {
-            SolanaError::AccountNotFound(format!("Failed to fetch position: {}", e))
-        })?;
-
-        let account_data = account.data;
-
-        // Minimum size: discriminator (8) + user (32) + post (32) + upvotes (8) + downvotes (8)
-        if account_data.len() < 8 + 32 + 32 + 8 + 8 {
-            return Ok(None);
-        }
-
-        let mut cursor = Cursor::new(&account_data[8..]); // Skip discriminator
-
-        // user: Pubkey (32 bytes)
-        let user_bytes: [u8; 32] = {
-            let mut buf = [0u8; 32];
-            cursor.read_exact(&mut buf).map_err(|e| {
-                SolanaError::InvalidAccountData(format!("Failed to read user: {}", e))
-            })?;
-            buf
-        };
-        let user = Pubkey::from(user_bytes);
-
-        // post: Pubkey (32 bytes)
-        let post_bytes: [u8; 32] = {
-            let mut buf = [0u8; 32];
-            cursor.read_exact(&mut buf).map_err(|e| {
-                SolanaError::InvalidAccountData(format!("Failed to read post: {}", e))
-            })?;
-            buf
-        };
-        let post = Pubkey::from(post_bytes);
-
-        // upvotes: u64 (8 bytes, little-endian)
-        let upvotes = {
-            let mut buf = [0u8; 8];
-            cursor.read_exact(&mut buf).map_err(|e| {
-                SolanaError::InvalidAccountData(format!("Failed to read upvotes: {}", e))
-            })?;
-            u64::from_le_bytes(buf)
-        };
-
-        // downvotes: u64 (8 bytes, little-endian)
-        let downvotes = {
-            let mut buf = [0u8; 8];
-            cursor.read_exact(&mut buf).map_err(|e| {
-                SolanaError::InvalidAccountData(format!("Failed to read downvotes: {}", e))
-            })?;
-            u64::from_le_bytes(buf)
-        };
-
-        Ok(Some(UserPostPosition {
-            user,
-            post,
-            upvotes,
-            downvotes,
-        }))
-    }
-
-    /// Get user vault balance
-    pub fn get_user_vault_balance(
+    pub async fn get_user_vault_balance(
         &self,
         user_wallet: &Pubkey,
         token_mint: &Pubkey,
-    ) -> Result<u64, SolanaError> {
-        let connection = self.program.get_connection();
+    ) -> anyhow::Result<u64> {
         let (vault_token_account_pda, _) =
             get_user_vault_token_account_pda(&self.program_id, user_wallet, token_mint);
 
-        // If account doesn't exist, return 0 (user hasn't created account or deposited yet)
-        // This is a normal state, not an error
-        let account = match connection.get_account(&vault_token_account_pda) {
-            Ok(acc) => acc,
-            Err(_) => return Ok(0),
+        let account = match self.rpc.get_account(&vault_token_account_pda).await {
+            Ok(account) => account,
+            Err(e) => {
+                let msg = e.to_string();
+                if msg.contains("AccountNotFound") || msg.contains("not found") {
+                    return Ok(0);
+                }
+                return Err(anyhow::anyhow!("Failed to get account: {}", e));
+            }
         };
 
-        if account.data.len() < 72 {
-            return Ok(0);
-        }
+        // SPL Token decoding
+        let token_account = spl_token::state::Account::unpack_from_slice(&account.data)
+            .map_err(|_| anyhow::anyhow!("Invalid token account data"))?;
 
-        // Token account amount is at offset 64 (after mint, owner, amount starts at 64)
-        let amount_bytes: [u8; 8] = account.data[64..72]
-            .try_into()
-            .map_err(|_| SolanaError::InvalidAccountData("Invalid token account".to_string()))?;
-
-        Ok(u64::from_le_bytes(amount_bytes))
+        Ok(token_account.amount)
     }
+
+    pub async fn build_partial_signed_create_user_tx(
+        &self,
+        user_wallet: Pubkey,
+    ) -> anyhow::Result<(String, Pubkey)> {
+        let opinions_market = self.opinions_market_program();
+        let (user_account_pda, _) = get_user_account_pda(&self.program_id, &user_wallet);
+        let (config_pda, _) = get_config_pda(&self.program_id);
+
+        let ix = opinions_market
+            .request()
+            .accounts(opinions_market::accounts::CreateUser {
+                config: config_pda,
+                user: user_wallet,
+                payer: self.payer.pubkey(),
+                user_account: user_account_pda,
+                system_program: system_program::ID,
+            })
+            .args(opinions_market::instruction::CreateUser {})
+            .instructions()
+            .unwrap();
+
+        let partial_signed_tx = self.partial_sign_tx(ix, &[&self.payer]).await?;
+        let serialized_bytes = bincode::serialize(&partial_signed_tx)
+            .map_err(|e| anyhow::anyhow!("Failed to serialize transaction: {}", e))?;
+        let serialized = general_purpose::STANDARD.encode(serialized_bytes);
+        Ok((serialized, user_account_pda))
+    }
+    //  **** FOR LATER!
+
+    // pub async fn ping(&self) -> anyhow::Result<String> {
+    //     let opinions_market = self.opinions_market_program;
+
+    //     let ix = opinions_market
+    //         .request()
+    //         .accounts(opinions_market::accounts::Ping {})
+    //         .args(opinions_market::instruction::Ping {})
+    //         .instructions()
+    //         .unwrap();
+
+    //     let tx = self.send_tx(ix, &[&self.payer]).await?;
+
+    //     Ok(tx.to_string())
+    // }
+
+    // pub fn build_create_user_tx(&self, user_wallet: Pubkey) -> anyhow::Result<(String, Pubkey)> {
+    //     let opinions_market = self.opinions_market_program;
+    //     let (user_account_pda, _) = get_user_account_pda(&opinions_market::ID, &user_wallet);
+    //     let (config_pda, _) = get_config_pda(&PROGRAM_ID);
+
+    //     let ix = opinions_market
+    //         .request()
+    //         .accounts(opinions_market::accounts::CreateUser {
+    //             config: config_pda,
+    //             user: user_wallet,
+    //             payer: self.payer.pubkey(),
+    //             user_account: user_account_pda,
+    //             system_program: system_program::ID,
+    //         })
+    //         .args(opinions_market::instruction::CreateUser {})
+    //         .instructions()
+    //         .unwrap();
+
+    //     let blockhash = self.rpc.get_latest_blockhash()?;
+    //     let mut tx = Transaction::new_with_payer(&[ix], Some(&self.payer.pubkey()));
+    //     tx.partial_sign(&[self.payer.as_ref()], blockhash);
+
+    //     Ok((base64::encode(tx.serialize()), user_account_pda))
+    // }
+
+    // // pub async
 }

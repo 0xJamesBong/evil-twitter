@@ -427,6 +427,7 @@ async fn test_setup() {
                 &post_p1_pda,
                 &bling_pubkey,
                 &tokens,
+                &config_pda,
             )
             .await;
         }

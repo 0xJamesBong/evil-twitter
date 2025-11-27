@@ -188,6 +188,7 @@ pub async fn test_phenomena_deposit(
         .request()
         .accounts(opinions_market::accounts::Deposit {
             user: user.pubkey(),
+            payer: payer.pubkey(),
             user_account: user_account_pda,
             token_mint: token_mint.clone(),
             valid_payment: valid_payment_pda,
@@ -265,6 +266,7 @@ pub async fn test_phenomena_withdraw(
         .request()
         .accounts(opinions_market::accounts::Withdraw {
             user: user.pubkey(),
+            payer: payer.pubkey(),
             user_account: user_account_pda,
             token_mint: token_mint.clone(),
             user_token_dest_ata: *user_token_ata,
@@ -345,7 +347,7 @@ pub async fn test_phenomena_create_post(
         .unwrap();
 
     // Both payer and creator (user) must sign
-    let create_post_tx = send_tx(&rpc, create_post_ix, &payer.pubkey(), &[&payer, &creator])
+    let create_post_tx = send_tx(&rpc, create_post_ix, &payer.pubkey(), &[&payer])
         .await
         .unwrap();
     println!("create post tx: {:?}", create_post_tx);
@@ -654,7 +656,7 @@ pub async fn test_phenomena_vote_on_post(
         .unwrap();
 
     // Voter is the payer, so only voter needs to sign
-    let vote_tx = send_tx(&rpc, vote_ix, &payer.pubkey(), &[&payer, &voter])
+    let vote_tx = send_tx(&rpc, vote_ix, &payer.pubkey(), &[&payer])
         .await
         .unwrap();
     println!("vote tx: {:?}", vote_tx);
@@ -936,6 +938,7 @@ pub async fn test_phenomena_claim_post_reward(
     post_pda: &Pubkey,
     token_mint: &Pubkey,
     tokens: &HashMap<Pubkey, String>,
+    config_pda: &Pubkey,
 ) {
     let token_name = tokens.get(token_mint).unwrap();
     println!(
@@ -1092,6 +1095,7 @@ pub async fn test_phenomena_claim_post_reward(
     let claim_ix = opinions_market
         .request()
         .accounts(opinions_market::accounts::ClaimPostReward {
+            config: *config_pda,
             user: user.pubkey(),
             payer: payer.pubkey(),
             post: *post_pda,
@@ -1109,7 +1113,7 @@ pub async fn test_phenomena_claim_post_reward(
         .instructions()
         .unwrap();
 
-    let claim_tx = send_tx(&rpc, claim_ix, &payer.pubkey(), &[&payer, &user])
+    let claim_tx = send_tx(&rpc, claim_ix, &payer.pubkey(), &[&payer])
         .await
         .unwrap();
     println!("claim post reward tx: {:?}", claim_tx);

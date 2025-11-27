@@ -21,9 +21,27 @@
       ],
       "accounts": [
         {
-          "name": "user",
+          "name": "config",
           "writable": true,
-          "signer": true
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  99,
+                  111,
+                  110,
+                  102,
+                  105,
+                  103
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "user",
+          "writable": true
         },
         {
           "name": "payer",
@@ -259,12 +277,27 @@
       ],
       "accounts": [
         {
-          "name": "config"
+          "name": "config",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  99,
+                  111,
+                  110,
+                  102,
+                  105,
+                  103
+                ]
+              }
+            ]
+          }
         },
         {
           "name": "user",
-          "writable": true,
-          "signer": true
+          "writable": true
         },
         {
           "name": "payer",
@@ -365,6 +398,25 @@
       ],
       "accounts": [
         {
+          "name": "config",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  99,
+                  111,
+                  110,
+                  102,
+                  105,
+                  103
+                ]
+              }
+            ]
+          }
+        },
+        {
           "name": "user",
           "writable": true,
           "signer": true
@@ -404,25 +456,6 @@
           }
         },
         {
-          "name": "config",
-          "writable": true,
-          "pda": {
-            "seeds": [
-              {
-                "kind": "const",
-                "value": [
-                  99,
-                  111,
-                  110,
-                  102,
-                  105,
-                  103
-                ]
-              }
-            ]
-          }
-        },
-        {
           "name": "system_program",
           "address": "11111111111111111111111111111111"
         }
@@ -447,6 +480,11 @@
       "accounts": [
         {
           "name": "user",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "payer",
           "writable": true,
           "signer": true
         },
@@ -1148,12 +1186,26 @@
       "accounts": [
         {
           "name": "config",
-          "writable": true
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  99,
+                  111,
+                  110,
+                  102,
+                  105,
+                  103
+                ]
+              }
+            ]
+          }
         },
         {
           "name": "voter",
-          "writable": true,
-          "signer": true
+          "writable": true
         },
         {
           "name": "payer",
@@ -1578,6 +1630,11 @@
           "signer": true
         },
         {
+          "name": "payer",
+          "writable": true,
+          "signer": true
+        },
+        {
           "name": "user_account",
           "pda": {
             "seeds": [
@@ -1870,6 +1927,10 @@
         "fields": [
           {
             "name": "admin",
+            "type": "pubkey"
+          },
+          {
+            "name": "payer_authroity",
             "type": "pubkey"
           },
           {
