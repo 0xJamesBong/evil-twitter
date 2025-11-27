@@ -1,115 +1,91 @@
 "use client";
 import { useState } from "react";
-import {
-  useWallets,
-  useSignTransaction,
-  useSignAndSendTransaction,
-} from "@privy-io/react-auth/solana";
+import { useWallets, useSignTransaction } from "@privy-io/react-auth/solana";
 import { PublicKey, Transaction } from "@solana/web3.js";
 import { getConnection } from "../lib/solana/connection";
-import { getUserAccountPda, getConfigPda } from "../lib/solana/pda";
-import { Program, AnchorProvider, Wallet } from "@coral-xyz/anchor";
-import idl from "../lib/solana/idl/opinions_market.json";
-import { PROGRAM_ID } from "../lib/solana/program";
-import { SystemProgram } from "@solana/web3.js";
 import { useSolanaStore } from "../lib/stores/solanaStore";
-import { useSendTransaction } from "@privy-io/react-auth";
-import { createSolanaRpc } from "@solana/kit";
-import { useSolanaProgram } from "@/lib/solana/solanaProgramContext";
+import { API_BASE_URL } from "../lib/config";
 
 /**
- * Hook to create on-chain user account (user-signed)
- * This calls the Solana program directly and requires the user to sign the transaction
- * User must sign because the program requires user: Signer<'info>
+ * Hook to create on-chain user account (user-signed, backend-payer)
+ * Flow:
+ * 1. Request partially-signed transaction from backend (backend signs as payer)
+ * 2. User signs the transaction (as user authority)
+ * 3. Send fully-signed transaction to chain
+ * Result: User can create account without SOL, backend pays fees
  */
-
 export function useCreateUser() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-
   const { wallets } = useWallets();
-  const { getProgramForWallet, connection } = useSolanaProgram();
-
-  const { signAndSendTransaction } = useSignAndSendTransaction();
   const { signTransaction } = useSignTransaction();
   const { fetchOnchainAccountStatus } = useSolanaStore();
 
   const createUser = async (): Promise<string> => {
     const connection = getConnection();
-
     const solanaWallet =
       wallets.find((w: any) => w.walletClientType === "privy") || wallets[0];
 
     if (!solanaWallet) throw new Error("No Solana wallet connected");
-    console.log("useCreateUser | solanaWallet", solanaWallet);
 
     setLoading(true);
     setError(null);
 
     try {
-      console.log("trying: useCreateUser");
       const userPubkey = new PublicKey(solanaWallet.address);
 
-      const [userAccountPda] = getUserAccountPda(PROGRAM_ID, userPubkey);
-      const [configPda] = getConfigPda(PROGRAM_ID);
-      const program = getProgramForWallet(solanaWallet);
-
-      console.log("useCreateUser | userPubkey", userPubkey);
-      console.log("useCreateUser | connection", connection);
-      console.log("useCreateUser | PROGRAM_ID", PROGRAM_ID.toBase58());
-
-      const { getLatestBlockhash } = createSolanaRpc("http://localhost:8899");
-
-      // Get the latest blockhash
-      const { value } = await getLatestBlockhash().send();
-
-      console.log("useCreateUser | userAccountPda", userAccountPda);
-      console.log("useCreateUser | configPda", configPda);
-      console.log("useCreateUser | program", program);
-
-      const ix = await program.methods
-        .createUser()
-        .accounts({
-          user: userPubkey,
-          payer: userPubkey,
-          userAccount: userAccountPda,
-          config: configPda,
-          systemProgram: SystemProgram.programId,
-        })
-        .instruction();
-
-      const latest = await connection.getLatestBlockhash();
-      const tx = new Transaction({
-        feePayer: userPubkey,
-        recentBlockhash: latest.blockhash,
-      }).add(ix);
-
-      console.log("useCreateUser | wallet", solanaWallet);
-
-      // if (solanaWallet.walletClientType === "privy") {
-      //   // Embedded wallet path
-      //   signature = await signAndSendTransaction({
-      //     transaction: tx,
-      //     wallet: solanaWallet,
-      //   });
-      // } else {
-      // Phantom / Backpack / External
-      const signature = await solanaWallet.signAndSendTransaction!({
-        chain: "solana:devnet",
-        transaction: new Uint8Array(
-          tx.serialize({
-            requireAllSignatures: false,
-            verifySignatures: false,
-          })
-        ),
+      // Step 1: Request partially-signed transaction from backend
+      const response = await fetch(`${API_BASE_URL}/api/tx/createUser`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          user_pubkey: userPubkey.toBase58(),
+        }),
       });
 
-      // await connection.confirmTransaction(signature, "confirmed");
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`Backend error: ${errorText}`);
+      }
+
+      const { transaction: base64Tx } = await response.json();
+
+      // Step 2: Deserialize partially-signed transaction
+      const txBuffer = Buffer.from(base64Tx, "base64");
+      const tx = Transaction.from(txBuffer);
+
+      // Step 3: User signs the transaction using Privy's hook
+      // Note: The transaction from backend is already partially signed by backend payer
+      // We just need to add the user's signature
+      // Type assertion needed because Privy's types expect specific transaction format
+      const signedTxResult = await signTransaction({
+        transaction: tx as any,
+        wallet: solanaWallet,
+      });
+
+      // Extract the signed transaction from the result
+      // Note: signedTx may be a Transaction or SignTransactionOutput
+      const signedTx = (signedTxResult as any).transaction || signedTxResult;
+
+      // Step 4: Send fully-signed transaction to chain
+      const signature = await connection.sendRawTransaction(
+        signedTx.serialize(),
+        {
+          skipPreflight: false,
+        }
+      );
+
+      // Step 5: Wait for confirmation
+      await connection.confirmTransaction(signature, "confirmed");
+
+      // Step 6: Update store
       await fetchOnchainAccountStatus(userPubkey);
-      return Buffer.from(signature.signature).toString("base64");
+
+      return signature;
     } catch (err) {
       const msg = err instanceof Error ? err.message : "Failed to create user";
-      console.log("useCreateUser | error", err);
       setError(msg);
       throw new Error(msg);
     } finally {

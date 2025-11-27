@@ -61,7 +61,66 @@ impl SolanaService {
         &self.bling_mint
     }
 
+    /// Build a partially-signed createUser transaction
+    /// Backend signs as payer, returns serialized tx for frontend to sign as user
+    pub fn build_create_user_tx(
+        &self,
+        user_wallet: &Pubkey,
+    ) -> Result<(String, Pubkey), SolanaError> {
+        let payer = self.program.get_payer();
+
+        // Derive PDAs
+        let (config_pda, _) = get_config_pda(&self.program_id);
+        let (user_account_pda, _) = get_user_account_pda(&self.program_id, user_wallet);
+
+        // Build instruction accounts in exact order from IDL
+        // create_user accounts: user (signer), payer (signer), user_account (PDA), config (PDA), system_program
+        let accounts = vec![
+            AccountMeta::new(*user_wallet, true), // user (signer) - will be signed by frontend
+            AccountMeta::new(payer.pubkey(), true), // payer (signer) - signed by backend
+            AccountMeta::new(user_account_pda, false), // user_account (PDA, writable)
+            AccountMeta::new(config_pda, false),  // config (PDA, writable)
+            AccountMeta::new_readonly(system_program::id(), false), // system_program
+        ];
+
+        // Build instruction data
+        // Discriminator for create_user: [108, 227, 130, 130, 252, 109, 75, 218]
+        let instruction_data = vec![108u8, 227, 130, 130, 252, 109, 75, 218];
+
+        let instruction = Instruction {
+            program_id: self.program_id,
+            accounts,
+            data: instruction_data,
+        };
+
+        // Create transaction with backend as fee payer
+        let mut transaction = Transaction::new_with_payer(
+            &[instruction],
+            Some(&payer.pubkey()), // Backend pays fees
+        );
+
+        // Get recent blockhash
+        let connection_service = self.program.get_connection_service();
+        let recent_blockhash = connection_service.get_latest_blockhash()?;
+        transaction.message.recent_blockhash = recent_blockhash;
+
+        // Partially sign with backend payer (user will sign on frontend)
+        transaction.partial_sign(&[payer.as_ref()], recent_blockhash);
+
+        // Serialize transaction (requireAllSignatures: false because user hasn't signed yet)
+        let serialized = transaction
+            .serialize()
+            .map_err(|e| SolanaError::TransactionError(format!("Failed to serialize: {}", e)))?;
+
+        // Encode as base64 for JSON transport
+        use base64::{Engine as _, engine::general_purpose};
+        let base64_tx = general_purpose::STANDARD.encode(&serialized);
+
+        Ok((base64_tx, user_account_pda))
+    }
+
     /// Create a user account on-chain
+    /// NOTE: This method is deprecated - use build_create_user_tx for multi-sig flow
     pub fn create_user(&self, user_wallet: &Pubkey) -> Result<Signature, SolanaError> {
         let connection = self.program.get_connection();
         let payer = self.program.get_payer();

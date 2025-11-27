@@ -7,7 +7,7 @@ import {
   getVaultAuthorityPda,
   getUserAccountPda,
   getValidPaymentPda,
-} from "../lib/solana/pda";
+} from "../lib/solana/pda_seeds";
 import { Program, AnchorProvider, Wallet } from "@coral-xyz/anchor";
 import idl from "../lib/solana/idl/opinions_market.json";
 import { PROGRAM_ID } from "../lib/solana/program";
