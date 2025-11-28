@@ -18,6 +18,7 @@ import {
     Person as PersonIcon,
     Science as TestIcon,
     Logout as LogoutIcon,
+    Message as MessageIcon,
 } from "@mui/icons-material";
 
 export function LeftSidebar() {
@@ -29,6 +30,7 @@ export function LeftSidebar() {
         { label: "Home", path: "/", icon: <HomeIcon /> },
         { label: "Profile", path: "/profile", icon: <PersonIcon /> },
         { label: "Test", path: "/test", icon: <TestIcon /> },
+        { label: "Sign Message", path: "/signMessage", icon: <MessageIcon /> },
     ];
 
     return (
