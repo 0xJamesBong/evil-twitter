@@ -1,7 +1,8 @@
 "use client";
 
 import { useState } from "react";
-import { useWallets, useSignMessage } from "@privy-io/react-auth/solana";
+import { useWallets, useSignMessage, useSignTransaction } from "@privy-io/react-auth/solana";
+import { VersionedTransaction } from "@solana/web3.js";
 import bs58 from "bs58";
 import { usePrivy } from "@privy-io/react-auth";
 import {
@@ -24,27 +25,22 @@ import { LoginPrompt } from "@/components/auth/LoginPrompt";
 import { useBackendUserStore } from "@/lib/stores/backendUserStore";
 import { API_BASE_URL } from "@/lib/config";
 
-interface SignatureData {
+interface SessionData {
     message: string;
     signature: string;
     wallet: string;
-    backendResponse?: {
-        success: boolean;
-        message: string;
-        received?: {
-            wallet: string;
-            session_pubkey: string;
-            expires: number;
-            message: string;
-        };
-    };
+    sessionAuthorityPda: string;
+    expiresAt: number;
+    txSignature?: string;
 }
 
 function SignMessageContent() {
     const { ready, authenticated, logout } = usePrivy();
     const { wallets } = useWallets();
     const { signMessage } = useSignMessage();
-    const [signatureData, setSignatureData] = useState<SignatureData | null>(null);
+    const { signTransaction } = useSignTransaction();
+    const { setSession } = useBackendUserStore();
+    const [sessionData, setSessionData] = useState<SessionData | null>(null);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
 
@@ -52,52 +48,88 @@ function SignMessageContent() {
         try {
             setLoading(true);
             setError(null);
-            setSignatureData(null);
+            setSessionData(null);
 
             const selectedWallet = wallets[0];
             if (!selectedWallet) {
                 throw new Error("No wallet connected");
             }
 
-            const message = "Hello world";
+            // Step 1: Create message with timestamp and nonce
+            const timestamp = Math.floor(Date.now() / 1000);
+            const nonce = Math.random().toString(36).substring(7);
+            const message = `delegate-session|${timestamp}|${nonce}`;
             const messageBytes = new TextEncoder().encode(message);
 
+            // Step 2: User signs the message
             const result = await signMessage({
                 message: messageBytes,
                 wallet: selectedWallet,
                 options: {
-                    uiOptions: { title: "Sign this message" },
+                    uiOptions: { title: "Sign to delegate session permissions" },
                 },
             });
 
             const signatureBase58 = bs58.encode(result.signature);
 
-            // Send to backend
-            const response = await fetch(`${API_BASE_URL}/api/session/delegate`, {
+            // Step 3: Send to backend /api/session/init
+            const expiresAt = timestamp + 86400; // 24 hours from now
+            const initResponse = await fetch(`${API_BASE_URL}/api/session/init`, {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({
                     wallet: selectedWallet.address,
                     signature: signatureBase58,
-                    session_pubkey: "placeholder",
-                    expires: Math.floor(Date.now() / 1000) + 86400,
+                    expires: expiresAt,
                     message,
                 }),
             });
 
-            let backendResponse;
-            if (response.ok) {
-                backendResponse = await response.json();
-            } else {
-                const errorText = await response.text();
+            if (!initResponse.ok) {
+                const errorText = await initResponse.text();
                 throw new Error(`Backend error: ${errorText}`);
             }
 
-            setSignatureData({
+            const { tx_base64, session_authority_pda, expires_at } = await initResponse.json();
+
+            // Step 4: Deserialize and sign the transaction
+            const txBuffer = Buffer.from(tx_base64, "base64");
+            const tx = VersionedTransaction.deserialize(txBuffer);
+
+            const signedTxResult = await signTransaction({
+                transaction: tx as any,
+                wallet: selectedWallet,
+            });
+
+            // Extract the signed transaction
+            const signedTx = (signedTxResult as any).transaction || signedTxResult;
+
+            // Step 5: Submit signed transaction to backend
+            const signedTxBase64 = Buffer.from(signedTx.serialize()).toString("base64");
+
+            const submitResponse = await fetch(`${API_BASE_URL}/api/session/submit`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ transaction: signedTxBase64 }),
+            });
+
+            if (!submitResponse.ok) {
+                const errorText = await submitResponse.text();
+                throw new Error(`Backend submit error: ${errorText}`);
+            }
+
+            const { signature: txSignature } = await submitResponse.json();
+
+            // Step 6: Store session in Zustand
+            setSession(session_authority_pda, expires_at);
+
+            setSessionData({
                 message,
                 signature: signatureBase58,
                 wallet: selectedWallet.address,
-                backendResponse,
+                sessionAuthorityPda: session_authority_pda,
+                expiresAt: expires_at,
+                txSignature,
             });
         } catch (err) {
             const errorMessage = err instanceof Error ? err.message : "Failed to sign message";
@@ -182,24 +214,51 @@ function SignMessageContent() {
                         </CardContent>
                     </Card>
 
-                    {signatureData && (
+                    {sessionData && (
                         <Card>
                             <CardContent>
                                 <Box sx={{ display: "flex", alignItems: "center", mb: 2 }}>
                                     <CheckCircleIcon sx={{ color: "success.main", mr: 1 }} />
                                     <Typography variant="h6">
-                                        Message Signed Successfully
+                                        Session Delegation Successful
                                     </Typography>
                                 </Box>
 
                                 <Stack spacing={2}>
-                                    {/* Message */}
+                                    {/* Session Authority PDA */}
                                     <Box>
                                         <Typography
                                             variant="subtitle2"
                                             sx={{ mb: 1, color: "text.secondary", fontWeight: 600 }}
                                         >
-                                            Message
+                                            Session Authority PDA
+                                        </Typography>
+                                        <Paper
+                                            variant="outlined"
+                                            sx={{
+                                                p: 2,
+                                                bgcolor: "grey.50",
+                                            }}
+                                        >
+                                            <Typography
+                                                variant="body2"
+                                                sx={{
+                                                    fontFamily: "monospace",
+                                                    wordBreak: "break-all",
+                                                }}
+                                            >
+                                                {sessionData.sessionAuthorityPda}
+                                            </Typography>
+                                        </Paper>
+                                    </Box>
+
+                                    {/* Expires At */}
+                                    <Box>
+                                        <Typography
+                                            variant="subtitle2"
+                                            sx={{ mb: 1, color: "text.secondary", fontWeight: 600 }}
+                                        >
+                                            Expires At
                                         </Typography>
                                         <Paper
                                             variant="outlined"
@@ -209,110 +268,65 @@ function SignMessageContent() {
                                             }}
                                         >
                                             <Typography variant="body1">
-                                                {signatureData.message}
+                                                {new Date(sessionData.expiresAt * 1000).toLocaleString()}
                                             </Typography>
                                         </Paper>
                                     </Box>
 
-                                    {/* Wallet Address */}
-                                    <Box>
-                                        <Typography
-                                            variant="subtitle2"
-                                            sx={{ mb: 1, color: "text.secondary", fontWeight: 600 }}
-                                        >
-                                            Wallet Address
-                                        </Typography>
-                                        <Paper
-                                            variant="outlined"
-                                            sx={{
-                                                p: 2,
-                                                bgcolor: "grey.50",
-                                            }}
-                                        >
+                                    {/* Transaction Signature */}
+                                    {sessionData.txSignature && (
+                                        <Box>
                                             <Typography
-                                                variant="body2"
+                                                variant="subtitle2"
+                                                sx={{ mb: 1, color: "text.secondary", fontWeight: 600 }}
+                                            >
+                                                Transaction Signature
+                                            </Typography>
+                                            <Paper
+                                                variant="outlined"
                                                 sx={{
-                                                    fontFamily: "monospace",
-                                                    wordBreak: "break-all",
+                                                    p: 2,
+                                                    bgcolor: "grey.50",
+                                                    maxHeight: 200,
+                                                    overflow: "auto",
                                                 }}
                                             >
-                                                {signatureData.wallet}
-                                            </Typography>
-                                        </Paper>
-                                    </Box>
-
-                                    {/* Signature */}
-                                    <Box>
-                                        <Typography
-                                            variant="subtitle2"
-                                            sx={{ mb: 1, color: "text.secondary", fontWeight: 600 }}
-                                        >
-                                            Signature (Base58)
-                                        </Typography>
-                                        <Paper
-                                            variant="outlined"
-                                            sx={{
-                                                p: 2,
-                                                bgcolor: "grey.50",
-                                                maxHeight: 200,
-                                                overflow: "auto",
-                                            }}
-                                        >
-                                            <Typography
-                                                variant="body2"
-                                                sx={{
-                                                    fontFamily: "monospace",
-                                                    wordBreak: "break-all",
-                                                    fontSize: "0.75rem",
-                                                }}
-                                            >
-                                                {signatureData.signature}
-                                            </Typography>
-                                        </Paper>
-                                    </Box>
-
-                                    {/* Backend Response */}
-                                    {signatureData.backendResponse && (
-                                        <>
-                                            <Divider sx={{ my: 1 }} />
-                                            <Box>
                                                 <Typography
-                                                    variant="subtitle2"
-                                                    sx={{ mb: 1, color: "text.secondary", fontWeight: 600 }}
-                                                >
-                                                    Backend Response
-                                                </Typography>
-                                                <Chip
-                                                    label={signatureData.backendResponse.success ? "Success" : "Failed"}
-                                                    color={signatureData.backendResponse.success ? "success" : "error"}
-                                                    size="small"
-                                                    sx={{ mb: 1 }}
-                                                />
-                                                <Paper
-                                                    variant="outlined"
+                                                    variant="body2"
                                                     sx={{
-                                                        p: 2,
-                                                        bgcolor: "grey.50",
-                                                        maxHeight: 300,
-                                                        overflow: "auto",
+                                                        fontFamily: "monospace",
+                                                        wordBreak: "break-all",
+                                                        fontSize: "0.75rem",
                                                     }}
                                                 >
-                                                    <Typography
-                                                        component="pre"
-                                                        sx={{
-                                                            fontSize: "0.75rem",
-                                                            whiteSpace: "pre-wrap",
-                                                            wordBreak: "break-word",
-                                                            fontFamily: "monospace",
-                                                            m: 0,
-                                                        }}
-                                                    >
-                                                        {JSON.stringify(signatureData.backendResponse, null, 2)}
-                                                    </Typography>
-                                                </Paper>
-                                            </Box>
-                                        </>
+                                                    {sessionData.txSignature}
+                                                </Typography>
+                                            </Paper>
+                                        </Box>
                                     )}
+
+                                    <Divider sx={{ my: 1 }} />
+
+                                    {/* Message */}
+                                    <Box>
+                                        <Typography
+                                            variant="subtitle2"
+                                            sx={{ mb: 1, color: "text.secondary", fontWeight: 600 }}
+                                        >
+                                            Signed Message
+                                        </Typography>
+                                        <Paper
+                                            variant="outlined"
+                                            sx={{
+                                                p: 2,
+                                                bgcolor: "grey.50",
+                                            }}
+                                        >
+                                            <Typography variant="body2">
+                                                {sessionData.message}
+                                            </Typography>
+                                        </Paper>
+                                    </Box>
                                 </Stack>
                             </CardContent>
                         </Card>

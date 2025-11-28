@@ -18,7 +18,7 @@ use std::sync::Arc;
 use tower_http::cors::CorsLayer;
 use utoipa_swagger_ui::SwaggerUi;
 
-use crate::routes::{ping::ping_handler, session::delegate_session, tx::{create_user_tx, create_user_submit, ping_tx, ping_submit}};
+use crate::routes::{ping::ping_handler, session::{session_init, session_submit, create_user_session}, tx::{create_user_tx, create_user_submit, ping_tx, ping_submit}};
 
 /// API documentation
 #[derive(OpenApi)]
@@ -61,7 +61,9 @@ pub async fn app(app_state: Arc<AppState>) -> Router {
 
     let app = app
         .route("/api/tx/createUser", post(create_user_tx))
-        .route("/api/session/delegate", post(delegate_session))
+        .route("/api/session/init", post(session_init))
+        .route("/api/session/submit", post(session_submit))
+        .route("/api/user/createUser", post(create_user_session))
         .route("/api/tx/createUser/submit", post(create_user_submit))
         .route("/api/tx/ping", post(ping_tx))
         .route("/api/tx/ping/submit", post(ping_submit))

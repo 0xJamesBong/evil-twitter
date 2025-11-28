@@ -72,6 +72,34 @@ impl SolanaService {
         &self.bling_mint
     }
 
+    pub fn payer_pubkey(&self) -> Pubkey {
+        self.payer.pubkey()
+    }
+
+    /// Send a fully-signed transaction (signed by backend and/or session)
+    pub async fn send_signed_tx(&self, tx: &VersionedTransaction) -> anyhow::Result<Signature> {
+        let result = self.rpc.send_and_confirm_transaction(tx).await;
+
+        match result {
+            Err(e) => {
+                eprintln!("❌ Transaction failed: {}", e);
+                Err(e.into())
+            }
+            Ok(signature) => {
+                // Verify the transaction actually succeeded
+                let status = self.rpc.get_signature_status(&signature).await?;
+
+                if let Some(transaction_status) = status {
+                    if let Some(err) = transaction_status.err() {
+                        return Err(anyhow::anyhow!("Transaction failed: {:?}", err));
+                    }
+                }
+
+                Ok(signature)
+            }
+        }
+    }
+
     /// Get opinions_market_program using the async Anchor client (no nested runtimes)
     pub fn opinions_market_program(&self) -> Program<Arc<Keypair>> {
         let client = Client::new_with_options(
@@ -104,6 +132,24 @@ impl SolanaService {
     ) -> anyhow::Result<VersionedTransaction> {
         let signers: &[&dyn Signer] = &[self.payer.as_ref()];
         self.partial_sign_tx(ixs, signers).await
+    }
+
+    /// Build a transaction signed by both payer and session keypair
+    /// Used for session-delegated transactions where the session keypair acts on behalf of the user
+    pub async fn build_session_signed_tx(
+        &self,
+        ixs: Vec<Instruction>,
+        session_keypair: &Keypair,
+    ) -> anyhow::Result<VersionedTransaction> {
+        let blockhash = self.rpc.get_latest_blockhash().await?;
+        let message = Message::try_compile(&self.payer.pubkey(), &ixs, &[], blockhash)?;
+        let v0_message = VersionedMessage::V0(message);
+
+        // Sign with both payer and session keypair
+        let signers: &[&dyn Signer] = &[self.payer.as_ref(), session_keypair];
+        let tx = VersionedTransaction::try_new(v0_message, signers)?;
+
+        Ok(tx)
     }
 
     pub async fn send_tx<T: Signers + ?Sized>(
