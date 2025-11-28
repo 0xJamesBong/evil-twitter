@@ -1,4 +1,6 @@
 use axum::{Json, extract::State, http::StatusCode};
+use bs58;
+use ed25519_dalek::{Signature, Verifier, VerifyingKey};
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 
@@ -6,18 +8,17 @@ use crate::app_state::AppState;
 
 #[derive(Deserialize)]
 pub struct DelegateSessionRequest {
-    pub wallet: String,         // Base58 pubkey
-    pub signature: String,      // Base64 signature
-    pub session_pubkey: String, // Base58 session pubkey
-    pub expires: i64,           // Unix timestamp
-    pub message: String,        // Original message
+    pub wallet: String,
+    pub signature: String, // Base58 signature
+    pub session_pubkey: String,
+    pub expires: i64,
+    pub message: String,
 }
 
 #[derive(Serialize)]
 pub struct DelegateSessionResponse {
     pub success: bool,
     pub message: String,
-    // Echo back received data for testing/debugging
     pub received: Option<ReceivedData>,
 }
 
@@ -29,29 +30,73 @@ pub struct ReceivedData {
     pub message: String,
 }
 
-/// Dummy endpoint to receive session delegation request
-/// Currently just logs and echoes back the data - no verification logic yet
-/// Future: Will verify signature, generate/store session keypair, and use it for all transactions
 pub async fn delegate_session(
     State(_app_state): State<Arc<AppState>>,
     Json(req): Json<DelegateSessionRequest>,
 ) -> Result<Json<DelegateSessionResponse>, (StatusCode, String)> {
-    // Log received data for debugging
-    eprintln!("📝 Received session delegation request:");
-    eprintln!("   Wallet: {}", req.wallet);
-    eprintln!("   Session Pubkey: {}", req.session_pubkey);
-    eprintln!("   Expires: {}", req.expires);
-    eprintln!("   Message: {}", req.message);
-    eprintln!("   Signature (base64): {}", req.signature);
+    // Decode wallet pubkey
+    let wallet_pubkey_bytes = bs58::decode(&req.wallet).into_vec().map_err(|e| {
+        (
+            StatusCode::BAD_REQUEST,
+            format!("Invalid wallet pubkey: {}", e),
+        )
+    })?;
 
-    // Dummy response - just echo back the data
-    // TODO: In future, verify signature cryptographically
-    // TODO: Generate/store session keypair
-    // TODO: Use session keypair to sign all future transactions
+    // Decode wallet pubkey
+    let wallet_pubkey_vec = bs58::decode(&req.wallet).into_vec().map_err(|e| {
+        (
+            StatusCode::BAD_REQUEST,
+            format!("Invalid wallet pubkey: {}", e),
+        )
+    })?;
+
+    // Convert Vec<u8> → [u8; 32]
+    let wallet_pubkey_bytes: [u8; 32] = wallet_pubkey_vec.try_into().map_err(|_| {
+        (
+            StatusCode::BAD_REQUEST,
+            "Pubkey must be 32 bytes".to_string(),
+        )
+    })?;
+
+    // Build verifying key
+    let verifying_key = VerifyingKey::from_bytes(&wallet_pubkey_bytes).map_err(|e| {
+        (
+            StatusCode::BAD_REQUEST,
+            format!("Invalid pubkey bytes: {}", e),
+        )
+    })?;
+
+    // Decode signature
+    let signature_bytes = bs58::decode(&req.signature)
+        .into_vec()
+        .map_err(|e| (StatusCode::BAD_REQUEST, format!("Invalid signature: {}", e)))?;
+
+    let signature = Signature::from_slice(&signature_bytes).map_err(|e| {
+        (
+            StatusCode::BAD_REQUEST,
+            format!("Invalid signature bytes: {}", e),
+        )
+    })?;
+
+    // Verify signature
+    verifying_key
+        .verify(req.message.as_bytes(), &signature)
+        .map_err(|_| {
+            (
+                StatusCode::UNAUTHORIZED,
+                "Signature verification failed".to_string(),
+            )
+        })?;
+
+    // If we reach here → VALID signature
+    println!(
+        "✅ Signature verification succeeded for wallet {}",
+        req.wallet
+    );
 
     Ok(Json(DelegateSessionResponse {
         success: true,
-        message: "Session delegation received (dummy endpoint - no verification yet)".to_string(),
+        message: "Signature verified successfully".to_string(),
         received: Some(ReceivedData {
             wallet: req.wallet,
             session_pubkey: req.session_pubkey,
