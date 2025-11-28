@@ -91,6 +91,9 @@ async fn test_setup() {
     let admin = Keypair::new();
     let admin_pubkey = admin.pubkey();
 
+    let session_key = Keypair::new();
+    let session_key_pubkey = session_key.pubkey();
+
     // admin will be the mint authority of EVERYTHING
     let mint_authority = &payer;
     let mint_authority_pubkey = mint_authority.pubkey();
@@ -127,6 +130,7 @@ async fn test_setup() {
     let everyone = HashMap::from([
         (payer.pubkey(), "payer".to_string()),
         (admin.pubkey(), "admin".to_string()), // admin is the owner of the opinions market engine program
+        (session_key_pubkey, "session_key".to_string()),
         (user_1.pubkey(), "user_1".to_string()),
         (user_2.pubkey(), "user_2".to_string()),
         (user_3.pubkey(), "user_3".to_string()),
@@ -223,9 +227,33 @@ async fn test_setup() {
         test_phenomena_add_valid_payment(&rpc, &opinions_market, &payer, &admin, &usdc_pubkey)
             .await;
 
-        test_phenomena_create_user(&rpc, &opinions_market, &payer, &user_1, &config_pda).await;
-        test_phenomena_create_user(&rpc, &opinions_market, &payer, &user_2, &config_pda).await;
-        test_phenomena_create_user(&rpc, &opinions_market, &payer, &user_3, &config_pda).await;
+        test_phenomena_create_user(
+            &rpc,
+            &opinions_market,
+            &payer,
+            &user_1,
+            &config_pda,
+            &session_key_pubkey,
+        )
+        .await;
+        test_phenomena_create_user(
+            &rpc,
+            &opinions_market,
+            &payer,
+            &user_2,
+            &config_pda,
+            &session_key_pubkey,
+        )
+        .await;
+        test_phenomena_create_user(
+            &rpc,
+            &opinions_market,
+            &payer,
+            &user_3,
+            &config_pda,
+            &session_key_pubkey,
+        )
+        .await;
 
         {
             println!("user 1 depositing 10_000_000 bling to their vault");
@@ -312,6 +340,7 @@ async fn test_setup() {
                 &opinions_market,
                 &payer,
                 &user_1,
+                &session_key,
                 &config_pda,
                 None, // Original post
             )
@@ -325,6 +354,7 @@ async fn test_setup() {
                 &opinions_market,
                 &payer,
                 &user_2,
+                &session_key,
                 &config_pda,
                 Some(post_p1_pda), // Child post
             )
@@ -337,6 +367,7 @@ async fn test_setup() {
                 &rpc,
                 &opinions_market,
                 &payer,
+                &session_key,
                 &user_2,
                 &post_p1_pda,
                 opinions_market::state::Side::Pump,
@@ -354,6 +385,7 @@ async fn test_setup() {
                 &rpc,
                 &opinions_market,
                 &payer,
+                &session_key,
                 &user_1,
                 &post_p2_pda,
                 opinions_market::state::Side::Smack,
@@ -371,6 +403,7 @@ async fn test_setup() {
                 &rpc,
                 &opinions_market,
                 &payer,
+                &session_key,
                 &user_1,
                 &post_p2_pda,
                 opinions_market::state::Side::Smack,
@@ -390,6 +423,7 @@ async fn test_setup() {
                 &rpc,
                 &opinions_market,
                 &payer,
+                &session_key,
                 &user_1,
                 &post_p2_pda,
                 opinions_market::state::Side::Smack,
@@ -424,6 +458,7 @@ async fn test_setup() {
                 &opinions_market,
                 &payer,
                 &user_2,
+                &session_key,
                 &post_p1_pda,
                 &bling_pubkey,
                 &tokens,

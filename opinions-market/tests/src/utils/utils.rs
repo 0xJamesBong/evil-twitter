@@ -24,7 +24,7 @@ use solana_sdk::{pubkey::Pubkey, signer::Signer};
 /// If parent_post_pda is provided, also incorporates it for child post uniqueness.
 use rand::RngCore;
 
-async fn current_chain_timestamp(rpc: &RpcClient) -> i64 {
+pub async fn current_chain_timestamp(rpc: &RpcClient) -> i64 {
     let slot = rpc.get_slot().await.unwrap();
     rpc.get_block_time(slot).await.unwrap()
 }
@@ -279,3 +279,5 @@ pub async fn send_tx<T: Signers + ?Sized>(
         }
     }
 }
+
+pub const PRIVILEGES_HASH: [u8; 32] = [0u8; 32];

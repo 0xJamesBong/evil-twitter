@@ -59,7 +59,7 @@ pub struct SessionAuthority {
     pub user: Pubkey,              // wallet being delegated
     pub session_key: Pubkey,       // ephemeral pubkey authorized to act
     pub expires_at: i64,           // timestamp
-    pub allowed_ix_hash: [u8; 32], // optional whitelist hash
+    pub privileges_hash: [u8; 32], // optional whitelist hash
     pub bump: u8,
 }
 

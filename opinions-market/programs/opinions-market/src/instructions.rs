@@ -106,29 +106,6 @@ pub struct ModifyAcceptedMint<'info> {
     pub accepted_mint: Account<'info, ValidPayment>,
 }
 
-#[derive(Accounts)]
-#[instruction(session_key: Pubkey, expires_at: i64, allowed_ix_hash: [u8; 32])]
-pub struct RegisterSessionKey<'info> {
-    #[account(mut)]
-    pub user: Signer<'info>,        // wallet giving delegation
-
-    #[account(
-        init,
-        payer = user,
-        seeds = [
-            SESSION_AUTHORITY_SEED,
-            user.key().as_ref(),
-            session_key.as_ref()
-        ],
-        bump,
-        space = 8 + SessionAuthority::INIT_SPACE,
-    )]
-    pub session: Account<'info, SessionAuthority>,
-
-    pub system_program: Program<'info, System>,
-}
-
-
 
 // This initializes the UserAccount PDA only
 #[derive(Accounts)]
@@ -159,6 +136,48 @@ pub struct CreateUser<'info> {
     
     pub system_program: Program<'info, System>,
 }
+
+#[derive(Accounts)]
+#[instruction(session_key: Pubkey, expires_at: i64, privileges_hash: [u8; 32])]
+pub struct RegisterSessionKey<'info> {
+    #[account(mut)]
+    pub user: Signer<'info>,        // wallet giving delegation
+
+    #[account(
+        init,
+        payer = user,
+        seeds = [
+            SESSION_AUTHORITY_SEED,
+            user.key().as_ref(),
+            session_key.as_ref()       // <--- correct
+        ],
+        bump,
+        space = 8 + SessionAuthority::INIT_SPACE,
+    )]
+    pub session_authority: Account<'info, SessionAuthority>, // <--- PDA storing metadata
+
+    pub system_program: Program<'info, System>,
+}
+
+
+#[derive(Accounts)]
+#[instruction(session_key: Pubkey, new_expires_at: i64)]
+pub struct RenewSessionKey<'info> {
+    #[account(mut)]
+    pub user: Signer<'info>,  // MUST be the real wallet signing
+
+    #[account(
+        mut,
+        seeds = [
+            SESSION_AUTHORITY_SEED,
+            user.key().as_ref(),
+            session_key.as_ref()
+        ],
+        bump,
+    )]
+    pub session_authority: Account<'info, SessionAuthority>, // <--- PDA storing metadata
+}
+
 
 /// User deposits from their wallet into the program-controlled vault.
 /// Also initializes the program-controlled vault if it doesn't exist.
@@ -280,7 +299,7 @@ pub struct CreatePost<'info> {
        ],
        bump,
    )]
-   pub session: Option<Account<'info, SessionAuthority>>,
+   pub session_authority: Option<Account<'info, SessionAuthority>>,
     
     #[account(
         seeds = [USER_ACCOUNT_SEED, user.key().as_ref()],
@@ -345,7 +364,7 @@ pub struct VoteOnPost<'info> {
         ],
         bump,
     )]
-    pub session: Option<Account<'info, SessionAuthority>>,
+    pub session_authority: Option<Account<'info, SessionAuthority>>,
 
     #[account(
         mut,
@@ -504,7 +523,7 @@ pub struct SettlePost<'info> {
 // The User-uncheckedAccount and payer-Signer pattern is used to allow for dual signing - so the user doesn't need to see a signature prompt pop-up
 
 #[derive(Accounts)]
-#[instruction(post_id_hash: [u8; 32])]
+#[instruction(session_key: Pubkey, post_id_hash: [u8; 32])]
 pub struct ClaimPostReward<'info> {
     #[account(mut,
         seeds = [CONFIG_SEED],
@@ -535,7 +554,7 @@ pub struct ClaimPostReward<'info> {
         ],
         bump,
     )]
-    pub session: Option<Account<'info, SessionAuthority>>,
+    pub session_authority: Option<Account<'info, SessionAuthority>>,
 
     #[account(
         mut,
