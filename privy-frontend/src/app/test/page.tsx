@@ -82,9 +82,8 @@ function TestContent() {
                                 variant="contained"
                                 onClick={async () => {
                                     try {
-                                        const signature = await ping();
-                                        // Show success message with signature
-                                        console.log("Ping successful, signature:", signature);
+                                        await ping();
+                                        console.log("Ping successful, response:", response);
                                     } catch (e) {
                                         console.error("Ping failed:", e);
                                     }
@@ -101,6 +100,11 @@ function TestContent() {
                                     "Ping Backend"
                                 )}
                             </Button>
+                            {response && (
+                                <Alert severity="success" sx={{ mt: 2 }}>
+                                    <strong>Response:</strong> {response}
+                                </Alert>
+                            )}
                             {pingError && (
                                 <Alert severity="error" sx={{ mt: 2 }}>
                                     <strong>Error:</strong> {pingError}

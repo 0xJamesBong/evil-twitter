@@ -72,26 +72,76 @@ impl SolanaService {
         &self.bling_mint
     }
 
+    pub fn payer_pubkey(&self) -> Pubkey {
+        self.payer.pubkey()
+    }
+
+    /// Send a fully-signed transaction (signed by backend and/or session)
+    pub async fn send_signed_tx(&self, tx: &VersionedTransaction) -> anyhow::Result<Signature> {
+        let result = self.rpc.send_and_confirm_transaction(tx).await;
+
+        match result {
+            Err(e) => {
+                eprintln!("❌ Transaction failed: {}", e);
+                Err(e.into())
+            }
+            Ok(signature) => {
+                // Verify the transaction actually succeeded
+                let status = self.rpc.get_signature_status(&signature).await?;
+
+                if let Some(transaction_status) = status {
+                    if let Some(err) = transaction_status.err() {
+                        return Err(anyhow::anyhow!("Transaction failed: {:?}", err));
+                    }
+                }
+
+                Ok(signature)
+            }
+        }
+    }
+
     /// Get opinions_market_program using the async Anchor client (no nested runtimes)
     pub fn opinions_market_program(&self) -> Program<Arc<Keypair>> {
-        let client =
-            Client::new_with_options(Cluster::Localnet, self.payer.clone(), CommitmentConfig::confirmed());
+        let client = Client::new_with_options(
+            Cluster::Localnet,
+            self.payer.clone(),
+            CommitmentConfig::confirmed(),
+        );
         client
             .program(self.program_id)
             .expect("Failed to init program")
     }
 
-    pub async fn partial_sign_tx<T: Signers + ?Sized>(
+    /// Build a partially-signed transaction with the backend payer as signer
+    pub async fn build_partial_signed_tx(
         &self,
         ixs: Vec<Instruction>,
-        signer: &T,
     ) -> anyhow::Result<VersionedTransaction> {
         let blockhash = self.rpc.get_latest_blockhash().await?;
         let message = Message::try_compile(&self.payer.pubkey(), &ixs, &[], blockhash)?;
         let v0_message = VersionedMessage::V0(message);
-        let partial_signed_tx = VersionedTransaction::try_new(v0_message, signer)?;
+        let signers: [&Keypair; 1] = [self.payer.as_ref()];
+        let tx = VersionedTransaction::try_new(v0_message, &signers)?;
 
-        Ok(partial_signed_tx)
+        Ok(tx)
+    }
+
+    /// Build a transaction signed by both payer and session keypair
+    /// Used for session-delegated transactions where the session keypair acts on behalf of the user
+    pub async fn build_session_signed_tx(
+        &self,
+        ixs: Vec<Instruction>,
+        session_keypair: &Keypair,
+    ) -> anyhow::Result<VersionedTransaction> {
+        let blockhash = self.rpc.get_latest_blockhash().await?;
+        let message = Message::try_compile(&self.payer.pubkey(), &ixs, &[], blockhash)?;
+        let v0_message = VersionedMessage::V0(message);
+
+        // Sign with both payer and session keypair
+        let signers: &[&dyn Signer] = &[self.payer.as_ref(), session_keypair];
+        let tx = VersionedTransaction::try_new(v0_message, signers)?;
+
+        Ok(tx)
     }
 
     pub async fn send_tx<T: Signers + ?Sized>(
@@ -126,23 +176,6 @@ impl SolanaService {
                 Ok(signature)
             }
         }
-    }
-
-    pub async fn build_partial_signed_ping_tx(&self) -> anyhow::Result<String> {
-        let opinions_market = self.opinions_market_program();
-
-        let ix = opinions_market
-            .request()
-            .accounts(opinions_market::accounts::Ping {})
-            .args(opinions_market::instruction::Ping {})
-            .instructions()
-            .unwrap();
-
-        let partial_signed_tx = self.partial_sign_tx(ix, &[&self.payer]).await?;
-        let serialized_bytes = bincode::serialize(&partial_signed_tx)
-            .map_err(|e| anyhow::anyhow!("Failed to serialize transaction: {}", e))?;
-        let serialized = general_purpose::STANDARD.encode(serialized_bytes);
-        Ok(serialized)
     }
 
     /// Submit a user-signed transaction (deserialize, optionally re-sign, and broadcast)
@@ -221,35 +254,6 @@ impl SolanaService {
 
         Ok(token_account.amount)
     }
-
-    pub async fn build_partial_signed_create_user_tx(
-        &self,
-        user_wallet: Pubkey,
-    ) -> anyhow::Result<(String, Pubkey)> {
-        let opinions_market = self.opinions_market_program();
-        let (user_account_pda, _) = get_user_account_pda(&self.program_id, &user_wallet);
-        let (config_pda, _) = get_config_pda(&self.program_id);
-
-        let ix = opinions_market
-            .request()
-            .accounts(opinions_market::accounts::CreateUser {
-                config: config_pda,
-                user: user_wallet,
-                payer: self.payer.pubkey(),
-                user_account: user_account_pda,
-                system_program: system_program::ID,
-            })
-            .args(opinions_market::instruction::CreateUser {})
-            .instructions()
-            .unwrap();
-
-        let partial_signed_tx = self.partial_sign_tx(ix, &[&self.payer]).await?;
-        let serialized_bytes = bincode::serialize(&partial_signed_tx)
-            .map_err(|e| anyhow::anyhow!("Failed to serialize transaction: {}", e))?;
-        let serialized = general_purpose::STANDARD.encode(serialized_bytes);
-        Ok((serialized, user_account_pda))
-    }
-    //  **** FOR LATER!
 
     // pub async fn ping(&self) -> anyhow::Result<String> {
     //     let opinions_market = self.opinions_market_program;

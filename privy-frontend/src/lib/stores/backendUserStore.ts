@@ -12,6 +12,9 @@ type BackendUserState = {
   user: BackendUser;
   isLoading: boolean;
   error: string | null;
+  sessionAuthorityPda: string | null;
+  sessionExpiresAt: number | null;
+  sessionActive: boolean;
 };
 
 type BackendUserActions = {
@@ -24,6 +27,10 @@ type BackendUserActions = {
   fetchMe: (identityToken: string) => Promise<void>;
   refreshMe: (identityToken: string) => Promise<void>;
   clear: () => void;
+  // Session management
+  setSession: (sessionAuthorityPda: string, expiresAt: number) => void;
+  clearSession: () => void;
+  isSessionValid: () => boolean;
 };
 
 export const useBackendUserStore = create<
@@ -32,6 +39,9 @@ export const useBackendUserStore = create<
   user: null,
   isLoading: false,
   error: null,
+  sessionAuthorityPda: null,
+  sessionExpiresAt: null,
+  sessionActive: false,
   onboardUser: async (
     identityToken: string,
     handle: string,
@@ -97,5 +107,29 @@ export const useBackendUserStore = create<
   clear: () => {
     set({ user: null, isLoading: false, error: null });
   },
+  setSession: (sessionAuthorityPda: string, expiresAt: number) => {
+    const now = Math.floor(Date.now() / 1000);
+    set({
+      sessionAuthorityPda,
+      sessionExpiresAt: expiresAt,
+      sessionActive: expiresAt > now,
+    });
+  },
+  clearSession: () => {
+    set({
+      sessionAuthorityPda: null,
+      sessionExpiresAt: null,
+      sessionActive: false,
+    });
+  },
+  isSessionValid: () => {
+    const state = get();
+    if (!state.sessionExpiresAt) return false;
+    const now = Math.floor(Date.now() / 1000);
+    const isValid = state.sessionExpiresAt > now;
+    if (state.sessionActive !== isValid) {
+      set({ sessionActive: isValid });
+    }
+    return isValid;
+  },
 }));
-

@@ -9,6 +9,7 @@ pub mod services;
 pub mod solana;
 pub mod utils;
 
+
 use crate::app_state::AppState;
 use crate::graphql::graphql_routes;
 
@@ -17,7 +18,10 @@ use std::sync::Arc;
 use tower_http::cors::CorsLayer;
 use utoipa_swagger_ui::SwaggerUi;
 
-use crate::routes::{ping::ping_handler, tx::{create_user_tx, create_user_submit, ping_tx, ping_submit}};
+use crate::routes::{
+    ping::ping_handler,
+    session::{create_user_session, session_init, session_submit},
+};
 
 /// API documentation
 #[derive(OpenApi)]
@@ -59,10 +63,9 @@ pub async fn app(app_state: Arc<AppState>) -> Router {
         .split_for_parts();
 
     let app = app
-        .route("/api/tx/createUser", post(create_user_tx))
-        .route("/api/tx/createUser/submit", post(create_user_submit))
-        .route("/api/tx/ping", post(ping_tx))
-        .route("/api/tx/ping/submit", post(ping_submit))
+        .route("/api/session/init", post(session_init))
+        .route("/api/session/submit", post(session_submit))
+        .route("/api/user/createUser", post(create_user_session))
         .with_state(app_state.clone())
         .merge(graphql_routes)
         .merge(SwaggerUi::new("/doc").url("/api-docs/openapi.json", api))
