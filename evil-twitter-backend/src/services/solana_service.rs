@@ -126,24 +126,6 @@ impl SolanaService {
         Ok(tx)
     }
 
-    /// Build a transaction signed by both payer and session keypair
-    /// Used for session-delegated transactions where the session keypair acts on behalf of the user
-    pub async fn build_session_signed_tx(
-        &self,
-        ixs: Vec<Instruction>,
-        session_keypair: &Keypair,
-    ) -> anyhow::Result<VersionedTransaction> {
-        let blockhash = self.rpc.get_latest_blockhash().await?;
-        let message = Message::try_compile(&self.payer.pubkey(), &ixs, &[], blockhash)?;
-        let v0_message = VersionedMessage::V0(message);
-
-        // Sign with both payer and session keypair
-        let signers: &[&dyn Signer] = &[self.payer.as_ref(), session_keypair];
-        let tx = VersionedTransaction::try_new(v0_message, signers)?;
-
-        Ok(tx)
-    }
-
     pub async fn send_tx<T: Signers + ?Sized>(
         &self,
         ixs: Vec<Instruction>,
@@ -270,30 +252,33 @@ impl SolanaService {
     //     Ok(tx.to_string())
     // }
 
-    // pub fn build_create_user_tx(&self, user_wallet: Pubkey) -> anyhow::Result<(String, Pubkey)> {
-    //     let opinions_market = self.opinions_market_program;
-    //     let (user_account_pda, _) = get_user_account_pda(&opinions_market::ID, &user_wallet);
-    //     let (config_pda, _) = get_config_pda(&PROGRAM_ID);
+    /// Create a user account on-chain, signed by backend payer only
+    pub async fn create_user(&self, user_wallet: Pubkey) -> anyhow::Result<Signature> {
+        let program = self.opinions_market_program();
+        let program_id = program.id();
 
-    //     let ix = opinions_market
-    //         .request()
-    //         .accounts(opinions_market::accounts::CreateUser {
-    //             config: config_pda,
-    //             user: user_wallet,
-    //             payer: self.payer.pubkey(),
-    //             user_account: user_account_pda,
-    //             system_program: system_program::ID,
-    //         })
-    //         .args(opinions_market::instruction::CreateUser {})
-    //         .instructions()
-    //         .unwrap();
+        // Derive PDAs
+        let (config_pda, _) = get_config_pda(&program_id);
+        let (user_account_pda, _) = get_user_account_pda(&program_id, &user_wallet);
 
-    //     let blockhash = self.rpc.get_latest_blockhash()?;
-    //     let mut tx = Transaction::new_with_payer(&[ix], Some(&self.payer.pubkey()));
-    //     tx.partial_sign(&[self.payer.as_ref()], blockhash);
+        // Build CreateUser instruction
+        let ixs = program
+            .request()
+            .accounts(opinions_market::accounts::CreateUser {
+                config: config_pda,
+                user: user_wallet,
+                payer: self.payer.pubkey(),
+                user_account: user_account_pda,
+                system_program: solana_sdk::system_program::ID,
+            })
+            .args(opinions_market::instruction::CreateUser {})
+            .instructions()
+            .map_err(|e| anyhow::anyhow!("Failed to build CreateUser instruction: {}", e))?;
 
-    //     Ok((base64::encode(tx.serialize()), user_account_pda))
-    // }
+        // Build transaction signed by payer only
+        let tx = self.build_partial_signed_tx(ixs).await?;
 
-    // // pub async
+        // Send and confirm transaction
+        self.send_signed_tx(&tx).await
+    }
 }

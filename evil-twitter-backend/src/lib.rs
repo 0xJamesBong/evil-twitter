@@ -20,7 +20,7 @@ use utoipa_swagger_ui::SwaggerUi;
 
 use crate::routes::{
     ping::ping_handler,
-    session::{create_user_session, session_init, session_submit},
+    session::{create_user, },
 };
 
 /// API documentation
@@ -63,9 +63,7 @@ pub async fn app(app_state: Arc<AppState>) -> Router {
         .split_for_parts();
 
     let app = app
-        .route("/api/session/init", post(session_init))
-        .route("/api/session/submit", post(session_submit))
-        .route("/api/user/createUser", post(create_user_session))
+        .route("/api/user/createUser", post(create_user))
         .with_state(app_state.clone())
         .merge(graphql_routes)
         .merge(SwaggerUi::new("/doc").url("/api-docs/openapi.json", api))
