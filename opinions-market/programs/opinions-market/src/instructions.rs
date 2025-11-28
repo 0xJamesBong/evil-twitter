@@ -107,36 +107,6 @@ pub struct ModifyAcceptedMint<'info> {
 }
 
 
-// This initializes the UserAccount PDA only
-#[derive(Accounts)]
-pub struct CreateUser<'info> {
-    #[account(mut,
-        seeds = [CONFIG_SEED],
-        bump,
-    )]
-    pub config: Account<'info, Config>,
-    // This is the only case where the user remains a signer - keeps it real bro.
-    #[account(mut)]
-    pub user: Signer<'info>,
-
-    // This must be kept because we don't want strangers initializing user accounts for other users. 
-    #[account(mut,
-        constraint = payer.key() == config.payer_authroity || payer.key() == user.key()
-    )]
-    pub payer: Signer<'info>,
-    #[account(
-        init,
-        payer = payer,
-        seeds = [USER_ACCOUNT_SEED, user.key().as_ref()],
-        bump,
-        space = 8 + 64,
-    )]
-    pub user_account: Account<'info, UserAccount>,
-    
-    
-    pub system_program: Program<'info, System>,
-}
-
 #[derive(Accounts)]
 #[instruction(session_key: Pubkey, expires_at: i64, privileges_hash: [u8; 32])]
 pub struct RegisterSessionKey<'info> {
@@ -176,6 +146,54 @@ pub struct RenewSessionKey<'info> {
         bump,
     )]
     pub session_authority: Account<'info, SessionAuthority>, // <--- PDA storing metadata
+}
+
+
+// This initializes the UserAccount PDA only
+#[derive(Accounts)]
+pub struct CreateUser<'info> {
+    #[account(mut,
+        seeds = [CONFIG_SEED],
+        bump,
+    )]
+    pub config: Account<'info, Config>,
+    // This is the only case where the user remains a signer - keeps it real bro.
+    /// CHECK: User is marked as an UncheckedAccount to allow for dual signing patterns
+    #[account(mut)]
+    pub user: UncheckedAccount<'info>,
+
+    /// CHECK: raw signer pubkey (can be wallet or session key)
+   pub authority: UncheckedAccount<'info>,
+
+   // This must be kept because we don't want strangers initializing user accounts for other users. 
+   /// CHECK: Payer can be either the user or backend payer, allowing for flexible fee payment
+   #[account(mut,
+    // constraint = payer.key() == config.payer_authroity || payer.key() == user.key()
+    )]
+pub payer: UncheckedAccount<'info>,
+   #[account(
+       mut,
+       seeds = [
+           SESSION_AUTHORITY_SEED,
+           user.key().as_ref(),
+           authority.key().as_ref()
+       ],
+       bump,
+   )]
+   pub session_authority: Option<Account<'info, SessionAuthority>>,
+
+    
+    #[account(
+        init,
+        payer = payer,
+        seeds = [USER_ACCOUNT_SEED, user.key().as_ref()],
+        bump,
+        space = 8 + 64,
+    )]
+    pub user_account: Account<'info, UserAccount>,
+    
+    
+    pub system_program: Program<'info, System>,
 }
 
 

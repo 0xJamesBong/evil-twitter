@@ -106,45 +106,7 @@ pub async fn test_phenomena_create_user(
     config_pda: &Pubkey,
     session_key: &Pubkey,
 ) {
-    println!("creating user {:}", user.pubkey());
-    let user_account_pda = Pubkey::find_program_address(
-        &[USER_ACCOUNT_SEED, user.pubkey().as_ref()],
-        &opinions_market.id(),
-    )
-    .0;
-
-    let create_user_ix = opinions_market
-        .request()
-        .accounts(opinions_market::accounts::CreateUser {
-            user: user.pubkey(),
-            payer: payer.pubkey(),
-            user_account: user_account_pda,
-            config: *config_pda,
-            system_program: system_program::ID,
-        })
-        .args(opinions_market::instruction::CreateUser {})
-        .instructions()
-        .unwrap();
-
-    let create_user_tx = send_tx(&rpc, create_user_ix, &payer.pubkey(), &[&payer, &user])
-        .await
-        .unwrap();
-    println!("create user tx: {:?}", create_user_tx);
-
-    // Verify user account was created
-    let user_account = opinions_market
-        .account::<opinions_market::state::UserAccount>(user_account_pda)
-        .await
-        .unwrap();
-
-    assert_eq!(
-        user_account.user,
-        user.pubkey(),
-        "User account should store the wallet pubkey"
-    );
-
-    println!("✅ User account created successfully");
-
+    println!("registering session key for user {:}", user.pubkey());
     // register session key
     let session_authority_pda = Pubkey::find_program_address(
         &[
@@ -187,6 +149,47 @@ pub async fn test_phenomena_create_user(
     assert_eq!(session_key_account.expires_at, new_expires_at);
     assert_eq!(session_key_account.privileges_hash, PRIVILEGES_HASH);
     println!("✅ Session key created successfully");
+
+    println!("creating user {:}", user.pubkey());
+    let user_account_pda = Pubkey::find_program_address(
+        &[USER_ACCOUNT_SEED, user.pubkey().as_ref()],
+        &opinions_market.id(),
+    )
+    .0;
+
+    let create_user_ix = opinions_market
+        .request()
+        .accounts(opinions_market::accounts::CreateUser {
+            user: user.pubkey(),
+            payer: payer.pubkey(),
+            user_account: user_account_pda,
+            config: *config_pda,
+            authority: *session_key,
+            session_authority: Some(session_authority_pda),
+            system_program: system_program::ID,
+        })
+        .args(opinions_market::instruction::CreateUser {})
+        .instructions()
+        .unwrap();
+
+    let create_user_tx = send_tx(&rpc, create_user_ix, &payer.pubkey(), &[&payer])
+        .await
+        .unwrap();
+    println!("create user tx: {:?}", create_user_tx);
+
+    // Verify user account was created
+    let user_account = opinions_market
+        .account::<opinions_market::state::UserAccount>(user_account_pda)
+        .await
+        .unwrap();
+
+    assert_eq!(
+        user_account.user,
+        user.pubkey(),
+        "User account should store the wallet pubkey"
+    );
+
+    println!("✅ User account created successfully");
 }
 
 pub async fn test_phenomena_renew_session_key(
