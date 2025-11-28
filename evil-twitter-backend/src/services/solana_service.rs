@@ -254,14 +254,36 @@ impl SolanaService {
 
     /// Create a user account on-chain, signed by backend payer only
     pub async fn create_user(&self, user_wallet: Pubkey) -> anyhow::Result<Signature> {
+        println!(
+            "  🔧 SolanaService::create_user: Starting for user {}",
+            user_wallet
+        );
+
         let program = self.opinions_market_program();
         let program_id = program.id();
+        println!(
+            "  📍 SolanaService::create_user: Program ID: {}",
+            program_id
+        );
 
         // Derive PDAs
         let (config_pda, _) = get_config_pda(&program_id);
         let (user_account_pda, _) = get_user_account_pda(&program_id, &user_wallet);
+        println!(
+            "  📍 SolanaService::create_user: Config PDA: {}",
+            config_pda
+        );
+        println!(
+            "  📍 SolanaService::create_user: User Account PDA: {}",
+            user_account_pda
+        );
+        println!(
+            "  💰 SolanaService::create_user: Payer: {}",
+            self.payer.pubkey()
+        );
 
         // Build CreateUser instruction
+        println!("  🔨 SolanaService::create_user: Building CreateUser instruction...");
         let ixs = program
             .request()
             .accounts(opinions_market::accounts::CreateUser {
@@ -273,12 +295,44 @@ impl SolanaService {
             })
             .args(opinions_market::instruction::CreateUser {})
             .instructions()
-            .map_err(|e| anyhow::anyhow!("Failed to build CreateUser instruction: {}", e))?;
+            .map_err(|e| {
+                eprintln!(
+                    "  ❌ SolanaService::create_user: Failed to build instruction: {}",
+                    e
+                );
+                anyhow::anyhow!("Failed to build CreateUser instruction: {}", e)
+            })?;
+
+        println!("  ✅ SolanaService::create_user: Instruction built successfully");
 
         // Build transaction signed by payer only
-        let tx = self.build_partial_signed_tx(ixs).await?;
+        println!(
+            "  ✍️  SolanaService::create_user: Building and signing transaction with payer..."
+        );
+        let tx = self.build_partial_signed_tx(ixs).await.map_err(|e| {
+            eprintln!(
+                "  ❌ SolanaService::create_user: Failed to build transaction: {}",
+                e
+            );
+            e
+        })?;
+
+        println!("  ✅ SolanaService::create_user: Transaction built and signed");
 
         // Send and confirm transaction
-        self.send_signed_tx(&tx).await
+        println!("  📡 SolanaService::create_user: Sending transaction to network...");
+        let signature = self.send_signed_tx(&tx).await.map_err(|e| {
+            eprintln!(
+                "  ❌ SolanaService::create_user: Failed to send transaction: {}",
+                e
+            );
+            e
+        })?;
+
+        println!(
+            "  ✅ SolanaService::create_user: Transaction confirmed! Signature: {}",
+            signature
+        );
+        Ok(signature)
     }
 }

@@ -26,13 +26,22 @@ pub async fn create_user(
     State(app_state): State<Arc<AppState>>,
     Json(req): Json<CreateUserRequest>,
 ) -> Result<Json<CreateUserResponse>, (StatusCode, String)> {
+    println!(
+        "📝 create_user: Received request for user_wallet: {}",
+        req.user_wallet
+    );
+
     // Parse user wallet pubkey
     let user_wallet = Pubkey::from_str(&req.user_wallet).map_err(|e| {
+        eprintln!("❌ create_user: Invalid user wallet pubkey: {}", e);
         (
             StatusCode::BAD_REQUEST,
             format!("Invalid user wallet pubkey: {}", e),
         )
     })?;
+
+    println!("✅ create_user: Parsed user wallet: {}", user_wallet);
+    println!("🚀 create_user: Calling solana_service.create_user()...");
 
     // Create user account on-chain
     let signature = app_state
@@ -40,11 +49,18 @@ pub async fn create_user(
         .create_user(user_wallet)
         .await
         .map_err(|e| {
+            eprintln!("❌ create_user: Failed to create user on-chain: {}", e);
             (
                 StatusCode::INTERNAL_SERVER_ERROR,
                 format!("Failed to create user: {}", e),
             )
         })?;
+
+    println!(
+        "✅ create_user: User account created successfully! Signature: {}",
+        signature
+    );
+    println!("📋 create_user: Returning response to client");
 
     Ok(Json(CreateUserResponse {
         signature: signature.to_string(),
