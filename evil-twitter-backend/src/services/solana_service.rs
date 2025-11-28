@@ -112,26 +112,18 @@ impl SolanaService {
             .expect("Failed to init program")
     }
 
-    pub async fn partial_sign_tx<T: Signers + ?Sized>(
-        &self,
-        ixs: Vec<Instruction>,
-        signer: &T,
-    ) -> anyhow::Result<VersionedTransaction> {
-        let blockhash = self.rpc.get_latest_blockhash().await?;
-        let message = Message::try_compile(&self.payer.pubkey(), &ixs, &[], blockhash)?;
-        let v0_message = VersionedMessage::V0(message);
-        let partial_signed_tx = VersionedTransaction::try_new(v0_message, signer)?;
-
-        Ok(partial_signed_tx)
-    }
-
     /// Build a partially-signed transaction with the backend payer as signer
     pub async fn build_partial_signed_tx(
         &self,
         ixs: Vec<Instruction>,
     ) -> anyhow::Result<VersionedTransaction> {
-        let signers: &[&dyn Signer] = &[self.payer.as_ref()];
-        self.partial_sign_tx(ixs, signers).await
+        let blockhash = self.rpc.get_latest_blockhash().await?;
+        let message = Message::try_compile(&self.payer.pubkey(), &ixs, &[], blockhash)?;
+        let v0_message = VersionedMessage::V0(message);
+        let signers: [&Keypair; 1] = [self.payer.as_ref()];
+        let tx = VersionedTransaction::try_new(v0_message, &signers)?;
+
+        Ok(tx)
     }
 
     /// Build a transaction signed by both payer and session keypair

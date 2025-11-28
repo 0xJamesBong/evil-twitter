@@ -1,4 +1,4 @@
-use axum::{Json, extract::State, http::StatusCode, response::IntoResponse};
+use axum::{Json, extract::State, http::StatusCode};
 use bs58;
 use chrono;
 use ed25519_dalek::{Signature, Verifier, VerifyingKey};
@@ -31,9 +31,6 @@ pub async fn session_init(
     State(app_state): State<Arc<AppState>>,
     Json(req): Json<SessionInitRequest>,
 ) -> Result<Json<SessionInitResponse>, (StatusCode, String)> {
-    // -------------------------------
-    // 1) Decode & verify signature
-    // -------------------------------
     let wallet_pubkey_bytes = bs58::decode(&req.wallet)
         .into_vec()
         .map_err(|_| (StatusCode::BAD_REQUEST, "Invalid wallet pubkey".to_string()))?;
@@ -73,18 +70,13 @@ pub async fn session_init(
 
     println!("🔐 Signature verified from wallet {}", req.wallet);
 
-    // -------------------------------
-    // 2) Derive PDA for SessionAuthority
-    // -------------------------------
     let wallet_pubkey = Pubkey::from_str(&req.wallet).map_err(|e| {
         (
             StatusCode::BAD_REQUEST,
             format!("Invalid wallet pubkey: {}", e),
         )
     })?;
-    // read from .secrets
-    //
-    // Load session keypair (backend-controlled)
+
     let session_keypair = read_keypair_from_file(
         &std::env::var("SOLANA_SESSION_KEY_KEYPAIR_PATH")
             .expect("Missing SOLANA_SESSION_KEY_KEYPAIR_PATH"),
@@ -96,11 +88,7 @@ pub async fn session_init(
         )
     })?;
 
-    // Public key used on-chain
     let session_key = session_keypair.pubkey();
-
-    // Get program_id from solana_service - we need to access it via a method or derive it
-    // For now, let's use the opinions_market program to get the program_id
     let program = app_state.solana_service.opinions_market_program();
     let program_id = program.id();
 
@@ -113,11 +101,6 @@ pub async fn session_init(
         &program_id,
     );
 
-    println!("📍 SessionAuthority PDA: {}", session_authority_pda);
-
-    // -------------------------------
-    // 3) Build Anchor instruction
-    // -------------------------------
     let expires_at = req.expires;
 
     let ixs = program
@@ -130,7 +113,7 @@ pub async fn session_init(
         .args(opinions_market::instruction::RegisterSessionKey {
             session_key,
             expires_at,
-            privileges_hash: [0u8; 32], // temporary placeholder
+            privileges_hash: [0u8; 32],
         })
         .instructions()
         .map_err(|e| {
@@ -140,9 +123,6 @@ pub async fn session_init(
             )
         })?;
 
-    // -------------------------------
-    // 4) Build backend-paid VersionedTransaction
-    // -------------------------------
     let tx = app_state
         .solana_service
         .build_partial_signed_tx(ixs)
@@ -163,9 +143,6 @@ pub async fn session_init(
 
     let tx_base64 = general_purpose::STANDARD.encode(&tx_bytes);
 
-    // -------------------------------
-    // 5) Return to frontend
-    // -------------------------------
     Ok(Json(SessionInitResponse {
         tx_base64,
         session_authority_pda: session_authority_pda.to_string(),
