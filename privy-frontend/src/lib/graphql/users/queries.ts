@@ -10,6 +10,7 @@ export const ME_QUERY = `
       createdAt
       hasOnchainAccount
       vaultBalance
+      socialScore
       profile {
         id
         userId
@@ -35,6 +36,7 @@ export interface MeQueryResult {
     createdAt: string;
     hasOnchainAccount: boolean | null;
     vaultBalance: number | null;
+    socialScore: number | null;
     profile: {
       id: string;
       userId: string;
@@ -47,4 +49,3 @@ export interface MeQueryResult {
     } | null;
   } | null;
 }
-
