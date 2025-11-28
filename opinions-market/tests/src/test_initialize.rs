@@ -227,33 +227,9 @@ async fn test_setup() {
         test_phenomena_add_valid_payment(&rpc, &opinions_market, &payer, &admin, &usdc_pubkey)
             .await;
 
-        test_phenomena_create_user(
-            &rpc,
-            &opinions_market,
-            &payer,
-            &user_1,
-            &config_pda,
-            &session_key_pubkey,
-        )
-        .await;
-        test_phenomena_create_user(
-            &rpc,
-            &opinions_market,
-            &payer,
-            &user_2,
-            &config_pda,
-            &session_key_pubkey,
-        )
-        .await;
-        test_phenomena_create_user(
-            &rpc,
-            &opinions_market,
-            &payer,
-            &user_3,
-            &config_pda,
-            &session_key_pubkey,
-        )
-        .await;
+        test_phenomena_create_user(&rpc, &opinions_market, &payer, &user_1, &config_pda).await;
+        test_phenomena_create_user(&rpc, &opinions_market, &payer, &user_2, &config_pda).await;
+        test_phenomena_create_user(&rpc, &opinions_market, &payer, &user_3, &config_pda).await;
 
         {
             println!("user 1 depositing 10_000_000 bling to their vault");
@@ -340,7 +316,6 @@ async fn test_setup() {
                 &opinions_market,
                 &payer,
                 &user_1,
-                &session_key,
                 &config_pda,
                 None, // Original post
             )
@@ -354,7 +329,6 @@ async fn test_setup() {
                 &opinions_market,
                 &payer,
                 &user_2,
-                &session_key,
                 &config_pda,
                 Some(post_p1_pda), // Child post
             )
@@ -367,7 +341,6 @@ async fn test_setup() {
                 &rpc,
                 &opinions_market,
                 &payer,
-                &session_key,
                 &user_2,
                 &post_p1_pda,
                 opinions_market::state::Side::Pump,
@@ -385,7 +358,6 @@ async fn test_setup() {
                 &rpc,
                 &opinions_market,
                 &payer,
-                &session_key,
                 &user_1,
                 &post_p2_pda,
                 opinions_market::state::Side::Smack,
@@ -403,7 +375,6 @@ async fn test_setup() {
                 &rpc,
                 &opinions_market,
                 &payer,
-                &session_key,
                 &user_1,
                 &post_p2_pda,
                 opinions_market::state::Side::Smack,
@@ -423,7 +394,6 @@ async fn test_setup() {
                 &rpc,
                 &opinions_market,
                 &payer,
-                &session_key,
                 &user_1,
                 &post_p2_pda,
                 opinions_market::state::Side::Smack,
@@ -458,7 +428,6 @@ async fn test_setup() {
                 &opinions_market,
                 &payer,
                 &user_2,
-                &session_key,
                 &post_p1_pda,
                 &bling_pubkey,
                 &tokens,
