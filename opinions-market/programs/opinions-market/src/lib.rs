@@ -3,6 +3,7 @@ use anchor_lang::prelude::*;
 use anchor_lang::solana_program::pubkey::Pubkey;
 pub mod constants;
 pub mod instructions;
+pub mod middleware;
 pub mod pda_seeds;
 pub mod state;
 use constants::*;
@@ -47,6 +48,8 @@ pub struct Ping {}
 
 #[program]
 pub mod opinions_market {
+    use crate::middleware::session::assert_session_or_wallet;
+
     use super::*;
     // Don't import from instructions module - use re-exports from crate root
     pub fn ping(ctx: Context<Ping>) -> Result<()> {
@@ -121,6 +124,20 @@ pub mod opinions_market {
     // -------------------------------------------------------------------------
     // USER + VAULTS
     // -------------------------------------------------------------------------
+    pub fn register_session_key(
+        ctx: Context<RegisterSessionKey>,
+        session_key: Pubkey,
+        expires_at: i64,
+        allowed_ix_hash: [u8; 32],
+    ) -> Result<()> {
+        let session = &mut ctx.accounts.session;
+        session.user = ctx.accounts.user.key();
+        session.session_key = session_key;
+        session.expires_at = expires_at;
+        session.allowed_ix_hash = allowed_ix_hash;
+        session.bump = ctx.bumps.session;
+        Ok(())
+    }
 
     // when the user first signs in, we will need the user to create a user, which will create their deposit vault
     pub fn create_user(ctx: Context<CreateUser>) -> Result<()> {
@@ -182,8 +199,16 @@ pub mod opinions_market {
         parent_post_pda: Option<Pubkey>,
     ) -> Result<()> {
         let clock = Clock::get()?;
-        let config = &ctx.accounts.config;
+
         let now = clock.unix_timestamp;
+        assert_session_or_wallet(
+            &ctx.accounts.authority.key(),
+            &ctx.accounts.user.key(),
+            ctx.accounts.session.as_ref(),
+            now,
+        )?;
+
+        let config = &ctx.accounts.config;
         let post = &mut ctx.accounts.post;
         let new_post = PostAccount::new(
             ctx.accounts.user.key(),
@@ -220,6 +245,16 @@ pub mod opinions_market {
     ) -> Result<()> {
         require!(votes > 0, ErrorCode::ZeroVotes);
 
+        let clock = Clock::get()?;
+        let now = clock.unix_timestamp;
+
+        assert_session_or_wallet(
+            &ctx.accounts.authority.key(),
+            &ctx.accounts.voter.key(),
+            ctx.accounts.session.as_ref(),
+            now,
+        )?;
+
         let cfg = &ctx.accounts.config;
         let post = &mut ctx.accounts.post;
         let current = match side {
@@ -237,16 +272,11 @@ pub mod opinions_market {
             msg!("⚠ Overflow prevented: {} votes requested, only {} applied. Full cost still charged.", requested, valid_votes);
         }
 
-        let clock = Clock::get()?;
-
-        msg!("clock.unix_timestamp: {}", clock.unix_timestamp);
+        msg!("clock.unix_timestamp: {}", now);
         msg!("post.end_time: {}", post.end_time);
 
         require!(post.state == PostState::Open, ErrorCode::PostNotOpen);
-        require!(
-            post.within_time_limit(clock.unix_timestamp),
-            ErrorCode::PostExpired
-        );
+        require!(post.within_time_limit(now), ErrorCode::PostExpired);
 
         // Handle position
         let pos = &mut ctx.accounts.position;
@@ -375,7 +405,7 @@ pub mod opinions_market {
         let clock = Clock::get()?;
         let now = clock.unix_timestamp;
 
-        msg!("clock.unix_timestamp: {}", clock.unix_timestamp);
+        msg!("clock.unix_timestamp: {}", now);
         msg!("post.end_time: {}", post.end_time);
 
         // * * * * this require! must not be adopted.
@@ -438,6 +468,16 @@ pub mod opinions_market {
         let post = &ctx.accounts.post;
         let pos = &mut ctx.accounts.position;
         let claim = &mut ctx.accounts.user_post_mint_claim;
+
+        let clock = Clock::get()?;
+        let now = clock.unix_timestamp;
+
+        assert_session_or_wallet(
+            &ctx.accounts.authority.key(),
+            &ctx.accounts.user.key(),
+            ctx.accounts.session.as_ref(),
+            now,
+        )?;
 
         require!(post.state == PostState::Settled, ErrorCode::PostNotSettled);
         require!(!claim.claimed, ErrorCode::AlreadyClaimed);
