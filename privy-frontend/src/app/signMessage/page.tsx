@@ -3,6 +3,25 @@
 import { useState } from "react";
 import { useWallets, useSignMessage } from "@privy-io/react-auth/solana";
 import bs58 from "bs58";
+import { usePrivy } from "@privy-io/react-auth";
+import {
+    Box,
+    Button,
+    Card,
+    CardContent,
+    Typography,
+    Alert,
+    CircularProgress,
+    Paper,
+    Stack,
+} from "@mui/material";
+import { ArrowBack as ArrowLeftIcon } from "@mui/icons-material";
+
+import { FullScreenLoader } from "@/components/ui/fullscreen-loader";
+import { LoginPrompt } from "@/components/auth/LoginPrompt";
+
+import { useBackendUserStore } from "@/lib/stores/backendUserStore";
+import { API_BASE_URL } from "@/lib/config";
 
 export const SignMessageButton = () => {
     const { wallets } = useWallets();
@@ -24,16 +43,26 @@ export const SignMessageButton = () => {
                 message: messageBytes,
                 wallet: selectedWallet,
                 options: {
-                    uiOptions: {
-                        title: "Sign this message",
-                    },
+                    uiOptions: { title: "Sign this message" },
                 },
             });
 
             const signatureBase58 = bs58.encode(result.signature);
             setSignature(signatureBase58);
 
-            console.log("Signature:", signatureBase58);
+            await fetch(`${API_BASE_URL}/api/session/delegate`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    wallet: selectedWallet.address,
+                    signature: signatureBase58,
+                    session_pubkey: "placeholder",
+                    expires: Math.floor(Date.now() / 1000) + 86400,
+                    message,
+                }),
+            });
+
+            console.log("Signature sent to backend:", signatureBase58);
         } catch (err) {
             console.error("Failed to sign message:", err);
         } finally {
@@ -53,35 +82,7 @@ export const SignMessageButton = () => {
 };
 
 
-import { usePrivy } from "@privy-io/react-auth";
-import {
-    Box,
-    Button,
-    Card,
-    CardContent,
-    Typography,
-    Alert,
-    CircularProgress,
-    Paper,
-    Stack,
-} from "@mui/material";
-import { ArrowBack as ArrowLeftIcon } from "@mui/icons-material";
 
-import { FullScreenLoader } from "@/components/ui/fullscreen-loader";
-import { LoginPrompt } from "@/components/auth/LoginPrompt";
-import CreateAWallet from "@/components/sections/create-a-wallet";
-import UserObject from "@/components/sections/user-object";
-import FundWallet from "@/components/sections/fund-wallet";
-import LinkAccounts from "@/components/sections/link-accounts";
-import UnlinkAccounts from "@/components/sections/unlink-accounts";
-import WalletActions from "@/components/sections/wallet-actions";
-import SessionSigners from "@/components/sections/session-signers";
-import WalletManagement from "@/components/sections/wallet-management";
-import MFA from "@/components/sections/mfa";
-
-import { useBackendUserStore } from "@/lib/stores/backendUserStore";
-import { usePingStore } from "@/lib/stores/pingStore";
-import { API_BASE_URL } from "@/lib/config";
 
 function SignMessageContent() {
     const { ready, authenticated, logout, user: privyUser } = usePrivy();

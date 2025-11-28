@@ -9,6 +9,7 @@ pub mod services;
 pub mod solana;
 pub mod utils;
 
+
 use crate::app_state::AppState;
 use crate::graphql::graphql_routes;
 
@@ -17,7 +18,7 @@ use std::sync::Arc;
 use tower_http::cors::CorsLayer;
 use utoipa_swagger_ui::SwaggerUi;
 
-use crate::routes::{ping::ping_handler, tx::{create_user_tx, create_user_submit, ping_tx, ping_submit}};
+use crate::routes::{ping::ping_handler, session::delegate_session, tx::{create_user_tx, create_user_submit, ping_tx, ping_submit}};
 
 /// API documentation
 #[derive(OpenApi)]
@@ -60,6 +61,7 @@ pub async fn app(app_state: Arc<AppState>) -> Router {
 
     let app = app
         .route("/api/tx/createUser", post(create_user_tx))
+        .route("/api/session/delegate", post(delegate_session))
         .route("/api/tx/createUser/submit", post(create_user_submit))
         .route("/api/tx/ping", post(ping_tx))
         .route("/api/tx/ping/submit", post(ping_submit))
