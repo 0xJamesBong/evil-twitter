@@ -1,9 +1,9 @@
 use anchor_client::{
     anchor_lang::prelude::*,
     solana_sdk::{
+        commitment_config::CommitmentConfig,
         signature::{read_keypair_file, Keypair},
         signer::Signer,
-        commitment_config::CommitmentConfig
     },
     Client, Cluster,
 };
@@ -16,10 +16,7 @@ use opinions_market::pda_seeds::*;
 use opinions_market::ID;
 
 use tests::utils::utils::{
-    airdrop_sol_to_users,
-    setup_token_mint,
-    setup_token_mint_ata_and_mint_to_many_users,
-    send_tx,
+    airdrop_sol_to_users, send_tx, setup_token_mint, setup_token_mint_ata_and_mint_to_many_users,
 };
 
 #[tokio::main]
@@ -36,9 +33,15 @@ async fn main() {
     let admin = Keypair::new();
     let admin_pubkey = admin.pubkey();
 
+    // Read the backend payer keypair from secrets
+    let chauhai =
+        read_keypair_file(".secrets/xxxmpaGinzux2NwdPiGaxXsR4EAsYLhaA87g75H3V5X.json").unwrap();
+    let chauhai_pubkey = chauhai.pubkey();
+
     let everyone = HashMap::from([
         (payer.pubkey(), "payer".to_string()),
         (admin.pubkey(), "admin".to_string()),
+        (chauhai_pubkey, "backend_payer".to_string()),
     ]);
 
     // --- TOKEN MINT KEYS ---
@@ -65,12 +68,24 @@ async fn main() {
         &bling_mint,
         &usdc_mint,
         &stablecoin_mint,
-    ).await;
+    )
+    .await;
 
     // --- CONFIG PDA ---
     let config_pda = Pubkey::find_program_address(&[CONFIG_SEED], &program_id).0;
-    let protocol_bling_treasury = Pubkey::find_program_address(&[PROTOCOL_TREASURY_TOKEN_ACCOUNT_SEED, bling_mint.pubkey().as_ref()], &program_id).0;
-    let valid_payment_pda = Pubkey::find_program_address(&[VALID_PAYMENT_SEED, bling_mint.pubkey().as_ref()], &program_id).0;
+    let protocol_bling_treasury = Pubkey::find_program_address(
+        &[
+            PROTOCOL_TREASURY_TOKEN_ACCOUNT_SEED,
+            bling_mint.pubkey().as_ref(),
+        ],
+        &program_id,
+    )
+    .0;
+    let valid_payment_pda = Pubkey::find_program_address(
+        &[VALID_PAYMENT_SEED, bling_mint.pubkey().as_ref()],
+        &program_id,
+    )
+    .0;
 
     // --- INITIALIZE PROGRAM ---
     let initialize_ix = opinions_market
@@ -94,7 +109,9 @@ async fn main() {
         .instructions()
         .unwrap();
 
-    send_tx(&rpc, initialize_ix, &payer.pubkey(), &[&payer, &admin]).await.unwrap();
+    send_tx(&rpc, initialize_ix, &payer.pubkey(), &[&payer, &admin])
+        .await
+        .unwrap();
 
     println!("BLING_MINT: {}", bling_mint.pubkey());
     println!("USDC_MINT: {}", usdc_mint.pubkey());
