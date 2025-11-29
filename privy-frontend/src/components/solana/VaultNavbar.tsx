@@ -33,6 +33,13 @@ import { useSolanaStore } from "../../lib/stores/solanaStore";
 // Default BLING mint - should match backend
 const BLING_MINT = new PublicKey("bbb9w3ZidNJJGm4TKbhkCXqB9XSnzsjTedmJ5F2THX8");
 
+// Helper function to format token balance with decimals
+const formatTokenBalance = (balance: number | null, decimals: number): string => {
+  if (balance === null || balance === undefined) return "N/A";
+  if (balance === 0) return "0";
+  return (balance / Math.pow(10, decimals)).toFixed(4);
+};
+
 export function VaultNavbar() {
   const { authenticated, login } = usePrivy();
   const { wallets } = useWallets();
@@ -101,6 +108,14 @@ export function VaultNavbar() {
   const graphqlVaultBalance = user?.vaultBalance ?? null;
   const chainVaultBalance = vaultBalances[BLING_MINT.toBase58()] ?? null;
   const displayBalance = graphqlVaultBalance !== null ? graphqlVaultBalance : chainVaultBalance;
+
+  // BLING uses 9 decimals - convert raw balance to human-readable for display
+  const displayBalanceFormatted = displayBalance !== null
+    ? formatTokenBalance(displayBalance, 9)
+    : "N/A";
+
+  // Convert human-readable balance to raw units for comparison
+  const displayBalanceInRawUnits = displayBalance !== null ? displayBalance : 0;
 
   // Determine if user has on-chain account (prefer GraphQL, fallback to solanaStore)
   const hasOnchainAccountFromGraphQL = user?.hasOnchainAccount ?? null;
@@ -250,7 +265,9 @@ export function VaultNavbar() {
       return;
     }
 
-    if (displayBalance !== null && amountNum > displayBalance) {
+    // Convert user input (human-readable) to raw units for comparison
+    const amountInRawUnits = Math.floor(amountNum * Math.pow(10, 9));
+    if (displayBalance !== null && amountInRawUnits > displayBalance) {
       enqueueSnackbar("Insufficient vault balance", { variant: "error" });
       return;
     }
@@ -322,7 +339,8 @@ export function VaultNavbar() {
                 <CircularProgress size={14} />
               ) : (
                 <Typography variant="body2" sx={{ fontWeight: 600, color: "text.primary" }}>
-                  {displayBalance !== null ? displayBalance.toLocaleString() : "N/A"}
+                  {displayBalance !== null ? formatTokenBalance
+                    (displayBalance, 9) : "N/A"}
                 </Typography>
               )}
             </Box>
@@ -424,10 +442,8 @@ export function VaultNavbar() {
                   <Typography variant="h6" sx={{ fontWeight: 600 }}>
                     {loadingVaultBalance || queryLoading ? (
                       <CircularProgress size={20} />
-                    ) : displayBalance !== null ? (
-                      displayBalance.toLocaleString()
                     ) : (
-                      "N/A"
+                      displayBalanceFormatted
                     )}
                   </Typography>
                 </Box>
@@ -447,7 +463,7 @@ export function VaultNavbar() {
                   }}
                   helperText={
                     dialogMode === "withdraw" && displayBalance !== null
-                      ? `Maximum: ${displayBalance.toLocaleString()}`
+                      ? `Maximum: ${displayBalanceFormatted} BLING`
                       : undefined
                   }
                 />

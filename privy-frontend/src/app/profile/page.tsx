@@ -35,7 +35,11 @@ function ProfileContent() {
 
     // Get wallet token balances
     const mintAddresses = [BLING_MINT, USDC_MINT, STABLECOIN_MINT].filter(Boolean);
-    const { balances, loading: loadingBalances } = useWalletTokenBalances(mintAddresses);
+    const { balances, loading: loadingBalances } = useWalletTokenBalances(
+      mintAddresses,
+      USDC_MINT,
+      STABLECOIN_MINT
+    );
 
     if (!ready) {
         return <FullScreenLoader />;
@@ -44,11 +48,6 @@ function ProfileContent() {
     if (!authenticated) {
         return <LoginPrompt />;
     }
-
-    const formatBalance = (balance: number | null | undefined) => {
-        if (balance === null || balance === undefined) return "N/A";
-        return (balance / 1_000_000_000).toFixed(4);
-    };
 
     const formatSocialScore = (score: number | null | undefined) => {
         if (score === null || score === undefined) return "N/A";
@@ -60,6 +59,9 @@ function ProfileContent() {
         if (balance === 0) return "0";
         return (balance / Math.pow(10, decimals)).toFixed(4);
     };
+
+    // Get BLING decimals from wallet balances (defaults to 9 if not available)
+    const blingDecimals = balances[BLING_MINT]?.decimals ?? 9;
 
     const getTokenName = (mint: string) => {
         if (mint === BLING_MINT) return "BLING";
@@ -168,7 +170,7 @@ function ProfileContent() {
                                             Vault Balance:
                                         </Typography>
                                         <Typography variant="h6" sx={{ fontWeight: 600 }}>
-                                            {formatBalance(backendUser.vaultBalance)} BLING
+                                            {formatTokenBalance(backendUser.vaultBalance, blingDecimals)} BLING
                                         </Typography>
                                     </Box>
                                 </Stack>

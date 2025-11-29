@@ -2,7 +2,11 @@ import { useState, useEffect } from "react";
 import { useWallets } from "@privy-io/react-auth/solana";
 import { PublicKey } from "@solana/web3.js";
 import { getConnection } from "../lib/solana/connection";
-import { getAssociatedTokenAddress, getAccount } from "@solana/spl-token";
+import {
+  getAssociatedTokenAddress,
+  getAccount,
+  getMint,
+} from "@solana/spl-token";
 
 export interface TokenBalance {
   mint: string;
@@ -12,13 +16,24 @@ export interface TokenBalance {
   error: string | null;
 }
 
-export function useWalletTokenBalances(mintAddresses: string[]) {
+export function useWalletTokenBalances(
+  mintAddresses: string[],
+  usdcMint?: string,
+  stablecoinMint?: string
+) {
   const { wallets } = useWallets();
   const [balances, setBalances] = useState<Record<string, TokenBalance>>({});
   const [loading, setLoading] = useState(false);
 
   const solanaWallet =
     wallets.find((w: any) => w.walletClientType === "privy") || wallets[0];
+
+  // Helper to determine default decimals based on token type
+  const getDefaultDecimals = (mintAddress: string): number => {
+    if (usdcMint && mintAddress === usdcMint) return 9; // need to change to 6 as we mature
+    if (stablecoinMint && mintAddress === stablecoinMint) return 9; // need to change to 6 as we mature
+    return 9; // Default for BLING and other tokens
+  };
 
   const fetchBalances = async () => {
     if (!solanaWallet || mintAddresses.length === 0) {
@@ -36,7 +51,7 @@ export function useWalletTokenBalances(mintAddresses: string[]) {
       newBalances[mintAddress] = {
         mint: mintAddress,
         balance: null,
-        decimals: 9, // Default to 9, will be updated when we fetch
+        decimals: getDefaultDecimals(mintAddress),
         loading: true,
         error: null,
       };
@@ -49,6 +64,19 @@ export function useWalletTokenBalances(mintAddresses: string[]) {
       try {
         const mintPubkey = new PublicKey(mintAddress);
 
+        // Get mint info first to determine decimals (always fetch this)
+        // Use default based on token type (6 for USDC/stablecoin, 9 for others)
+        let decimals = getDefaultDecimals(mintAddress);
+        try {
+          const mint = await getMint(connection, mintPubkey);
+          decimals = mint.decimals;
+        } catch (mintError) {
+          console.warn(
+            `Failed to fetch mint decimals for ${mintAddress}, using default ${decimals}:`,
+            mintError
+          );
+        }
+
         // Get the associated token account address
         const tokenAccount = await getAssociatedTokenAddress(
           mintPubkey,
@@ -58,16 +86,6 @@ export function useWalletTokenBalances(mintAddresses: string[]) {
         try {
           // Try to get the token account using SPL token library
           const account = await getAccount(connection, tokenAccount);
-
-          // Get mint info to determine decimals
-          const mintInfo = await connection.getParsedAccountInfo(mintPubkey);
-          let decimals = 9; // Default
-          if (mintInfo.value && "parsed" in mintInfo.value) {
-            const parsed = mintInfo.value.parsed as any;
-            if (parsed.info && parsed.info.decimals !== undefined) {
-              decimals = parsed.info.decimals;
-            }
-          }
 
           newBalances[mintAddress] = {
             mint: mintAddress,
@@ -82,7 +100,7 @@ export function useWalletTokenBalances(mintAddresses: string[]) {
             newBalances[mintAddress] = {
               mint: mintAddress,
               balance: 0,
-              decimals: 9,
+              decimals, // Use the fetched decimals
               loading: false,
               error: null,
             };
@@ -94,7 +112,7 @@ export function useWalletTokenBalances(mintAddresses: string[]) {
         newBalances[mintAddress] = {
           mint: mintAddress,
           balance: null,
-          decimals: 9,
+          decimals: getDefaultDecimals(mintAddress),
           loading: false,
           error:
             error instanceof Error ? error.message : "Failed to fetch balance",
