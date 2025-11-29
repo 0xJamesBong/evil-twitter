@@ -45,8 +45,11 @@ async fn main() {
     ]);
 
     // --- TOKEN MINT KEYS ---
+    // bbb9w3ZidNJJGm4TKbhkCXqB9XSnzsjTedmJ5F2THX8
     let bling_mint = read_keypair_file("token-keys/bling-mint.json").unwrap();
+    // uuuQZDeaQBsUfoznkdG9sC3NE84qwMgVNEWy3cNTLpZ
     let usdc_mint = read_keypair_file("token-keys/usdc-mint.json").unwrap();
+    // ssswz51ULztPNpiranCt4GWCawXos8RGiGZveeinLhm
     let stablecoin_mint = read_keypair_file("token-keys/stablecoin-mint.json").unwrap();
 
     // --- AIRDROP ---
@@ -57,6 +60,7 @@ async fn main() {
     setup_token_mint(&rpc, &payer, &payer, &opinions_market, &usdc_mint).await;
     setup_token_mint(&rpc, &payer, &payer, &opinions_market, &stablecoin_mint).await;
 
+    // MINT BLING TO EVERYONE
     setup_token_mint_ata_and_mint_to_many_users(
         &rpc,
         &payer,
@@ -64,6 +68,35 @@ async fn main() {
         &everyone.keys().cloned().collect::<Vec<Pubkey>>(),
         &opinions_market,
         &bling_mint,
+        1_000_000_000 * LAMPORTS_PER_SOL,
+        &bling_mint,
+        &usdc_mint,
+        &stablecoin_mint,
+    )
+    .await;
+    // MINT USDC TO EVERYONE
+    setup_token_mint_ata_and_mint_to_many_users(
+        &rpc,
+        &payer,
+        &payer,
+        &everyone.keys().cloned().collect::<Vec<Pubkey>>(),
+        &opinions_market,
+        &usdc_mint,
+        1_000_000_000 * LAMPORTS_PER_SOL,
+        &bling_mint,
+        &usdc_mint,
+        &stablecoin_mint,
+    )
+    .await;
+
+    // MINT STABLECOIN TO EVERYONE
+    setup_token_mint_ata_and_mint_to_many_users(
+        &rpc,
+        &payer,
+        &payer,
+        &everyone.keys().cloned().collect::<Vec<Pubkey>>(),
+        &opinions_market,
+        &stablecoin_mint,
         1_000_000_000 * LAMPORTS_PER_SOL,
         &bling_mint,
         &usdc_mint,
