@@ -5,18 +5,8 @@ import {
 } from "@privy-io/react-auth/solana";
 import { PublicKey } from "@solana/web3.js";
 import * as anchor from "@coral-xyz/anchor";
-import {
-  pipe,
-  createSolanaRpc,
-  createTransactionMessage,
-  setTransactionMessageFeePayer,
-  setTransactionMessageLifetimeUsingBlockhash,
-  appendTransactionMessageInstruction,
-  compileTransaction,
-  getBase64EncodedWireTransaction,
-  address,
-} from "@solana/kit";
-import { getConnection, getNetwork } from "../lib/solana/connection";
+import { TransactionMessage, VersionedTransaction } from "@solana/web3.js";
+import { getConnection } from "../lib/solana/connection";
 import OpinionsMarketIdl from "../lib/solana/idl/opinions_market.json";
 import { OpinionsMarket as OpinionsMarketType } from "../lib/solana/types/opinions_market";
 import { getAssociatedTokenAddress } from "@solana/spl-token";
@@ -87,7 +77,6 @@ export function useDeposit() {
     try {
       const userPubkey = new PublicKey(solanaWallet.address);
       const connection = getConnection();
-      const network = getNetwork();
 
       // Derive PDAs
       const [userAccountPda] = getUserAccountPda(userPubkey);
@@ -107,17 +96,17 @@ export function useDeposit() {
       // Convert amount to lamports (assuming 9 decimals)
       const amountInLamports = BigInt(Math.floor(amount * 1_000_000_000));
 
-      // Create a minimal wallet for Anchor (not used for signing)
-      const dummyWallet = {
-        publicKey: userPubkey,
-        signTransaction: async (tx: any) => tx,
-        signAllTransactions: async (txs: any[]) => txs,
-      };
+      // // Create a minimal wallet for Anchor (not used for signing)
+      // const dummyWallet = {
+      //   publicKey: userPubkey,
+      //   signTransaction: async (tx: any) => tx,
+      //   signAllTransactions: async (txs: any[]) => txs,
+      // };
 
       // Create Anchor provider and program
       const provider = new anchor.AnchorProvider(
         connection,
-        dummyWallet as any,
+        solanaWallet as any,
         { commitment: "confirmed" }
       );
       anchor.setProvider(provider);
@@ -142,54 +131,30 @@ export function useDeposit() {
         })
         .instruction();
 
-      // Get RPC URL based on network
-      const rpcUrl =
-        network === "mainnet-beta"
-          ? "https://api.mainnet-beta.solana.com"
-          : network === "devnet"
-          ? "https://api.devnet.solana.com"
-          : "http://localhost:8899";
+      // Build a versioned transaction with the user's wallet as fee payer
+      const latestBlockhash = await connection.getLatestBlockhash();
+      const messageV0 = new TransactionMessage({
+        payerKey: userPubkey,
+        recentBlockhash: latestBlockhash.blockhash,
+        instructions: [depositIx],
+      }).compileToV0Message();
 
-      // Configure RPC connection
-      const { getLatestBlockhash } = createSolanaRpc(rpcUrl);
-      const { value: latestBlockhash } = await getLatestBlockhash().send();
+      const transaction = new VersionedTransaction(messageV0);
 
-      // Convert Anchor instruction to @solana/kit format
-      const instruction = {
-        programAddress: address(depositIx.programId.toBase58()),
-        accountAddresses: depositIx.keys.map((key) => ({
-          address: address(key.pubkey.toBase58()),
-          role: key.isWritable
-            ? key.isSigner
-              ? ("writableSigner" as const)
-              : ("writable" as const)
-            : key.isSigner
-            ? ("readonlySigner" as const)
-            : ("readonly" as const),
-        })),
-        data: depositIx.data,
-      };
+      // Serialize the transaction to Uint8Array for Privy
+      const serializedTransaction = transaction.serialize();
 
-      // Create transaction using @solana/kit
-      const transactionBase64 = pipe(
-        createTransactionMessage({ version: 0 }),
-        (tx) =>
-          setTransactionMessageFeePayer(address(solanaWallet.address), tx),
-        (tx) =>
-          setTransactionMessageLifetimeUsingBlockhash(latestBlockhash, tx),
-        (tx) => appendTransactionMessageInstruction(instruction, tx),
-        (tx) => compileTransaction(tx),
-        (tx) => getBase64EncodedWireTransaction(tx)
-      );
-
-      // Send the transaction using Privy
+      // Send the transaction using Privy (wallet will sign + send)
       const result = await signAndSendTransaction({
-        transaction: Buffer.from(transactionBase64, "base64"),
+        transaction: serializedTransaction,
         wallet: solanaWallet,
       });
 
       // Convert signature from Uint8Array to base58 string
-      const signature = bs58.encode(result.signature);
+      const signature =
+        typeof result.signature === "string"
+          ? result.signature
+          : bs58.encode(result.signature);
       console.log("Deposit transaction sent:", signature);
 
       // Refresh balance after a short delay
