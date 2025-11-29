@@ -107,47 +107,6 @@ pub struct ModifyAcceptedMint<'info> {
 }
 
 
-#[derive(Accounts)]
-#[instruction(session_key: Pubkey, expires_at: i64, privileges_hash: [u8; 32])]
-pub struct RegisterSessionKey<'info> {
-    #[account(mut)]
-    pub user: Signer<'info>,        // wallet giving delegation
-
-    #[account(
-        init,
-        payer = user,
-        seeds = [
-            SESSION_AUTHORITY_SEED,
-            user.key().as_ref(),
-            session_key.as_ref()       // <--- correct
-        ],
-        bump,
-        space = 8 + SessionAuthority::INIT_SPACE,
-    )]
-    pub session_authority: Account<'info, SessionAuthority>, // <--- PDA storing metadata
-
-    pub system_program: Program<'info, System>,
-}
-
-
-#[derive(Accounts)]
-#[instruction(session_key: Pubkey, new_expires_at: i64)]
-pub struct RenewSessionKey<'info> {
-    #[account(mut)]
-    pub user: Signer<'info>,  // MUST be the real wallet signing
-
-    #[account(
-        mut,
-        seeds = [
-            SESSION_AUTHORITY_SEED,
-            user.key().as_ref(),
-            session_key.as_ref()
-        ],
-        bump,
-    )]
-    pub session_authority: Account<'info, SessionAuthority>, // <--- PDA storing metadata
-}
-
 
 // This initializes the UserAccount PDA only
 #[derive(Accounts)]
@@ -162,27 +121,14 @@ pub struct CreateUser<'info> {
     #[account(mut)]
     pub user: UncheckedAccount<'info>,
 
-    /// CHECK: raw signer pubkey (can be wallet or session key)
-   pub authority: UncheckedAccount<'info>,
-
+    
    // This must be kept because we don't want strangers initializing user accounts for other users. 
    /// CHECK: Payer can be either the user or backend payer, allowing for flexible fee payment
    #[account(mut,
     // constraint = payer.key() == config.payer_authroity || payer.key() == user.key()
     )]
-pub payer: UncheckedAccount<'info>,
-   #[account(
-       mut,
-       seeds = [
-           SESSION_AUTHORITY_SEED,
-           user.key().as_ref(),
-           authority.key().as_ref()
-       ],
-       bump,
-   )]
-   pub session_authority: Option<Account<'info, SessionAuthority>>,
-
-    
+    pub payer: Signer<'info>,
+   
     #[account(
         init,
         payer = payer,
@@ -304,20 +250,6 @@ pub struct CreatePost<'info> {
    /// Signer paying the TX fee (user or backend)
    #[account(mut)]
    pub payer: Signer<'info>,
-
-   /// CHECK: raw signer pubkey (can be wallet or session key)
-   pub authority: UncheckedAccount<'info>,
-
-   #[account(
-       mut,
-       seeds = [
-           SESSION_AUTHORITY_SEED,
-           user.key().as_ref(),
-           authority.key().as_ref()
-       ],
-       bump,
-   )]
-   pub session_authority: Option<Account<'info, SessionAuthority>>,
     
     #[account(
         seeds = [USER_ACCOUNT_SEED, user.key().as_ref()],
@@ -336,21 +268,7 @@ pub struct CreatePost<'info> {
     pub system_program: Program<'info, System>,
 }
 
-// Correct logical model
-// Field	Conceptual role	When equal?	When MUST be different
-// voter	Identity who owns state	Direct signing mode	Delegated mode
-// authority	Who is signing this instruction	Direct signing mode	Session key signing
-// payer	Who pays compute/fees	User pays fees	Backend subsidizing fees
-// They can collapse into one key only in direct signing mode:
-// voter = authority = payer = user wallet
 
-
-// This is the normal wallet UX.
-
-// But they MUST be separate in delegated / session mode:
-// voter = real wallet identity
-// authority = session key (our ephemeral signer)
-// payer = backend payer account
 
 // The User-uncheckedAccount and payer-Signer pattern is used to allow for dual signing - so the user doesn't need to see a signature prompt pop-up
 #[derive(Accounts)]
@@ -370,20 +288,6 @@ pub struct VoteOnPost<'info> {
     #[account(mut)]
     pub payer: Signer<'info>,
  
-    /// CHECK: raw signer pubkey (can be wallet or session key)
-    pub authority: UncheckedAccount<'info>,
-
-    #[account(
-        mut,
-        seeds = [
-            SESSION_AUTHORITY_SEED,
-            voter.key().as_ref(),
-            authority.key().as_ref()
-        ],
-        bump,
-    )]
-    pub session_authority: Option<Account<'info, SessionAuthority>>,
-
     #[account(
         mut,
         seeds = [POST_ACCOUNT_SEED, post_id_hash.as_ref()],
@@ -480,8 +384,7 @@ pub struct VoteOnPost<'info> {
 #[instruction(post_id_hash: [u8; 32])]
 pub struct SettlePost<'info> {
     
-    #[account(mut,
-    )]
+    #[account(mut)]
     pub payer: Signer<'info>,
 
     #[account(
@@ -541,7 +444,7 @@ pub struct SettlePost<'info> {
 // The User-uncheckedAccount and payer-Signer pattern is used to allow for dual signing - so the user doesn't need to see a signature prompt pop-up
 
 #[derive(Accounts)]
-#[instruction(session_key: Pubkey, post_id_hash: [u8; 32])]
+#[instruction( post_id_hash: [u8; 32])]
 pub struct ClaimPostReward<'info> {
     #[account(mut,
         seeds = [CONFIG_SEED],
@@ -558,21 +461,6 @@ pub struct ClaimPostReward<'info> {
     
     )]
     pub payer: Signer<'info>,
-
-    /// CHECK: raw signer pubkey (can be wallet or session key)
-    #[account(mut,)]
-    pub authority: UncheckedAccount<'info>,
-
-    #[account(
-        mut,
-        seeds = [
-            SESSION_AUTHORITY_SEED,
-            user.key().as_ref(),
-            authority.key().as_ref()
-        ],
-        bump,
-    )]
-    pub session_authority: Option<Account<'info, SessionAuthority>>,
 
     #[account(
         mut,

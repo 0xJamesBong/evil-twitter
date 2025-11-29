@@ -27,12 +27,33 @@ export type OpinionsMarket = {
       ],
       "accounts": [
         {
-          "name": "user",
+          "name": "config",
           "writable": true,
-          "signer": true
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  99,
+                  111,
+                  110,
+                  102,
+                  105,
+                  103
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "user",
+          "writable": true
         },
         {
           "name": "payer",
+          "docs": [
+            "Signer paying the TX fee (user or backend)"
+          ],
           "writable": true,
           "signer": true
         },
@@ -265,15 +286,33 @@ export type OpinionsMarket = {
       ],
       "accounts": [
         {
-          "name": "config"
+          "name": "config",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  99,
+                  111,
+                  110,
+                  102,
+                  105,
+                  103
+                ]
+              }
+            ]
+          }
         },
         {
           "name": "user",
-          "writable": true,
-          "signer": true
+          "writable": true
         },
         {
           "name": "payer",
+          "docs": [
+            "Signer paying the TX fee (user or backend)"
+          ],
           "writable": true,
           "signer": true
         },
@@ -371,9 +410,27 @@ export type OpinionsMarket = {
       ],
       "accounts": [
         {
-          "name": "user",
+          "name": "config",
           "writable": true,
-          "signer": true
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  99,
+                  111,
+                  110,
+                  102,
+                  105,
+                  103
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "user",
+          "writable": true
         },
         {
           "name": "payer",
@@ -410,25 +467,6 @@ export type OpinionsMarket = {
           }
         },
         {
-          "name": "config",
-          "writable": true,
-          "pda": {
-            "seeds": [
-              {
-                "kind": "const",
-                "value": [
-                  99,
-                  111,
-                  110,
-                  102,
-                  105,
-                  103
-                ]
-              }
-            ]
-          }
-        },
-        {
           "name": "systemProgram",
           "address": "11111111111111111111111111111111"
         }
@@ -453,6 +491,11 @@ export type OpinionsMarket = {
       "accounts": [
         {
           "name": "user",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "payer",
           "writable": true,
           "signer": true
         },
@@ -1154,15 +1197,32 @@ export type OpinionsMarket = {
       "accounts": [
         {
           "name": "config",
-          "writable": true
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  99,
+                  111,
+                  110,
+                  102,
+                  105,
+                  103
+                ]
+              }
+            ]
+          }
         },
         {
           "name": "voter",
-          "writable": true,
-          "signer": true
+          "writable": true
         },
         {
           "name": "payer",
+          "docs": [
+            "Signer paying the TX fee (user or backend)"
+          ],
           "writable": true,
           "signer": true
         },
@@ -1584,6 +1644,11 @@ export type OpinionsMarket = {
           "signer": true
         },
         {
+          "name": "payer",
+          "writable": true,
+          "signer": true
+        },
+        {
           "name": "userAccount",
           "pda": {
             "seeds": [
@@ -1876,6 +1941,10 @@ export type OpinionsMarket = {
         "fields": [
           {
             "name": "admin",
+            "type": "pubkey"
+          },
+          {
+            "name": "payerAuthroity",
             "type": "pubkey"
           },
           {

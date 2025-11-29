@@ -24,6 +24,23 @@ local = """
 pkill solana-test-validator || true;
 solana config set --url http://127.0.0.1:8899;
 solana config set --keypair ~/Documents/evil-twitter/opinions-market/.secrets/assFUvBMqjyWvtRLEbWXuN84T4UdTihCjfzC8JaXtrh.json;
+solana-test-validator --reset & sleep 3;
+solana airdrop 0.01;
+anchor build;
+anchor deploy;
+cargo run -p bootstrap
+pwd
+cp "$(pwd)/target/idl/opinions_market.json" "$(pwd)/../privy-template/src/lib/solana/idl/opinions_market.json"
+cp "$(pwd)/target/idl/opinions_market.json" "$(pwd)/../evil-twitter-backend/src/solana/idl/opinions_market.json"
+cp "$(pwd)/target/types/opinions_market.ts" "$(pwd)/../evil-twitter-backend/src/solana/types/opinions_market.ts"
+"""
+
+
+
+full = """
+pkill solana-test-validator || true;
+solana config set --url http://127.0.0.1:8899;
+solana config set --keypair ~/Documents/evil-twitter/opinions-market/.secrets/assFUvBMqjyWvtRLEbWXuN84T4UdTihCjfzC8JaXtrh.json;
 solana-test-validator --reset > /dev/null 2>&1 & sleep 3;
 solana airdrop 0.01;
 anchor build;

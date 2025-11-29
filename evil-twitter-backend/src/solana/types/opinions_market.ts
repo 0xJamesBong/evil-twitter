@@ -58,49 +58,6 @@ export type OpinionsMarket = {
           "signer": true
         },
         {
-          "name": "authority",
-          "writable": true
-        },
-        {
-          "name": "sessionAuthority",
-          "writable": true,
-          "optional": true,
-          "pda": {
-            "seeds": [
-              {
-                "kind": "const",
-                "value": [
-                  115,
-                  101,
-                  115,
-                  115,
-                  105,
-                  111,
-                  110,
-                  95,
-                  97,
-                  117,
-                  116,
-                  104,
-                  111,
-                  114,
-                  105,
-                  116,
-                  121
-                ]
-              },
-              {
-                "kind": "account",
-                "path": "user"
-              },
-              {
-                "kind": "account",
-                "path": "authority"
-              }
-            ]
-          }
-        },
-        {
           "name": "post",
           "writable": true,
           "pda": {
@@ -305,10 +262,6 @@ export type OpinionsMarket = {
       ],
       "args": [
         {
-          "name": "sessionKey",
-          "type": "pubkey"
-        },
-        {
           "name": "postIdHash",
           "type": {
             "array": [
@@ -362,48 +315,6 @@ export type OpinionsMarket = {
           ],
           "writable": true,
           "signer": true
-        },
-        {
-          "name": "authority"
-        },
-        {
-          "name": "sessionAuthority",
-          "writable": true,
-          "optional": true,
-          "pda": {
-            "seeds": [
-              {
-                "kind": "const",
-                "value": [
-                  115,
-                  101,
-                  115,
-                  115,
-                  105,
-                  111,
-                  110,
-                  95,
-                  97,
-                  117,
-                  116,
-                  104,
-                  111,
-                  114,
-                  105,
-                  116,
-                  121
-                ]
-              },
-              {
-                "kind": "account",
-                "path": "user"
-              },
-              {
-                "kind": "account",
-                "path": "authority"
-              }
-            ]
-          }
         },
         {
           "name": "userAccount",
@@ -519,8 +430,7 @@ export type OpinionsMarket = {
         },
         {
           "name": "user",
-          "writable": true,
-          "signer": true
+          "writable": true
         },
         {
           "name": "payer",
@@ -907,87 +817,6 @@ export type OpinionsMarket = {
       "args": []
     },
     {
-      "name": "registerSessionKey",
-      "discriminator": [
-        69,
-        94,
-        60,
-        44,
-        49,
-        199,
-        183,
-        233
-      ],
-      "accounts": [
-        {
-          "name": "user",
-          "writable": true,
-          "signer": true
-        },
-        {
-          "name": "sessionAuthority",
-          "writable": true,
-          "pda": {
-            "seeds": [
-              {
-                "kind": "const",
-                "value": [
-                  115,
-                  101,
-                  115,
-                  115,
-                  105,
-                  111,
-                  110,
-                  95,
-                  97,
-                  117,
-                  116,
-                  104,
-                  111,
-                  114,
-                  105,
-                  116,
-                  121
-                ]
-              },
-              {
-                "kind": "account",
-                "path": "user"
-              },
-              {
-                "kind": "arg",
-                "path": "sessionKey"
-              }
-            ]
-          }
-        },
-        {
-          "name": "systemProgram",
-          "address": "11111111111111111111111111111111"
-        }
-      ],
-      "args": [
-        {
-          "name": "sessionKey",
-          "type": "pubkey"
-        },
-        {
-          "name": "expiresAt",
-          "type": "i64"
-        },
-        {
-          "name": "privilegesHash",
-          "type": {
-            "array": [
-              "u8",
-              32
-            ]
-          }
-        }
-      ]
-    },
-    {
       "name": "registerValidPayment",
       "discriminator": [
         17,
@@ -1106,74 +935,6 @@ export type OpinionsMarket = {
         {
           "name": "priceInBling",
           "type": "u64"
-        }
-      ]
-    },
-    {
-      "name": "renewSessionKey",
-      "discriminator": [
-        125,
-        13,
-        34,
-        237,
-        223,
-        162,
-        83,
-        37
-      ],
-      "accounts": [
-        {
-          "name": "user",
-          "writable": true,
-          "signer": true
-        },
-        {
-          "name": "sessionAuthority",
-          "writable": true,
-          "pda": {
-            "seeds": [
-              {
-                "kind": "const",
-                "value": [
-                  115,
-                  101,
-                  115,
-                  115,
-                  105,
-                  111,
-                  110,
-                  95,
-                  97,
-                  117,
-                  116,
-                  104,
-                  111,
-                  114,
-                  105,
-                  116,
-                  121
-                ]
-              },
-              {
-                "kind": "account",
-                "path": "user"
-              },
-              {
-                "kind": "arg",
-                "path": "sessionKey"
-              }
-            ]
-          }
-        }
-      ],
-      "args": [
-        {
-          "name": "sessionKey",
-          "type": "pubkey"
-        },
-        {
-          "name": "newExpiresAt",
-          "type": "i64"
         }
       ]
     },
@@ -1464,48 +1225,6 @@ export type OpinionsMarket = {
           ],
           "writable": true,
           "signer": true
-        },
-        {
-          "name": "authority"
-        },
-        {
-          "name": "sessionAuthority",
-          "writable": true,
-          "optional": true,
-          "pda": {
-            "seeds": [
-              {
-                "kind": "const",
-                "value": [
-                  115,
-                  101,
-                  115,
-                  115,
-                  105,
-                  111,
-                  110,
-                  95,
-                  97,
-                  117,
-                  116,
-                  104,
-                  111,
-                  114,
-                  105,
-                  116,
-                  121
-                ]
-              },
-              {
-                "kind": "account",
-                "path": "voter"
-              },
-              {
-                "kind": "account",
-                "path": "authority"
-              }
-            ]
-          }
         },
         {
           "name": "post",
@@ -2090,19 +1809,6 @@ export type OpinionsMarket = {
       ]
     },
     {
-      "name": "sessionAuthority",
-      "discriminator": [
-        48,
-        9,
-        30,
-        120,
-        134,
-        35,
-        172,
-        170
-      ]
-    },
-    {
       "name": "userAccount",
       "discriminator": [
         211,
@@ -2397,39 +2103,6 @@ export type OpinionsMarket = {
                 "type": "pubkey"
               }
             ]
-          }
-        ]
-      }
-    },
-    {
-      "name": "sessionAuthority",
-      "type": {
-        "kind": "struct",
-        "fields": [
-          {
-            "name": "user",
-            "type": "pubkey"
-          },
-          {
-            "name": "sessionKey",
-            "type": "pubkey"
-          },
-          {
-            "name": "expiresAt",
-            "type": "i64"
-          },
-          {
-            "name": "privilegesHash",
-            "type": {
-              "array": [
-                "u8",
-                32
-              ]
-            }
-          },
-          {
-            "name": "bump",
-            "type": "u8"
           }
         ]
       }

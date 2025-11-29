@@ -237,6 +237,26 @@ impl UserNode {
             Err(_) => Ok(false), // Account doesn't exist if we can't fetch it
         }
     }
+
+    /// Get user's social score from on-chain account
+    async fn social_score(&self, ctx: &Context<'_>) -> Result<Option<i64>> {
+        let app_state = ctx.data::<Arc<AppState>>()?;
+        let user_wallet = solana_sdk::pubkey::Pubkey::from_str(&self.inner.wallet)
+            .map_err(|e| async_graphql::Error::new(format!("Invalid user wallet: {}", e)))?;
+
+        match app_state
+            .solana_service
+            .get_user_account(&user_wallet)
+            .await
+        {
+            Ok(Some(user_account)) => Ok(Some(user_account.social_score)),
+            Ok(None) => Ok(None), // No on-chain account
+            Err(e) => Err(async_graphql::Error::new(format!(
+                "Failed to get social score: {}",
+                e
+            ))),
+        }
+    }
 }
 
 // ============================================================================

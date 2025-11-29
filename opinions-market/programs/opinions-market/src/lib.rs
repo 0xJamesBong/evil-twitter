@@ -124,32 +124,6 @@ pub mod opinions_market {
     // -------------------------------------------------------------------------
     // USER + VAULTS
     // -------------------------------------------------------------------------
-    pub fn register_session_key(
-        ctx: Context<RegisterSessionKey>,
-        session_key: Pubkey,
-        expires_at: i64,
-        privileges_hash: [u8; 32],
-    ) -> Result<()> {
-        let session_authority = &mut ctx.accounts.session_authority;
-        session_authority.user = ctx.accounts.user.key();
-        session_authority.session_key = session_key;
-        session_authority.expires_at = expires_at;
-        session_authority.privileges_hash = privileges_hash;
-        session_authority.bump = ctx.bumps.session_authority;
-        Ok(())
-    }
-
-    pub fn renew_session_key(
-        ctx: Context<RenewSessionKey>,
-        session_key: Pubkey,
-        new_expires_at: i64,
-    ) -> Result<()> {
-        let session_authority = &mut ctx.accounts.session_authority;
-        // DO NOT rewrite session_key — must remain unchanged or PDA becomes invalid
-
-        session_authority.expires_at = new_expires_at;
-        Ok(())
-    }
 
     // when the user first signs in, we will need the user to create a user, which will create their deposit vault
     pub fn create_user(ctx: Context<CreateUser>) -> Result<()> {
@@ -211,14 +185,7 @@ pub mod opinions_market {
         parent_post_pda: Option<Pubkey>,
     ) -> Result<()> {
         let clock = Clock::get()?;
-
         let now = clock.unix_timestamp;
-        assert_session_or_wallet(
-            &ctx.accounts.authority.key(),
-            &ctx.accounts.user.key(),
-            ctx.accounts.session_authority.as_ref(),
-            now,
-        )?;
 
         let config = &ctx.accounts.config;
         let post = &mut ctx.accounts.post;
@@ -259,13 +226,6 @@ pub mod opinions_market {
 
         let clock = Clock::get()?;
         let now = clock.unix_timestamp;
-
-        assert_session_or_wallet(
-            &ctx.accounts.authority.key(),
-            &ctx.accounts.voter.key(),
-            ctx.accounts.session_authority.as_ref(),
-            now,
-        )?;
 
         let cfg = &ctx.accounts.config;
         let post = &mut ctx.accounts.post;
@@ -476,31 +436,13 @@ pub mod opinions_market {
         Ok(())
     }
 
-    pub fn claim_post_reward(
-        ctx: Context<ClaimPostReward>,
-        session_key: Pubkey,
-        post_id_hash: [u8; 32],
-    ) -> Result<()> {
+    pub fn claim_post_reward(ctx: Context<ClaimPostReward>, post_id_hash: [u8; 32]) -> Result<()> {
         let clock = Clock::get()?;
         let now = clock.unix_timestamp;
-
-        assert_session_or_wallet(
-            &ctx.accounts.authority.key(),
-            &ctx.accounts.user.key(),
-            ctx.accounts.session_authority.as_ref(),
-            now,
-        )?;
 
         let post = &ctx.accounts.post;
         let pos = &mut ctx.accounts.position;
         let claim = &mut ctx.accounts.user_post_mint_claim;
-
-        assert_session_or_wallet(
-            &ctx.accounts.authority.key(),
-            &ctx.accounts.user.key(),
-            ctx.accounts.session_authority.as_ref(),
-            now,
-        )?;
 
         require!(post.state == PostState::Settled, ErrorCode::PostNotSettled);
         require!(!claim.claimed, ErrorCode::AlreadyClaimed);
