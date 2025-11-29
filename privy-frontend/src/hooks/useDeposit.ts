@@ -63,6 +63,7 @@ export function useDeposit() {
   const solanaWallet =
     wallets.find((w: any) => w.walletClientType === "privy") || wallets[0];
 
+  console.log("solanaWallet", solanaWallet);
   const deposit = async (
     amount: number,
     tokenMint: PublicKey
@@ -120,6 +121,7 @@ export function useDeposit() {
         .deposit(new anchor.BN(amountInLamports.toString()))
         .accountsPartial({
           user: userPubkey,
+          payer: solanaWallet.address,
           userAccount: userAccountPda,
           tokenMint: tokenMint,
           validPayment: validPaymentPda,
