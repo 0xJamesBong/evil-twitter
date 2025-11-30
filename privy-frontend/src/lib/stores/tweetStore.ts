@@ -111,7 +111,6 @@ type TweetStoreActions = {
     identityToken: string,
     tweetId: string,
     side: "pump" | "smack",
-    votes: number,
     tokenMint?: string
   ) => Promise<void>;
 
@@ -465,14 +464,12 @@ export const useTweetStore = create<TweetStoreState & TweetStoreActions>(
       identityToken: string,
       tweetId: string,
       side: "pump" | "smack",
-      votes: number,
       tokenMint?: string
     ) => {
       try {
         const input: TweetVoteInput = {
           tweetId,
           side,
-          votes,
           tokenMint,
         };
 
@@ -483,15 +480,34 @@ export const useTweetStore = create<TweetStoreState & TweetStoreActions>(
         );
 
         // Update tweet in store with new vote counts
-        // Note: The backend returns updated metrics, but postState should be refetched
-        get().updateTweetInStore(tweetId, (tweet) => ({
-          ...tweet,
-          metrics: {
-            ...tweet.metrics,
-            likes: data.tweetVote.likeCount,
-            smacks: data.tweetVote.smackCount,
-          },
-        }));
+        // Optimistically update postState upvotes/downvotes based on side
+        get().updateTweetInStore(tweetId, (tweet) => {
+          const updatedTweet = {
+            ...tweet,
+            metrics: {
+              ...tweet.metrics,
+              likes: data.tweetVote.likeCount,
+              smacks: data.tweetVote.smackCount,
+            },
+          };
+
+          // Update postState if it exists
+          if (tweet.postState) {
+            updatedTweet.postState = {
+              ...tweet.postState,
+              upvotes:
+                side === "pump"
+                  ? tweet.postState.upvotes + 1
+                  : tweet.postState.upvotes,
+              downvotes:
+                side === "smack"
+                  ? tweet.postState.downvotes + 1
+                  : tweet.postState.downvotes,
+            };
+          }
+
+          return updatedTweet;
+        });
       } catch (error) {
         const errorMessage =
           error instanceof Error ? error.message : "Failed to vote on tweet";

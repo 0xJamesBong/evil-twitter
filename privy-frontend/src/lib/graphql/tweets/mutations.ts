@@ -285,7 +285,6 @@ export const TWEET_VOTE_MUTATION = `
 export interface TweetVoteInput {
   tweetId: string;
   side: string; // "pump" or "smack"
-  votes: number;
   tokenMint?: string; // Optional, defaults to BLING
 }
 
