@@ -266,6 +266,11 @@ impl TweetService {
             .or(replied_tweet.id)
             .unwrap_or(reply_id);
 
+        // Generate post_id_hash (32 random bytes) for on-chain post creation
+        let mut post_id_hash_bytes = [0u8; 32];
+        rand::thread_rng().fill_bytes(&mut post_id_hash_bytes);
+        let post_id_hash = Some(hex::encode(post_id_hash_bytes));
+
         let reply = Tweet {
             id: Some(reply_id),
             owner_id,
@@ -277,7 +282,7 @@ impl TweetService {
             reply_depth: replied_tweet.reply_depth + 1,
             created_at: now,
             updated_at: Some(now),
-            post_id_hash: None, // Replies don't create on-chain posts
+            post_id_hash,
             metrics: TweetMetrics::default(),
             viewer_context: TweetViewerContext::default(),
             energy_state: TweetEnergyState::default(),
@@ -322,6 +327,11 @@ impl TweetService {
         let now = mongodb::bson::DateTime::now();
         let quote_id = ObjectId::new();
 
+        // Generate post_id_hash (32 random bytes) for on-chain post creation
+        let mut post_id_hash_bytes = [0u8; 32];
+        rand::thread_rng().fill_bytes(&mut post_id_hash_bytes);
+        let post_id_hash = Some(hex::encode(post_id_hash_bytes));
+
         let quote = Tweet {
             id: Some(quote_id),
             owner_id,
@@ -333,7 +343,7 @@ impl TweetService {
             reply_depth: 0,
             created_at: now,
             updated_at: Some(now),
-            post_id_hash: None, // Quotes don't create on-chain posts
+            post_id_hash,
             metrics: TweetMetrics::default(),
             viewer_context: TweetViewerContext::default(),
             energy_state: TweetEnergyState::default(),

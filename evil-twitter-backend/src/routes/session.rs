@@ -1,16 +1,11 @@
 use axum::{Json, extract::State, http::StatusCode};
-use bs58;
-use ed25519_dalek::{Signature, Verifier, VerifyingKey};
 use serde::{Deserialize, Serialize};
 use std::str::FromStr;
 use std::sync::Arc;
 
-use base64::{Engine as _, engine::general_purpose};
-use hex;
 use solana_sdk::pubkey::Pubkey;
 
-use crate::{app_state::AppState, solana::read_keypair_from_file};
-use opinions_market::pda_seeds::SESSION_AUTHORITY_SEED;
+use crate::app_state::AppState;
 
 #[derive(Deserialize)]
 pub struct CreateUserRequest {
@@ -22,18 +17,7 @@ pub struct CreateUserResponse {
     pub signature: String, // Transaction signature
 }
 
-#[derive(Deserialize)]
-pub struct CreatePostRequest {
-    pub user_wallet: String,             // Base58 encoded pubkey
-    pub post_id_hash: String,            // Hex encoded [u8; 32]
-    pub parent_post_pda: Option<String>, // Optional Base58 encoded pubkey
-}
-
-#[derive(Serialize)]
-pub struct CreatePostResponse {
-    pub signature: String, // Transaction signature
-}
-
+/// COOOL
 /// Create user account on-chain, signed by backend payer only
 pub async fn create_user(
     State(app_state): State<Arc<AppState>>,
@@ -76,98 +60,6 @@ pub async fn create_user(
     println!("📋 create_user: Returning response to client");
 
     Ok(Json(CreateUserResponse {
-        signature: signature.to_string(),
-    }))
-}
-
-/// Create post account on-chain, signed by backend payer only
-pub async fn create_post(
-    State(app_state): State<Arc<AppState>>,
-    Json(req): Json<CreatePostRequest>,
-) -> Result<Json<CreatePostResponse>, (StatusCode, String)> {
-    println!(
-        "📝 create_post: Received request for user_wallet: {}, post_id_hash: {}",
-        req.user_wallet, req.post_id_hash
-    );
-
-    // Parse user wallet pubkey
-    let user_wallet = Pubkey::from_str(&req.user_wallet).map_err(|e| {
-        eprintln!("❌ create_post: Invalid user wallet pubkey: {}", e);
-        (
-            StatusCode::BAD_REQUEST,
-            format!("Invalid user wallet pubkey: {}", e),
-        )
-    })?;
-
-    // Parse post_id_hash from hex to [u8; 32]
-    let post_id_hash_bytes = hex::decode(&req.post_id_hash).map_err(|e| {
-        eprintln!("❌ create_post: Invalid post_id_hash hex: {}", e);
-        (
-            StatusCode::BAD_REQUEST,
-            format!("Invalid post_id_hash hex: {}", e),
-        )
-    })?;
-
-    if post_id_hash_bytes.len() != 32 {
-        eprintln!(
-            "❌ create_post: post_id_hash must be 32 bytes, got {}",
-            post_id_hash_bytes.len()
-        );
-        return Err((
-            StatusCode::BAD_REQUEST,
-            format!(
-                "post_id_hash must be 32 bytes, got {}",
-                post_id_hash_bytes.len()
-            ),
-        ));
-    }
-
-    let mut post_id_hash = [0u8; 32];
-    post_id_hash.copy_from_slice(&post_id_hash_bytes);
-
-    // Parse optional parent_post_pda
-    let parent_post_pda = if let Some(parent_str) = req.parent_post_pda {
-        Some(Pubkey::from_str(&parent_str).map_err(|e| {
-            eprintln!("❌ create_post: Invalid parent_post_pda: {}", e);
-            (
-                StatusCode::BAD_REQUEST,
-                format!("Invalid parent_post_pda: {}", e),
-            )
-        })?)
-    } else {
-        None
-    };
-
-    println!("✅ create_post: Parsed user wallet: {}", user_wallet);
-    println!(
-        "✅ create_post: Parsed post_id_hash: {}",
-        hex::encode(post_id_hash)
-    );
-    if let Some(parent) = parent_post_pda {
-        println!("✅ create_post: Parsed parent_post_pda: {}", parent);
-    }
-    println!("🚀 create_post: Calling solana_service.create_post()...");
-
-    // Create post account on-chain
-    let signature = app_state
-        .solana_service
-        .create_post(user_wallet, post_id_hash, parent_post_pda)
-        .await
-        .map_err(|e| {
-            eprintln!("❌ create_post: Failed to create post on-chain: {}", e);
-            (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                format!("Failed to create post: {}", e),
-            )
-        })?;
-
-    println!(
-        "✅ create_post: Post account created successfully! Signature: {}",
-        signature
-    );
-    println!("📋 create_post: Returning response to client");
-
-    Ok(Json(CreatePostResponse {
         signature: signature.to_string(),
     }))
 }

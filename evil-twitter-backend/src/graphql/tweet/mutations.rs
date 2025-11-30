@@ -3,9 +3,12 @@ use axum::http::HeaderMap;
 use mongodb::bson::oid::ObjectId;
 use std::str::FromStr;
 
+use hex;
 use std::sync::Arc;
 
-use crate::{app_state::AppState, graphql::tweet::types::TweetNode, models::user::User};
+use crate::{
+    app_state::AppState, graphql::tweet::types::TweetNode, models::user::User, solana::get_post_pda,
+};
 
 // ============================================================================
 // Input Types
@@ -265,15 +268,79 @@ pub async fn tweet_reply_resolver(
     let user = get_authenticated_user_from_ctx(ctx).await?;
     let replied_id = parse_object_id(&input.replied_to_id)?;
 
+    // Get parent tweet to extract post_id_hash for parent PDA
+    let parent_tweet = app_state
+        .mongo_service
+        .tweets
+        .get_tweet_by_id(replied_id)
+        .await?
+        .ok_or_else(|| async_graphql::Error::new("Parent tweet not found"))?;
+
     let view = app_state
         .mongo_service
         .tweets
-        .create_reply(user, input.content, replied_id)
+        .create_reply(user.clone(), input.content, replied_id)
         .await?;
+
+    // Create post on-chain if post_id_hash exists and parent has post_id_hash
+    let mut onchain_signature: Option<String> = None;
+    if let Some(post_id_hash_hex) = &view.tweet.post_id_hash {
+        if let Some(parent_post_id_hash_hex) = &parent_tweet.post_id_hash {
+            // Parse user's Solana wallet
+            let user_wallet = solana_sdk::pubkey::Pubkey::from_str(&user.wallet)
+                .map_err(|e| async_graphql::Error::new(format!("Invalid user wallet: {}", e)))?;
+
+            // Parse reply post_id_hash from hex to [u8; 32]
+            let post_id_hash_bytes = hex::decode(post_id_hash_hex)
+                .map_err(|e| async_graphql::Error::new(format!("Invalid post_id_hash: {}", e)))?;
+
+            if post_id_hash_bytes.len() != 32 {
+                return Err(async_graphql::Error::new("post_id_hash must be 32 bytes"));
+            }
+
+            let mut post_id_hash = [0u8; 32];
+            post_id_hash.copy_from_slice(&post_id_hash_bytes);
+
+            // Parse parent post_id_hash and derive parent PDA
+            let parent_post_id_hash_bytes = hex::decode(parent_post_id_hash_hex).map_err(|e| {
+                async_graphql::Error::new(format!("Invalid parent post_id_hash: {}", e))
+            })?;
+
+            if parent_post_id_hash_bytes.len() != 32 {
+                return Err(async_graphql::Error::new(
+                    "parent post_id_hash must be 32 bytes",
+                ));
+            }
+
+            let mut parent_post_id_hash = [0u8; 32];
+            parent_post_id_hash.copy_from_slice(&parent_post_id_hash_bytes);
+
+            // Derive parent post PDA
+            let program_id = app_state.solana_service.opinions_market_program().id();
+            let (parent_post_pda, _) = get_post_pda(&program_id, &parent_post_id_hash);
+
+            // Call create_post on-chain with parent_post_pda
+            match app_state
+                .solana_service
+                .create_post(user_wallet, post_id_hash, Some(parent_post_pda))
+                .await
+            {
+                Ok(signature) => {
+                    eprintln!("✅ Created reply post on-chain: {}", signature);
+                    onchain_signature = Some(signature.to_string());
+                }
+                Err(e) => {
+                    eprintln!("⚠️ Failed to create reply post on-chain: {}", e);
+                    // Don't fail the reply creation if on-chain creation fails
+                    // The reply is already in MongoDB, on-chain can be retried
+                }
+            }
+        }
+    }
 
     Ok(TweetPayload {
         tweet: TweetNode::from(view),
-        onchain_signature: None, // Replies don't create on-chain posts
+        onchain_signature,
     })
 }
 
@@ -286,15 +353,79 @@ pub async fn tweet_quote_resolver(
     let user = get_authenticated_user_from_ctx(ctx).await?;
     let quoted_id = parse_object_id(&input.quoted_tweet_id)?;
 
+    // Get quoted tweet to extract post_id_hash for parent PDA
+    let quoted_tweet = app_state
+        .mongo_service
+        .tweets
+        .get_tweet_by_id(quoted_id)
+        .await?
+        .ok_or_else(|| async_graphql::Error::new("Quoted tweet not found"))?;
+
     let view = app_state
         .mongo_service
         .tweets
-        .create_quote(user, input.content, quoted_id)
+        .create_quote(user.clone(), input.content, quoted_id)
         .await?;
+
+    // Create post on-chain if post_id_hash exists and quoted tweet has post_id_hash
+    let mut onchain_signature: Option<String> = None;
+    if let Some(post_id_hash_hex) = &view.tweet.post_id_hash {
+        if let Some(parent_post_id_hash_hex) = &quoted_tweet.post_id_hash {
+            // Parse user's Solana wallet
+            let user_wallet = solana_sdk::pubkey::Pubkey::from_str(&user.wallet)
+                .map_err(|e| async_graphql::Error::new(format!("Invalid user wallet: {}", e)))?;
+
+            // Parse quote post_id_hash from hex to [u8; 32]
+            let post_id_hash_bytes = hex::decode(post_id_hash_hex)
+                .map_err(|e| async_graphql::Error::new(format!("Invalid post_id_hash: {}", e)))?;
+
+            if post_id_hash_bytes.len() != 32 {
+                return Err(async_graphql::Error::new("post_id_hash must be 32 bytes"));
+            }
+
+            let mut post_id_hash = [0u8; 32];
+            post_id_hash.copy_from_slice(&post_id_hash_bytes);
+
+            // Parse quoted tweet post_id_hash and derive parent PDA
+            let parent_post_id_hash_bytes = hex::decode(parent_post_id_hash_hex).map_err(|e| {
+                async_graphql::Error::new(format!("Invalid parent post_id_hash: {}", e))
+            })?;
+
+            if parent_post_id_hash_bytes.len() != 32 {
+                return Err(async_graphql::Error::new(
+                    "parent post_id_hash must be 32 bytes",
+                ));
+            }
+
+            let mut parent_post_id_hash = [0u8; 32];
+            parent_post_id_hash.copy_from_slice(&parent_post_id_hash_bytes);
+
+            // Derive parent post PDA
+            let program_id = app_state.solana_service.opinions_market_program().id();
+            let (parent_post_pda, _) = get_post_pda(&program_id, &parent_post_id_hash);
+
+            // Call create_post on-chain with parent_post_pda
+            match app_state
+                .solana_service
+                .create_post(user_wallet, post_id_hash, Some(parent_post_pda))
+                .await
+            {
+                Ok(signature) => {
+                    eprintln!("✅ Created quote post on-chain: {}", signature);
+                    onchain_signature = Some(signature.to_string());
+                }
+                Err(e) => {
+                    eprintln!("⚠️ Failed to create quote post on-chain: {}", e);
+                    // Don't fail the quote creation if on-chain creation fails
+                    // The quote is already in MongoDB, on-chain can be retried
+                }
+            }
+        }
+    }
 
     Ok(TweetPayload {
         tweet: TweetNode::from(view),
-        onchain_signature: None, // Quotes don't create on-chain posts
+        onchain_signature,
     })
 }
 
