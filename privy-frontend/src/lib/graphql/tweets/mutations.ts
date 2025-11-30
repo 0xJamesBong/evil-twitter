@@ -178,6 +178,7 @@ export const TWEET_QUOTE_MUTATION = `
         quotedTweetId
         repliedToTweetId
       }
+      onchainSignature
     }
   }
 `;
@@ -190,6 +191,7 @@ export interface TweetQuoteInput {
 export interface TweetQuoteResult {
   tweetQuote: {
     tweet: TweetNode;
+    onchainSignature?: string | null;
   };
 }
 
@@ -296,4 +298,3 @@ export interface TweetVoteResult {
     energy: number;
   };
 }
-

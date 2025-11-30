@@ -101,7 +101,7 @@ type TweetStoreActions = {
     identityToken: string,
     content: string,
     quotedTweetId: string
-  ) => Promise<TweetNode>;
+  ) => Promise<{ tweet: TweetNode; onchainSignature?: string | null }>;
   retweetTweet: (identityToken: string, tweetId: string) => Promise<TweetNode>;
   likeTweet: (
     identityToken: string,
@@ -368,6 +368,7 @@ export const useTweetStore = create<TweetStoreState & TweetStoreActions>(
         );
 
         const newTweet = data.tweetQuote.tweet;
+        const onchainSignature = data.tweetQuote.onchainSignature;
 
         // Optimistic update: add to timeline
         set((state) => ({
@@ -384,7 +385,7 @@ export const useTweetStore = create<TweetStoreState & TweetStoreActions>(
           },
         }));
 
-        return newTweet;
+        return { tweet: newTweet, onchainSignature };
       } catch (error) {
         const errorMessage =
           error instanceof Error ? error.message : "Failed to quote tweet";
