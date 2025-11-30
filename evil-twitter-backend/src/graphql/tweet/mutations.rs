@@ -53,6 +53,7 @@ pub struct TweetVoteInput {
 #[derive(SimpleObject)]
 pub struct TweetPayload {
     pub tweet: TweetNode,
+    pub onchain_signature: Option<String>,
 }
 
 #[derive(SimpleObject)]
@@ -185,6 +186,7 @@ pub async fn tweet_create_resolver(
         .await?;
 
     // Create post on-chain if post_id_hash exists
+    let mut onchain_signature: Option<String> = None;
     if let Some(post_id_hash_hex) = &view.tweet.post_id_hash {
         // Parse user's Solana wallet
         let user_wallet = solana_sdk::pubkey::Pubkey::from_str(&user.wallet)
@@ -202,23 +204,26 @@ pub async fn tweet_create_resolver(
         post_id_hash.copy_from_slice(&post_id_hash_bytes);
 
         // Call create_post on-chain (backend signs transaction)
-        // match app_state
-        //     .solana_service
-        //     .create_post(&user_wallet, post_id_hash, None)
-        // {
-        //     Ok(signature) => {
-        //         eprintln!("✅ Created post on-chain: {}", signature);
-        //     }
-        //     Err(e) => {
-        //         eprintln!("⚠️ Failed to create post on-chain: {}", e);
-        //         // Don't fail the tweet creation if on-chain creation fails
-        //         // The tweet is already in MongoDB, on-chain can be retried
-        //     }
-        // }
+        match app_state
+            .solana_service
+            .create_post(user_wallet, post_id_hash, None)
+            .await
+        {
+            Ok(signature) => {
+                eprintln!("✅ Created post on-chain: {}", signature);
+                onchain_signature = Some(signature.to_string());
+            }
+            Err(e) => {
+                eprintln!("⚠️ Failed to create post on-chain: {}", e);
+                // Don't fail the tweet creation if on-chain creation fails
+                // The tweet is already in MongoDB, on-chain can be retried
+            }
+        }
     }
 
     Ok(TweetPayload {
         tweet: TweetNode::from(view),
+        onchain_signature,
     })
 }
 
@@ -268,6 +273,7 @@ pub async fn tweet_reply_resolver(
 
     Ok(TweetPayload {
         tweet: TweetNode::from(view),
+        onchain_signature: None, // Replies don't create on-chain posts
     })
 }
 
@@ -288,6 +294,7 @@ pub async fn tweet_quote_resolver(
 
     Ok(TweetPayload {
         tweet: TweetNode::from(view),
+        onchain_signature: None, // Quotes don't create on-chain posts
     })
 }
 
@@ -305,6 +312,7 @@ pub async fn tweet_retweet_resolver(ctx: &Context<'_>, id: ID) -> Result<TweetPa
 
     Ok(TweetPayload {
         tweet: TweetNode::from(view),
+        onchain_signature: None, // Retweets don't create on-chain posts
     })
 }
 

@@ -88,7 +88,10 @@ type TweetStoreActions = {
   ) => Promise<void>;
 
   // Mutation operations
-  createTweet: (identityToken: string, content: string) => Promise<TweetNode>;
+  createTweet: (
+    identityToken: string,
+    content: string
+  ) => Promise<{ tweet: TweetNode; onchainSignature?: string | null }>;
   replyTweet: (
     identityToken: string,
     content: string,
@@ -261,6 +264,10 @@ export const useTweetStore = create<TweetStoreState & TweetStoreActions>(
     createTweet: async (identityToken: string, content: string) => {
       set({ isCreating: true, error: null });
       try {
+        console.log(
+          "📝 createTweet: trying to create tweet with content:",
+          content
+        );
         const input: TweetCreateInput = { content: content.trim() };
         const data = await graphqlRequest<TweetCreateResult>(
           TWEET_CREATE_MUTATION,
@@ -269,6 +276,7 @@ export const useTweetStore = create<TweetStoreState & TweetStoreActions>(
         );
 
         const newTweet = data.tweetCreate.tweet;
+        const onchainSignature = data.tweetCreate.onchainSignature;
 
         // Optimistic update: add to timeline
         set((state) => ({
@@ -276,7 +284,10 @@ export const useTweetStore = create<TweetStoreState & TweetStoreActions>(
           isCreating: false,
         }));
 
-        return newTweet;
+        // Note: On-chain post creation is handled automatically by the backend
+        // in the GraphQL mutation resolver, so no frontend call is needed here
+
+        return { tweet: newTweet, onchainSignature };
       } catch (error) {
         const errorMessage =
           error instanceof Error ? error.message : "Failed to create tweet";
@@ -629,4 +640,3 @@ export const useTweetStore = create<TweetStoreState & TweetStoreActions>(
     },
   })
 );
-

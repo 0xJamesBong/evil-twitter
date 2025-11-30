@@ -43,6 +43,7 @@ export const TWEET_CREATE_MUTATION = `
         quotedTweetId
         repliedToTweetId
       }
+      onchainSignature
     }
   }
 `;
@@ -54,6 +55,7 @@ export interface TweetCreateInput {
 export interface TweetCreateResult {
   tweetCreate: {
     tweet: TweetNode;
+    onchainSignature?: string | null;
   };
 }
 

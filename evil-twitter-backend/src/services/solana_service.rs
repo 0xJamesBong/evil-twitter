@@ -37,7 +37,7 @@ use opinions_market::accounts::*;
 use opinions_market::instructions::*;
 
 use crate::solana::get_config_pda;
-use crate::solana::{get_user_account_pda, get_user_vault_token_account_pda};
+use crate::solana::{get_post_pda, get_user_account_pda, get_user_vault_token_account_pda};
 
 pub struct SolanaService {
     rpc: Arc<RpcClient>,
@@ -331,6 +331,107 @@ impl SolanaService {
 
         println!(
             "  ✅ SolanaService::create_user: Transaction confirmed! Signature: {}",
+            signature
+        );
+        Ok(signature)
+    }
+
+    /// Create a post account on-chain, signed by backend payer only
+    pub async fn create_post(
+        &self,
+        user_wallet: Pubkey,
+        post_id_hash: [u8; 32],
+        parent_post_pda: Option<Pubkey>,
+    ) -> anyhow::Result<Signature> {
+        println!(
+            "  🔧 SolanaService::create_post: Starting for user {}",
+            user_wallet
+        );
+
+        let program = self.opinions_market_program();
+        let program_id = program.id();
+        println!(
+            "  📍 SolanaService::create_post: Program ID: {}",
+            program_id
+        );
+
+        // Derive PDAs
+        let (config_pda, _) = get_config_pda(&program_id);
+        let (user_account_pda, _) = get_user_account_pda(&program_id, &user_wallet);
+        let (post_pda, _) = get_post_pda(&program_id, &post_id_hash);
+        println!(
+            "  📍 SolanaService::create_post: Config PDA: {}",
+            config_pda
+        );
+        println!(
+            "  📍 SolanaService::create_post: User Account PDA: {}",
+            user_account_pda
+        );
+        println!("  📍 SolanaService::create_post: Post PDA: {}", post_pda);
+        if let Some(parent) = parent_post_pda {
+            println!(
+                "  📍 SolanaService::create_post: Parent Post PDA: {}",
+                parent
+            );
+        }
+        println!(
+            "  💰 SolanaService::create_post: Payer: {}",
+            self.payer.pubkey()
+        );
+
+        // Build CreatePost instruction
+        println!("  🔨 SolanaService::create_post: Building CreatePost instruction...");
+        let ixs = program
+            .request()
+            .accounts(opinions_market::accounts::CreatePost {
+                config: config_pda,
+                user: user_wallet,
+                payer: self.payer.pubkey(),
+                user_account: user_account_pda,
+                post: post_pda,
+                system_program: solana_sdk::system_program::ID,
+            })
+            .args(opinions_market::instruction::CreatePost {
+                post_id_hash,
+                parent_post_pda,
+            })
+            .instructions()
+            .map_err(|e| {
+                eprintln!(
+                    "  ❌ SolanaService::create_post: Failed to build instruction: {}",
+                    e
+                );
+                anyhow::anyhow!("Failed to build CreatePost instruction: {}", e)
+            })?;
+
+        println!("  ✅ SolanaService::create_post: Instruction built successfully");
+
+        // Build transaction signed by payer only
+        println!(
+            "  ✍️  SolanaService::create_post: Building and signing transaction with payer..."
+        );
+        let tx = self.build_partial_signed_tx(ixs).await.map_err(|e| {
+            eprintln!(
+                "  ❌ SolanaService::create_post: Failed to build transaction: {}",
+                e
+            );
+            e
+        })?;
+
+        println!("  ✅ SolanaService::create_post: Transaction built and signed");
+
+        // Send and confirm transaction
+        println!("  📡 SolanaService::create_post: Sending transaction to network...");
+        let signature = self.send_signed_tx(&tx).await.map_err(|e| {
+            eprintln!(
+                "  ❌ SolanaService::create_post: Failed to send transaction: {}",
+                e
+            );
+            e
+        })?;
+
+        println!(
+            "  ✅ SolanaService::create_post: Transaction confirmed! Signature: {}",
             signature
         );
         Ok(signature)
