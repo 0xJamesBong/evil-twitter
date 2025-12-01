@@ -182,6 +182,7 @@ async fn main() {
     .await;
     println!("BLING_MINT: {}", bling_mint.pubkey());
     println!("USDC_MINT: {}", usdc_mint.pubkey());
+    println!("STABLECOIN_MINT: {}", stablecoin_mint.pubkey());
     println!("CONFIG PDA: {}", config_pda);
     println!("OK. {} environment ready.", cluster);
 }
