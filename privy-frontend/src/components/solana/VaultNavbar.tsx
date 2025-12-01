@@ -30,6 +30,7 @@ import { useCreateUser } from "../../hooks/useCreateUser";
 import { useBackendUserStore } from "../../lib/stores/backendUserStore";
 import { useSolanaStore } from "../../lib/stores/solanaStore";
 import { NetworkSwitcher } from "./NetworkSwitcher";
+
 import { formatTokenBalance } from "../../lib/utils/formatting";
 
 // Default BLING mint - should match backend
@@ -314,6 +315,7 @@ export function VaultNavbar() {
               Log in
             </Button>
             <NetworkSwitcher />
+
           </>
         ) : (
           <>
@@ -387,6 +389,7 @@ export function VaultNavbar() {
 
             {/* Network Switcher - always visible */}
             <NetworkSwitcher />
+
           </>
         )}
       </Box>
