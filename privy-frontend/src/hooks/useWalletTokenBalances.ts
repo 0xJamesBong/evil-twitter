@@ -28,6 +28,7 @@ export function useWalletTokenBalances(
   const solanaWallet =
     wallets.find((w: any) => w.walletClientType === "privy") || wallets[0];
 
+  console.log("useWalletTokenBalances | solanaWallet", solanaWallet);
   // Helper to determine default decimals based on token type
   const getDefaultDecimals = (mintAddress: string): number => {
     if (usdcMint && mintAddress === usdcMint) return 9; // need to change to 6 as we mature

@@ -29,16 +29,11 @@ import { useWithdraw } from "../../hooks/useWithdraw";
 import { useCreateUser } from "../../hooks/useCreateUser";
 import { useBackendUserStore } from "../../lib/stores/backendUserStore";
 import { useSolanaStore } from "../../lib/stores/solanaStore";
+import { NetworkSwitcher } from "./NetworkSwitcher";
+import { formatTokenBalance } from "../../lib/utils/formatting";
 
 // Default BLING mint - should match backend
 const BLING_MINT = new PublicKey("bbb9w3ZidNJJGm4TKbhkCXqB9XSnzsjTedmJ5F2THX8");
-
-// Helper function to format token balance with decimals
-const formatTokenBalance = (balance: number | null, decimals: number): string => {
-  if (balance === null || balance === undefined) return "N/A";
-  if (balance === 0) return "0";
-  return (balance / Math.pow(10, decimals)).toFixed(4);
-};
 
 export function VaultNavbar() {
   const { authenticated, login } = usePrivy();
@@ -304,19 +299,22 @@ export function VaultNavbar() {
 
   return (
     <>
-      <Box sx={{ display: "flex", alignItems: "center", gap: 2 }}>
+      <Box sx={{ display: "flex", alignItems: "center", gap: 2, flexWrap: "wrap" }}>
         {/* Show login button if not authenticated */}
         {!authenticated ? (
-          <Button
-            variant="contained"
-            color="primary"
-            size="small"
-            startIcon={<LoginIcon />}
-            onClick={handleLogin}
-            sx={{ minWidth: 100 }}
-          >
-            Log in
-          </Button>
+          <>
+            <Button
+              variant="contained"
+              color="primary"
+              size="small"
+              startIcon={<LoginIcon />}
+              onClick={handleLogin}
+              sx={{ minWidth: 100 }}
+            >
+              Log in
+            </Button>
+            <NetworkSwitcher />
+          </>
         ) : (
           <>
             {/* Vault Balance Display - only show if authenticated */}
@@ -386,6 +384,9 @@ export function VaultNavbar() {
                 </Button>
               </>
             )}
+
+            {/* Network Switcher - always visible */}
+            <NetworkSwitcher />
           </>
         )}
       </Box>

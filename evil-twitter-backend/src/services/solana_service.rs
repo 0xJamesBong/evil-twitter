@@ -53,8 +53,8 @@ pub struct SolanaService {
 }
 
 fn read_program_id_from_idl() -> Pubkey {
-    let file =
-        fs::read_to_string("src/solana/idl/opinions_market.json").expect("IDL file not found");
+    let file = fs::read_to_string("src/solana/target/localnet/idl/opinions_market.json")
+        .expect("IDL file not found");
     let v: Value = serde_json::from_str(&file).expect("Invalid JSON in IDL");
 
     let addr = v["address"].as_str().expect("IDL missing address field");
