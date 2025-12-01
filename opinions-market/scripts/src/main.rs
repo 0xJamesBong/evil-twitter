@@ -135,9 +135,9 @@ async fn main() {
             token_program: anchor_spl::token::spl_token::ID,
         })
         .args(opinions_market::instruction::Initialize {
-            base_duration_secs: 30,
-            max_duration_secs: 120,
-            extension_per_vote_secs: 5,
+            base_duration_secs: 24 * 3600,    // 1 day
+            max_duration_secs: 7 * 24 * 3600, // 7 days
+            extension_per_vote_secs: 60,      // 1min
         })
         .instructions()
         .unwrap();
