@@ -58,7 +58,9 @@ export function usePing() {
       const signedTx = (signedTxResult as any).transaction || signedTxResult;
 
       // Step 4: Serialize signed transaction and send to backend for final signature and broadcast
-      const signedTxBase64 = Buffer.from(signedTx.serialize()).toString("base64");
+      const signedTxBase64 = Buffer.from(signedTx.serialize()).toString(
+        "base64"
+      );
 
       const submitResponse = await fetch(`${backendUrl}/api/tx/ping/submit`, {
         method: "POST",
