@@ -88,7 +88,10 @@ type TweetStoreActions = {
   ) => Promise<void>;
 
   // Mutation operations
-  createTweet: (identityToken: string, content: string) => Promise<TweetNode>;
+  createTweet: (
+    identityToken: string,
+    content: string
+  ) => Promise<{ tweet: TweetNode; onchainSignature?: string | null }>;
   replyTweet: (
     identityToken: string,
     content: string,
@@ -98,7 +101,7 @@ type TweetStoreActions = {
     identityToken: string,
     content: string,
     quotedTweetId: string
-  ) => Promise<TweetNode>;
+  ) => Promise<{ tweet: TweetNode; onchainSignature?: string | null }>;
   retweetTweet: (identityToken: string, tweetId: string) => Promise<TweetNode>;
   likeTweet: (
     identityToken: string,
@@ -108,7 +111,6 @@ type TweetStoreActions = {
     identityToken: string,
     tweetId: string,
     side: "pump" | "smack",
-    votes: number,
     tokenMint?: string
   ) => Promise<void>;
 
@@ -261,6 +263,10 @@ export const useTweetStore = create<TweetStoreState & TweetStoreActions>(
     createTweet: async (identityToken: string, content: string) => {
       set({ isCreating: true, error: null });
       try {
+        console.log(
+          "📝 createTweet: trying to create tweet with content:",
+          content
+        );
         const input: TweetCreateInput = { content: content.trim() };
         const data = await graphqlRequest<TweetCreateResult>(
           TWEET_CREATE_MUTATION,
@@ -269,6 +275,7 @@ export const useTweetStore = create<TweetStoreState & TweetStoreActions>(
         );
 
         const newTweet = data.tweetCreate.tweet;
+        const onchainSignature = data.tweetCreate.onchainSignature;
 
         // Optimistic update: add to timeline
         set((state) => ({
@@ -276,7 +283,10 @@ export const useTweetStore = create<TweetStoreState & TweetStoreActions>(
           isCreating: false,
         }));
 
-        return newTweet;
+        // Note: On-chain post creation is handled automatically by the backend
+        // in the GraphQL mutation resolver, so no frontend call is needed here
+
+        return { tweet: newTweet, onchainSignature };
       } catch (error) {
         const errorMessage =
           error instanceof Error ? error.message : "Failed to create tweet";
@@ -357,6 +367,7 @@ export const useTweetStore = create<TweetStoreState & TweetStoreActions>(
         );
 
         const newTweet = data.tweetQuote.tweet;
+        const onchainSignature = data.tweetQuote.onchainSignature;
 
         // Optimistic update: add to timeline
         set((state) => ({
@@ -373,7 +384,7 @@ export const useTweetStore = create<TweetStoreState & TweetStoreActions>(
           },
         }));
 
-        return newTweet;
+        return { tweet: newTweet, onchainSignature };
       } catch (error) {
         const errorMessage =
           error instanceof Error ? error.message : "Failed to quote tweet";
@@ -453,14 +464,12 @@ export const useTweetStore = create<TweetStoreState & TweetStoreActions>(
       identityToken: string,
       tweetId: string,
       side: "pump" | "smack",
-      votes: number,
       tokenMint?: string
     ) => {
       try {
         const input: TweetVoteInput = {
           tweetId,
           side,
-          votes,
           tokenMint,
         };
 
@@ -471,15 +480,34 @@ export const useTweetStore = create<TweetStoreState & TweetStoreActions>(
         );
 
         // Update tweet in store with new vote counts
-        // Note: The backend returns updated metrics, but postState should be refetched
-        get().updateTweetInStore(tweetId, (tweet) => ({
-          ...tweet,
-          metrics: {
-            ...tweet.metrics,
-            likes: data.tweetVote.likeCount,
-            smacks: data.tweetVote.smackCount,
-          },
-        }));
+        // Optimistically update postState upvotes/downvotes based on side
+        get().updateTweetInStore(tweetId, (tweet) => {
+          const updatedTweet = {
+            ...tweet,
+            metrics: {
+              ...tweet.metrics,
+              likes: data.tweetVote.likeCount,
+              smacks: data.tweetVote.smackCount,
+            },
+          };
+
+          // Update postState if it exists
+          if (tweet.postState) {
+            updatedTweet.postState = {
+              ...tweet.postState,
+              upvotes:
+                side === "pump"
+                  ? tweet.postState.upvotes + 1
+                  : tweet.postState.upvotes,
+              downvotes:
+                side === "smack"
+                  ? tweet.postState.downvotes + 1
+                  : tweet.postState.downvotes,
+            };
+          }
+
+          return updatedTweet;
+        });
       } catch (error) {
         const errorMessage =
           error instanceof Error ? error.message : "Failed to vote on tweet";
@@ -629,4 +657,3 @@ export const useTweetStore = create<TweetStoreState & TweetStoreActions>(
     },
   })
 );
-

@@ -1,15 +1,11 @@
 use axum::{Json, extract::State, http::StatusCode};
-use bs58;
-use ed25519_dalek::{Signature, Verifier, VerifyingKey};
 use serde::{Deserialize, Serialize};
 use std::str::FromStr;
 use std::sync::Arc;
 
-use base64::{Engine as _, engine::general_purpose};
 use solana_sdk::pubkey::Pubkey;
 
-use crate::{app_state::AppState, solana::read_keypair_from_file};
-use opinions_market::pda_seeds::SESSION_AUTHORITY_SEED;
+use crate::app_state::AppState;
 
 #[derive(Deserialize)]
 pub struct CreateUserRequest {
@@ -21,6 +17,7 @@ pub struct CreateUserResponse {
     pub signature: String, // Transaction signature
 }
 
+/// COOOL
 /// Create user account on-chain, signed by backend payer only
 pub async fn create_user(
     State(app_state): State<Arc<AppState>>,

@@ -20,7 +20,7 @@ use utoipa_swagger_ui::SwaggerUi;
 
 use crate::routes::{
     ping::ping_handler,
-    session::{create_user, },
+    session::create_user,
 };
 
 /// API documentation

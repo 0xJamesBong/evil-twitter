@@ -115,9 +115,18 @@ export function TweetWall() {
         if (!identityToken || !quoteTweetId || !quoteContent.trim()) return;
 
         try {
-            await quoteTweet(identityToken, quoteContent.trim(), quoteTweetId);
+            const result = await quoteTweet(identityToken, quoteContent.trim(), quoteTweetId);
             clearQuoteData();
-            enqueueSnackbar("Quote tweet posted!", { variant: "success" });
+            
+            // Show toast with transaction ID if post was created on-chain
+            if (result.onchainSignature) {
+                enqueueSnackbar(
+                    `Quote tweet posted! Transaction: ${result.onchainSignature.slice(0, 8)}...`,
+                    { variant: "success" }
+                );
+            } else {
+                enqueueSnackbar("Quote tweet posted!", { variant: "success" });
+            }
         } catch (e) {
             enqueueSnackbar(
                 e instanceof Error ? e.message : "Failed to post quote",
@@ -134,9 +143,18 @@ export function TweetWall() {
         }
 
         try {
-            await createTweet(identityToken!, newTweetContent.trim());
+            const result = await createTweet(identityToken!, newTweetContent.trim());
             setNewTweetContent("");
-            enqueueSnackbar("Tweet posted!", { variant: "success" });
+            
+            // Show toast with transaction ID if post was created on-chain
+            if (result.onchainSignature) {
+                enqueueSnackbar(
+                    `Tweet posted! Transaction: ${result.onchainSignature.slice(0, 8)}...`,
+                    { variant: "success" }
+                );
+            } else {
+                enqueueSnackbar("Tweet posted!", { variant: "success" });
+            }
         } catch (e) {
             enqueueSnackbar(
                 e instanceof Error ? e.message : "Failed to post tweet",

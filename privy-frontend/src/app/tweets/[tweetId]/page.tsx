@@ -459,9 +459,19 @@ export default function TweetDetailPage() {
                 onSubmit={async () => {
                     if (!identityToken || !quoteTweetId || !quoteContent.trim()) return;
                     try {
-                        await quoteTweet(identityToken, quoteContent.trim(), quoteTweetId);
+                        const result = await quoteTweet(identityToken, quoteContent.trim(), quoteTweetId);
                         clearQuoteData();
-                        enqueueSnackbar("Quote tweet posted!", { variant: "success" });
+                        
+                        // Show toast with transaction ID if post was created on-chain
+                        if (result.onchainSignature) {
+                            enqueueSnackbar(
+                                `Quote tweet posted! Transaction: ${result.onchainSignature.slice(0, 8)}...`,
+                                { variant: "success" }
+                            );
+                        } else {
+                            enqueueSnackbar("Quote tweet posted!", { variant: "success" });
+                        }
+                        
                         // Refresh the thread
                         if (tweetId) {
                             await fetchThread(identityToken, tweetId);
