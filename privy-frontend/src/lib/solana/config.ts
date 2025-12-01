@@ -22,11 +22,11 @@ interface NetworkConfig {
 const networks: Record<Network, NetworkConfig> = {
   localnet: {
     idl: idlLocal as anchor.Idl,
-    programId: process.env.NEXT_PUBLIC_PROGRAM_ID_LOCAL!,
+    programId: idlLocal.address,
   },
   devnet: {
     idl: idlDev as anchor.Idl,
-    programId: process.env.NEXT_PUBLIC_PROGRAM_ID_DEV!,
+    programId: idlDev.address,
   },
 };
 
@@ -61,9 +61,12 @@ export function getProgram(
   >;
 }
 
-export function getProgramId(wallet: Wallet): string | null {
-  const program = getProgram(wallet);
-  return program.programId.toBase58();
+/**
+ * Get program ID for the current network (without requiring wallet)
+ */
+export function getProgramId(): string {
+  const network = useNetworkStore.getState().network;
+  return network === "devnet" ? idlDev.address : idlLocal.address;
 }
 
 /**
@@ -116,9 +119,6 @@ export async function fetchConfig(wallet: any): Promise<{
   }
 
   const programIdStr = getProgramId();
-  if (!programIdStr) {
-    throw new Error("Program ID is not configured for this network");
-  }
 
   const anchorWallet = privyWalletToAnchor(wallet);
   const program = getProgram(anchorWallet);

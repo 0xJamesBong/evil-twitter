@@ -23,7 +23,7 @@ import { ArrowBack as ArrowLeftIcon, CheckCircle as CheckCircleIcon } from "@mui
 import { FullScreenLoader } from "@/components/ui/fullscreen-loader";
 import { LoginPrompt } from "@/components/auth/LoginPrompt";
 import { useBackendUserStore } from "@/lib/stores/backendUserStore";
-import { API_BASE_URL } from "@/lib/config";
+import { getBackendUrl } from "@/lib/config";
 
 interface SessionData {
     message: string;
@@ -74,7 +74,8 @@ function SignMessageContent() {
 
             // Step 3: Send to backend /api/session/init
             const expiresAt = timestamp + 86400; // 24 hours from now
-            const initResponse = await fetch(`${API_BASE_URL}/api/session/init`, {
+            const backendUrl = getBackendUrl();
+            const initResponse = await fetch(`${backendUrl}/api/session/init`, {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({
@@ -107,7 +108,7 @@ function SignMessageContent() {
             // Step 5: Submit signed transaction to backend
             const signedTxBase64 = Buffer.from(signedTx.serialize()).toString("base64");
 
-            const submitResponse = await fetch(`${API_BASE_URL}/api/session/submit`, {
+            const submitResponse = await fetch(`${backendUrl}/api/session/submit`, {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({ transaction: signedTxBase64 }),

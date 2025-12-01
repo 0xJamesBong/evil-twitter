@@ -10,7 +10,7 @@ use crate::services::{
 };
 use crate::solana::{
     SolanaConnection, SolanaProgram,
-    program::{parse_pubkey, read_keypair_from_file},
+    program::{parse_pubkey, read_keypair_from_file, read_keypair_from_base64},
 };
 use solana_sdk::signer::Signer;
 
@@ -71,15 +71,23 @@ impl AppState {
             std::env::var("BLING_MINT").expect("BLING_MINT environment variable must be set");
         let bling_mint = parse_pubkey(&bling_mint_str).expect("Invalid BLING_MINT");
 
-        // Get payer keypair (backend signer) from .secrets file
-        let payer_keypair_path = std::env::var("SOLANA_PAYER_KEYPAIR_PATH")
-            .expect("SOLANA_PAYER_KEYPAIR_PATH environment variable must be set");
-        let payer_keypair = read_keypair_from_file(&payer_keypair_path)
-            .expect(&format!("Failed to read keypair from {}. Make sure the file exists and the backend is run from the evil-twitter-backend directory.", payer_keypair_path));
+        // Get payer keypair (backend signer) - support both base64 env var and file path
+        let payer_keypair = if let Ok(base64_keypair) = std::env::var("SOLANA_PAYER_KEYPAIR_BASE64") {
+            // Load from base64 environment variable (for Railway deployment)
+            println!("📦 Loading keypair from SOLANA_PAYER_KEYPAIR_BASE64 env var");
+            read_keypair_from_base64(&base64_keypair)
+                .expect("Failed to decode keypair from SOLANA_PAYER_KEYPAIR_BASE64")
+        } else {
+            // Fallback to file path (for local development)
+            let payer_keypair_path = std::env::var("SOLANA_PAYER_KEYPAIR_PATH")
+                .expect("SOLANA_PAYER_KEYPAIR_PATH environment variable must be set (or use SOLANA_PAYER_KEYPAIR_BASE64)");
+            println!("📁 Loading keypair from file: {}", payer_keypair_path);
+            read_keypair_from_file(&payer_keypair_path)
+                .expect(&format!("Failed to read keypair from {}. Make sure the file exists and the backend is run from the evil-twitter-backend directory.", payer_keypair_path))
+        };
 
         println!(
-            "✅ Solana payer keypair loaded from {} (pubkey: {})",
-            payer_keypair_path,
+            "✅ Solana payer keypair loaded (pubkey: {})",
             payer_keypair.pubkey()
         );
 

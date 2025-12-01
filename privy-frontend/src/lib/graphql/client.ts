@@ -1,4 +1,4 @@
-import { API_BASE_URL } from "../config";
+import { getBackendUrl } from "../config";
 
 interface GraphQLResponse<T> {
   data?: T;
@@ -22,7 +22,8 @@ export async function graphqlRequest<T>(
     headers["privy-id-token"] = identityToken;
   }
 
-  const response = await fetch(`${API_BASE_URL}/graphql`, {
+  const backendUrl = getBackendUrl();
+  const response = await fetch(`${backendUrl}/graphql`, {
     method: "POST",
     headers,
     body: JSON.stringify({ query, variables }),

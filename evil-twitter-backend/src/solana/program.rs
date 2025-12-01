@@ -6,6 +6,7 @@ use solana_sdk::{
     signature::{Keypair, read_keypair_file},
 };
 use std::sync::Arc;
+use base64::{Engine as _, engine::general_purpose};
 
 pub struct SolanaProgram {
     program_id: Pubkey,
@@ -43,6 +44,16 @@ impl SolanaProgram {
     }
 }
 
+/// Helper function to read a keypair from base64-encoded string
+pub fn read_keypair_from_base64(base64_str: &str) -> Result<Keypair, SolanaError> {
+    let bytes = general_purpose::STANDARD
+        .decode(base64_str)
+        .map_err(|e| SolanaError::KeypairError(format!("Failed to decode base64: {}", e)))?;
+    
+    Keypair::try_from(&bytes[..])
+        .map_err(|e| SolanaError::KeypairError(format!("Failed to create keypair from bytes: {}", e)))
+}
+
 /// Helper function to read a keypair from a JSON file
 pub fn read_keypair_from_file(file_path: &str) -> Result<Keypair, SolanaError> {
     read_keypair_file(file_path).map_err(|e| {
@@ -59,7 +70,7 @@ pub fn parse_keypair_from_base58(base58_str: &str) -> Result<Keypair, SolanaErro
         .into_vec()
         .map_err(|e| SolanaError::KeypairError(format!("Failed to decode base58: {}", e)))?;
 
-    Keypair::from_bytes(&bytes)
+    Keypair::try_from(&bytes[..])
         .map_err(|e| SolanaError::KeypairError(format!("Failed to create keypair: {}", e)))
 }
 

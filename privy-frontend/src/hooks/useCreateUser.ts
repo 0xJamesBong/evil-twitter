@@ -3,7 +3,7 @@ import { useState } from "react";
 import { useWallets } from "@privy-io/react-auth/solana";
 import { PublicKey } from "@solana/web3.js";
 import { useSolanaStore } from "../lib/stores/solanaStore";
-import { API_BASE_URL } from "../lib/config";
+import { getBackendUrl } from "../lib/config";
 
 /**
  * Hook to create on-chain user account (backend-signed, no user signing required)
@@ -46,14 +46,15 @@ export function useCreateUser() {
       const requestBody = {
         user_wallet: userPubkey.toBase58(),
       };
+      const backendUrl = getBackendUrl();
       console.log("📤 useCreateUser: Sending request to backend:", {
-        url: `${API_BASE_URL}/api/user/createUser`,
+        url: `${backendUrl}/api/user/createUser`,
         method: "POST",
         body: requestBody,
       });
 
       // Call backend to create user account (backend signs and broadcasts)
-      const response = await fetch(`${API_BASE_URL}/api/user/createUser`, {
+      const response = await fetch(`${backendUrl}/api/user/createUser`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",

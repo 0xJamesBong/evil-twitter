@@ -2,7 +2,7 @@
 import { useState } from "react";
 import { useWallets, useSignMessage } from "@privy-io/react-auth/solana";
 import { PublicKey } from "@solana/web3.js";
-import { API_BASE_URL } from "../lib/config";
+import { getBackendUrl } from "../lib/config";
 
 /**
  * Hook to delegate session signing authority to backend
@@ -56,7 +56,8 @@ export function useDelegateSession() {
       );
 
       // Step 4: Send to backend dummy endpoint
-      const response = await fetch(`${API_BASE_URL}/api/session/delegate`, {
+      const backendUrl = getBackendUrl();
+      const response = await fetch(`${backendUrl}/api/session/delegate`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
