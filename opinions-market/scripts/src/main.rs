@@ -25,7 +25,18 @@ async fn main() {
     let payer = read_keypair_file(&anchor_wallet).unwrap();
 
     let program_id = ID;
-    let client = Client::new_with_options(Cluster::Localnet, &payer, CommitmentConfig::processed());
+
+    // Determine cluster
+    let cluster = std::env::var("CLUSTER").unwrap_or("localnet".to_string());
+    println!("🌍 Bootstrap running on cluster: {}", cluster);
+
+    let cluster_enum = match cluster.as_str() {
+        "devnet" => Cluster::Devnet,
+        "mainnet" => Cluster::Mainnet,
+        _ => Cluster::Localnet,
+    };
+
+    let client = Client::new_with_options(cluster_enum, &payer, CommitmentConfig::processed());
     let opinions_market = client.program(program_id).unwrap();
     let rpc = opinions_market.rpc();
 
@@ -58,13 +69,23 @@ async fn main() {
     let stablecoin_mint = read_keypair_file("token-keys/stablecoin-mint.json").unwrap();
 
     // --- AIRDROP ---
-    airdrop_sol_to_users(&rpc, &everyone).await;
+    if cluster != "devnet" {
+        airdrop_sol_to_users(&rpc, &everyone).await;
+    } else {
+        println!("⏭  Skipping airdrop on devnet");
+    }
 
     // --- CREATE MINTS ---
-    setup_token_mint(&rpc, &payer, &payer, &opinions_market, &bling_mint).await;
-    setup_token_mint(&rpc, &payer, &payer, &opinions_market, &usdc_mint).await;
-    setup_token_mint(&rpc, &payer, &payer, &opinions_market, &stablecoin_mint).await;
-
+    // // If mint already exists, skip creation
+    if rpc.get_account(&bling_mint.pubkey()).await.is_err() {
+        setup_token_mint(&rpc, &payer, &payer, &opinions_market, &bling_mint).await;
+    }
+    if rpc.get_account(&usdc_mint.pubkey()).await.is_err() {
+        setup_token_mint(&rpc, &payer, &payer, &opinions_market, &usdc_mint).await;
+    }
+    if rpc.get_account(&stablecoin_mint.pubkey()).await.is_err() {
+        setup_token_mint(&rpc, &payer, &payer, &opinions_market, &stablecoin_mint).await;
+    }
     // --- CONFIG PDA ---
     let config_pda = Pubkey::find_program_address(&[CONFIG_SEED], &program_id).0;
     let protocol_bling_treasury = Pubkey::find_program_address(
@@ -162,5 +183,5 @@ async fn main() {
     println!("BLING_MINT: {}", bling_mint.pubkey());
     println!("USDC_MINT: {}", usdc_mint.pubkey());
     println!("CONFIG PDA: {}", config_pda);
-    println!("OK. Local environment ready.");
+    println!("OK. {} environment ready.", cluster);
 }

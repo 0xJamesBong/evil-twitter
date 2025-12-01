@@ -23,6 +23,9 @@ local = """
 set -a
 source .env
 set +a
+
+export CLUSTER=localnet
+
 pkill solana-test-validator || true;
 solana config set --url http://127.0.0.1:8899;
 solana config set --keypair $ANCHOR_WALLET_PATH;
@@ -39,15 +42,17 @@ cp "$(pwd)/target/idl/opinions_market.json" "$(pwd)/../evil-twitter-backend/src/
 cp "$(pwd)/target/types/opinions_market.ts" "$(pwd)/../evil-twitter-backend/src/solana/target/localnet/types/opinions_market.ts"
 """
 
-devnet = """
+devnet-deploy = """
 set -a
 source .env
 set +a
+
+export CLUSTER=devnet
+
 pkill solana-test-validator || true;
 solana config set --url https://api.devnet.solana.com;
 solana config set --keypair $ANCHOR_WALLET_PATH;
-solana-test-validator --reset & sleep 3;
-solana airdrop 0.01;
+
 anchor build;
 anchor deploy --provider.cluster devnet -- --upgrade-authority $ANCHOR_WALLET_PATH
 cargo run -p bootstrap

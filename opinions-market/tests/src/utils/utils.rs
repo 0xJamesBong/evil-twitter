@@ -67,7 +67,6 @@ pub async fn setup_token_mint(
         .get_minimum_balance_for_rent_exemption(space)
         .await
         .unwrap();
-
     // initialize jitosol_mint
     let create_token_mint_ix = system_instruction::create_account(
         &mint_authority.pubkey(),
@@ -121,38 +120,47 @@ pub async fn setup_token_mint_ata_and_mint_to(
         pk if pk == stablecoin_mint.pubkey() => "Stablecoin",
         _ => "Unknown",
     };
-
-    // Create the ATA first
-    let create_ata_ix = create_associated_token_account(
-        &payer.pubkey(),
-        &mint_to,
-        &token_mint.pubkey().clone(),
-        &spl_token::ID,
-    );
-    println!("🌟 create_ata_ix: {:?}", create_ata_ix);
     let user_token_ata = spl_associated_token_account::get_associated_token_address(
         &mint_to,
         &token_mint.pubkey().clone(),
     );
-    println!("🌟 user_token_ata: {:?}", user_token_ata);
 
-    let token_setup_tx = send_tx(
-        &rpc,
-        vec![
-            // create_token_mint_ix,
-            // initialize_token_mint_ix,
-            create_ata_ix,
-        ],
-        &payer.pubkey(),
-        &[&payer],
-    )
-    .await
-    .unwrap();
+    let ata_already_exists = rpc.get_account(&user_token_ata).await.is_ok();
+    // Check if ATA already exists
+    if ata_already_exists {
+        println!("🔁 ATA {} already exists, reusing", user_token_ata);
+    } else {
+        // Create the ATA first
+        let create_ata_ix = create_associated_token_account(
+            &payer.pubkey(),
+            &mint_to,
+            &token_mint.pubkey().clone(),
+            &spl_token::ID,
+        );
+        println!("🌟 create_ata_ix: {:?}", create_ata_ix);
+        let user_token_ata = spl_associated_token_account::get_associated_token_address(
+            &mint_to,
+            &token_mint.pubkey().clone(),
+        );
+        println!("🌟 user_token_ata: {:?}", user_token_ata);
 
-    println!("🌟{:} setup tx: {:}", token_name, token_setup_tx);
+        let token_setup_tx = send_tx(
+            &rpc,
+            vec![
+                // create_token_mint_ix,
+                // initialize_token_mint_ix,
+                create_ata_ix,
+            ],
+            &payer.pubkey(),
+            &[&payer],
+        )
+        .await
+        .unwrap();
+
+        println!("🌟{:} setup tx: {:}", token_name, token_setup_tx);
+    }
 
     // mint a big balance to the user
-
     let mint_token_to_user_ix = spl_token::instruction::mint_to(
         &spl_token::ID,
         &token_mint.pubkey().clone(),
@@ -177,8 +185,9 @@ pub async fn setup_token_mint_ata_and_mint_to(
         .account::<anchor_spl::token::TokenAccount>(user_token_ata)
         .await
         .unwrap();
-
-    assert_eq!(user_token_balance.amount, 1_000_000_000 * LAMPORTS_PER_SOL);
+    if !ata_already_exists {
+        assert_eq!(user_token_balance.amount, 1_000_000_000 * LAMPORTS_PER_SOL);
+    }
     println!(
         "🌟 User {} balance after mint: {}",
         token_name, user_token_balance.amount
