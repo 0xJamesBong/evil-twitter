@@ -125,7 +125,7 @@ export function TweetWall() {
                     { variant: "success" }
                 );
             } else {
-                enqueueSnackbar("Quote tweet posted!", { variant: "success" });
+            enqueueSnackbar("Quote tweet posted!", { variant: "success" });
             }
         } catch (e) {
             enqueueSnackbar(

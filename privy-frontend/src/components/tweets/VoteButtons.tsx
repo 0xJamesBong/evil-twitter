@@ -28,6 +28,7 @@ export function VoteButtons({ tweet: tweetProp }: VoteButtonsProps) {
     const globalUpvotes = optimisticGlobalUpvotes !== null ? optimisticGlobalUpvotes : (postState?.upvotes || 0);
     const globalDownvotes = optimisticGlobalDownvotes !== null ? optimisticGlobalDownvotes : (postState?.downvotes || 0);
     const isOpen = postState?.state === "Open";
+    console.log("postState.state:", postState?.state);
 
     // Initialize user vote counts from localStorage (persist across page reloads)
     useEffect(() => {
