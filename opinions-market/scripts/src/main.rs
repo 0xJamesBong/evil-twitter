@@ -65,6 +65,57 @@ async fn main() {
     setup_token_mint(&rpc, &payer, &payer, &opinions_market, &usdc_mint).await;
     setup_token_mint(&rpc, &payer, &payer, &opinions_market, &stablecoin_mint).await;
 
+    // --- CONFIG PDA ---
+    let config_pda = Pubkey::find_program_address(&[CONFIG_SEED], &program_id).0;
+    let protocol_bling_treasury = Pubkey::find_program_address(
+        &[
+            PROTOCOL_TREASURY_TOKEN_ACCOUNT_SEED,
+            bling_mint.pubkey().as_ref(),
+        ],
+        &program_id,
+    )
+    .0;
+    let valid_payment_pda = Pubkey::find_program_address(
+        &[VALID_PAYMENT_SEED, bling_mint.pubkey().as_ref()],
+        &program_id,
+    )
+    .0;
+
+    let base_duration_secs = 24 * 3600; // 1 day
+    let max_duration_secs = 7 * 24 * 3600; // 7 days
+    let extension_per_vote_secs = 60; // 1min
+
+    // --- INITIALIZE PROGRAM ---
+    let initialize_ix = opinions_market
+        .request()
+        .accounts(opinions_market::accounts::Initialize {
+            admin: admin_pubkey,
+            payer: payer.pubkey(),
+            config: config_pda,
+            bling_mint: bling_mint.pubkey(),
+            usdc_mint: usdc_mint.pubkey(),
+            protocol_bling_treasury,
+            valid_payment: valid_payment_pda,
+            system_program: anchor_lang::solana_program::system_program::ID,
+            token_program: anchor_spl::token::spl_token::ID,
+        })
+        .args(opinions_market::instruction::Initialize {
+            base_duration_secs,
+            max_duration_secs,
+            extension_per_vote_secs,
+        })
+        .instructions()
+        .unwrap();
+
+    // send_tx(&rpc, initialize_ix, &payer.pubkey(), &[&payer, &admin])
+    //     .await
+    //     .unwrap();
+
+    if let Err(e) = send_tx(&rpc, initialize_ix, &payer.pubkey(), &[&payer, &admin]).await {
+        eprintln!("❌ Error initializing program: {}", e);
+        std::process::exit(1);
+    }
+
     // MINT BLING TO EVERYONE
     setup_token_mint_ata_and_mint_to_many_users(
         &rpc,
@@ -108,53 +159,6 @@ async fn main() {
         &stablecoin_mint,
     )
     .await;
-
-    // --- CONFIG PDA ---
-    let config_pda = Pubkey::find_program_address(&[CONFIG_SEED], &program_id).0;
-    let protocol_bling_treasury = Pubkey::find_program_address(
-        &[
-            PROTOCOL_TREASURY_TOKEN_ACCOUNT_SEED,
-            bling_mint.pubkey().as_ref(),
-        ],
-        &program_id,
-    )
-    .0;
-    let valid_payment_pda = Pubkey::find_program_address(
-        &[VALID_PAYMENT_SEED, bling_mint.pubkey().as_ref()],
-        &program_id,
-    )
-    .0;
-
-    let base_duration_secs = 24 * 3600; // 1 day
-    let max_duration_secs = 7 * 24 * 3600; // 7 days
-    let extension_per_vote_secs = 60; // 1min
-
-    // --- INITIALIZE PROGRAM ---
-    let initialize_ix = opinions_market
-        .request()
-        .accounts(opinions_market::accounts::Initialize {
-            admin: admin_pubkey,
-            payer: payer.pubkey(),
-            config: config_pda,
-            bling_mint: bling_mint.pubkey(),
-            usdc_mint: usdc_mint.pubkey(),
-            protocol_bling_treasury,
-            valid_payment: valid_payment_pda,
-            system_program: anchor_lang::solana_program::system_program::ID,
-            token_program: anchor_spl::token::spl_token::ID,
-        })
-        .args(opinions_market::instruction::Initialize {
-            base_duration_secs,
-            max_duration_secs,
-            extension_per_vote_secs,
-        })
-        .instructions()
-        .unwrap();
-
-    send_tx(&rpc, initialize_ix, &payer.pubkey(), &[&payer, &admin])
-        .await
-        .unwrap();
-
     println!("BLING_MINT: {}", bling_mint.pubkey());
     println!("USDC_MINT: {}", usdc_mint.pubkey());
     println!("CONFIG PDA: {}", config_pda);

@@ -18,41 +18,43 @@ wallet = "~/Documents/evil-twitter/opinions-market/.secrets/assFUvBMqjyWvtRLEbWX
 
 [scripts]
 test = "cargo test -- --nocapture"
-#local = "cargo run -p bootstrap"
 
 local = """
 set -a
 source .env
 set +a
-
 pkill solana-test-validator || true;
 solana config set --url http://127.0.0.1:8899;
-solana config set --keypair ~/Documents/evil-twitter/opinions-market/.secrets/assFUvBMqjyWvtRLEbWXuN84T4UdTihCjfzC8JaXtrh.json;
-solana-test-validator --reset & sleep 3;
-
-solana airdrop 0.01;
-anchor build;
-anchor deploy --provider.cluster localnet -- --upgrade-authority ~/Documents/evil-twitter/opinions-market/.secrets/assFUvBMqjyWvtRLEbWXuN84T4UdTihCjfzC8JaXtrh.json
-cargo run -p bootstrap
-pwd
-cp "$(pwd)/target/idl/opinions_market.json" "$(pwd)/../privy-template/src/lib/solana/idl/opinions_market.json"
-cp "$(pwd)/target/idl/opinions_market.json" "$(pwd)/../evil-twitter-backend/src/solana/idl/opinions_market.json"
-cp "$(pwd)/target/types/opinions_market.ts" "$(pwd)/../evil-twitter-backend/src/solana/types/opinions_market.ts"
-"""
-
-
-full-devnet = """
-pkill solana-test-validator || true;
-solana config set --url http://127.0.0.1:8899;
-solana config set --keypair ~/Documents/evil-twitter/opinions-market/.secrets/assFUvBMqjyWvtRLEbWXuN84T4UdTihCjfzC8JaXtrh.json;
+solana config set --keypair $ANCHOR_WALLET_PATH;
 solana-test-validator --reset & sleep 3;
 solana airdrop 0.01;
 anchor build;
-anchor deploy --provider.cluster localnet --upgrade-authority ~/Documents/evil-twitter/opinions-market/.secrets/assFUvBMqjyWvtRLEbWXuN84T4UdTihCjfzC8JaXtrh.json
+anchor deploy --provider.cluster localnet -- --upgrade-authority $ANCHOR_WALLET_PATH
 cargo run -p bootstrap
 pwd
-cp "$(pwd)/target/idl/opinions_market.json" "$(pwd)/../privy-template/src/lib/solana/idl/opinions_market.json"
-cp "$(pwd)/target/idl/opinions_market.json" "$(pwd)/../evil-twitter-backend/src/solana/idl/opinions_market.json"
-cp "$(pwd)/target/types/opinions_market.ts" "$(pwd)/../evil-twitter-backend/src/solana/types/opinions_market.ts"
+cp "$(pwd)/target/idl/opinions_market.json" "$(pwd)/../privy-frontend/src/lib/solana/target/localnet/idl/opinions_market.json"
+cp "$(pwd)/target/types/opinions_market.ts" "$(pwd)/../privy-frontend/src/lib/solana/target/localnet/target/opinions_market.ts"
+
+cp "$(pwd)/target/idl/opinions_market.json" "$(pwd)/../evil-twitter-backend/src/solana/target/localnet/idl/opinions_market.json"
+cp "$(pwd)/target/types/opinions_market.ts" "$(pwd)/../evil-twitter-backend/src/solana/target/localnet/types/opinions_market.ts"
 """
 
+devnet = """
+set -a
+source .env
+set +a
+pkill solana-test-validator || true;
+solana config set --url https://api.devnet.solana.com;
+solana config set --keypair $ANCHOR_WALLET_PATH;
+solana-test-validator --reset & sleep 3;
+solana airdrop 0.01;
+anchor build;
+anchor deploy --provider.cluster devnet -- --upgrade-authority $ANCHOR_WALLET_PATH
+cargo run -p bootstrap
+pwd
+cp "$(pwd)/target/idl/opinions_market.json" "$(pwd)/../privy-frontend/src/lib/solana/target/devnet/idl/opinions_market.json"
+cp "$(pwd)/target/types/opinions_market.ts" "$(pwd)/../privy-frontend/src/lib/solana/target/devnet/target/opinions_market.ts"
+
+cp "$(pwd)/target/idl/opinions_market.json" "$(pwd)/../evil-twitter-backend/src/solana/target/devnet/idl/opinions_market.json"
+cp "$(pwd)/target/types/opinions_market.ts" "$(pwd)/../evil-twitter-backend/src/solana/target/devnet/types/opinions_market.ts"
+"""
