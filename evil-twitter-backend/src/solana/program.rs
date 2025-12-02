@@ -1,12 +1,12 @@
 use crate::solana::connection::SolanaConnection;
 use crate::solana::errors::SolanaError;
+use base64::{Engine as _, engine::general_purpose};
 use solana_client::rpc_client::RpcClient;
 use solana_sdk::{
     pubkey::Pubkey,
     signature::{Keypair, read_keypair_file},
 };
 use std::sync::Arc;
-use base64::{Engine as _, engine::general_purpose};
 
 pub struct SolanaProgram {
     program_id: Pubkey,
@@ -44,24 +44,16 @@ impl SolanaProgram {
     }
 }
 
-/// Helper function to read a keypair from base64-encoded string
-pub fn read_keypair_from_base64(base64_str: &str) -> Result<Keypair, SolanaError> {
-    let bytes = general_purpose::STANDARD
-        .decode(base64_str)
-        .map_err(|e| SolanaError::KeypairError(format!("Failed to decode base64: {}", e)))?;
-    
-    Keypair::try_from(&bytes[..])
-        .map_err(|e| SolanaError::KeypairError(format!("Failed to create keypair from bytes: {}", e)))
-}
-
 /// Helper function to read a keypair from a JSON file
 pub fn read_keypair_from_file(file_path: &str) -> Result<Keypair, SolanaError> {
-    read_keypair_file(file_path).map_err(|e| {
-        SolanaError::KeypairError(format!(
-            "Failed to read keypair from file {}: {}",
-            file_path, e
-        ))
-    })
+    read_keypair_file(file_path)
+        .map_err(|e| {
+            SolanaError::KeypairError(format!(
+                "Failed to read keypair from file {}: {}",
+                file_path, e
+            ))
+        })
+        .inspect(|kp| println!("keypair.secret_key: {:?}", kp.to_base58_string()))
 }
 
 /// Helper function to parse a base58-encoded keypair from string (kept for backward compatibility)

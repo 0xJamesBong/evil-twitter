@@ -8,9 +8,10 @@ use crate::services::{
     mongo_service::MongoService,
     // post_sync_service::PostSyncService,
 };
+use crate::solana::parse_keypair_from_base58;
 use crate::solana::{
     SolanaConnection, SolanaProgram,
-    program::{parse_pubkey, read_keypair_from_file, read_keypair_from_base64},
+    program::{parse_pubkey, read_keypair_from_file},
 };
 use solana_sdk::signer::Signer;
 
@@ -72,18 +73,40 @@ impl AppState {
         let bling_mint = parse_pubkey(&bling_mint_str).expect("Invalid BLING_MINT");
 
         // Get payer keypair (backend signer) - support both base64 env var and file path
-        let payer_keypair = if let Ok(base64_keypair) = std::env::var("SOLANA_PAYER_KEYPAIR_BASE64") {
-            // Load from base64 environment variable (for Railway deployment)
-            println!("📦 Loading keypair from SOLANA_PAYER_KEYPAIR_BASE64 env var");
-            read_keypair_from_base64(&base64_keypair)
-                .expect("Failed to decode keypair from SOLANA_PAYER_KEYPAIR_BASE64")
+        // let payer_keypair = if let Ok(base64_keypair) = std::env::var("SOLANA_PAYER_KEYPAIR_BASE58") {
+        //     // Load from base64 environment variable (for Railway deployment)
+        //     println!("📦 Loading keypair from SOLANA_PAYER_KEYPAIR_BASE58 env var");
+        //     read_keypair_from_base64(&base64_keypair)
+        //         .expect("Failed to decode keypair from SOLANA_PAYER_KEYPAIR_BASE58")
+        // } else {
+        //     // Fallback to file path (for local development)
+        //     let payer_keypair_path = std::env::var("SOLANA_PAYER_KEYPAIR_PATH")
+        //         .expect("SOLANA_PAYER_KEYPAIR_PATH environment variable must be set (or use SOLANA_PAYER_KEYPAIR_BASE58)");
+        //     println!("📁 Loading keypair from file: {}", payer_keypair_path);
+        //     read_keypair_from_file(&payer_keypair_path)
+        //         .expect(&format!("Failed to read keypair from {}. Make sure the file exists and the backend is run from the evil-twitter-backend directory.", payer_keypair_path))
+        // };
+        let payer_keypair = if let Ok(base64_keypair) = std::env::var("SOLANA_PAYER_KEYPAIR_BASE58")
+        {
+            println!("📦 Loading keypair from SOLANA_PAYER_KEYPAIR_BASE58 env var");
+            match parse_keypair_from_base58(&base64_keypair) {
+                Ok(kp) => kp,
+                Err(_) => {
+                    println!(
+                        "⚠ Failed to decode base64 keypair, falling back to SOLANA_PAYER_KEYPAIR_PATH"
+                    );
+                    println!("base64_keypair: {}", base64_keypair);
+                    let path = std::env::var("SOLANA_PAYER_KEYPAIR_PATH")
+                        .expect("SOLANA_PAYER_KEYPAIR_PATH must exist if base64 decoding fails");
+                    read_keypair_from_file(&path).expect("Failed to load fallback keypair file")
+                }
+            }
         } else {
-            // Fallback to file path (for local development)
-            let payer_keypair_path = std::env::var("SOLANA_PAYER_KEYPAIR_PATH")
-                .expect("SOLANA_PAYER_KEYPAIR_PATH environment variable must be set (or use SOLANA_PAYER_KEYPAIR_BASE64)");
-            println!("📁 Loading keypair from file: {}", payer_keypair_path);
-            read_keypair_from_file(&payer_keypair_path)
-                .expect(&format!("Failed to read keypair from {}. Make sure the file exists and the backend is run from the evil-twitter-backend directory.", payer_keypair_path))
+            let path = std::env::var("SOLANA_PAYER_KEYPAIR_PATH")
+                .expect("SOLANA_PAYER_KEYPAIR_PATH env variable must be set");
+            println!("📁 Loading keypair from file: {}", path);
+
+            read_keypair_from_file(&path).expect("Failed to read keypair from supplied file")
         };
 
         println!(
