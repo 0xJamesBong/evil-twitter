@@ -191,7 +191,7 @@ pub async fn test_phenomena_create_user(
         &rpc,
         ed25519_and_register_session_ix,
         &payer.pubkey(),
-        &[&session_key],
+        &[&payer],
     )
     .await
     .unwrap();
@@ -203,9 +203,6 @@ pub async fn test_phenomena_create_user(
         .await
         .unwrap();
 
-    println!("session authority: {:?}", session_authority);
-    println!("user: {:?}", user.pubkey());
-    println!("session key: {:?}", session_key.pubkey());
     assert_eq!(session_authority.user, user.pubkey());
     assert_eq!(session_authority.session_key, session_key.pubkey());
 }
