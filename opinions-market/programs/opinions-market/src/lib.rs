@@ -42,13 +42,23 @@ pub enum ErrorCode {
     Unauthorized,
     #[msg("Invalid parent post")]
     InvalidParentPost,
+    #[msg("Invalid or missing Ed25519 signature verification instruction")]
+    InvalidSignatureInstruction,
+    #[msg("Session expired or invalid timestamp")]
+    SessionExpired,
+    #[msg("Unauthorized signer")]
+    UnauthorizedSigner,
 }
 #[derive(Accounts)]
 pub struct Ping {}
 
 #[program]
 pub mod opinions_market {
-    use crate::middleware::session::assert_session_or_wallet;
+
+    use anchor_lang::solana_program::{ed25519_program, program::invoke};
+
+    use crate::middleware::session::{assert_session_or_wallet, validate_session_signature};
+    use anchor_lang::solana_program::sysvar::instructions::load_instruction_at_checked;
 
     use super::*;
     // Don't import from instructions module - use re-exports from crate root
@@ -138,6 +148,67 @@ pub mod opinions_market {
         Ok(())
     }
 
+    // to be called only after create_user
+    pub fn register_session(
+        ctx: Context<RegisterSession>,
+        expected_index: u8,
+        expires_at: i64,
+    ) -> Result<()> {
+        // // ---- Load Ed25519 verify instruction from tx instruction list ----
+        // let ix = load_instruction_at_checked(
+        //     expected_index as usize,
+        //     &ctx.accounts.instructions_sysvar,
+        // )?;
+
+        // // ---- Confirm this instruction is the Ed25519 system verifier ----
+        // require!(
+        //     ix.program_id == ed25519_program::ID,
+        //     ErrorCode::InvalidSignatureInstruction
+        // );
+
+        // //
+        // // ---- Extract verifying pubkey from instruction data ----
+        // //
+        // // Ed25519Verify instruction structure:
+        // // see solana docs: https://docs.solana.com/developing/runtime-facilities/programs#ed25519-program
+        // //
+        // // layout:
+        // // [0..1]  num_signatures
+        // // [1..x]  struct describing signatures
+        // // pubkey is commonly at bytes 16..48
+        // //
+        // let signer_pubkey_bytes = &ix.data[16..48];
+        // let signer_pubkey =
+        //     Pubkey::try_from(signer_pubkey_bytes).map_err(|_| ErrorCode::UnauthorizedSigner)?;
+
+        // // Ensure the validated signature came from the user we expect
+        // require!(
+        //     signer_pubkey == ctx.accounts.user.key(),
+        //     ErrorCode::UnauthorizedSigner
+        // );
+
+        validate_session_signature(
+            &ctx.accounts.user.key(),
+            expected_index,
+            &ctx.accounts.instructions_sysvar,
+            expires_at,
+        )?;
+
+        // ---- Check expiry ----
+        let now = Clock::get()?.unix_timestamp;
+        require!(expires_at > now, ErrorCode::SessionExpired);
+
+        // ---- Initialize SessionAuthority PDA ----
+        let session = &mut ctx.accounts.session_authority;
+        session.user = ctx.accounts.user.key();
+        session.session_key = ctx.accounts.session_key.key();
+        session.expires_at = expires_at;
+        session.privileges_hash = [0u8; 32];
+        session.bump = ctx.bumps.session_authority;
+
+        Ok(())
+    }
+
     /// User deposits from their wallet into the program-controlled vault.
     pub fn deposit(ctx: Context<Deposit>, amount: u64) -> Result<()> {
         // No logic needed—Anchor already checked mint is allowed.
@@ -187,6 +258,13 @@ pub mod opinions_market {
         let clock = Clock::get()?;
         let now = clock.unix_timestamp;
 
+        assert_session_or_wallet(
+            &ctx.accounts.user.key(),
+            &ctx.accounts.session_authority.user,
+            Some(&ctx.accounts.session_authority),
+            now,
+        )?;
+
         let config = &ctx.accounts.config;
         let post = &mut ctx.accounts.post;
         let new_post = PostAccount::new(
@@ -223,9 +301,15 @@ pub mod opinions_market {
         post_id_hash: [u8; 32], // do not remove this - this is used to derive the post pda!
     ) -> Result<()> {
         require!(votes > 0, ErrorCode::ZeroVotes);
-
         let clock = Clock::get()?;
         let now = clock.unix_timestamp;
+
+        assert_session_or_wallet(
+            &ctx.accounts.voter.key(),
+            &ctx.accounts.session_authority.user,
+            Some(&ctx.accounts.session_authority),
+            now,
+        )?;
 
         let cfg = &ctx.accounts.config;
         let post = &mut ctx.accounts.post;
@@ -440,6 +524,12 @@ pub mod opinions_market {
         let clock = Clock::get()?;
         let now = clock.unix_timestamp;
 
+        assert_session_or_wallet(
+            &ctx.accounts.user.key(),
+            &ctx.accounts.session_authority.user,
+            Some(&ctx.accounts.session_authority),
+            now,
+        )?;
         let post = &ctx.accounts.post;
         let pos = &mut ctx.accounts.position;
         let claim = &mut ctx.accounts.user_post_mint_claim;

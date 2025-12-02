@@ -7,11 +7,19 @@ import { useNetworkStore } from "./stores/networkStore";
 export function getBackendUrl(): string {
   const network = useNetworkStore.getState().network;
   if (network === "devnet") {
+    console.log(
+      "getBackendUrl | devnet",
+      process.env.NEXT_PUBLIC_BACKEND_URL_DEV
+    );
     return (
       process.env.NEXT_PUBLIC_BACKEND_URL_DEV ||
       "https://dev-api.evil-twitter.com"
     );
   }
   // Default to localnet
+  console.log(
+    "getBackendUrl | localnet",
+    process.env.NEXT_PUBLIC_BACKEND_URL_LOCAL
+  );
   return process.env.NEXT_PUBLIC_BACKEND_URL_LOCAL || "http://localhost:3001";
 }

@@ -3,6 +3,7 @@ use crate::state::*;
 use anchor_lang::prelude::*;
 use anchor_spl::token::{Mint, Token, TokenAccount};
 use crate::ErrorCode;
+use solana_program::sysvar::instructions::ID as INSTRUCTIONS_SYSVAR_ID;
 
 // -----------------------------------------------------------------------------
 // CONTEXTS
@@ -83,6 +84,7 @@ pub struct RegisterValidPayment<'info> {
     pub token_program: Program<'info, Token>,
 }
 
+
 #[derive(Accounts)]
 pub struct ModifyAcceptedMint<'info> {
     #[account(
@@ -141,6 +143,36 @@ pub struct CreateUser<'info> {
     
     pub system_program: Program<'info, System>,
 }
+
+
+#[derive(Accounts)]
+#[instruction(expected_index: u8)]
+pub struct RegisterSession<'info> {
+    #[account(mut)]
+    pub payer: Signer<'info>,
+
+    /// CHECK: the user wallet we are delegating authority for
+    pub user: UncheckedAccount<'info>,
+
+    /// CHECK: ephemeral delegated session key
+    pub session_key: UncheckedAccount<'info>,
+
+    #[account(
+        init,
+        payer = payer,
+        seeds = [SESSION_AUTHORITY_SEED, user.key().as_ref(), session_key.key().as_ref()],
+        bump,
+        space = 8 + SessionAuthority::INIT_SPACE,
+    )]
+    pub session_authority: Account<'info, SessionAuthority>,
+
+    /// CHECK: sysvar required to load instructions in the tx
+    #[account(address = INSTRUCTIONS_SYSVAR_ID)]
+    pub instructions_sysvar: UncheckedAccount<'info>,
+
+    pub system_program: Program<'info, System>,
+}
+
 
 
 /// User deposits from their wallet into the program-controlled vault.
@@ -249,8 +281,20 @@ pub struct CreatePost<'info> {
  
    /// Signer paying the TX fee (user or backend)
    #[account(mut)]
-   pub payer: Signer<'info>,
-    
+   pub payer: UncheckedAccount<'info>,
+
+
+    /// CHECK: ephemeral delegated session key
+    #[account(mut)]
+    pub session_key: UncheckedAccount<'info>,
+
+    #[account(
+        mut,
+        seeds = [SESSION_AUTHORITY_SEED, user.key().as_ref(), session_key.key().as_ref()],
+        bump,
+    )]
+    pub session_authority: Account<'info, SessionAuthority>,
+
     #[account(
         seeds = [USER_ACCOUNT_SEED, user.key().as_ref()],
         bump,
@@ -287,6 +331,19 @@ pub struct VoteOnPost<'info> {
     /// Signer paying the TX fee (user or backend)
     #[account(mut)]
     pub payer: Signer<'info>,
+
+
+    /// CHECK: ephemeral delegated session key
+    #[account(mut)]
+    pub session_key: UncheckedAccount<'info>,
+
+    #[account(
+        mut,
+        seeds = [SESSION_AUTHORITY_SEED, voter.key().as_ref(), session_key.key().as_ref()],
+        bump,
+    )]
+    pub session_authority: Account<'info, SessionAuthority>,
+
  
     #[account(
         mut,
@@ -461,6 +518,19 @@ pub struct ClaimPostReward<'info> {
     
     )]
     pub payer: Signer<'info>,
+
+
+    /// CHECK: ephemeral delegated session key
+    #[account(mut)]
+    pub session_key: UncheckedAccount<'info>,
+
+    #[account(
+        mut,
+        seeds = [SESSION_AUTHORITY_SEED, user.key().as_ref(), session_key.key().as_ref()],
+        bump,
+    )]
+    pub session_authority: Account<'info, SessionAuthority>,
+
 
     #[account(
         mut,
