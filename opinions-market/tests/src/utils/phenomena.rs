@@ -5,14 +5,14 @@ use anchor_client::anchor_lang::solana_program::example_mocks::solana_sdk::syste
 use anchor_client::Program;
 use anchor_spl::token::spl_token;
 use solana_client::nonblocking::rpc_client::RpcClient;
-use solana_sdk::clock::Clock;
 use solana_sdk::pubkey::Pubkey;
 use solana_sdk::{signature::Keypair, signer::Signer};
 
 use crate::config::TIME_CONFIG_FAST;
 use crate::utils::rates::RATES;
 use crate::utils::utils::{
-    current_chain_timestamp, send_tx, wait_for_post_to_expire, PRIVILEGES_HASH,
+    create_ed25519_instruction_for_session, current_chain_timestamp, send_tx,
+    sign_message_for_session_registration, wait_for_post_to_expire, PRIVILEGES_HASH,
 };
 use opinions_market::pda_seeds::*;
 
@@ -104,6 +104,7 @@ pub async fn test_phenomena_create_user(
     opinions_market: &Program<&Keypair>,
     payer: &Keypair,
     user: &Keypair,
+    session_key: &Keypair,
     config_pda: &Pubkey,
 ) {
     println!("creating user {:}", user.pubkey());
@@ -148,17 +149,25 @@ pub async fn test_phenomena_create_user(
 
     // regisaer session
     // let now = Clock::get().unwrap().unix_timestamp;
-    // user signs
-    let signature_bytes = sign_message(user, session_key).await;
+    // user signs (for verification purposes, though ed25519_ix will re-sign)
+    let _signature_bytes = sign_message_for_session_registration(user, &session_key.pubkey());
     // --------------------------
     // ED25519 VERIFY IX
     // --------------------------
+    let ed25519_ix = create_ed25519_instruction_for_session(user, &session_key.pubkey());
 
-    let ed25519_ix = ed25519_instruction::new_ed25519_instruction(
-        &signature_bytes,
-        &user.pubkey().to_bytes(),
-        &message_bytes,
+    // Derive session authority PDA
+    let (session_authority_pda, _) = Pubkey::find_program_address(
+        &[
+            SESSION_AUTHORITY_SEED,
+            user.pubkey().as_ref(),
+            session_key.pubkey().as_ref(),
+        ],
+        &opinions_market.id(),
     );
+
+    // Instructions sysvar ID
+    let instructions_sysvar = solana_sdk::sysvar::instructions::ID;
 
     let register_session_ix = opinions_market
         .request()
@@ -167,7 +176,7 @@ pub async fn test_phenomena_create_user(
             user: user.pubkey(),
             session_key: session_key.pubkey(),
             session_authority: session_authority_pda,
-            instructions_sysvar: instructions_sysvar,
+            instructions_sysvar,
             system_program: system_program::ID,
         })
         .args(opinions_market::instruction::RegisterSession { expected_index: 0 })
@@ -182,17 +191,21 @@ pub async fn test_phenomena_create_user(
         &rpc,
         ed25519_and_register_session_ix,
         &payer.pubkey(),
-        &[&payer, &user],
+        &[&session_key],
     )
     .await
     .unwrap();
-    println!("register session tx: {:?}", register_session_tx);
+    println!("register session tx: {:?}", ed25519_and_register_session_tx);
 
     // verify session was registered
     let session_authority = opinions_market
         .account::<opinions_market::state::SessionAuthority>(session_authority_pda)
         .await
         .unwrap();
+
+    println!("session authority: {:?}", session_authority);
+    println!("user: {:?}", user.pubkey());
+    println!("session key: {:?}", session_key.pubkey());
     assert_eq!(session_authority.user, user.pubkey());
     assert_eq!(session_authority.session_key, session_key.pubkey());
 }

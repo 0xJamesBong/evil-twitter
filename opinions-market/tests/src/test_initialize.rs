@@ -227,9 +227,33 @@ async fn test_setup() {
         test_phenomena_add_valid_payment(&rpc, &opinions_market, &payer, &admin, &usdc_pubkey)
             .await;
 
-        test_phenomena_create_user(&rpc, &opinions_market, &payer, &user_1, &config_pda).await;
-        test_phenomena_create_user(&rpc, &opinions_market, &payer, &user_2, &config_pda).await;
-        test_phenomena_create_user(&rpc, &opinions_market, &payer, &user_3, &config_pda).await;
+        test_phenomena_create_user(
+            &rpc,
+            &opinions_market,
+            &payer,
+            &user_1,
+            &session_key,
+            &config_pda,
+        )
+        .await;
+        test_phenomena_create_user(
+            &rpc,
+            &opinions_market,
+            &payer,
+            &user_2,
+            &session_key,
+            &config_pda,
+        )
+        .await;
+        test_phenomena_create_user(
+            &rpc,
+            &opinions_market,
+            &payer,
+            &user_3,
+            &session_key,
+            &config_pda,
+        )
+        .await;
 
         {
             println!("user 1 depositing 10_000_000 bling to their vault");

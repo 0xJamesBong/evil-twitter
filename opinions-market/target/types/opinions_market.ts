@@ -51,11 +51,50 @@ export type OpinionsMarket = {
         },
         {
           "name": "payer",
-          "docs": [
-            "Signer paying the TX fee (user or backend)"
-          ],
           "writable": true,
           "signer": true
+        },
+        {
+          "name": "sessionKey",
+          "writable": true
+        },
+        {
+          "name": "sessionAuthority",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  115,
+                  101,
+                  115,
+                  115,
+                  105,
+                  111,
+                  110,
+                  95,
+                  97,
+                  117,
+                  116,
+                  104,
+                  111,
+                  114,
+                  105,
+                  116,
+                  121
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "user"
+              },
+              {
+                "kind": "account",
+                "path": "sessionKey"
+              }
+            ]
+          }
         },
         {
           "name": "post",
@@ -310,11 +349,49 @@ export type OpinionsMarket = {
         },
         {
           "name": "payer",
-          "docs": [
-            "Signer paying the TX fee (user or backend)"
-          ],
+          "writable": true
+        },
+        {
+          "name": "sessionKey",
+          "writable": true
+        },
+        {
+          "name": "sessionAuthority",
           "writable": true,
-          "signer": true
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  115,
+                  101,
+                  115,
+                  115,
+                  105,
+                  111,
+                  110,
+                  95,
+                  97,
+                  117,
+                  116,
+                  104,
+                  111,
+                  114,
+                  105,
+                  116,
+                  121
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "user"
+              },
+              {
+                "kind": "account",
+                "path": "sessionKey"
+              }
+            ]
+          }
         },
         {
           "name": "userAccount",
@@ -817,6 +894,84 @@ export type OpinionsMarket = {
       "args": []
     },
     {
+      "name": "registerSession",
+      "discriminator": [
+        101,
+        116,
+        106,
+        43,
+        152,
+        189,
+        4,
+        110
+      ],
+      "accounts": [
+        {
+          "name": "payer",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "user"
+        },
+        {
+          "name": "sessionKey"
+        },
+        {
+          "name": "sessionAuthority",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  115,
+                  101,
+                  115,
+                  115,
+                  105,
+                  111,
+                  110,
+                  95,
+                  97,
+                  117,
+                  116,
+                  104,
+                  111,
+                  114,
+                  105,
+                  116,
+                  121
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "user"
+              },
+              {
+                "kind": "account",
+                "path": "sessionKey"
+              }
+            ]
+          }
+        },
+        {
+          "name": "instructionsSysvar",
+          "address": "Sysvar1nstructions1111111111111111111111111"
+        },
+        {
+          "name": "systemProgram",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "expectedIndex",
+          "type": "u8"
+        }
+      ]
+    },
+    {
       "name": "registerValidPayment",
       "discriminator": [
         17,
@@ -1220,11 +1375,50 @@ export type OpinionsMarket = {
         },
         {
           "name": "payer",
-          "docs": [
-            "Signer paying the TX fee (user or backend)"
-          ],
           "writable": true,
           "signer": true
+        },
+        {
+          "name": "sessionKey",
+          "writable": true
+        },
+        {
+          "name": "sessionAuthority",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  115,
+                  101,
+                  115,
+                  115,
+                  105,
+                  111,
+                  110,
+                  95,
+                  97,
+                  117,
+                  116,
+                  104,
+                  111,
+                  114,
+                  105,
+                  116,
+                  121
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "voter"
+              },
+              {
+                "kind": "account",
+                "path": "sessionKey"
+              }
+            ]
+          }
         },
         {
           "name": "post",
@@ -1809,6 +2003,19 @@ export type OpinionsMarket = {
       ]
     },
     {
+      "name": "sessionAuthority",
+      "discriminator": [
+        48,
+        9,
+        30,
+        120,
+        134,
+        35,
+        172,
+        170
+      ]
+    },
+    {
       "name": "userAccount",
       "discriminator": [
         211,
@@ -1931,6 +2138,21 @@ export type OpinionsMarket = {
       "code": 6013,
       "name": "invalidParentPost",
       "msg": "Invalid parent post"
+    },
+    {
+      "code": 6014,
+      "name": "invalidSignatureInstruction",
+      "msg": "Invalid or missing Ed25519 signature verification instruction"
+    },
+    {
+      "code": 6015,
+      "name": "sessionExpired",
+      "msg": "Session expired or invalid timestamp"
+    },
+    {
+      "code": 6016,
+      "name": "unauthorizedSigner",
+      "msg": "Unauthorized signer"
     }
   ],
   "types": [
@@ -2103,6 +2325,39 @@ export type OpinionsMarket = {
                 "type": "pubkey"
               }
             ]
+          }
+        ]
+      }
+    },
+    {
+      "name": "sessionAuthority",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "user",
+            "type": "pubkey"
+          },
+          {
+            "name": "sessionKey",
+            "type": "pubkey"
+          },
+          {
+            "name": "expiresAt",
+            "type": "i64"
+          },
+          {
+            "name": "privilegesHash",
+            "type": {
+              "array": [
+                "u8",
+                32
+              ]
+            }
+          },
+          {
+            "name": "bump",
+            "type": "u8"
           }
         ]
       }

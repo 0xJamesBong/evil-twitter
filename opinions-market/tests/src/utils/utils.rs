@@ -7,6 +7,7 @@ use anchor_spl::{
     associated_token::spl_associated_token_account::{self},
     token::spl_token,
 };
+
 use solana_client::nonblocking::rpc_client::RpcClient;
 use solana_sdk::{
     instruction::Instruction,
@@ -16,7 +17,7 @@ use solana_sdk::{
     signature::{Keypair, Signature},
     signers::Signers,
     transaction::VersionedTransaction,
-}; // Add this import
+};
 use solana_sdk::{pubkey::Pubkey, signer::Signer};
 
 /// Generate a unique post_id_hash for creating posts.
@@ -33,19 +34,28 @@ pub async fn wait_for_seconds(seconds: u64) {
     tokio::time::sleep(tokio::time::Duration::from_secs(seconds)).await;
 }
 
-pub async fn sign_message(user: &Keypair, session_key: &Pubkey) -> Signature {
-    // MESSAGE TO BE SIGNED
-    // --------------------------
-    let message = format!("SESSION:{}", session_key.pubkey());
+pub fn sign_message_for_session_registration(
+    user: &Keypair,
+    session_key: &Pubkey,
+) -> (String, Vec<u8>, [u8; 64]) {
+    // Format message
+    let message = format!("SESSION:{}", session_key);
     let message_bytes = message.as_bytes().to_vec();
+    let signature = user.sign_message(&message_bytes).as_array().clone();
+    (message, message_bytes, signature)
+}
 
-    // --------------------------
-    // SIGN MESSAGE w/ USER KEY
-    // --------------------------
-    let dalek = solana_to_dalek(&user);
-    let signature_dalek = dalek.sign(&message_bytes);
-    let signature_bytes: [u8; 64] = signature_dalek.to_bytes();
-    signature_bytes
+pub fn create_ed25519_instruction_for_session(user: &Keypair, session_key: &Pubkey) -> Instruction {
+    // Get the signature and message (reuse existing function)
+    let (message, message_bytes, signature_bytes) =
+        sign_message_for_session_registration(user, session_key);
+
+    // Use the function that accepts signature bytes directly
+    solana_sdk::ed25519_instruction::new_ed25519_instruction_with_signature(
+        &message_bytes,
+        &signature_bytes,
+        &user.pubkey().to_bytes(),
+    )
 }
 
 pub async fn wait_for_post_to_expire(

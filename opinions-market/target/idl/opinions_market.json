@@ -45,11 +45,50 @@
         },
         {
           "name": "payer",
-          "docs": [
-            "Signer paying the TX fee (user or backend)"
-          ],
           "writable": true,
           "signer": true
+        },
+        {
+          "name": "session_key",
+          "writable": true
+        },
+        {
+          "name": "session_authority",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  115,
+                  101,
+                  115,
+                  115,
+                  105,
+                  111,
+                  110,
+                  95,
+                  97,
+                  117,
+                  116,
+                  104,
+                  111,
+                  114,
+                  105,
+                  116,
+                  121
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "user"
+              },
+              {
+                "kind": "account",
+                "path": "session_key"
+              }
+            ]
+          }
         },
         {
           "name": "post",
@@ -304,11 +343,49 @@
         },
         {
           "name": "payer",
-          "docs": [
-            "Signer paying the TX fee (user or backend)"
-          ],
+          "writable": true
+        },
+        {
+          "name": "session_key",
+          "writable": true
+        },
+        {
+          "name": "session_authority",
           "writable": true,
-          "signer": true
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  115,
+                  101,
+                  115,
+                  115,
+                  105,
+                  111,
+                  110,
+                  95,
+                  97,
+                  117,
+                  116,
+                  104,
+                  111,
+                  114,
+                  105,
+                  116,
+                  121
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "user"
+              },
+              {
+                "kind": "account",
+                "path": "session_key"
+              }
+            ]
+          }
         },
         {
           "name": "user_account",
@@ -811,6 +888,84 @@
       "args": []
     },
     {
+      "name": "register_session",
+      "discriminator": [
+        101,
+        116,
+        106,
+        43,
+        152,
+        189,
+        4,
+        110
+      ],
+      "accounts": [
+        {
+          "name": "payer",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "user"
+        },
+        {
+          "name": "session_key"
+        },
+        {
+          "name": "session_authority",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  115,
+                  101,
+                  115,
+                  115,
+                  105,
+                  111,
+                  110,
+                  95,
+                  97,
+                  117,
+                  116,
+                  104,
+                  111,
+                  114,
+                  105,
+                  116,
+                  121
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "user"
+              },
+              {
+                "kind": "account",
+                "path": "session_key"
+              }
+            ]
+          }
+        },
+        {
+          "name": "instructions_sysvar",
+          "address": "Sysvar1nstructions1111111111111111111111111"
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "expected_index",
+          "type": "u8"
+        }
+      ]
+    },
+    {
       "name": "register_valid_payment",
       "discriminator": [
         17,
@@ -1214,11 +1369,50 @@
         },
         {
           "name": "payer",
-          "docs": [
-            "Signer paying the TX fee (user or backend)"
-          ],
           "writable": true,
           "signer": true
+        },
+        {
+          "name": "session_key",
+          "writable": true
+        },
+        {
+          "name": "session_authority",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  115,
+                  101,
+                  115,
+                  115,
+                  105,
+                  111,
+                  110,
+                  95,
+                  97,
+                  117,
+                  116,
+                  104,
+                  111,
+                  114,
+                  105,
+                  116,
+                  121
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "voter"
+              },
+              {
+                "kind": "account",
+                "path": "session_key"
+              }
+            ]
+          }
         },
         {
           "name": "post",
@@ -1803,6 +1997,19 @@
       ]
     },
     {
+      "name": "SessionAuthority",
+      "discriminator": [
+        48,
+        9,
+        30,
+        120,
+        134,
+        35,
+        172,
+        170
+      ]
+    },
+    {
       "name": "UserAccount",
       "discriminator": [
         211,
@@ -1925,6 +2132,21 @@
       "code": 6013,
       "name": "InvalidParentPost",
       "msg": "Invalid parent post"
+    },
+    {
+      "code": 6014,
+      "name": "InvalidSignatureInstruction",
+      "msg": "Invalid or missing Ed25519 signature verification instruction"
+    },
+    {
+      "code": 6015,
+      "name": "SessionExpired",
+      "msg": "Session expired or invalid timestamp"
+    },
+    {
+      "code": 6016,
+      "name": "UnauthorizedSigner",
+      "msg": "Unauthorized signer"
     }
   ],
   "types": [
@@ -2097,6 +2319,39 @@
                 "type": "pubkey"
               }
             ]
+          }
+        ]
+      }
+    },
+    {
+      "name": "SessionAuthority",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "user",
+            "type": "pubkey"
+          },
+          {
+            "name": "session_key",
+            "type": "pubkey"
+          },
+          {
+            "name": "expires_at",
+            "type": "i64"
+          },
+          {
+            "name": "privileges_hash",
+            "type": {
+              "array": [
+                "u8",
+                32
+              ]
+            }
+          },
+          {
+            "name": "bump",
+            "type": "u8"
           }
         ]
       }

@@ -15,6 +15,7 @@ pub struct Initialize<'info> {
     #[account(mut)]
     pub admin: Signer<'info>,
 
+    /// CHECK: Payer for transaction fees and account initialization
     #[account(mut)]
     pub payer: Signer<'info>,
     #[account(
@@ -149,6 +150,7 @@ pub struct CreateUser<'info> {
 #[derive(Accounts)]
 #[instruction(expected_index: u8)]
 pub struct RegisterSession<'info> {
+    /// CHECK: Payer for transaction fees and session authority account initialization
     #[account(mut)]
     pub payer: Signer<'info>,
 
@@ -184,6 +186,7 @@ pub struct Deposit<'info> {
     #[account(mut)]
     pub user: Signer<'info>,
 
+    /// CHECK: Payer for transaction fees (can be user or backend)
     #[account(mut)]
     pub payer: Signer<'info>,
 
@@ -234,6 +237,7 @@ pub struct Withdraw<'info> {
     #[account(mut)]
     pub user: Signer<'info>,    
 
+    /// CHECK: Payer for transaction fees (can be user or backend)
     #[account(mut)]
     pub payer: Signer<'info>,
 
@@ -280,7 +284,7 @@ pub struct CreatePost<'info> {
     #[account(mut)]
     pub user: UncheckedAccount<'info>,
  
-   /// Signer paying the TX fee (user or backend)
+   /// CHECK: Signer paying the TX fee (user or backend)
    #[account(mut)]
    pub payer: UncheckedAccount<'info>,
 
@@ -328,7 +332,7 @@ pub struct VoteOnPost<'info> {
      #[account(mut)]
      pub voter: UncheckedAccount<'info>,
     
-    /// Signer paying the TX fee (user or backend)
+    /// CHECK: Signer paying the TX fee (user or backend)
     #[account(mut)]
     pub payer: Signer<'info>,
 
@@ -440,7 +444,7 @@ pub struct VoteOnPost<'info> {
 #[derive(Accounts)]
 #[instruction(post_id_hash: [u8; 32])]
 pub struct SettlePost<'info> {
-    
+    /// CHECK: Payer for transaction fees
     #[account(mut)]
     pub payer: Signer<'info>,
 
@@ -512,7 +516,7 @@ pub struct ClaimPostReward<'info> {
     #[account(mut)]
     pub user: UncheckedAccount<'info>,
      
-   /// Signer paying the TX fee (user or backend)
+   /// CHECK: Signer paying the TX fee (user or backend)
    #[account(
     mut,
     
