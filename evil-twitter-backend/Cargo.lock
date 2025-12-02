@@ -2031,7 +2031,6 @@ dependencies = [
  "hyper",
  "mongodb 3.4.1",
  "mongodb-gridfs",
- "opinions-market",
  "rand 0.8.5",
  "reqwest",
  "rust_decimal",
@@ -3755,20 +3754,6 @@ dependencies = [
  "libc",
  "pkg-config",
  "vcpkg",
-]
-
-[[package]]
-name = "opinions-market"
-version = "0.1.0"
-dependencies = [
- "anchor-lang",
- "anchor-spl",
- "bytemuck",
- "hex",
- "spl-pod",
- "spl-tlv-account-resolution 0.10.0",
- "spl-transfer-hook-interface 0.10.0",
- "spl-type-length-value 0.8.0",
 ]
 
 [[package]]
