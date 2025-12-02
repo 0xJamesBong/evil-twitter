@@ -73,9 +73,9 @@ function ProfileContent() {
             )}
 
             {backendUser && (
-                <Grid container spacing={3}>
+                <Box sx={{ display: "flex", flexWrap: "wrap", gap: 3 }}>
                     {/* Profile Header */}
-                    <Grid item xs={12}>
+                    <Box sx={{ width: { xs: "100%", md: "calc(50% - 12px)" } }}>
                         <Card>
                             <CardContent>
                                 <Stack spacing={3}>
@@ -110,10 +110,10 @@ function ProfileContent() {
                                 </Stack>
                             </CardContent>
                         </Card>
-                    </Grid>
+                    </Box>
 
                     {/* On-Chain Stats */}
-                    <Grid item xs={12} md={6}>
+                    <Box sx={{ width: { xs: "100%", md: "calc(50% - 12px)" } }}>
                         <Card>
                             <CardContent>
                                 <Typography variant="h6" gutterBottom sx={{ mb: 2, display: "flex", alignItems: "center", gap: 1 }}>
@@ -164,10 +164,10 @@ function ProfileContent() {
                                 </Stack>
                             </CardContent>
                         </Card>
-                    </Grid>
+                    </Box>
 
                     {/* Wallet Info */}
-                    <Grid item xs={12} md={6}>
+                    <Box sx={{ width: { xs: "100%", md: "calc(50% - 12px)" } }}>
                         <Card>
                             <CardContent>
                                 <Typography variant="h6" gutterBottom sx={{ mb: 2, display: "flex", alignItems: "center", gap: 1 }}>
@@ -195,10 +195,10 @@ function ProfileContent() {
                                 </Stack>
                             </CardContent>
                         </Card>
-                    </Grid>
+                    </Box>
 
                     {/* Wallet Token Balances */}
-                    <Grid item xs={12}>
+                    <Box sx={{ width: { xs: "100%", md: "calc(50% - 12px)" } }}>
                         <Card>
                             <CardContent>
                                 <Typography variant="h6" gutterBottom sx={{ mb: 2, display: "flex", alignItems: "center", gap: 1 }}>
@@ -258,16 +258,19 @@ function ProfileContent() {
                                 )}
                             </CardContent>
                         </Card>
-                    </Grid>
-                </Grid>
-            )}
+                    </Box>
+                </Box>
+            )
+            }
 
-            {!backendUser && !isLoading && (
-                <Alert severity="info">
-                    No profile data available. Please complete onboarding.
-                </Alert>
-            )}
-        </Box>
+            {
+                !backendUser && !isLoading && (
+                    <Alert severity="info">
+                        No profile data available. Please complete onboarding.
+                    </Alert>
+                )
+            }
+        </Box >
     );
 }
 

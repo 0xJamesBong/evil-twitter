@@ -11,7 +11,6 @@ import {
     Alert,
     CircularProgress,
     Stack,
-    Grid,
     Chip,
     Divider,
 } from "@mui/material";
@@ -152,10 +151,10 @@ function ContractsContent() {
                     {error}
                 </Alert>
             ) : (
-                <Grid container spacing={3}>
+                <Box sx={{ display: "flex", flexWrap: "wrap", gap: 3 }}>
                     {/* Config Account */}
                     {config && (
-                        <Grid item xs={12} md={6}>
+                        <Box sx={{ width: { xs: "100%", md: "calc(50% - 12px)" } }}>
                             <Card>
                                 <CardContent>
                                     <Typography
@@ -267,11 +266,11 @@ function ContractsContent() {
                                     </Stack>
                                 </CardContent>
                             </Card>
-                        </Grid>
+                        </Box>
                     )}
 
                     {/* Valid Payment Accounts */}
-                    <Grid item xs={12} md={6}>
+                    <Box sx={{ width: { xs: "100%", md: "calc(50% - 12px)" } }}>
                         <Card>
                             <CardContent>
                                 <Typography
@@ -371,8 +370,8 @@ function ContractsContent() {
                                 )}
                             </CardContent>
                         </Card>
-                    </Grid>
-                </Grid>
+                    </Box>
+                </Box>
             )}
         </Box>
     );
