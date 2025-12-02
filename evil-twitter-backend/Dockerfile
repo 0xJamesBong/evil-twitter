@@ -1,9 +1,12 @@
 FROM rust:1-bullseye AS builder
 WORKDIR /app
 
-# Copy opinions-market dependency (required for build)
+# Copy opinions-market workspace root (required for workspace dependencies)
+COPY opinions-market/Cargo.toml ./opinions-market/
+COPY opinions-market/Cargo.lock ./opinions-market/
+
+# Copy opinions-market program (the actual dependency)
 COPY opinions-market/programs/opinions-market ./opinions-market/programs/opinions-market
-COPY opinions-market/programs/opinions-market/Cargo.toml ./opinions-market/programs/opinions-market/
 
 # Copy backend code
 COPY evil-twitter-backend ./evil-twitter-backend
