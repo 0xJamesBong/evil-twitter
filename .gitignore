@@ -17,6 +17,23 @@ out/
 build/
 dist/
 
+# Exception: Keep IDL and type files needed for runtime
+# Backend Solana target (IDL and types)
+!evil-twitter-backend/src/solana/target/
+!evil-twitter-backend/src/solana/target/**/*.json
+!evil-twitter-backend/src/solana/target/**/*.ts
+
+# Opinions Market target (IDL and types)
+!opinions-market/target/idl/
+!opinions-market/target/idl/**/*.json
+!opinions-market/target/types/
+!opinions-market/target/types/**/*.ts
+
+# Frontend Solana target (IDL and types)
+!privy-frontend/src/lib/solana/target/
+!privy-frontend/src/lib/solana/target/**/*.json
+!privy-frontend/src/lib/solana/target/**/*.ts
+
 # Python
 __pycache__/
 *.py[cod]
@@ -77,3 +94,5 @@ checkpoints/
 # Secrets
 .secrets
 **/.secrets
+
+

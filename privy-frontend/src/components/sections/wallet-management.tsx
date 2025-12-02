@@ -40,7 +40,7 @@ const WalletManagement = () => {
       address: wallet.address,
       type: "solana" as const,
       name: wallet.address,
-      isPrivy: wallet.walletClientType === "privy",
+      isPrivy: true, // isPrivy: wallet.walletClientType === "privy",
     }));
 
     return [...evmWallets, ...solanaWallets];

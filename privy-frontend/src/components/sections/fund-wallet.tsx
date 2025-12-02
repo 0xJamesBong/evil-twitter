@@ -50,67 +50,68 @@ const FundWallet = () => {
 
   const isEvmWallet = selectedWallet?.type === "ethereum";
   const isSolanaWallet = selectedWallet?.type === "solana";
-  const fundWalletEvmHandler = (
-    asset?:
-      | {
-          erc20: Hex;
-        }
-      | "USDC"
-      | "native-currency"
-  ) => {
-    if (!isEvmWallet || !selectedWallet) {
-      showErrorToast("Please select an Ethereum wallet");
-      return;
-    }
-    try {
-      fundWalletEvm(selectedWallet.address, {
-        amount: "1",
-        ...(asset && { asset }),
-      });
-    } catch (error) {
-      console.log(error);
-      showErrorToast("Failed to fund wallet. Please try again.");
-    }
-  };
-  const fundWalletSolanaHandler = (asset?: "USDC" | "native-currency") => {
-    if (!isSolanaWallet || !selectedWallet) {
-      showErrorToast("Please select a Solana wallet");
-      return;
-    }
-    try {
-      fundWalletSolana(selectedWallet.address, {
-        amount: "1",
-        ...(asset && { asset }),
-      });
-    } catch (error) {
-      console.log(error);
-      showErrorToast("Failed to fund wallet. Please try again.");
-    }
-  };
+  // const fundWalletEvmHandler = (
+  //   asset?:
+  //     | {
+  //       erc20: Hex;
+  //     }
+  //     | "USDC"
+  //     | "native-currency"
+  // ) => {
+  //   if (!isEvmWallet || !selectedWallet) {
+  //     showErrorToast("Please select an Ethereum wallet");
+  //     return;
+  //   }
+  //   try {
+  //     fundWalletEvm(selectedWallet.address, {
+  //       amount: "1",
+  //       ...(asset && { asset }),
+  //     });
+  //   } catch (error) {
+  //     console.log(error);
+  //     showErrorToast("Failed to fund wallet. Please try again.");
+  //   }
+  // };
+  // const fundWalletSolanaHandler = (asset?: "USDC" | "native-currency") => {
+  //   if (!isSolanaWallet || !selectedWallet) {
+  //     showErrorToast("Please select a Solana wallet");
+  //     return;
+  //   }
+  //   try {
+  //     fundWalletSolana(selectedWallet.address, {
+  //       amount: "1",
+  //       ...(asset && { asset }),
+  //     });
+  //   } catch (error) {
+  //     console.log(error);
+  //     showErrorToast("Failed to fund wallet. Please try again.");
+  //   }
+  // };
 
   const availableActions = [
     {
       name: "Fund ETH",
-      function: fundWalletEvmHandler,
+      function: () => { },// fundWalletEvmHandler,
       disabled: !isEvmWallet,
     },
     {
       name: "Fund USDC (EVM)",
-      function: () => {
-        fundWalletEvmHandler("USDC");
-      },
+      function: () => { },// function: () => {
+      //   fundWalletEvmHandler("USDC");
+      // },
       disabled: !isEvmWallet,
     },
     {
       name: "Fund SOL",
-      function: fundWalletSolanaHandler,
+      function: () => { },// function: fundWalletSolanaHandler,
       disabled: !isSolanaWallet,
     },
     {
       name: "Fund USDC (Solana)",
-      function: () => {
-        fundWalletSolanaHandler("USDC");
-      },
+      function: () => { },
+      // function: () => {
+      //   fundWalletSolanaHandler("USDC");
+      // },
       disabled: !isSolanaWallet,
     },
   ];
