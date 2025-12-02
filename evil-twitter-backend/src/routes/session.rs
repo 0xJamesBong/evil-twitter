@@ -2,10 +2,13 @@ use axum::{Json, extract::State, http::StatusCode};
 use serde::{Deserialize, Serialize};
 use std::str::FromStr;
 use std::sync::Arc;
+use std::time::{SystemTime, UNIX_EPOCH};
 
 use solana_sdk::pubkey::Pubkey;
+use bs58;
 
 use crate::app_state::AppState;
+use crate::solana::get_session_authority_pda;
 
 #[derive(Deserialize)]
 pub struct CreateUserRequest {
@@ -61,6 +64,127 @@ pub async fn create_user(
 
     Ok(Json(CreateUserResponse {
         signature: signature.to_string(),
+    }))
+}
+
+#[derive(Deserialize)]
+pub struct RegisterSessionRequest {
+    pub user_wallet: String,        // Base58 pubkey
+    pub session_key: String,        // Base58 pubkey of ephemeral session key
+    pub signature: String,          // Base58 encoded ed25519 signature (64 bytes)
+    pub message: String,            // The message that was signed (should be "SESSION:{session_key}")
+}
+
+#[derive(Serialize)]
+pub struct RegisterSessionResponse {
+    pub signature: String,              // Transaction signature
+    pub session_authority_pda: String,  // PDA address
+    pub expires_at: i64,                // Expiration timestamp
+}
+
+/// Register a session for a user with ed25519 signature verification
+pub async fn register_session(
+    State(app_state): State<Arc<AppState>>,
+    Json(req): Json<RegisterSessionRequest>,
+) -> Result<Json<RegisterSessionResponse>, (StatusCode, String)> {
+    println!(
+        "📝 register_session: Received request for user_wallet: {}, session_key: {}",
+        req.user_wallet, req.session_key
+    );
+
+    // Parse user wallet and session key pubkeys
+    let user_wallet = Pubkey::from_str(&req.user_wallet).map_err(|e| {
+        eprintln!("❌ register_session: Invalid user wallet pubkey: {}", e);
+        (
+            StatusCode::BAD_REQUEST,
+            format!("Invalid user wallet pubkey: {}", e),
+        )
+    })?;
+
+    let session_key = Pubkey::from_str(&req.session_key).map_err(|e| {
+        eprintln!("❌ register_session: Invalid session key pubkey: {}", e);
+        (
+            StatusCode::BAD_REQUEST,
+            format!("Invalid session key pubkey: {}", e),
+        )
+    })?;
+
+    // Decode signature from base58 to [u8; 64]
+    let signature_bytes = bs58::decode(&req.signature)
+        .into_vec()
+        .map_err(|e| {
+            eprintln!("❌ register_session: Failed to decode signature: {}", e);
+            (
+                StatusCode::BAD_REQUEST,
+                format!("Invalid signature format: {}", e),
+            )
+        })?;
+
+    if signature_bytes.len() != 64 {
+        return Err((
+            StatusCode::BAD_REQUEST,
+            format!("Signature must be 64 bytes, got {}", signature_bytes.len()),
+        ));
+    }
+
+    let signature_array: [u8; 64] = signature_bytes
+        .try_into()
+        .map_err(|_| {
+            (
+                StatusCode::BAD_REQUEST,
+                "Failed to convert signature to array".to_string(),
+            )
+        })?;
+
+    // Verify message format (optional validation)
+    let expected_message = format!("SESSION:{}", req.session_key);
+    if req.message != expected_message {
+        eprintln!(
+            "⚠️  register_session: Message format mismatch. Expected: {}, Got: {}",
+            expected_message, req.message
+        );
+        // Continue anyway - on-chain verification will catch invalid signatures
+    }
+
+    // Convert message to bytes
+    let message_bytes = req.message.as_bytes().to_vec();
+
+    println!("✅ register_session: Parsed inputs successfully");
+    println!("🚀 register_session: Calling solana_service.register_session()...");
+
+    // Register session on-chain
+    let signature = app_state
+        .solana_service
+        .register_session(user_wallet, session_key, signature_array, message_bytes)
+        .await
+        .map_err(|e| {
+            eprintln!("❌ register_session: Failed to register session on-chain: {}", e);
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                format!("Failed to register session: {}", e),
+            )
+        })?;
+
+    // Derive session authority PDA to return in response
+    let program_id = app_state.solana_service.opinions_market_program().id();
+    let (session_authority_pda, _) = get_session_authority_pda(&program_id, &user_wallet, &session_key);
+
+    // Calculate expires_at (30 days from now, matching program logic)
+    let now = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap()
+        .as_secs() as i64;
+    let expires_at = now + (60 * 60 * 24 * 30); // 30 days
+
+    println!(
+        "✅ register_session: Session registered successfully! Signature: {}, PDA: {}, Expires: {}",
+        signature, session_authority_pda, expires_at
+    );
+
+    Ok(Json(RegisterSessionResponse {
+        signature: signature.to_string(),
+        session_authority_pda: session_authority_pda.to_string(),
+        expires_at,
     }))
 }
 

@@ -11,12 +11,14 @@ use anchor_spl::{
 use opinions_market::state::Side;
 use solana_client::nonblocking::rpc_client::RpcClient;
 use solana_sdk::{
+    ed25519_instruction,
     instruction::Instruction,
     message::{VersionedMessage, v0::Message},
     native_token::LAMPORTS_PER_SOL,
     program_pack::Pack,
     signature::{Keypair, Signature},
     signers::Signers,
+    sysvar::instructions::ID as INSTRUCTIONS_SYSVAR_ID,
     transaction::VersionedTransaction,
 }; // Add this import
 use solana_sdk::{pubkey::Pubkey, signer::Signer};
@@ -41,7 +43,7 @@ use opinions_market::instructions::*;
 use crate::solana::get_config_pda;
 use crate::solana::{
     get_position_pda, get_post_pda, get_post_pot_authority_pda, get_post_pot_token_account_pda,
-    get_protocol_treasury_token_account_pda, get_user_account_pda,
+    get_protocol_treasury_token_account_pda, get_session_authority_pda, get_user_account_pda,
     get_user_vault_token_account_pda, get_valid_payment_pda, get_vault_authority_pda,
 };
 
@@ -357,6 +359,101 @@ impl SolanaService {
         Ok(signature)
     }
 
+    /// Register a session for a user with ed25519 signature verification
+    pub async fn register_session(
+        &self,
+        user_wallet: Pubkey,
+        session_key: Pubkey,
+        signature_bytes: [u8; 64],
+        message_bytes: Vec<u8>,
+    ) -> anyhow::Result<Signature> {
+        println!(
+            "  🔧 SolanaService::register_session: Starting for user {}, session_key {}",
+            user_wallet, session_key
+        );
+
+        let program = self.opinions_market_program();
+        let program_id = program.id();
+        println!(
+            "  📍 SolanaService::register_session: Program ID: {}",
+            program_id
+        );
+
+        // Derive session authority PDA
+        let (session_authority_pda, _) =
+            get_session_authority_pda(&program_id, &user_wallet, &session_key);
+        println!(
+            "  📍 SolanaService::register_session: Session Authority PDA: {}",
+            session_authority_pda
+        );
+
+        // Create ed25519 instruction (must be first in transaction, index 0)
+        println!("  🔨 SolanaService::register_session: Building ed25519 instruction...");
+        let ed25519_ix = ed25519_instruction::new_ed25519_instruction_with_signature(
+            &message_bytes,
+            &signature_bytes,
+            &user_wallet.to_bytes(),
+        );
+        println!("  ✅ SolanaService::register_session: ed25519 instruction built");
+
+        // Create register_session instruction
+        println!("  🔨 SolanaService::register_session: Building RegisterSession instruction...");
+        let register_session_ix = program
+            .request()
+            .accounts(opinions_market::accounts::RegisterSession {
+                payer: self.payer.pubkey(),
+                user: user_wallet,
+                session_key,
+                session_authority: session_authority_pda,
+                instructions_sysvar: INSTRUCTIONS_SYSVAR_ID,
+                system_program: solana_sdk::system_program::ID,
+            })
+            .args(opinions_market::instruction::RegisterSession { expected_index: 0 })
+            .instructions()
+            .map_err(|e| {
+                eprintln!(
+                    "  ❌ SolanaService::register_session: Failed to build instruction: {}",
+                    e
+                );
+                anyhow::anyhow!("Failed to build RegisterSession instruction: {}", e)
+            })?;
+
+        println!("  ✅ SolanaService::register_session: RegisterSession instruction built");
+
+        // Build transaction with ed25519 first, then register_session
+        let mut instructions = vec![ed25519_ix];
+        instructions.extend(register_session_ix);
+
+        println!(
+            "  ✍️  SolanaService::register_session: Building and signing transaction with payer..."
+        );
+        let tx = self.build_partial_signed_tx(instructions).await.map_err(|e| {
+            eprintln!(
+                "  ❌ SolanaService::register_session: Failed to build transaction: {}",
+                e
+            );
+            e
+        })?;
+
+        println!("  ✅ SolanaService::register_session: Transaction built and signed");
+
+        // Send and confirm transaction
+        println!("  📡 SolanaService::register_session: Sending transaction to network...");
+        let signature = self.send_signed_tx(&tx).await.map_err(|e| {
+            eprintln!(
+                "  ❌ SolanaService::register_session: Failed to send transaction: {}",
+                e
+            );
+            e
+        })?;
+
+        println!(
+            "  ✅ SolanaService::register_session: Transaction confirmed! Signature: {}",
+            signature
+        );
+        Ok(signature)
+    }
+
     /// Create a post account on-chain, signed by backend payer only
     pub async fn create_post(
         &self,
@@ -402,12 +499,18 @@ impl SolanaService {
 
         // Build CreatePost instruction
         println!("  🔨 SolanaService::create_post: Building CreatePost instruction...");
+        // For now, use payer as session_key when no session is registered
+        // TODO: Properly handle optional sessions
+        let (session_authority_pda, _) = get_session_authority_pda(&program_id, &user_wallet, &self.payer.pubkey());
+        
         let ixs = program
             .request()
             .accounts(opinions_market::accounts::CreatePost {
                 config: config_pda,
                 user: user_wallet,
                 payer: self.payer.pubkey(),
+                session_key: self.payer.pubkey(),
+                session_authority: session_authority_pda,
                 user_account: user_account_pda,
                 post: post_pda,
                 system_program: solana_sdk::system_program::ID,
@@ -567,12 +670,18 @@ impl SolanaService {
 
         // Build VoteOnPost instruction
         println!("  🔨 SolanaService::vote_on_post: Building VoteOnPost instruction...");
+        // For now, use payer as session_key when no session is registered
+        // TODO: Properly handle optional sessions
+        let (session_authority_pda, _) = get_session_authority_pda(&program_id, voter_wallet, &self.payer.pubkey());
+        
         let ixs = program
             .request()
             .accounts(opinions_market::accounts::VoteOnPost {
                 config: config_pda,
                 voter: *voter_wallet,
                 payer: self.payer.pubkey(),
+                session_key: self.payer.pubkey(),
+                session_authority: session_authority_pda,
                 post: post_pda,
                 voter_user_account: voter_user_account_pda,
                 voter_user_vault_token_account: voter_user_vault_token_account_pda,

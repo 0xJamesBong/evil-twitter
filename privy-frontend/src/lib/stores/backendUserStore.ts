@@ -13,7 +13,9 @@ type BackendUserState = {
   isLoading: boolean;
   error: string | null;
   sessionAuthorityPda: string | null;
+  sessionKey: string | null;
   sessionExpiresAt: number | null;
+  sessionUserWallet: string | null;
   sessionActive: boolean;
 };
 
@@ -28,7 +30,12 @@ type BackendUserActions = {
   refreshMe: (identityToken: string) => Promise<void>;
   clear: () => void;
   // Session management
-  setSession: (sessionAuthorityPda: string, expiresAt: number) => void;
+  setSession: (
+    sessionAuthorityPda: string,
+    sessionKey: string,
+    expiresAt: number,
+    userWallet: string
+  ) => void;
   clearSession: () => void;
   isSessionValid: () => boolean;
 };
@@ -40,7 +47,9 @@ export const useBackendUserStore = create<
   isLoading: false,
   error: null,
   sessionAuthorityPda: null,
+  sessionKey: null,
   sessionExpiresAt: null,
+  sessionUserWallet: null,
   sessionActive: false,
   onboardUser: async (
     identityToken: string,
@@ -107,18 +116,27 @@ export const useBackendUserStore = create<
   clear: () => {
     set({ user: null, isLoading: false, error: null });
   },
-  setSession: (sessionAuthorityPda: string, expiresAt: number) => {
+  setSession: (
+    sessionAuthorityPda: string,
+    sessionKey: string,
+    expiresAt: number,
+    userWallet: string
+  ) => {
     const now = Math.floor(Date.now() / 1000);
     set({
       sessionAuthorityPda,
+      sessionKey,
       sessionExpiresAt: expiresAt,
+      sessionUserWallet: userWallet,
       sessionActive: expiresAt > now,
     });
   },
   clearSession: () => {
     set({
       sessionAuthorityPda: null,
+      sessionKey: null,
       sessionExpiresAt: null,
+      sessionUserWallet: null,
       sessionActive: false,
     });
   },

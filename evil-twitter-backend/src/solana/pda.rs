@@ -13,6 +13,7 @@ const POST_POT_TOKEN_ACCOUNT_SEED: &[u8] = b"post_pot_token_account";
 const PROTOCOL_TREASURY_TOKEN_ACCOUNT_SEED: &[u8] = b"protocol_treasury_token_account";
 const POST_MINT_PAYOUT_SEED: &[u8] = b"post_mint_payout";
 const USER_POST_MINT_CLAIM_SEED: &[u8] = b"user_post_mint_claim";
+const SESSION_AUTHORITY_SEED: &[u8] = b"session_authority";
 
 /// Derive the Config PDA
 pub fn get_config_pda(program_id: &Pubkey) -> (Pubkey, u8) {
@@ -128,6 +129,22 @@ pub fn get_user_post_mint_claim_pda(
             post_pda.as_ref(),
             token_mint.as_ref(),
             user_wallet.as_ref(),
+        ],
+        program_id,
+    )
+}
+
+/// Derive the Session Authority PDA
+pub fn get_session_authority_pda(
+    program_id: &Pubkey,
+    user_wallet: &Pubkey,
+    session_key: &Pubkey,
+) -> (Pubkey, u8) {
+    Pubkey::find_program_address(
+        &[
+            SESSION_AUTHORITY_SEED,
+            user_wallet.as_ref(),
+            session_key.as_ref(),
         ],
         program_id,
     )
