@@ -18,6 +18,13 @@ RUN cargo build --release
 FROM debian:bullseye-slim
 WORKDIR /app
 RUN apt-get update && apt-get install -y ca-certificates libssl1.1 && rm -rf /var/lib/apt/lists/*
+
+# Copy the binary
 COPY --from=builder /app/evil-twitter-backend/target/release/evil-twitter /usr/local/bin/evil-twitter
+
+# Copy IDL files (required at runtime)
+COPY --from=builder /app/evil-twitter-backend/src/solana/target ./evil-twitter-backend/src/solana/target
+
 ENV RUST_LOG=info
+WORKDIR /app/evil-twitter-backend
 CMD ["evil-twitter"]
