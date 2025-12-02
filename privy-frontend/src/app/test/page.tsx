@@ -28,7 +28,7 @@ import MFA from "@/components/sections/mfa";
 
 import { useBackendUserStore } from "@/lib/stores/backendUserStore";
 import { usePingStore } from "@/lib/stores/pingStore";
-import { API_BASE_URL } from "@/lib/config";
+
 
 function TestContent() {
     const { ready, authenticated, logout, user: privyUser } = usePrivy();
@@ -37,7 +37,7 @@ function TestContent() {
 
     console.log("Test, backendUser:", backendUser);
     console.log("Test, privyUser:", privyUser);
-    console.log("API_BASE_URL: ", API_BASE_URL);
+
 
     if (!ready) {
         return <FullScreenLoader />;
