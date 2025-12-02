@@ -33,6 +33,21 @@ pub async fn wait_for_seconds(seconds: u64) {
     tokio::time::sleep(tokio::time::Duration::from_secs(seconds)).await;
 }
 
+pub async fn sign_message(user: &Keypair, session_key: &Pubkey) -> Signature {
+    // MESSAGE TO BE SIGNED
+    // --------------------------
+    let message = format!("SESSION:{}", session_key.pubkey());
+    let message_bytes = message.as_bytes().to_vec();
+
+    // --------------------------
+    // SIGN MESSAGE w/ USER KEY
+    // --------------------------
+    let dalek = solana_to_dalek(&user);
+    let signature_dalek = dalek.sign(&message_bytes);
+    let signature_bytes: [u8; 64] = signature_dalek.to_bytes();
+    signature_bytes
+}
+
 pub async fn wait_for_post_to_expire(
     rpc: &RpcClient,
     opinions_market: &Program<&Keypair>,

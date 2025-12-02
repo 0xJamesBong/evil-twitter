@@ -149,11 +149,7 @@ pub mod opinions_market {
     }
 
     // to be called only after create_user
-    pub fn register_session(
-        ctx: Context<RegisterSession>,
-        expected_index: u8,
-        expires_at: i64,
-    ) -> Result<()> {
+    pub fn register_session(ctx: Context<RegisterSession>, expected_index: u8) -> Result<()> {
         // // ---- Load Ed25519 verify instruction from tx instruction list ----
         // let ix = load_instruction_at_checked(
         //     expected_index as usize,
@@ -187,6 +183,9 @@ pub mod opinions_market {
         //     ErrorCode::UnauthorizedSigner
         // );
 
+        let now = Clock::get()?.unix_timestamp;
+        let expires_at = now + 60 * 60 * 24 * 30; // 30 days
+
         validate_session_signature(
             &ctx.accounts.user.key(),
             expected_index,
@@ -195,8 +194,8 @@ pub mod opinions_market {
         )?;
 
         // ---- Check expiry ----
-        let now = Clock::get()?.unix_timestamp;
-        require!(expires_at > now, ErrorCode::SessionExpired);
+        // let now = Clock::get()?.unix_timestamp;
+        // require!(expires_at > now, ErrorCode::SessionExpired);
 
         // ---- Initialize SessionAuthority PDA ----
         let session = &mut ctx.accounts.session_authority;

@@ -1,9 +1,10 @@
 use crate::pda_seeds::*;
 use crate::state::*;
 use anchor_lang::prelude::*;
+use anchor_lang::solana_program::sysvar::instructions;
 use anchor_spl::token::{Mint, Token, TokenAccount};
 use crate::ErrorCode;
-use solana_program::sysvar::instructions::ID as INSTRUCTIONS_SYSVAR_ID;
+
 
 // -----------------------------------------------------------------------------
 // CONTEXTS
@@ -167,7 +168,7 @@ pub struct RegisterSession<'info> {
     pub session_authority: Account<'info, SessionAuthority>,
 
     /// CHECK: sysvar required to load instructions in the tx
-    #[account(address = INSTRUCTIONS_SYSVAR_ID)]
+    #[account(address = instructions::ID)]
     pub instructions_sysvar: UncheckedAccount<'info>,
 
     pub system_program: Program<'info, System>,
@@ -282,7 +283,6 @@ pub struct CreatePost<'info> {
    /// Signer paying the TX fee (user or backend)
    #[account(mut)]
    pub payer: UncheckedAccount<'info>,
-
 
     /// CHECK: ephemeral delegated session key
     #[account(mut)]

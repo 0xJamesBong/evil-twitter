@@ -316,6 +316,7 @@ async fn test_setup() {
                 &opinions_market,
                 &payer,
                 &user_1,
+                &session_key,
                 &config_pda,
                 None, // Original post
             )
@@ -329,6 +330,7 @@ async fn test_setup() {
                 &opinions_market,
                 &payer,
                 &user_2,
+                &session_key,
                 &config_pda,
                 Some(post_p1_pda), // Child post
             )
@@ -342,6 +344,7 @@ async fn test_setup() {
                 &opinions_market,
                 &payer,
                 &user_2,
+                &session_key,
                 &post_p1_pda,
                 opinions_market::state::Side::Pump,
                 1,
@@ -359,6 +362,7 @@ async fn test_setup() {
                 &opinions_market,
                 &payer,
                 &user_1,
+                &session_key,
                 &post_p2_pda,
                 opinions_market::state::Side::Smack,
                 2,
@@ -376,6 +380,7 @@ async fn test_setup() {
                 &opinions_market,
                 &payer,
                 &user_1,
+                &session_key,
                 &post_p2_pda,
                 opinions_market::state::Side::Smack,
                 1,
@@ -395,6 +400,7 @@ async fn test_setup() {
                 &opinions_market,
                 &payer,
                 &user_1,
+                &session_key,
                 &post_p2_pda,
                 opinions_market::state::Side::Smack,
                 1,
@@ -428,6 +434,7 @@ async fn test_setup() {
                 &opinions_market,
                 &payer,
                 &user_2,
+                &session_key,
                 &post_p1_pda,
                 &bling_pubkey,
                 &tokens,

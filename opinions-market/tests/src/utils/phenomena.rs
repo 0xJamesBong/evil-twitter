@@ -23,6 +23,7 @@ pub async fn test_phenomena_add_valid_payment(
     opinions_market: &Program<&Keypair>,
     payer: &Keypair,
     admin: &Keypair,
+
     new_token_mint: &Pubkey,
 ) {
     println!("adding {:} as an valid payment mint", new_token_mint);
@@ -144,6 +145,56 @@ pub async fn test_phenomena_create_user(
     );
 
     println!("✅ User account created successfully");
+
+    // regisaer session
+    // let now = Clock::get().unwrap().unix_timestamp;
+    // user signs
+    let signature_bytes = sign_message(user, session_key).await;
+    // --------------------------
+    // ED25519 VERIFY IX
+    // --------------------------
+
+    let ed25519_ix = ed25519_instruction::new_ed25519_instruction(
+        &signature_bytes,
+        &user.pubkey().to_bytes(),
+        &message_bytes,
+    );
+
+    let register_session_ix = opinions_market
+        .request()
+        .accounts(opinions_market::accounts::RegisterSession {
+            payer: payer.pubkey(),
+            user: user.pubkey(),
+            session_key: session_key.pubkey(),
+            session_authority: session_authority_pda,
+            instructions_sysvar: instructions_sysvar,
+            system_program: system_program::ID,
+        })
+        .args(opinions_market::instruction::RegisterSession { expected_index: 0 })
+        .instructions()
+        .unwrap();
+
+    // Build Vec<Instruction> with ed25519 first, then register_session
+    let mut ed25519_and_register_session_ix = vec![ed25519_ix];
+    ed25519_and_register_session_ix.extend(register_session_ix);
+
+    let ed25519_and_register_session_tx = send_tx(
+        &rpc,
+        ed25519_and_register_session_ix,
+        &payer.pubkey(),
+        &[&payer, &user],
+    )
+    .await
+    .unwrap();
+    println!("register session tx: {:?}", register_session_tx);
+
+    // verify session was registered
+    let session_authority = opinions_market
+        .account::<opinions_market::state::SessionAuthority>(session_authority_pda)
+        .await
+        .unwrap();
+    assert_eq!(session_authority.user, user.pubkey());
+    assert_eq!(session_authority.session_key, session_key.pubkey());
 }
 
 pub async fn test_phenomena_deposit(
@@ -312,6 +363,7 @@ pub async fn test_phenomena_create_post(
     opinions_market: &Program<&Keypair>,
     payer: &Keypair,
     creator: &Keypair,
+    session_key: &Keypair,
     config_pda: &Pubkey,
 
     parent_post_pda: Option<Pubkey>,
@@ -334,13 +386,23 @@ pub async fn test_phenomena_create_post(
 
     let post_pda =
         Pubkey::find_program_address(&[POST_ACCOUNT_SEED, hash.as_ref()], &opinions_market.id()).0;
-
+    let session_authority_pda = Pubkey::find_program_address(
+        &[
+            SESSION_AUTHORITY_SEED,
+            creator.pubkey().as_ref(),
+            session_key.pubkey().as_ref(),
+        ],
+        &opinions_market.id(),
+    )
+    .0;
     let create_post_ix = opinions_market
         .request()
         .accounts(opinions_market::accounts::CreatePost {
             config: *config_pda,
             user: creator.pubkey(),
             payer: payer.pubkey(),
+            session_key: session_key.pubkey(),
+            session_authority: session_authority_pda,
             user_account: user_account_pda,
             post: post_pda,
             system_program: system_program::ID,
@@ -468,6 +530,7 @@ pub async fn test_phenomena_vote_on_post(
     opinions_market: &Program<&Keypair>,
     payer: &Keypair,
     voter: &Keypair,
+    session_key: &Keypair,
     post_pda: &Pubkey,
     side: opinions_market::state::Side,
     votes: u64,
@@ -633,12 +696,24 @@ pub async fn test_phenomena_vote_on_post(
     )
     .0;
 
+    let session_authority_pda = Pubkey::find_program_address(
+        &[
+            SESSION_AUTHORITY_SEED,
+            voter.pubkey().as_ref(),
+            session_key.pubkey().as_ref(),
+        ],
+        &opinions_market.id(),
+    )
+    .0;
+
     let vote_ix = opinions_market
         .request()
         .accounts(opinions_market::accounts::VoteOnPost {
             config: *config_pda,
             voter: voter.pubkey(),
             payer: payer.pubkey(),
+            session_key: session_key.pubkey(),
+            session_authority: session_authority_pda,
             post: *post_pda,
             voter_user_account: voter_user_account_pda,
             position: position_pda,
@@ -941,6 +1016,7 @@ pub async fn test_phenomena_claim_post_reward(
     opinions_market: &Program<&Keypair>,
     payer: &Keypair,
     user: &Keypair,
+    session_key: &Keypair,
     post_pda: &Pubkey,
     token_mint: &Pubkey,
     tokens: &HashMap<Pubkey, String>,
@@ -1027,6 +1103,16 @@ pub async fn test_phenomena_claim_post_reward(
     )
     .0;
 
+    let session_authority_pda = Pubkey::find_program_address(
+        &[
+            SESSION_AUTHORITY_SEED,
+            user.pubkey().as_ref(),
+            session_key.pubkey().as_ref(),
+        ],
+        &opinions_market.id(),
+    )
+    .0;
+
     // Get initial balances and state
     // Check if position exists (user must have voted on this post)
     let position_result = opinions_market
@@ -1104,6 +1190,8 @@ pub async fn test_phenomena_claim_post_reward(
             config: *config_pda,
             user: user.pubkey(),
             payer: payer.pubkey(),
+            session_key: session_key.pubkey(),
+            session_authority: session_authority_pda,
             post: *post_pda,
             position: position_pda,
             user_post_mint_claim: user_post_mint_claim_pda,
