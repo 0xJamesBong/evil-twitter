@@ -1,5 +1,5 @@
 import { create } from "zustand";
-import { API_BASE_URL } from "../config";
+import { getBackendUrl } from "../config";
 
 type PingState = {
   response: string | null;
@@ -17,9 +17,10 @@ export const usePingStore = create<PingState>((set) => ({
   ping: async () => {
     set({ isLoading: true, error: null, response: null });
     try {
-      const url = `${API_BASE_URL}/ping`;
+      const backendUrl = getBackendUrl();
+      const url = `${backendUrl}/ping`;
       console.log("Ping: Calling", url);
-      console.log("Ping: API_BASE_URL is", API_BASE_URL);
+      console.log("Ping: Backend URL is", backendUrl);
 
       const response = await fetch(url, {
         method: "GET",
@@ -58,4 +59,3 @@ export const usePingStore = create<PingState>((set) => ({
     set({ response: null, error: null, isLoading: false });
   },
 }));
-

@@ -25,7 +25,18 @@ async fn main() {
     let payer = read_keypair_file(&anchor_wallet).unwrap();
 
     let program_id = ID;
-    let client = Client::new_with_options(Cluster::Localnet, &payer, CommitmentConfig::processed());
+
+    // Determine cluster
+    let cluster = std::env::var("CLUSTER").unwrap_or("localnet".to_string());
+    println!("🌍 Bootstrap running on cluster: {}", cluster);
+
+    let cluster_enum = match cluster.as_str() {
+        "devnet" => Cluster::Devnet,
+        "mainnet" => Cluster::Mainnet,
+        _ => Cluster::Localnet,
+    };
+
+    let client = Client::new_with_options(cluster_enum, &payer, CommitmentConfig::processed());
     let opinions_market = client.program(program_id).unwrap();
     let rpc = opinions_market.rpc();
 
@@ -34,8 +45,13 @@ async fn main() {
     let admin_pubkey = admin.pubkey();
 
     // Read the backend payer keypair from secrets
-    let chauhai =
-        read_keypair_file(".secrets/xxxmpaGinzux2NwdPiGaxXsR4EAsYLhaA87g75H3V5X.json").unwrap();
+    let chauhai_wallet_path = std::env::var("CHAUHAI_WALLET_PATH").unwrap();
+    println!(
+        "CHAUHAI_WALLET_PATH: {}",
+        std::env::var("CHAUHAI_WALLET_PATH").unwrap()
+    );
+
+    let chauhai = read_keypair_file(&chauhai_wallet_path).unwrap();
     let chauhai_pubkey = chauhai.pubkey();
 
     let everyone = HashMap::from([
@@ -53,12 +69,73 @@ async fn main() {
     let stablecoin_mint = read_keypair_file("token-keys/stablecoin-mint.json").unwrap();
 
     // --- AIRDROP ---
-    airdrop_sol_to_users(&rpc, &everyone).await;
+    if cluster != "devnet" {
+        airdrop_sol_to_users(&rpc, &everyone).await;
+    } else {
+        println!("⏭  Skipping airdrop on devnet");
+    }
 
     // --- CREATE MINTS ---
-    setup_token_mint(&rpc, &payer, &payer, &opinions_market, &bling_mint).await;
-    setup_token_mint(&rpc, &payer, &payer, &opinions_market, &usdc_mint).await;
-    setup_token_mint(&rpc, &payer, &payer, &opinions_market, &stablecoin_mint).await;
+    // // If mint already exists, skip creation
+    if rpc.get_account(&bling_mint.pubkey()).await.is_err() {
+        setup_token_mint(&rpc, &payer, &payer, &opinions_market, &bling_mint).await;
+    }
+    if rpc.get_account(&usdc_mint.pubkey()).await.is_err() {
+        setup_token_mint(&rpc, &payer, &payer, &opinions_market, &usdc_mint).await;
+    }
+    if rpc.get_account(&stablecoin_mint.pubkey()).await.is_err() {
+        setup_token_mint(&rpc, &payer, &payer, &opinions_market, &stablecoin_mint).await;
+    }
+    // --- CONFIG PDA ---
+    let config_pda = Pubkey::find_program_address(&[CONFIG_SEED], &program_id).0;
+    let protocol_bling_treasury = Pubkey::find_program_address(
+        &[
+            PROTOCOL_TREASURY_TOKEN_ACCOUNT_SEED,
+            bling_mint.pubkey().as_ref(),
+        ],
+        &program_id,
+    )
+    .0;
+    let valid_payment_pda = Pubkey::find_program_address(
+        &[VALID_PAYMENT_SEED, bling_mint.pubkey().as_ref()],
+        &program_id,
+    )
+    .0;
+
+    let base_duration_secs = 24 * 3600; // 1 day
+    let max_duration_secs = 7 * 24 * 3600; // 7 days
+    let extension_per_vote_secs = 60; // 1min
+
+    // --- INITIALIZE PROGRAM ---
+    let initialize_ix = opinions_market
+        .request()
+        .accounts(opinions_market::accounts::Initialize {
+            admin: admin_pubkey,
+            payer: payer.pubkey(),
+            config: config_pda,
+            bling_mint: bling_mint.pubkey(),
+            usdc_mint: usdc_mint.pubkey(),
+            protocol_bling_treasury,
+            valid_payment: valid_payment_pda,
+            system_program: anchor_lang::solana_program::system_program::ID,
+            token_program: anchor_spl::token::spl_token::ID,
+        })
+        .args(opinions_market::instruction::Initialize {
+            base_duration_secs,
+            max_duration_secs,
+            extension_per_vote_secs,
+        })
+        .instructions()
+        .unwrap();
+
+    // send_tx(&rpc, initialize_ix, &payer.pubkey(), &[&payer, &admin])
+    //     .await
+    //     .unwrap();
+
+    if let Err(e) = send_tx(&rpc, initialize_ix, &payer.pubkey(), &[&payer, &admin]).await {
+        eprintln!("❌ Error initializing program: {}", e);
+        std::process::exit(1);
+    }
 
     // MINT BLING TO EVERYONE
     setup_token_mint_ata_and_mint_to_many_users(
@@ -103,51 +180,9 @@ async fn main() {
         &stablecoin_mint,
     )
     .await;
-
-    // --- CONFIG PDA ---
-    let config_pda = Pubkey::find_program_address(&[CONFIG_SEED], &program_id).0;
-    let protocol_bling_treasury = Pubkey::find_program_address(
-        &[
-            PROTOCOL_TREASURY_TOKEN_ACCOUNT_SEED,
-            bling_mint.pubkey().as_ref(),
-        ],
-        &program_id,
-    )
-    .0;
-    let valid_payment_pda = Pubkey::find_program_address(
-        &[VALID_PAYMENT_SEED, bling_mint.pubkey().as_ref()],
-        &program_id,
-    )
-    .0;
-
-    // --- INITIALIZE PROGRAM ---
-    let initialize_ix = opinions_market
-        .request()
-        .accounts(opinions_market::accounts::Initialize {
-            admin: admin_pubkey,
-            payer: payer.pubkey(),
-            config: config_pda,
-            bling_mint: bling_mint.pubkey(),
-            usdc_mint: usdc_mint.pubkey(),
-            protocol_bling_treasury,
-            valid_payment: valid_payment_pda,
-            system_program: anchor_lang::solana_program::system_program::ID,
-            token_program: anchor_spl::token::spl_token::ID,
-        })
-        .args(opinions_market::instruction::Initialize {
-            base_duration_secs: 24 * 3600,    // 1 day
-            max_duration_secs: 7 * 24 * 3600, // 7 days
-            extension_per_vote_secs: 60,      // 1min
-        })
-        .instructions()
-        .unwrap();
-
-    send_tx(&rpc, initialize_ix, &payer.pubkey(), &[&payer, &admin])
-        .await
-        .unwrap();
-
     println!("BLING_MINT: {}", bling_mint.pubkey());
     println!("USDC_MINT: {}", usdc_mint.pubkey());
+    println!("STABLECOIN_MINT: {}", stablecoin_mint.pubkey());
     println!("CONFIG PDA: {}", config_pda);
-    println!("OK. Local environment ready.");
+    println!("OK. {} environment ready.", cluster);
 }

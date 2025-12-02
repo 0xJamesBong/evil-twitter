@@ -53,8 +53,17 @@ pub struct SolanaService {
 }
 
 fn read_program_id_from_idl() -> Pubkey {
-    let file =
-        fs::read_to_string("src/solana/idl/opinions_market.json").expect("IDL file not found");
+    // Read SOLANA_NETWORK env var (default to "localnet" if not set)
+    let network = std::env::var("SOLANA_NETWORK").unwrap_or_else(|_| "localnet".to_string());
+
+    let idl_path = format!("src/solana/target/{}/idl/opinions_market.json", network);
+    let file = fs::read_to_string(&idl_path).unwrap_or_else(|_| {
+        panic!(
+            "IDL file not found at: {}. Make sure SOLANA_NETWORK is set correctly and IDL exists.",
+            idl_path
+        )
+    });
+
     let v: Value = serde_json::from_str(&file).expect("Invalid JSON in IDL");
 
     let addr = v["address"].as_str().expect("IDL missing address field");
@@ -108,11 +117,17 @@ impl SolanaService {
 
     /// Get opinions_market_program using the async Anchor client (no nested runtimes)
     pub fn opinions_market_program(&self) -> Program<Arc<Keypair>> {
-        let client = Client::new_with_options(
-            Cluster::Localnet,
-            self.payer.clone(),
-            CommitmentConfig::confirmed(),
-        );
+        // Read SOLANA_NETWORK env var to determine cluster (default to "localnet" if not set)
+        let network = std::env::var("SOLANA_NETWORK").unwrap_or_else(|_| "localnet".to_string());
+
+        let cluster = match network.as_str() {
+            "devnet" => Cluster::Devnet,
+            "mainnet" => Cluster::Mainnet,
+            "localnet" | _ => Cluster::Localnet,
+        };
+
+        let client =
+            Client::new_with_options(cluster, self.payer.clone(), CommitmentConfig::confirmed());
         client
             .program(self.program_id)
             .expect("Failed to init program")

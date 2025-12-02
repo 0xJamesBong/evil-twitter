@@ -7,15 +7,10 @@ import { PublicKey } from "@solana/web3.js";
 import * as anchor from "@coral-xyz/anchor";
 import { TransactionMessage, VersionedTransaction } from "@solana/web3.js";
 import { getConnection } from "../lib/solana/connection";
-import OpinionsMarketIdl from "../lib/solana/idl/opinions_market.json";
-import { OpinionsMarket as OpinionsMarketType } from "../lib/solana/types/opinions_market";
 import { getAssociatedTokenAddress } from "@solana/spl-token";
 import { useSolanaStore } from "../lib/stores/solanaStore";
 import bs58 from "bs58";
-
-const PROGRAM_ID = new PublicKey(
-  "4z5rjroGdWmgGX13SdFsh4wRM4jJkMUrcvYrNpV3gezm"
-);
+import { getProgramId, getIdl } from "../lib/solana/config";
 
 // PDA seeds
 const USER_ACCOUNT_SEED = Buffer.from("user_account");
@@ -23,31 +18,38 @@ const USER_VAULT_TOKEN_ACCOUNT_SEED = Buffer.from("user_vault_token_account");
 const VAULT_AUTHORITY_SEED = Buffer.from("vault_authority");
 const VALID_PAYMENT_SEED = Buffer.from("valid_payment");
 
-function getUserAccountPda(user: PublicKey): [PublicKey, number] {
+function getUserAccountPda(
+  user: PublicKey,
+  programId: PublicKey
+): [PublicKey, number] {
   return PublicKey.findProgramAddressSync(
     [USER_ACCOUNT_SEED, user.toBuffer()],
-    PROGRAM_ID
+    programId
   );
 }
 
 function getUserVaultTokenAccountPda(
   user: PublicKey,
-  tokenMint: PublicKey
+  tokenMint: PublicKey,
+  programId: PublicKey
 ): [PublicKey, number] {
   return PublicKey.findProgramAddressSync(
     [USER_VAULT_TOKEN_ACCOUNT_SEED, user.toBuffer(), tokenMint.toBuffer()],
-    PROGRAM_ID
+    programId
   );
 }
 
-function getVaultAuthorityPda(): [PublicKey, number] {
-  return PublicKey.findProgramAddressSync([VAULT_AUTHORITY_SEED], PROGRAM_ID);
+function getVaultAuthorityPda(programId: PublicKey): [PublicKey, number] {
+  return PublicKey.findProgramAddressSync([VAULT_AUTHORITY_SEED], programId);
 }
 
-function getValidPaymentPda(tokenMint: PublicKey): [PublicKey, number] {
+function getValidPaymentPda(
+  tokenMint: PublicKey,
+  programId: PublicKey
+): [PublicKey, number] {
   return PublicKey.findProgramAddressSync(
     [VALID_PAYMENT_SEED, tokenMint.toBuffer()],
-    PROGRAM_ID
+    programId
   );
 }
 
@@ -78,15 +80,17 @@ export function useDeposit() {
     try {
       const userPubkey = new PublicKey(solanaWallet.address);
       const connection = getConnection();
+      const programId = new PublicKey(getProgramId());
 
       // Derive PDAs
-      const [userAccountPda] = getUserAccountPda(userPubkey);
+      const [userAccountPda] = getUserAccountPda(userPubkey, programId);
       const [userVaultTokenAccountPda] = getUserVaultTokenAccountPda(
         userPubkey,
-        tokenMint
+        tokenMint,
+        programId
       );
-      const [vaultAuthorityPda] = getVaultAuthorityPda();
-      const [validPaymentPda] = getValidPaymentPda(tokenMint);
+      const [vaultAuthorityPda] = getVaultAuthorityPda(programId);
+      const [validPaymentPda] = getValidPaymentPda(tokenMint, programId);
 
       // Get user's token ATA (source)
       const userTokenAta = await getAssociatedTokenAddress(
@@ -111,17 +115,14 @@ export function useDeposit() {
         { commitment: "confirmed" }
       );
       anchor.setProvider(provider);
-      const program = new anchor.Program(
-        OpinionsMarketIdl as OpinionsMarketType,
-        provider
-      ) as anchor.Program<OpinionsMarketType>;
+      const program = new anchor.Program(getIdl() as anchor.Idl, provider);
 
       // Build deposit instruction using Anchor
       const depositIx = await program.methods
         .deposit(new anchor.BN(amountInLamports.toString()))
         .accountsPartial({
           user: userPubkey,
-          payer: solanaWallet.address,
+          payer: userPubkey,
           userAccount: userAccountPda,
           tokenMint: tokenMint,
           validPayment: validPaymentPda,
@@ -132,6 +133,7 @@ export function useDeposit() {
           systemProgram: anchor.web3.SystemProgram.programId,
         })
         .instruction();
+      console.log("depositIx", depositIx);
 
       // Build a versioned transaction with the user's wallet as fee payer
       const latestBlockhash = await connection.getLatestBlockhash();

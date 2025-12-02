@@ -483,12 +483,12 @@ export const useTweetStore = create<TweetStoreState & TweetStoreActions>(
         // Optimistically update postState upvotes/downvotes based on side
         get().updateTweetInStore(tweetId, (tweet) => {
           const updatedTweet = {
-            ...tweet,
-            metrics: {
-              ...tweet.metrics,
-              likes: data.tweetVote.likeCount,
-              smacks: data.tweetVote.smackCount,
-            },
+          ...tweet,
+          metrics: {
+            ...tweet.metrics,
+            likes: data.tweetVote.likeCount,
+            smacks: data.tweetVote.smackCount,
+          },
           };
 
           // Update postState if it exists

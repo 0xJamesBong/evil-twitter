@@ -469,7 +469,7 @@ export default function TweetDetailPage() {
                                 { variant: "success" }
                             );
                         } else {
-                            enqueueSnackbar("Quote tweet posted!", { variant: "success" });
+                        enqueueSnackbar("Quote tweet posted!", { variant: "success" });
                         }
                         
                         // Refresh the thread

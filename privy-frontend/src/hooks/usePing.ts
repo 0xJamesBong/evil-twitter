@@ -2,7 +2,7 @@
 import { useState } from "react";
 import { useWallets, useSignTransaction } from "@privy-io/react-auth/solana";
 import { VersionedTransaction } from "@solana/web3.js";
-import { API_BASE_URL } from "../lib/config";
+import { getBackendUrl } from "../lib/config";
 
 /**
  * Hook to ping the Solana program (user-signed, backend-payer)
@@ -29,7 +29,8 @@ export function usePing() {
 
     try {
       // Step 1: Request partially-signed transaction from backend
-      const response = await fetch(`${API_BASE_URL}/api/tx/ping`, {
+      const backendUrl = getBackendUrl();
+      const response = await fetch(`${backendUrl}/api/tx/ping`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -57,9 +58,11 @@ export function usePing() {
       const signedTx = (signedTxResult as any).transaction || signedTxResult;
 
       // Step 4: Serialize signed transaction and send to backend for final signature and broadcast
-      const signedTxBase64 = Buffer.from(signedTx.serialize()).toString("base64");
+      const signedTxBase64 = Buffer.from(signedTx.serialize()).toString(
+        "base64"
+      );
 
-      const submitResponse = await fetch(`${API_BASE_URL}/api/tx/ping/submit`, {
+      const submitResponse = await fetch(`${backendUrl}/api/tx/ping/submit`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",

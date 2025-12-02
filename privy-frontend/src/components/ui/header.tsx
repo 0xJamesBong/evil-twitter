@@ -30,7 +30,7 @@ export function Header() {
               color: "text.primary",
             }}
           >
-            SHIT
+            EVUL TWITTER
           </Typography>
         </Box>
 

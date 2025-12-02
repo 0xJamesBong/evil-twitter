@@ -19,6 +19,7 @@ import {
     Science as TestIcon,
     Logout as LogoutIcon,
     Message as MessageIcon,
+    Code as CodeIcon,
 } from "@mui/icons-material";
 
 export function LeftSidebar() {
@@ -31,6 +32,7 @@ export function LeftSidebar() {
         { label: "Profile", path: "/profile", icon: <PersonIcon /> },
         { label: "Test", path: "/test", icon: <TestIcon /> },
         { label: "Sign Message", path: "/signMessage", icon: <MessageIcon /> },
+        { label: "Contracts", path: "/contracts", icon: <CodeIcon /> },
     ];
 
     return (

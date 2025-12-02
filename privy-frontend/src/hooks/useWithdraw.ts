@@ -10,8 +10,8 @@ import {
 } from "@solana/web3.js";
 import * as anchor from "@coral-xyz/anchor";
 import { getConnection } from "../lib/solana/connection";
-import OpinionsMarketIdl from "../lib/solana/idl/opinions_market.json";
-import { OpinionsMarket as OpinionsMarketType } from "../lib/solana/types/opinions_market";
+import OpinionsMarketIdl from "../lib/solana/target/localnet/idl/opinions_market.json";
+import { OpinionsMarket as OpinionsMarketType } from "../lib/solana/target/localnet/types/opinions_market";
 import { getAssociatedTokenAddress } from "@solana/spl-token";
 import { useSolanaStore } from "../lib/stores/solanaStore";
 import bs58 from "bs58";

@@ -1,11 +1,14 @@
 use async_graphql::{Context, Enum, ID, Object, Result, SimpleObject};
+use std::str::FromStr;
 use std::sync::Arc;
-use mongodb::bson::doc;
+use mongodb::bson::{doc, DateTime};
+use hex;
 
 use crate::app_state::AppState;
 use crate::graphql::user::types::ProfileNode;
 use crate::models::tweet::{TweetMetrics, TweetType, TweetView};
 use crate::models::post_state::PostState;
+use crate::solana::get_post_pda;
 use crate::utils::tweet::TweetThreadResponse;
 
 // ============================================================================
@@ -141,7 +144,7 @@ impl TweetNode {
         self.view.tweet.reply_depth
     }
 
-    /// Get post state from on-chain data (cached in MongoDB)
+    /// Get post state from on-chain data (cached in MongoDB, falls back to on-chain fetch)
     async fn post_state(&self, ctx: &Context<'_>) -> Result<Option<PostStateNode>> {
         let app_state = ctx.data::<Arc<AppState>>()?;
         
@@ -151,14 +154,74 @@ impl TweetNode {
             None => return Ok(None),
         };
 
-        // Fetch from MongoDB post_states collection
+        // First, try to fetch from MongoDB post_states collection (cached)
         let post_states_collection: mongodb::Collection<PostState> = 
             app_state.mongo_service.db().collection(PostState::COLLECTION_NAME);
         
-        let post_state = post_states_collection
+        let mut post_state = post_states_collection
             .find_one(doc! { "post_id_hash": post_id_hash })
             .await
             .map_err(|e| async_graphql::Error::new(format!("Failed to fetch post state: {}", e)))?;
+
+        // If not found in MongoDB, fetch from on-chain
+        if post_state.is_none() {
+            // Parse post_id_hash from hex to [u8; 32]
+            let post_id_hash_bytes = hex::decode(post_id_hash)
+                .map_err(|e| async_graphql::Error::new(format!("Invalid post_id_hash: {}", e)))?;
+
+            if post_id_hash_bytes.len() != 32 {
+                return Ok(None);
+            }
+
+            let mut post_id_hash_array = [0u8; 32];
+            post_id_hash_array.copy_from_slice(&post_id_hash_bytes);
+
+            // Derive post PDA
+            let program = app_state.solana_service.opinions_market_program();
+            let program_id = program.id();
+            let (post_pda, _) = get_post_pda(&program_id, &post_id_hash_array);
+
+            // Fetch post account from on-chain
+            match program.account::<opinions_market::state::PostAccount>(post_pda).await {
+                Ok(post_account) => {
+                    // Convert PostAccount to PostState
+                    let state_str = match post_account.state {
+                        opinions_market::state::PostState::Open => "Open".to_string(),
+                        opinions_market::state::PostState::Settled => "Settled".to_string(),
+                    };
+
+                    let winning_side = post_account.winning_side.map(|side| match side {
+                        opinions_market::state::Side::Pump => "Pump".to_string(),
+                        opinions_market::state::Side::Smack => "Smack".to_string(),
+                    });
+
+                    let post_state_doc = PostState {
+                        id: None,
+                        post_id_hash: post_id_hash.to_string(),
+                        post_pda: post_pda.to_string(),
+                        state: state_str.clone(),
+                        upvotes: post_account.upvotes,
+                        downvotes: post_account.downvotes,
+                        winning_side: winning_side.clone(),
+                        start_time: post_account.start_time,
+                        end_time: post_account.end_time,
+                        last_synced_at: DateTime::now(),
+                    };
+
+                    // Save to MongoDB for future queries
+                    let _ = post_states_collection
+                        .insert_one(&post_state_doc)
+                        .await; // Don't fail if insert fails, just log
+
+                    post_state = Some(post_state_doc);
+                }
+                Err(e) => {
+                    // Post doesn't exist on-chain yet, return None
+                    eprintln!("⚠️ Post not found on-chain for post_id_hash {}: {}", post_id_hash, e);
+                    return Ok(None);
+                }
+            }
+        }
 
         Ok(post_state.map(PostStateNode::from))
     }
