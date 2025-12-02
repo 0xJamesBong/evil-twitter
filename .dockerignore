@@ -1,0 +1,24 @@
+# Exclude frontend completely
+privy-frontend/
+
+# Exclude other projects
+stablecoin/
+
+# Exclude build artifacts (but keep IDL files via exceptions in .gitignore)
+target/
+*/target/
+!evil-twitter-backend/src/solana/target/
+!opinions-market/target/idl/
+!opinions-market/target/types/
+
+# Exclude unnecessary files
+*.md
+.DS_Store
+.env*
+.secrets/
+.git/
+.gitignore
+node_modules/
+.next/
+test-ledger/
+
