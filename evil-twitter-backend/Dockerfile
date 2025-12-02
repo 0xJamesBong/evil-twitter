@@ -15,9 +15,9 @@ COPY evil-twitter-backend ./evil-twitter-backend
 WORKDIR /app/evil-twitter-backend
 RUN cargo build --release
 
-FROM debian:bookworm-slim
+FROM debian:bullseye-slim
 WORKDIR /app
-RUN apt-get update && apt-get install -y ca-certificates && rm -rf /var/lib/apt/lists/*
+RUN apt-get update && apt-get install -y ca-certificates libssl1.1 && rm -rf /var/lib/apt/lists/*
 COPY --from=builder /app/evil-twitter-backend/target/release/evil-twitter /usr/local/bin/evil-twitter
 ENV RUST_LOG=info
 CMD ["evil-twitter"]
