@@ -3,6 +3,7 @@ use anchor_lang::prelude::*;
 use anchor_lang::solana_program::pubkey::Pubkey;
 pub mod constants;
 pub mod instructions;
+pub mod math;
 pub mod middleware;
 pub mod pda_seeds;
 pub mod state;

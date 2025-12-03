@@ -427,13 +427,16 @@ impl SolanaService {
         println!(
             "  ✍️  SolanaService::register_session: Building and signing transaction with payer..."
         );
-        let tx = self.build_partial_signed_tx(instructions).await.map_err(|e| {
-            eprintln!(
-                "  ❌ SolanaService::register_session: Failed to build transaction: {}",
+        let tx = self
+            .build_partial_signed_tx(instructions)
+            .await
+            .map_err(|e| {
+                eprintln!(
+                    "  ❌ SolanaService::register_session: Failed to build transaction: {}",
+                    e
+                );
                 e
-            );
-            e
-        })?;
+            })?;
 
         println!("  ✅ SolanaService::register_session: Transaction built and signed");
 
@@ -501,8 +504,9 @@ impl SolanaService {
         println!("  🔨 SolanaService::create_post: Building CreatePost instruction...");
         // For now, use payer as session_key when no session is registered
         // TODO: Properly handle optional sessions
-        let (session_authority_pda, _) = get_session_authority_pda(&program_id, &user_wallet, &self.payer.pubkey());
-        
+        let (session_authority_pda, _) =
+            get_session_authority_pda(&program_id, &user_wallet, &self.payer.pubkey());
+
         let ixs = program
             .request()
             .accounts(opinions_market::accounts::CreatePost {
@@ -672,8 +676,9 @@ impl SolanaService {
         println!("  🔨 SolanaService::vote_on_post: Building VoteOnPost instruction...");
         // For now, use payer as session_key when no session is registered
         // TODO: Properly handle optional sessions
-        let (session_authority_pda, _) = get_session_authority_pda(&program_id, voter_wallet, &self.payer.pubkey());
-        
+        let (session_authority_pda, _) =
+            get_session_authority_pda(&program_id, voter_wallet, &self.payer.pubkey());
+
         let ixs = program
             .request()
             .accounts(opinions_market::accounts::VoteOnPost {
@@ -741,5 +746,47 @@ impl SolanaService {
             signature
         );
         Ok(signature)
+    }
+
+    /// Get canonical vote cost for a user
+    /// Fetches UserAccount and computes cost using the same logic as on-chain
+    pub async fn get_canonical_cost(
+        &self,
+        user_wallet: &Pubkey,
+        side: Side,
+    ) -> anyhow::Result<u64> {
+        println!(
+            "  🔧 SolanaService::get_canonical_cost: Starting for user {}, side: {:?}",
+            user_wallet, side
+        );
+
+        let program = self.opinions_market_program();
+        let program_id = program.id();
+
+        // Derive the UserAccount PDA
+        let (user_account_pda, _) = get_user_account_pda(&program_id, user_wallet);
+
+        // Fetch UserAccount
+        let user_account: opinions_market::state::UserAccount =
+            program.account(user_account_pda).await.map_err(|e| {
+                anyhow::anyhow!(
+                    "Failed to fetch UserAccount PDA {}: {}",
+                    user_account_pda,
+                    e
+                )
+            })?;
+
+        // Compute canonical cost directly on UserAccount
+        // This is a pure user attribute - no Vote struct needed
+        let cost = user_account
+            .canonical_cost(side)
+            .map_err(|e| anyhow::anyhow!("Canonical cost compute error: {:?}", e))?;
+
+        println!(
+            "  ✅ SolanaService::get_canonical_cost: Cost = {} BLING lamports",
+            cost
+        );
+
+        Ok(cost)
     }
 }

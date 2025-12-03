@@ -3,7 +3,8 @@ use axum::http::HeaderMap;
 use base64::{Engine as _, engine::general_purpose::STANDARD};
 use futures::TryStreamExt;
 use mongodb::{Collection, bson::doc};
-
+use solana_sdk::pubkey::Pubkey;
+use std::str::FromStr;
 use std::sync::Arc;
 
 use crate::app_state::AppState;
@@ -75,6 +76,14 @@ impl UserQuery {
         // Return base64-encoded message bytes
         let message_bytes = message.as_bytes();
         Ok(STANDARD.encode(message_bytes))
+    }
+
+    /// Get canonical vote cost for the authenticated user
+    /// Returns the cost in BLING lamports for voting on a "boring" post (0 votes)
+    /// with no previous votes, using the user's actual social score.
+    /// side: "Pump" or "Smack"
+    async fn canonical_vote_cost(&self, ctx: &Context<'_>, side: String) -> Result<u64> {
+        canonical_vote_cost_resolver(ctx, side).await
     }
 }
 
@@ -208,4 +217,57 @@ pub async fn discover_users_resolver(
     }
 
     Ok(results)
+}
+
+/// Get canonical vote cost for the authenticated user
+pub async fn canonical_vote_cost_resolver(ctx: &Context<'_>, side: String) -> Result<u64> {
+    let app_state = ctx.data::<Arc<AppState>>()?;
+    let headers = ctx
+        .data::<HeaderMap>()
+        .map_err(|_| async_graphql::Error::new("Failed to get headers from context"))?;
+
+    // Get authenticated user
+    let privy_id = auth::get_privy_id_from_header(&app_state.privy_service, headers)
+        .await
+        .map_err(|(status, json)| {
+            let error_msg = json
+                .get("error")
+                .and_then(|v| v.as_str())
+                .unwrap_or("Authentication failed");
+            async_graphql::Error::new(format!("{} (status {})", error_msg, status))
+        })?;
+
+    let user = app_state
+        .mongo_service
+        .users
+        .get_user_by_privy_id(&privy_id)
+        .await?
+        .ok_or_else(|| async_graphql::Error::new("User not found"))?;
+
+    // Parse wallet pubkey
+    let wallet_pubkey = Pubkey::from_str(&user.wallet)
+        .map_err(|e| async_graphql::Error::new(format!("Invalid wallet pubkey: {}", e)))?;
+
+    // Parse side
+    let vote_side = match side.as_str() {
+        "Pump" => opinions_market::state::Side::Pump,
+        "Smack" => opinions_market::state::Side::Smack,
+        _ => {
+            return Err(async_graphql::Error::new(
+                "Invalid side: must be 'Pump' or 'Smack'",
+            ));
+        }
+    };
+
+    // Call SolanaService to get canonical cost (fetches UserAccount and computes using same logic as on-chain)
+    let cost = app_state
+        .solana_service
+        .get_canonical_cost(&wallet_pubkey, vote_side)
+        .await
+        .map_err(|e| {
+            eprintln!("canonical_cost error: {:?}", e);
+            async_graphql::Error::new("Failed to compute canonical cost")
+        })?;
+
+    Ok(cost)
 }

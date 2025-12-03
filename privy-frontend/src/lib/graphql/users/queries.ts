@@ -49,3 +49,13 @@ export interface MeQueryResult {
     } | null;
   } | null;
 }
+
+export const CANONICAL_VOTE_COST_QUERY = `
+  query CanonicalVoteCost($side: String!) {
+    canonicalVoteCost(side: $side)
+  }
+`;
+
+export interface CanonicalVoteCostResult {
+  canonicalVoteCost: number;
+}

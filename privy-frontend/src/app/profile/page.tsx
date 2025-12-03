@@ -21,6 +21,7 @@ import { FullScreenLoader } from "@/components/ui/fullscreen-loader";
 import { LoginPrompt } from "@/components/auth/LoginPrompt";
 import { useBackendUserStore } from "@/lib/stores/backendUserStore";
 import { useWalletTokenBalances } from "@/hooks/useWalletTokenBalances";
+import { useCanonicalVoteCost } from "@/hooks/useCanonicalVoteCost";
 import {
     formatSocialScore,
     formatTokenBalance,
@@ -46,6 +47,10 @@ function ProfileContent() {
         USDC_MINT,
         STABLECOIN_MINT
     );
+
+    // Get canonical vote costs
+    const { cost: pumpCost, loading: loadingPumpCost, error: pumpCostError } = useCanonicalVoteCost("Pump");
+    const { cost: smackCost, loading: loadingSmackCost, error: smackCostError } = useCanonicalVoteCost("Smack");
 
     if (!ready) {
         return <FullScreenLoader />;
@@ -160,6 +165,63 @@ function ProfileContent() {
                                         <Typography variant="h6" sx={{ fontWeight: 600 }}>
                                             {formatTokenBalance(backendUser.vaultBalance, blingDecimals)} BLING
                                         </Typography>
+                                    </Box>
+
+                                    <Divider />
+
+                                    <Box>
+                                        <Typography variant="body2" color="text.secondary" gutterBottom>
+                                            Canonical Vote Cost:
+                                        </Typography>
+                                        <Typography variant="caption" color="text.secondary" sx={{ display: "block", mb: 1 }}>
+                                            Base cost for voting on a new post (0 votes, no previous votes)
+                                        </Typography>
+                                        <Stack spacing={1.5} sx={{ mt: 1 }}>
+                                            <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                                                <Typography variant="body2" color="text.secondary">
+                                                    Pump:
+                                                </Typography>
+                                                <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+                                                    {loadingPumpCost ? (
+                                                        <CircularProgress size={16} />
+                                                    ) : pumpCostError ? (
+                                                        <Typography variant="caption" color="error">
+                                                            Error
+                                                        </Typography>
+                                                    ) : pumpCost !== null ? (
+                                                        <Typography variant="body1" sx={{ fontWeight: 600, color: "success.main" }}>
+                                                            {formatTokenBalance(pumpCost, blingDecimals)} BLING
+                                                        </Typography>
+                                                    ) : (
+                                                        <Typography variant="body2" color="text.secondary">
+                                                            N/A
+                                                        </Typography>
+                                                    )}
+                                                </Box>
+                                            </Box>
+                                            <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                                                <Typography variant="body2" color="text.secondary">
+                                                    Smack:
+                                                </Typography>
+                                                <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+                                                    {loadingSmackCost ? (
+                                                        <CircularProgress size={16} />
+                                                    ) : smackCostError ? (
+                                                        <Typography variant="caption" color="error">
+                                                            Error
+                                                        </Typography>
+                                                    ) : smackCost !== null ? (
+                                                        <Typography variant="body1" sx={{ fontWeight: 600, color: "error.main" }}>
+                                                            {formatTokenBalance(smackCost, blingDecimals)} BLING
+                                                        </Typography>
+                                                    ) : (
+                                                        <Typography variant="body2" color="text.secondary">
+                                                            N/A
+                                                        </Typography>
+                                                    )}
+                                                </Box>
+                                            </Box>
+                                        </Stack>
                                     </Box>
                                 </Stack>
                             </CardContent>
