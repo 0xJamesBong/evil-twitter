@@ -135,3 +135,23 @@ export interface UpdateProfileResult {
     } | null;
   };
 }
+
+export const UPDATE_DEFAULT_PAYMENT_TOKEN_MUTATION = `
+  mutation UpdateDefaultPaymentToken($input: UpdateDefaultPaymentTokenInput!) {
+    updateDefaultPaymentToken(input: $input) {
+      id
+      privyId
+      wallet
+      defaultPaymentToken
+    }
+  }
+`;
+
+export interface UpdateDefaultPaymentTokenResult {
+  updateDefaultPaymentToken: {
+    id: string;
+    privyId: string;
+    wallet: string;
+    defaultPaymentToken: string | null;
+  };
+}

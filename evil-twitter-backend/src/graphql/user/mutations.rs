@@ -60,6 +60,16 @@ impl UserMutation {
     ) -> Result<UserNode> {
         update_profile_resolver(ctx, input).await
     }
+
+    /// Update user's default payment token
+    /// token_mint: pubkey as string, or null to reset to BLING (default)
+    async fn update_default_payment_token(
+        &self,
+        ctx: &Context<'_>,
+        input: UpdateDefaultPaymentTokenInput,
+    ) -> Result<UserNode> {
+        update_default_payment_token_resolver(ctx, input).await
+    }
 }
 
 // ============================================================================
@@ -78,6 +88,12 @@ pub struct UpdateProfileInput {
     pub display_name: String,
     pub bio: Option<String>,
     pub avatar_url: Option<String>,
+}
+
+#[derive(InputObject)]
+pub struct UpdateDefaultPaymentTokenInput {
+    /// Token mint pubkey as string, or null to reset to BLING (default)
+    pub token_mint: Option<String>,
 }
 
 // ============================================================================
@@ -574,4 +590,54 @@ pub async fn update_profile_resolver(
         .ok_or_else(|| async_graphql::Error::new("User not found after profile update"))?;
 
     Ok(UserNode::from(updated_user))
+}
+
+/// Update user's default payment token
+pub async fn update_default_payment_token_resolver(
+    ctx: &Context<'_>,
+    input: UpdateDefaultPaymentTokenInput,
+) -> Result<UserNode> {
+    let app_state = ctx.data::<Arc<AppState>>()?;
+    let headers = ctx
+        .data::<HeaderMap>()
+        .map_err(|_| async_graphql::Error::new("Failed to get headers from context"))?;
+
+    // Verify Privy token and get Privy ID
+    let privy_id = auth::get_privy_id_from_header(&app_state.privy_service, headers)
+        .await
+        .map_err(|(status, json)| {
+            let error_msg = json
+                .get("error")
+                .and_then(|v| v.as_str())
+                .unwrap_or("Authentication failed");
+            async_graphql::Error::new(format!("{} (status {})", error_msg, status))
+        })?;
+
+    // Get user from Mongo
+    let mut user = app_state
+        .mongo_service
+        .users
+        .get_user_by_privy_id(&privy_id)
+        .await?
+        .ok_or_else(|| async_graphql::Error::new("User not found in database"))?;
+
+    // Validate token_mint if provided
+    if let Some(ref token_mint_str) = input.token_mint {
+        // Validate it's a valid pubkey
+        Pubkey::from_str(token_mint_str)
+            .map_err(|e| async_graphql::Error::new(format!("Invalid token_mint pubkey: {}", e)))?;
+    }
+
+    // Update default_payment_token
+    user.default_payment_token = input.token_mint.clone();
+
+    // Update user in database
+    app_state.mongo_service.users.update_user(&user).await?;
+
+    eprintln!(
+        "update_default_payment_token: Updated default payment token for user {}: {:?}",
+        privy_id, input.token_mint
+    );
+
+    Ok(UserNode::from(user))
 }

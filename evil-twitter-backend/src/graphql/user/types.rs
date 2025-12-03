@@ -94,6 +94,12 @@ impl UserNode {
         self.inner.created_at.to_chrono().to_rfc3339()
     }
 
+    /// Get the user's default payment token mint address
+    /// Returns None if BLING (the default)
+    async fn default_payment_token(&self) -> Option<&str> {
+        self.inner.default_payment_token.as_deref()
+    }
+
     /// Get the user's profile
     async fn profile(&self, ctx: &Context<'_>) -> Result<Option<ProfileNode>> {
         let app_state = ctx.data::<Arc<AppState>>()?;

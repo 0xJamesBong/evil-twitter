@@ -789,4 +789,103 @@ impl SolanaService {
 
         Ok(cost)
     }
+
+    /// Convert a price in BLING lamports to another token using ValidPayment account
+    /// Returns the equivalent amount in the target token's lamports
+    ///
+    /// Formula: token_lamports = (bling_lamports * 10^token_decimals) / (price_in_bling * 10^bling_decimals)
+    /// where price_in_bling is the conversion rate (1 token = price_in_bling BLING in base units)
+    pub async fn convert_bling_to_token(
+        &self,
+        bling_lamports: u64,
+        target_token_mint: &Pubkey,
+    ) -> anyhow::Result<u64> {
+        println!(
+            "  🔧 SolanaService::convert_bling_to_token: Converting {} BLING lamports to token {}",
+            bling_lamports, target_token_mint
+        );
+
+        let program = self.opinions_market_program();
+        let program_id = program.id();
+
+        // If target is BLING, return as-is
+        if target_token_mint == &self.bling_mint {
+            return Ok(bling_lamports);
+        }
+
+        // Derive ValidPayment PDA for target token
+        let (valid_payment_pda, _) = get_valid_payment_pda(&program_id, target_token_mint);
+
+        // Fetch ValidPayment account
+        let valid_payment: opinions_market::state::ValidPayment =
+            program.account(valid_payment_pda).await.map_err(|e| {
+                anyhow::anyhow!(
+                    "Failed to fetch ValidPayment PDA {}: {}",
+                    valid_payment_pda,
+                    e
+                )
+            })?;
+
+        // Check if payment is enabled
+        if !valid_payment.enabled {
+            return Err(anyhow::anyhow!(
+                "Token {} is not enabled as a valid payment",
+                target_token_mint
+            ));
+        }
+
+        // Get token decimals (BLING typically has 9, USDC/Stablecoin have 6)
+        // We'll fetch the mint account to get decimals
+        let bling_decimals = 9u32; // BLING typically has 9 decimals
+        let target_decimals = self
+            .get_token_decimals(target_token_mint)
+            .await
+            .unwrap_or(6u32); // Default to 6 if we can't fetch
+
+        // price_in_bling is the conversion rate: 1 token = price_in_bling BLING (in base units)
+        // So to convert X BLING lamports to token lamports:
+        // 1. Convert BLING lamports to base units: bling_base = bling_lamports / 10^bling_decimals
+        // 2. Convert to token base units: token_base = bling_base / price_in_bling
+        // 3. Convert to token lamports: token_lamports = token_base * 10^target_decimals
+        // Combined: token_lamports = (bling_lamports * 10^target_decimals) / (price_in_bling * 10^bling_decimals)
+
+        let price_in_bling = valid_payment.price_in_bling;
+
+        // Use checked arithmetic to avoid overflow
+        let numerator = bling_lamports
+            .checked_mul(10u64.pow(target_decimals))
+            .ok_or_else(|| anyhow::anyhow!("Overflow in conversion numerator"))?;
+
+        let denominator = price_in_bling
+            .checked_mul(10u64.pow(bling_decimals))
+            .ok_or_else(|| anyhow::anyhow!("Overflow in conversion denominator"))?;
+
+        let token_lamports = numerator
+            .checked_div(denominator)
+            .ok_or_else(|| anyhow::anyhow!("Division by zero in conversion"))?;
+
+        println!(
+            "  ✅ SolanaService::convert_bling_to_token: {} BLING lamports = {} token lamports (price_in_bling: {})",
+            bling_lamports, token_lamports, price_in_bling
+        );
+
+        Ok(token_lamports)
+    }
+
+    /// Get token decimals by fetching the mint account
+    async fn get_token_decimals(&self, token_mint: &Pubkey) -> anyhow::Result<u32> {
+        use anchor_spl::token::spl_token::state::Mint;
+        use solana_sdk::program_pack::Pack;
+
+        let account_data = self
+            .rpc
+            .get_account_data(token_mint)
+            .await
+            .map_err(|e| anyhow::anyhow!("Failed to fetch token mint account: {}", e))?;
+
+        let mint = Mint::unpack(&account_data)
+            .map_err(|e| anyhow::anyhow!("Failed to unpack mint account: {}", e))?;
+
+        Ok(mint.decimals as u32)
+    }
 }

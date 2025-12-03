@@ -8,6 +8,7 @@ export const ME_QUERY = `
       email
       status
       createdAt
+      defaultPaymentToken
       hasOnchainAccount
       vaultBalance
       socialScore
@@ -34,6 +35,7 @@ export interface MeQueryResult {
     email: string | null;
     status: string;
     createdAt: string;
+    defaultPaymentToken: string | null;
     hasOnchainAccount: boolean | null;
     vaultBalance: number | null;
     socialScore: number | null;
@@ -58,4 +60,22 @@ export const CANONICAL_VOTE_COST_QUERY = `
 
 export interface CanonicalVoteCostResult {
   canonicalVoteCost: number;
+}
+
+export const CANONICAL_VOTE_COSTS_QUERY = `
+  query CanonicalVoteCosts($side: String!) {
+    canonicalVoteCosts(side: $side) {
+      bling
+      usdc
+      stablecoin
+    }
+  }
+`;
+
+export interface CanonicalVoteCostsResult {
+  canonicalVoteCosts: {
+    bling: number;
+    usdc: number | null;
+    stablecoin: number | null;
+  };
 }
