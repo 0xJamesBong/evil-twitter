@@ -34,6 +34,7 @@ import {
     formatTokenBalance,
     getTokenName,
 } from "@/lib/utils/formatting";
+import { TokenDisplay } from "@/components/tokens/TokenDisplay";
 import { graphqlRequest } from "@/lib/graphql/client";
 import {
     UPDATE_DEFAULT_PAYMENT_TOKEN_MUTATION,
@@ -223,9 +224,38 @@ function ProfileContent() {
                                                 }}
                                                 disabled={updatingToken}
                                             >
-                                                <MenuItem value={BLING_MINT}>BLING (Default)</MenuItem>
-                                                {USDC_MINT && <MenuItem value={USDC_MINT}>USDC</MenuItem>}
-                                                {STABLECOIN_MINT && <MenuItem value={STABLECOIN_MINT}>Stablecoin</MenuItem>}
+                                                <MenuItem value={BLING_MINT}>
+                                                    <TokenDisplay
+                                                        mint={BLING_MINT}
+                                                        blingMint={BLING_MINT}
+                                                        usdcMint={USDC_MINT}
+                                                        stablecoinMint={STABLECOIN_MINT}
+                                                        size="small"
+                                                    />
+                                                    {" (Default)"}
+                                                </MenuItem>
+                                                {USDC_MINT && (
+                                                    <MenuItem value={USDC_MINT}>
+                                                        <TokenDisplay
+                                                            mint={USDC_MINT}
+                                                            blingMint={BLING_MINT}
+                                                            usdcMint={USDC_MINT}
+                                                            stablecoinMint={STABLECOIN_MINT}
+                                                            size="small"
+                                                        />
+                                                    </MenuItem>
+                                                )}
+                                                {STABLECOIN_MINT && (
+                                                    <MenuItem value={STABLECOIN_MINT}>
+                                                        <TokenDisplay
+                                                            mint={STABLECOIN_MINT}
+                                                            blingMint={BLING_MINT}
+                                                            usdcMint={USDC_MINT}
+                                                            stablecoinMint={STABLECOIN_MINT}
+                                                            size="small"
+                                                        />
+                                                    </MenuItem>
+                                                )}
                                             </Select>
                                         </FormControl>
                                     </Box>
@@ -253,18 +283,48 @@ function ProfileContent() {
                                                     </Typography>
                                                 ) : pumpCosts ? (
                                                     <Stack spacing={0.5}>
-                                                        <Typography variant="body2" sx={{ color: "success.main" }}>
-                                                            {formatTokenBalance(pumpCosts.bling, blingDecimals)} BLING
-                                                        </Typography>
-                                                        {pumpCosts.usdc !== null && (
-                                                            <Typography variant="body2" color="text.secondary">
-                                                                {formatTokenBalance(pumpCosts.usdc, usdcDecimals)} USDC
+                                                        <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
+                                                            <Typography variant="body2" sx={{ color: "success.main" }}>
+                                                                {formatTokenBalance(pumpCosts.bling, blingDecimals)}
                                                             </Typography>
+                                                            <TokenDisplay
+                                                                mint={BLING_MINT}
+                                                                blingMint={BLING_MINT}
+                                                                usdcMint={USDC_MINT}
+                                                                stablecoinMint={STABLECOIN_MINT}
+                                                                size="small"
+                                                                showSymbol
+                                                            />
+                                                        </Box>
+                                                        {pumpCosts.usdc !== null && (
+                                                            <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
+                                                                <Typography variant="body2" color="text.secondary">
+                                                                    {formatTokenBalance(pumpCosts.usdc, usdcDecimals)}
+                                                                </Typography>
+                                                                <TokenDisplay
+                                                                    mint={USDC_MINT}
+                                                                    blingMint={BLING_MINT}
+                                                                    usdcMint={USDC_MINT}
+                                                                    stablecoinMint={STABLECOIN_MINT}
+                                                                    size="small"
+                                                                    showSymbol
+                                                                />
+                                                            </Box>
                                                         )}
                                                         {pumpCosts.stablecoin !== null && (
-                                                            <Typography variant="body2" color="text.secondary">
-                                                                {formatTokenBalance(pumpCosts.stablecoin, stablecoinDecimals)} Stablecoin
-                                                            </Typography>
+                                                            <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
+                                                                <Typography variant="body2" color="text.secondary">
+                                                                    {formatTokenBalance(pumpCosts.stablecoin, stablecoinDecimals)}
+                                                                </Typography>
+                                                                <TokenDisplay
+                                                                    mint={STABLECOIN_MINT}
+                                                                    blingMint={BLING_MINT}
+                                                                    usdcMint={USDC_MINT}
+                                                                    stablecoinMint={STABLECOIN_MINT}
+                                                                    size="small"
+                                                                    showSymbol
+                                                                />
+                                                            </Box>
                                                         )}
                                                     </Stack>
                                                 ) : (
@@ -286,18 +346,48 @@ function ProfileContent() {
                                                     </Typography>
                                                 ) : smackCosts ? (
                                                     <Stack spacing={0.5}>
-                                                        <Typography variant="body2" sx={{ color: "error.main" }}>
-                                                            {formatTokenBalance(smackCosts.bling, blingDecimals)} BLING
-                                                        </Typography>
-                                                        {smackCosts.usdc !== null && (
-                                                            <Typography variant="body2" color="text.secondary">
-                                                                {formatTokenBalance(smackCosts.usdc, usdcDecimals)} USDC
+                                                        <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
+                                                            <Typography variant="body2" sx={{ color: "error.main" }}>
+                                                                {formatTokenBalance(smackCosts.bling, blingDecimals)}
                                                             </Typography>
+                                                            <TokenDisplay
+                                                                mint={BLING_MINT}
+                                                                blingMint={BLING_MINT}
+                                                                usdcMint={USDC_MINT}
+                                                                stablecoinMint={STABLECOIN_MINT}
+                                                                size="small"
+                                                                showSymbol
+                                                            />
+                                                        </Box>
+                                                        {smackCosts.usdc !== null && (
+                                                            <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
+                                                                <Typography variant="body2" color="text.secondary">
+                                                                    {formatTokenBalance(smackCosts.usdc, usdcDecimals)}
+                                                                </Typography>
+                                                                <TokenDisplay
+                                                                    mint={USDC_MINT}
+                                                                    blingMint={BLING_MINT}
+                                                                    usdcMint={USDC_MINT}
+                                                                    stablecoinMint={STABLECOIN_MINT}
+                                                                    size="small"
+                                                                    showSymbol
+                                                                />
+                                                            </Box>
                                                         )}
                                                         {smackCosts.stablecoin !== null && (
-                                                            <Typography variant="body2" color="text.secondary">
-                                                                {formatTokenBalance(smackCosts.stablecoin, stablecoinDecimals)} Stablecoin
-                                                            </Typography>
+                                                            <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
+                                                                <Typography variant="body2" color="text.secondary">
+                                                                    {formatTokenBalance(smackCosts.stablecoin, stablecoinDecimals)}
+                                                                </Typography>
+                                                                <TokenDisplay
+                                                                    mint={STABLECOIN_MINT}
+                                                                    blingMint={BLING_MINT}
+                                                                    usdcMint={USDC_MINT}
+                                                                    stablecoinMint={STABLECOIN_MINT}
+                                                                    size="small"
+                                                                    showSymbol
+                                                                />
+                                                            </Box>
                                                         )}
                                                     </Stack>
                                                 ) : (
@@ -372,9 +462,13 @@ function ProfileContent() {
                                             return (
                                                 <Box key={mint}>
                                                     <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                                                        <Typography variant="body2" color="text.secondary">
-                                                            {tokenName}:
-                                                        </Typography>
+                                                        <TokenDisplay
+                                                            mint={mint}
+                                                            blingMint={BLING_MINT}
+                                                            usdcMint={USDC_MINT}
+                                                            stablecoinMint={STABLECOIN_MINT}
+                                                            size="small"
+                                                        />
                                                         <Typography variant="h6" sx={{ fontWeight: 600 }}>
                                                             {balance.loading ? (
                                                                 <CircularProgress size={16} />
