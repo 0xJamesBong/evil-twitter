@@ -721,6 +721,7 @@ export function VaultNavbar() {
                   mode={dialogMode}
                   disabled={isLoading}
                   decimals={dialogMode === "deposit" ? walletBalanceDecimals : selectedTokenDecimals}
+                  tokenSymbol={selectedTokenConfig?.metadata.symbol || "BLING"}
                 />
 
                 {/* Error Messages */}

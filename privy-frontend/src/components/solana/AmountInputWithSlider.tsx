@@ -24,6 +24,7 @@ interface AmountInputWithSliderProps {
   mode: "deposit" | "withdraw";
   disabled?: boolean;
   decimals?: number;
+  tokenSymbol?: string; // Token symbol to display (e.g., "BLING", "USDC", "Stablecoin")
 }
 
 export function AmountInputWithSlider({
@@ -37,6 +38,7 @@ export function AmountInputWithSlider({
   mode,
   disabled = false,
   decimals = 9,
+  tokenSymbol = "BLING", // Default to BLING for backward compatibility
 }: AmountInputWithSliderProps) {
   const [sliderValue, setSliderValue] = useState<number>(0);
 
@@ -152,7 +154,7 @@ export function AmountInputWithSlider({
         }}
         helperText={
           maxAmount > 0
-            ? `Maximum: ${balanceFormatted} BLING`
+            ? `Maximum: ${balanceFormatted} ${tokenSymbol}`
             : mode === "deposit"
               ? "No wallet balance available"
               : "No vault balance available"
@@ -163,7 +165,7 @@ export function AmountInputWithSlider({
       {maxAmount > 0 && (
         <Box sx={{ px: 1 }}>
           <Typography variant="body2" color="text.secondary" gutterBottom>
-            Amount: {amount || "0"} BLING ({sliderValue.toFixed(0)}%)
+            Amount: {amount || "0"} {tokenSymbol} ({sliderValue.toFixed(0)}%)
           </Typography>
           <Slider
             value={sliderValue}
