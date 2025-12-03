@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useWallets, useSignMessage } from "@privy-io/react-auth/solana";
-import { usePrivy } from "@privy-io/react-auth";
+import { useIdentityToken } from "@privy-io/react-auth";
 import bs58 from "bs58";
 import {
   ONBOARD_USER_MUTATION,
@@ -27,7 +27,7 @@ export function useOnboardUser() {
   const [error, setError] = useState<string | null>(null);
   const { wallets } = useWallets();
   const { signMessage } = useSignMessage();
-  const { getAccessToken } = usePrivy();
+  const { identityToken } = useIdentityToken();
   const { setSession, fetchMe } = useBackendUserStore();
   const { fetchOnchainAccountStatus } = useSolanaStore();
 
@@ -52,10 +52,9 @@ export function useOnboardUser() {
     setError(null);
 
     try {
-      // Step 1: Get access token for GraphQL request
-      const accessToken = await getAccessToken();
-      if (!accessToken) {
-        throw new Error("Failed to get access token");
+      // Step 1: Check for identity token
+      if (!identityToken) {
+        throw new Error("No identity token available. Please log in.");
       }
 
       // Step 2: Get complete message bytes from backend (ready to sign)
@@ -64,7 +63,7 @@ export function useOnboardUser() {
       );
       const sessionMessageData = await graphqlRequest<{
         sessionMessage: string;
-      }>(SESSION_MESSAGE_QUERY, undefined, accessToken);
+      }>(SESSION_MESSAGE_QUERY, undefined, identityToken);
       // Decode base64 message bytes (backend returns base64-encoded message)
       const base64Message = sessionMessageData.sessionMessage;
       const binaryString = atob(base64Message);
@@ -109,7 +108,7 @@ export function useOnboardUser() {
             sessionSignature: signatureBase58,
           },
         },
-        accessToken
+        identityToken
       );
 
       console.log("✅ useOnboardUser: User onboarded successfully!");
@@ -134,7 +133,7 @@ export function useOnboardUser() {
 
       // Step 7: Refresh user data and on-chain account status
       console.log("🔄 useOnboardUser: Refreshing user data...");
-      await fetchMe(accessToken);
+      await fetchMe(identityToken);
 
       if (solanaWallet.address) {
         const { PublicKey } = await import("@solana/web3.js");

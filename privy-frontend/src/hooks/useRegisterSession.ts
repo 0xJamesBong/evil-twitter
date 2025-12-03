@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useWallets, useSignMessage } from "@privy-io/react-auth/solana";
+import { useIdentityToken } from "@privy-io/react-auth";
 import bs58 from "bs58";
 import {
   REGISTER_SESSION_MUTATION,
@@ -9,7 +10,6 @@ import {
   SESSION_MESSAGE_QUERY,
 } from "@/lib/graphql/users/mutations";
 import { graphqlRequest } from "@/lib/graphql/client";
-import { usePrivy } from "@privy-io/react-auth";
 
 export interface SessionData {
   sessionAuthorityPda: string;
@@ -23,7 +23,7 @@ export function useRegisterSession() {
   const [error, setError] = useState<string | null>(null);
   const { wallets } = useWallets();
   const { signMessage } = useSignMessage();
-  const { getAccessToken } = usePrivy();
+  const { identityToken } = useIdentityToken();
 
   const registerSession = async (): Promise<SessionData> => {
     console.log("📝 useRegisterSession: Starting session registration");
@@ -42,10 +42,9 @@ export function useRegisterSession() {
     setError(null);
 
     try {
-      // Step 1: Get access token for GraphQL request
-      const accessToken = await getAccessToken();
-      if (!accessToken) {
-        throw new Error("Failed to get access token");
+      // Step 1: Check for identity token
+      if (!identityToken) {
+        throw new Error("No identity token available. Please log in.");
       }
 
       // Step 2: Get complete message bytes from backend (ready to sign)
@@ -54,7 +53,7 @@ export function useRegisterSession() {
       );
       const sessionMessageData = await graphqlRequest<{
         sessionMessage: string;
-      }>(SESSION_MESSAGE_QUERY, undefined, accessToken);
+      }>(SESSION_MESSAGE_QUERY, undefined, identityToken);
       // Decode base64 message bytes (backend returns base64-encoded message)
       const base64Message = sessionMessageData.sessionMessage;
       const binaryString = atob(base64Message);
@@ -99,7 +98,7 @@ export function useRegisterSession() {
             sessionSignature: signatureBase58,
           },
         },
-        accessToken
+        identityToken
       );
 
       console.log("✅ useRegisterSession: Session registered successfully!");
