@@ -167,6 +167,15 @@ export function VaultNavbar() {
   const usdcDecimals = usdcTokenConfig?.metadata.decimals ?? 6;
   const stablecoinDecimals = stablecoinTokenConfig?.metadata.decimals ?? 6;
 
+  // Get default payment token (defaults to BLING if not set)
+  const defaultPaymentTokenMint = user?.defaultPaymentToken || BLING_MINT_STR;
+  const defaultPaymentTokenConfig = getTokenConfig(
+    defaultPaymentTokenMint,
+    BLING_MINT_STR,
+    USDC_MINT_STR,
+    STABLECOIN_MINT_STR
+  );
+
   // Get vault balances from GraphQL (preferred) or fallback to chain balances
   const getVaultBalance = (mint: string): number | null => {
     // Try GraphQL vaultBalances first
@@ -473,6 +482,20 @@ export function VaultNavbar() {
                       size="small"
                       showSymbol
                     />
+                    {defaultPaymentTokenMint === BLING_MINT_STR && (
+                      <Typography
+                        variant="caption"
+                        sx={{
+                          color: "primary.main",
+                          fontWeight: 600,
+                          fontSize: "0.65rem",
+                          ml: 0.25,
+                        }}
+                        title="Default payment token"
+                      >
+                        (Default)
+                      </Typography>
+                    )}
                   </Box>
                   {/* USDC Balance */}
                   {USDC_MINT_STR && (
@@ -490,6 +513,20 @@ export function VaultNavbar() {
                         size="small"
                         showSymbol
                       />
+                      {defaultPaymentTokenMint === USDC_MINT_STR && (
+                        <Typography
+                          variant="caption"
+                          sx={{
+                            color: "primary.main",
+                            fontWeight: 600,
+                            fontSize: "0.65rem",
+                            ml: 0.25,
+                          }}
+                          title="Default payment token"
+                        >
+                          (Default)
+                        </Typography>
+                      )}
                     </Box>
                   )}
                   {/* Stablecoin Balance */}
@@ -508,6 +545,20 @@ export function VaultNavbar() {
                         size="small"
                         showSymbol
                       />
+                      {defaultPaymentTokenMint === STABLECOIN_MINT_STR && (
+                        <Typography
+                          variant="caption"
+                          sx={{
+                            color: "primary.main",
+                            fontWeight: 600,
+                            fontSize: "0.65rem",
+                            ml: 0.25,
+                          }}
+                          title="Default payment token"
+                        >
+                          (Default)
+                        </Typography>
+                      )}
                     </Box>
                   )}
                 </Box>

@@ -365,14 +365,45 @@ pub mod opinions_market {
             .ok_or(ErrorCode::MathOverflow)?;
 
         //
-        // ---- 2. TRANSFERS (ALWAYS IN token_mint) ----
+        // ---- 2. CONVERT COSTS TO token_mint (if not BLING) ----
+        //
+
+        use crate::math::token_conversion::convert_bling_fees_to_token;
+
+        // Get token decimals
+        let token_decimals = ctx.accounts.token_mint.decimals;
+
+        // Convert costs from BLING to selected token if needed
+        let (protocol_fee_token, creator_pump_fee_token, pot_increment_token) =
+            if ctx.accounts.token_mint.key() == ctx.accounts.config.bling_mint {
+                // Already in BLING, no conversion needed
+                (protocol_fee, creator_pump_fee, pot_increment)
+            } else {
+                // Convert from BLING to selected token using ValidPayment price
+                let price_in_bling = ctx.accounts.valid_payment.price_in_bling;
+
+                convert_bling_fees_to_token(
+                    protocol_fee,
+                    creator_pump_fee,
+                    pot_increment,
+                    price_in_bling,
+                    token_decimals,
+                )?
+            };
+
+        msg!("protocol_fee_token: {}", protocol_fee_token);
+        msg!("creator_pump_fee_token: {}", creator_pump_fee_token);
+        msg!("pot_increment_token: {}", pot_increment_token);
+
+        //
+        // ---- 3. TRANSFERS (IN token_mint) ----
         //
 
         let vault_bump = ctx.bumps.vault_authority;
         let user_authority_seeds: &[&[&[u8]]] = &[&[VAULT_AUTHORITY_SEED, &[vault_bump]]];
 
         // protocol fee
-        if protocol_fee > 0 {
+        if protocol_fee_token > 0 {
             anchor_spl::token::transfer(
                 CpiContext::new_with_signer(
                     ctx.accounts.token_program.to_account_info(),
@@ -389,12 +420,12 @@ pub mod opinions_market {
                     },
                     user_authority_seeds,
                 ),
-                protocol_fee,
+                protocol_fee_token,
             )?;
         }
 
         // creator fee
-        if creator_pump_fee > 0 {
+        if creator_pump_fee_token > 0 {
             anchor_spl::token::transfer(
                 CpiContext::new_with_signer(
                     ctx.accounts.token_program.to_account_info(),
@@ -408,7 +439,7 @@ pub mod opinions_market {
                     },
                     user_authority_seeds,
                 ),
-                creator_pump_fee,
+                creator_pump_fee_token,
             )?;
         }
 
@@ -426,11 +457,11 @@ pub mod opinions_market {
                 },
                 user_authority_seeds,
             ),
-            pot_increment,
+            pot_increment_token,
         )?;
 
         //
-        // ---- 3. UPDATE COUNTERS ----
+        // ---- 4. UPDATE COUNTERS ----
         //
 
         match side {
