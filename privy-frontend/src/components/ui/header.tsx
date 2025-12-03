@@ -30,7 +30,7 @@ export function Header() {
               color: "text.primary",
             }}
           >
-            EVUL TWITTER
+            SPEAQER
           </Typography>
         </Box>
 

@@ -27,6 +27,7 @@ import { useSnackbar } from "notistack";
 import { useDeposit } from "../../hooks/useDeposit";
 import { useWithdraw } from "../../hooks/useWithdraw";
 import { useCreateUser } from "../../hooks/useCreateUser";
+import { useOnboardUser } from "../../hooks/useOnboardUser";
 import { useBackendUserStore } from "../../lib/stores/backendUserStore";
 import { useSolanaStore } from "../../lib/stores/solanaStore";
 import { NetworkSwitcher } from "./NetworkSwitcher";
@@ -50,6 +51,7 @@ export function VaultNavbar() {
   const { deposit, loading: depositLoading, error: depositError } = useDeposit();
   const { withdraw, loading: withdrawLoading, error: withdrawError } = useWithdraw();
   const { createUser, loading: createUserLoading, error: createUserError } = useCreateUser();
+  const { onboardUser, loading: onboardUserLoading, error: onboardUserError } = useOnboardUser();
   const { enqueueSnackbar } = useSnackbar();
 
   // Use Zustand stores for data
@@ -99,6 +101,8 @@ export function VaultNavbar() {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [dialogMode, setDialogMode] = useState<"deposit" | "withdraw" | "create">("deposit");
   const [amount, setAmount] = useState<string>("");
+  const [handle, setHandle] = useState<string>("");
+  const [displayName, setDisplayName] = useState<string>("");
 
   // Use GraphQL balance if available, otherwise use chain balance from solanaStore
   const graphqlVaultBalance = user?.vaultBalance ?? null;
@@ -132,6 +136,15 @@ export function VaultNavbar() {
     }
     setDialogMode("create");
     setDialogOpen(true);
+    // Pre-fill handle and displayName from wallet address if available
+    if (solanaWallet?.address) {
+      const addr = solanaWallet.address;
+      setHandle(`user_${addr.slice(0, 8)}`);
+      setDisplayName("User");
+    } else {
+      setHandle("");
+      setDisplayName("");
+    }
   };
 
   const handleOpenDialog = (mode: "deposit" | "withdraw") => {
@@ -175,11 +188,23 @@ export function VaultNavbar() {
       return;
     }
 
+    // Validate handle and displayName
+    if (!handle.trim()) {
+      enqueueSnackbar("Please enter a handle", { variant: "error" });
+      return;
+    }
+    if (!displayName.trim()) {
+      enqueueSnackbar("Please enter a display name", { variant: "error" });
+      return;
+    }
+
     try {
-      const signature = await createUser();
-      enqueueSnackbar(`User account created! Transaction: ${signature.slice(0, 8)}...`, {
-        variant: "success",
-      });
+      // This will immediately prompt the user to sign the message
+      const result = await onboardUser(handle.trim(), displayName.trim());
+      enqueueSnackbar(
+        `Account created successfully! Session registered for 30 days.`,
+        { variant: "success" }
+      );
       handleCloseDialog();
 
       // Refresh data after successful creation
@@ -195,7 +220,7 @@ export function VaultNavbar() {
       }
     } catch (error) {
       const errorMessage =
-        error instanceof Error ? error.message : "Failed to create user account";
+        error instanceof Error ? error.message : "Failed to create account";
       enqueueSnackbar(errorMessage, { variant: "error" });
     }
   };
@@ -291,7 +316,7 @@ export function VaultNavbar() {
     }
   };
 
-  const isLoading = depositLoading || withdrawLoading || createUserLoading || loadingOnchainAccount;
+  const isLoading = depositLoading || withdrawLoading || createUserLoading || onboardUserLoading || loadingOnchainAccount;
 
   // Handle login button click
   const handleLogin = () => {
@@ -409,7 +434,7 @@ export function VaultNavbar() {
         <DialogTitle>
           <Typography variant="h6">
             {dialogMode === "create"
-              ? "Create On-Chain User Account"
+              ? "Onboard Account"
               : dialogMode === "deposit"
                 ? "Deposit to Vault"
                 : "Withdraw from Vault"}
@@ -419,14 +444,38 @@ export function VaultNavbar() {
           <Stack spacing={3} sx={{ mt: 1 }}>
             {dialogMode === "create" ? (
               <>
-                <Typography variant="body2" color="text.secondary">
-                  You need to create an on-chain user account before you can deposit or withdraw
-                  tokens. This is a one-time setup that will create your vault account on the
-                  Solana blockchain.
+                <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+                  Create your account and register a session key. You'll be prompted to sign a message
+                  to verify your wallet ownership. This is a one-time setup.
                 </Typography>
-                {createUserError && (
+
+                {/* Handle Input */}
+                <TextField
+                  label="Handle"
+                  value={handle}
+                  onChange={(e) => setHandle(e.target.value)}
+                  placeholder="Enter your handle"
+                  fullWidth
+                  disabled={isLoading}
+                  required
+                  helperText="Your unique username (e.g., @username)"
+                />
+
+                {/* Display Name Input */}
+                <TextField
+                  label="Display Name"
+                  value={displayName}
+                  onChange={(e) => setDisplayName(e.target.value)}
+                  placeholder="Enter your display name"
+                  fullWidth
+                  disabled={isLoading}
+                  required
+                  helperText="Your public display name"
+                />
+
+                {(createUserError || onboardUserError) && (
                   <Typography variant="body2" color="error">
-                    Error: {createUserError}
+                    Error: {onboardUserError || createUserError}
                   </Typography>
                 )}
               </>
@@ -499,7 +548,7 @@ export function VaultNavbar() {
               disabled={isLoading}
               startIcon={isLoading ? <CircularProgress size={16} /> : null}
             >
-              {isLoading ? "Creating..." : "Create Account"}
+              {isLoading ? "Onboarding..." : "Onboard & Create Account"}
             </Button>
           ) : (
             <Button

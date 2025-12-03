@@ -1,5 +1,4 @@
 use async_graphql::{Context, Enum, ID, Object, Result, SimpleObject};
-use std::str::FromStr;
 use std::sync::Arc;
 use mongodb::bson::{doc, DateTime};
 use hex;

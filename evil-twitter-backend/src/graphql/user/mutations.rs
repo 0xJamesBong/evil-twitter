@@ -16,8 +16,7 @@ use crate::{app_state::AppState, graphql::user::types::UserNode, utils::auth};
 
 #[derive(InputObject)]
 pub struct RegisterSessionInput {
-    pub session_pubkey: String,
-    pub session_message: String,
+    // Backend generates session key (payer pubkey), so only signature is needed
     pub session_signature: String,
 }
 
@@ -63,10 +62,8 @@ pub struct OnboardUserInput {
     pub handle: String,
     pub display_name: String,
 
-    // New fields for session registration
-    pub session_pubkey: String,    // base58
-    pub session_message: String,   // the message that was signed
-    pub session_signature: String, // base64 or hex-encoded 64 bytes
+    // Session registration - backend generates session key (payer pubkey)
+    pub session_signature: String, // base58/base64/hex-encoded 64 bytes signature
 }
 
 // ============================================================================
@@ -328,12 +325,15 @@ pub async fn onboard_user_resolver(
         eprintln!("onboard_user: On-chain user created successfully");
     }
 
-    // Register session (parse signature and pass to SolanaService - verification happens on-chain)
-    let session_key = Pubkey::from_str(&input.session_pubkey)
-        .map_err(|e| async_graphql::Error::new(format!("Invalid session pubkey: {}", e)))?;
+    // Register session - backend generates session key (payer pubkey)
+    // The session key is the backend's payer pubkey
+    let session_key = app_state.solana_service.payer_pubkey();
+
+    // Construct the message that should have been signed: SESSION:{session_key}
+    let message = format!("SESSION:{}", session_key);
+    let message_bytes = message.as_bytes().to_vec();
 
     let signature_bytes = parse_signature_bytes(&input.session_signature)?;
-    let message_bytes = input.session_message.as_bytes().to_vec();
 
     eprintln!("onboard_user: Registering session...");
     app_state
@@ -354,7 +354,7 @@ pub async fn onboard_user_resolver(
 
     let session_info = SessionInfo {
         session_authority_pda: session_authority_pda.to_string(),
-        session_key: input.session_pubkey.clone(),
+        session_key: session_key.to_string(),
         expires_at,
         user_wallet: user.wallet.clone(),
     };
@@ -447,16 +447,19 @@ pub async fn register_session_resolver(
         .await?
         .ok_or_else(|| async_graphql::Error::new("User not found in database"))?;
 
-    // Parse pubkeys
+    // Parse wallet pubkey
     let wallet_pubkey = Pubkey::from_str(&user.wallet)
         .map_err(|e| async_graphql::Error::new(format!("Invalid wallet pubkey: {}", e)))?;
 
-    let session_key = Pubkey::from_str(&input.session_pubkey)
-        .map_err(|e| async_graphql::Error::new(format!("Invalid session pubkey: {}", e)))?;
+    // Backend generates session key (payer pubkey)
+    let session_key = app_state.solana_service.payer_pubkey();
+
+    // Construct the message that should have been signed: SESSION:{session_key}
+    let message = format!("SESSION:{}", session_key);
+    let message_bytes = message.as_bytes().to_vec();
 
     // Parse signature (format conversion only - verification happens on-chain)
     let signature_bytes = parse_signature_bytes(&input.session_signature)?;
-    let message_bytes = input.session_message.as_bytes().to_vec();
 
     // Register session on-chain (SolanaService creates ed25519 instruction, program verifies)
     app_state
@@ -478,7 +481,7 @@ pub async fn register_session_resolver(
     Ok(RegisterSessionPayload {
         session: SessionInfo {
             session_authority_pda: session_authority_pda.to_string(),
-            session_key: input.session_pubkey,
+            session_key: session_key.to_string(),
             expires_at,
             user_wallet: user.wallet,
         },

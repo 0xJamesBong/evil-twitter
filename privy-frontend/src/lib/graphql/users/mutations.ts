@@ -83,3 +83,9 @@ export interface RegisterSessionResult {
     };
   };
 }
+
+export const SESSION_MESSAGE_QUERY = `
+  query SessionMessage {
+    sessionMessage
+  }
+`;

@@ -2,11 +2,11 @@
 
 import { useState } from "react";
 import { useWallets, useSignMessage } from "@privy-io/react-auth/solana";
-import { PublicKey, Keypair } from "@solana/web3.js";
 import bs58 from "bs58";
 import {
   REGISTER_SESSION_MUTATION,
   RegisterSessionResult,
+  SESSION_MESSAGE_QUERY,
 } from "@/lib/graphql/users/mutations";
 import { graphqlRequest } from "@/lib/graphql/client";
 import { usePrivy } from "@privy-io/react-auth";
@@ -42,15 +42,29 @@ export function useRegisterSession() {
     setError(null);
 
     try {
-      // Step 1: Generate ephemeral session key
-      const sessionKeypair = Keypair.generate();
-      const sessionKey = sessionKeypair.publicKey.toBase58();
-      console.log("🔑 useRegisterSession: Generated session key:", sessionKey);
+      // Step 1: Get access token for GraphQL request
+      const accessToken = await getAccessToken();
+      if (!accessToken) {
+        throw new Error("Failed to get access token");
+      }
 
-      // Step 2: Create message to sign
-      const message = `SESSION:${sessionKey}`;
-      const messageBytes = new TextEncoder().encode(message);
-      console.log("📝 useRegisterSession: Message to sign:", message);
+      // Step 2: Get complete message bytes from backend (ready to sign)
+      console.log(
+        "🔑 useRegisterSession: Fetching session message from backend..."
+      );
+      const sessionMessageData = await graphqlRequest<{
+        sessionMessage: string;
+      }>(SESSION_MESSAGE_QUERY, undefined, accessToken);
+      // Decode base64 message bytes (backend returns base64-encoded message)
+      const base64Message = sessionMessageData.sessionMessage;
+      const binaryString = atob(base64Message);
+      const messageBytes = Uint8Array.from(binaryString, (char) =>
+        char.charCodeAt(0)
+      );
+      console.log(
+        "✅ useRegisterSession: Got message bytes from backend, length:",
+        messageBytes.length
+      );
 
       // Step 3: Sign message with user's wallet
       console.log("✍️  useRegisterSession: Requesting signature from user...");
@@ -74,13 +88,7 @@ export function useRegisterSession() {
         signatureBase58.slice(0, 20) + "..."
       );
 
-      // Step 5: Get access token for GraphQL request
-      const accessToken = await getAccessToken();
-      if (!accessToken) {
-        throw new Error("Failed to get access token");
-      }
-
-      // Step 6: Call GraphQL registerSession mutation
+      // Step 5: Call GraphQL registerSession mutation (only send signature, backend has session key)
       console.log(
         "📤 useRegisterSession: Calling GraphQL registerSession mutation..."
       );
@@ -88,8 +96,6 @@ export function useRegisterSession() {
         REGISTER_SESSION_MUTATION,
         {
           input: {
-            sessionPubkey: sessionKey,
-            sessionMessage: message,
             sessionSignature: signatureBase58,
           },
         },

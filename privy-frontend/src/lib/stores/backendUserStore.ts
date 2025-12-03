@@ -1,5 +1,4 @@
 import { create } from "zustand";
-import { Keypair } from "@solana/web3.js";
 import bs58 from "bs58";
 import { ME_QUERY, MeQueryResult } from "../graphql/users/queries";
 import {
@@ -79,15 +78,24 @@ export const useBackendUserStore = create<
         displayName
       );
 
-      // Step 1: Generate ephemeral session key
-      const sessionKeypair = Keypair.generate();
-      const sessionKey = sessionKeypair.publicKey.toBase58();
-      console.log("🔑 onboardUser: Generated session key:", sessionKey);
-
-      // Step 2: Create message to sign
-      const message = `SESSION:${sessionKey}`;
-      const messageBytes = new TextEncoder().encode(message);
-      console.log("📝 onboardUser: Message to sign:", message);
+      // Step 1: Get complete message bytes from backend (ready to sign)
+      console.log("🔑 onboardUser: Fetching session message from backend...");
+      const { SESSION_MESSAGE_QUERY } = await import(
+        "../graphql/users/mutations"
+      );
+      const sessionMessageData = await graphqlRequest<{
+        sessionMessage: string;
+      }>(SESSION_MESSAGE_QUERY, undefined, identityToken);
+      // Decode base64 message bytes (backend returns base64-encoded message)
+      const base64Message = sessionMessageData.sessionMessage;
+      const binaryString = atob(base64Message);
+      const messageBytes = Uint8Array.from(binaryString, (char) =>
+        char.charCodeAt(0)
+      );
+      console.log(
+        "✅ onboardUser: Got message bytes from backend, length:",
+        messageBytes.length
+      );
 
       // Step 3: Sign message with user's wallet
       console.log("✍️  onboardUser: Requesting signature from user...");
@@ -111,8 +119,7 @@ export const useBackendUserStore = create<
         signatureBase58.slice(0, 20) + "..."
       );
 
-      // Step 5: Call GraphQL onboardUser mutation with session fields
-      // Note: GraphQL uses camelCase, so session_pubkey becomes sessionPubkey
+      // Step 5: Call GraphQL onboardUser mutation (only send signature, backend has session key)
       console.log("📤 onboardUser: Calling GraphQL onboardUser mutation...");
       const data = await graphqlRequest<OnboardUserResult>(
         ONBOARD_USER_MUTATION,
@@ -120,8 +127,6 @@ export const useBackendUserStore = create<
           input: {
             handle,
             displayName,
-            sessionPubkey: sessionKey,
-            sessionMessage: message,
             sessionSignature: signatureBase58,
           },
         },

@@ -1,5 +1,6 @@
 use async_graphql::{Context, ID, Object, Result};
 use axum::http::HeaderMap;
+use base64::{Engine as _, engine::general_purpose};
 use futures::TryStreamExt;
 use mongodb::{Collection, bson::doc};
 
@@ -63,6 +64,17 @@ impl UserQuery {
         filters: Option<crate::graphql::user::types::DiscoverFilters>,
     ) -> Result<Vec<UserNode>> {
         discover_users_resolver(ctx, filters).await
+    }
+
+    /// Get the complete message bytes ready to sign for session registration
+    /// Returns base64-encoded message bytes: SESSION:{payer_pubkey}
+    async fn session_message(&self, ctx: &Context<'_>) -> Result<String> {
+        let app_state = ctx.data::<Arc<AppState>>()?;
+        let session_key = app_state.solana_service.payer_pubkey();
+        let message = format!("SESSION:{}", session_key);
+        // Return base64-encoded message bytes
+        let message_bytes = message.as_bytes();
+        Ok(base64::engine::general_purpose::STANDARD.encode(message_bytes))
     }
 }
 
