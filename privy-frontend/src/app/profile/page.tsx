@@ -13,11 +13,9 @@ import {
     Grid,
     Chip,
     Divider,
-    Select,
-    MenuItem,
-    FormControl,
-    InputLabel,
     Button,
+    ToggleButton,
+    ToggleButtonGroup,
 } from "@mui/material";
 import { TrendingUp, AccountBalance, CheckCircle, Cancel, Wallet as WalletIcon } from "@mui/icons-material";
 import { PublicKey } from "@solana/web3.js";
@@ -34,7 +32,7 @@ import {
     formatTokenBalance,
     getTokenName,
 } from "@/lib/utils/formatting";
-import { TokenDisplay } from "@/components/tokens/TokenDisplay";
+import { TokenDisplay, TokenLogo } from "@/components/tokens";
 import { graphqlRequest } from "@/lib/graphql/client";
 import {
     UPDATE_DEFAULT_PAYMENT_TOKEN_MUTATION,
@@ -210,54 +208,91 @@ function ProfileContent() {
                                     <Divider />
 
                                     <Box>
-                                        <Typography variant="body2" color="text.secondary" gutterBottom>
+                                        <Typography variant="body2" color="text.secondary" gutterBottom sx={{ mb: 1 }}>
                                             Default Payment Token:
                                         </Typography>
-                                        <FormControl fullWidth size="small" sx={{ mt: 1, mb: 2 }}>
-                                            <InputLabel>Payment Token</InputLabel>
-                                            <Select
-                                                value={currentDefaultToken}
-                                                label="Payment Token"
-                                                onChange={(e) => {
-                                                    const value = e.target.value;
+                                        <ToggleButtonGroup
+                                            value={currentDefaultToken}
+                                            exclusive
+                                            onChange={(_, value) => {
+                                                if (value !== null) {
                                                     handleUpdateDefaultToken(value === BLING_MINT ? null : value);
-                                                }}
-                                                disabled={updatingToken}
-                                            >
-                                                <MenuItem value={BLING_MINT}>
-                                                    <TokenDisplay
+                                                }
+                                            }}
+                                            disabled={updatingToken}
+                                            fullWidth
+                                            sx={{
+                                                display: "flex",
+                                                gap: 1,
+                                                "& .MuiToggleButtonGroup-grouped": {
+                                                    border: "1px solid",
+                                                    borderColor: "divider",
+                                                    flex: 1,
+                                                    "&:not(:first-of-type)": {
+                                                        borderLeft: "1px solid",
+                                                        borderColor: "divider",
+                                                        marginLeft: 0,
+                                                    },
+                                                    "&.Mui-selected": {
+                                                        backgroundColor: "primary.main",
+                                                        color: "primary.contrastText",
+                                                        "&:hover": {
+                                                            backgroundColor: "primary.dark",
+                                                        },
+                                                    },
+                                                    "&:hover": {
+                                                        backgroundColor: "action.hover",
+                                                    },
+                                                },
+                                            }}
+                                        >
+                                            <ToggleButton value={BLING_MINT} aria-label="BLING">
+                                                <Box sx={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 0.5, py: 1 }}>
+                                                    <TokenLogo
                                                         mint={BLING_MINT}
                                                         blingMint={BLING_MINT}
                                                         usdcMint={USDC_MINT}
                                                         stablecoinMint={STABLECOIN_MINT}
-                                                        size="small"
+                                                        size={24}
                                                     />
-                                                    {" (Default)"}
-                                                </MenuItem>
-                                                {USDC_MINT && (
-                                                    <MenuItem value={USDC_MINT}>
-                                                        <TokenDisplay
+                                                    <Typography variant="caption" sx={{ fontWeight: 500 }}>
+                                                        BLING
+                                                    </Typography>
+                                                </Box>
+                                            </ToggleButton>
+                                            {USDC_MINT && (
+                                                <ToggleButton value={USDC_MINT} aria-label="USDC">
+                                                    <Box sx={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 0.5, py: 1 }}>
+                                                        <TokenLogo
                                                             mint={USDC_MINT}
                                                             blingMint={BLING_MINT}
                                                             usdcMint={USDC_MINT}
                                                             stablecoinMint={STABLECOIN_MINT}
-                                                            size="small"
+                                                            size={24}
                                                         />
-                                                    </MenuItem>
-                                                )}
-                                                {STABLECOIN_MINT && (
-                                                    <MenuItem value={STABLECOIN_MINT}>
-                                                        <TokenDisplay
+                                                        <Typography variant="caption" sx={{ fontWeight: 500 }}>
+                                                            USDC
+                                                        </Typography>
+                                                    </Box>
+                                                </ToggleButton>
+                                            )}
+                                            {STABLECOIN_MINT && (
+                                                <ToggleButton value={STABLECOIN_MINT} aria-label="Stablecoin">
+                                                    <Box sx={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 0.5, py: 1 }}>
+                                                        <TokenLogo
                                                             mint={STABLECOIN_MINT}
                                                             blingMint={BLING_MINT}
                                                             usdcMint={USDC_MINT}
                                                             stablecoinMint={STABLECOIN_MINT}
-                                                            size="small"
+                                                            size={24}
                                                         />
-                                                    </MenuItem>
-                                                )}
-                                            </Select>
-                                        </FormControl>
+                                                        <Typography variant="caption" sx={{ fontWeight: 500 }}>
+                                                            Stablecoin
+                                                        </Typography>
+                                                    </Box>
+                                                </ToggleButton>
+                                            )}
+                                        </ToggleButtonGroup>
                                     </Box>
 
                                     <Divider />
