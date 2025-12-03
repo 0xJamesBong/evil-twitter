@@ -2462,7 +2462,8 @@ export type OpinionsMarket = {
             "docs": [
               "how much is 1 token in BLING votes -",
               "1 USDC = 10_000 BLING for example",
-              "1 SOL = 1_000_000_000 BLING for example"
+              "1 SOL = 1_000_000_000 BLING for example",
+              "This value is lamport-free. So 1 BLING = 1 BLING"
             ],
             "type": "u64"
           },

@@ -180,6 +180,94 @@ async fn main() {
         &stablecoin_mint,
     )
     .await;
+
+    // register USDC and STABLECOIN TO VALID PAYMENTS
+    // Register USDC
+    let usdc_valid_payment_pda = Pubkey::find_program_address(
+        &[VALID_PAYMENT_SEED, usdc_mint.pubkey().as_ref()],
+        &program_id,
+    )
+    .0;
+    let usdc_treasury_pda = Pubkey::find_program_address(
+        &[
+            PROTOCOL_TREASURY_TOKEN_ACCOUNT_SEED,
+            usdc_mint.pubkey().as_ref(),
+        ],
+        &program_id,
+    )
+    .0;
+    let usdc_valid_payment_ix = opinions_market
+        .request()
+        .accounts(opinions_market::accounts::RegisterValidPayment {
+            config: config_pda,
+            admin: admin_pubkey,
+            token_mint: usdc_mint.pubkey(),
+            valid_payment: usdc_valid_payment_pda,
+            protocol_token_treasury_token_account: usdc_treasury_pda,
+            system_program: anchor_lang::solana_program::system_program::ID,
+            token_program: anchor_spl::token::spl_token::ID,
+        })
+        .args(opinions_market::instruction::RegisterValidPayment {
+            price_in_bling: 10_000, // 1 USDC = 10,000 BLING
+        })
+        .instructions()
+        .unwrap();
+    let usdc_valid_payment_tx = send_tx(
+        &rpc,
+        usdc_valid_payment_ix,
+        &payer.pubkey(),
+        &[&payer, &admin],
+    )
+    .await
+    .unwrap();
+    println!(
+        "USDC registered to valid payments: {:?}",
+        usdc_valid_payment_tx
+    );
+
+    // Register STABLECOIN
+    let stablecoin_valid_payment_pda = Pubkey::find_program_address(
+        &[VALID_PAYMENT_SEED, stablecoin_mint.pubkey().as_ref()],
+        &program_id,
+    )
+    .0;
+    let stablecoin_treasury_pda = Pubkey::find_program_address(
+        &[
+            PROTOCOL_TREASURY_TOKEN_ACCOUNT_SEED,
+            stablecoin_mint.pubkey().as_ref(),
+        ],
+        &program_id,
+    )
+    .0;
+    let stablecoin_valid_payment_ix = opinions_market
+        .request()
+        .accounts(opinions_market::accounts::RegisterValidPayment {
+            config: config_pda,
+            admin: admin_pubkey,
+            token_mint: stablecoin_mint.pubkey(),
+            valid_payment: stablecoin_valid_payment_pda,
+            protocol_token_treasury_token_account: stablecoin_treasury_pda,
+            system_program: anchor_lang::solana_program::system_program::ID,
+            token_program: anchor_spl::token::spl_token::ID,
+        })
+        .args(opinions_market::instruction::RegisterValidPayment {
+            price_in_bling: 10_000, // 1 STABLECOIN = 10,000 BLING
+        })
+        .instructions()
+        .unwrap();
+    let stablecoin_valid_payment_tx = send_tx(
+        &rpc,
+        stablecoin_valid_payment_ix,
+        &payer.pubkey(),
+        &[&payer, &admin],
+    )
+    .await
+    .unwrap();
+    println!(
+        "STABLECOIN registered to valid payments: {:?}",
+        stablecoin_valid_payment_tx
+    );
+
     println!("BLING_MINT: {}", bling_mint.pubkey());
     println!("USDC_MINT: {}", usdc_mint.pubkey());
     println!("STABLECOIN_MINT: {}", stablecoin_mint.pubkey());

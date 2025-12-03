@@ -72,6 +72,7 @@ pub struct ValidPayment {
     /// how much is 1 token in BLING votes -
     /// 1 USDC = 10_000 BLING for example
     /// 1 SOL = 1_000_000_000 BLING for example
+    /// This value is lamport-free. So 1 BLING = 1 BLING
     pub price_in_bling: u64,
     pub enabled: bool,
     pub bump: u8,
