@@ -1,5 +1,6 @@
-use crate::constants::PARAMS;
-use anchor_lang::prelude::*;
+use crate::constants::{MAX_VOTE_COUNT_CAP, PARAMS};
+use crate::ErrorCode;
+use anchor_lang::{prelude::*, solana_program::native_token::LAMPORTS_PER_SOL};
 
 // -----------------------------------------------------------------------------
 // ACCOUNTS
@@ -276,18 +277,21 @@ impl Vote {
             post_pubkey,
         }
     }
+    pub fn minimum_cost_in_bling() -> u64 {
+        PARAMS.bling_per_vote_base_cost
+    }
 
     // -------------------------------------------------------------------------
     // USER-ADJUSTED COST
     //
     // Caps:
-    //   votes ≤ 1_000_000
-    //   prev  ≤ 1_000_000
+    //   votes ≤ MAX_VOTE_COUNT_CAP
+    //   prev  ≤ MAX_VOTE_COUNT_CAP
     //   side_mult ∈ {1,10}
     //   social_mult_bps ∈ [5_000, 20_000]
     //
     // raw = votes * side_mult * (prev + 1)
-    // max raw = 1_000_000 * 10 * 1_000_001 = 1e13 → fits in u64 safely
+    // max raw = MAX_VOTE_COUNT_CAP * 10 * (MAX_VOTE_COUNT_CAP + 1) = 1e13 → fits in u64 safely
     // After BPS scaling raw*20000 / 10000 → < 2e13 → safe
     // -------------------------------------------------------------------------
     fn user_adjusted_cost(
@@ -296,13 +300,13 @@ impl Vote {
         user_account: &UserAccount,
     ) -> Result<u64> {
         // ---- FIXED CAPS (core overflow prevention) ----
-        let votes = (self.votes as u64).min(1_000_000);
+        let votes = (self.votes as u64).min(MAX_VOTE_COUNT_CAP);
 
         let prev = match self.side {
             Side::Pump => user_position.upvotes as u64,
             Side::Smack => user_position.downvotes as u64,
         }
-        .min(1_000_000);
+        .min(MAX_VOTE_COUNT_CAP);
 
         // Pump is cheaper, Smack more expensive (per your design)
         let side_mult = match self.side {
@@ -326,9 +330,9 @@ impl Vote {
 
         // ---- CORE RAW COST ----
         //
-        // raw max = 1_000_000 * 10 * 1_000_001 ≈ 1e13 → safe in u64 (limit ≈1e19)
+        // raw max = MAX_VOTE_COUNT_CAP * 10 * (MAX_VOTE_COUNT_CAP + 1) ≈ 1e13 → safe in u64 (limit ≈1e19)
         //
-        let raw = votes * side_mult * (prev + 1);
+        let raw = votes * side_mult * (prev + 1) * PARAMS.bling_per_vote_base_cost;
 
         // ---- APPLY SOCIAL MULTIPLIER (BPS) ----
         //
@@ -336,33 +340,37 @@ impl Vote {
         //
         let cost = (raw * social_mult_bps) / 10_000;
 
-        Ok(cost.max(1))
+        Ok(cost.max(Self::minimum_cost_in_bling()))
     }
 
     // -------------------------------------------------------------------------
     // POST-ADJUSTED COST
     //
     // Caps:
-    //   post_votes ≤ 1_000_000
-    //   curve_mult_bps ∈ [10_000, 1_000_000]
+    //   post_votes ≤ MAX_VOTE_COUNT_CAP
+    //   curve_mult_bps ∈ [10_000, MAX_VOTE_COUNT_CAP]
     //
     // cost = base * curve_mult_bps / 10_000
     // max base ~ 2e13 (from above)
-    // max curve_mult_bps = 1_000_000 (100x)
+    // max curve_mult_bps = MAX_VOTE_COUNT_CAP (100x)
     // so max cost = 2e15 → still fits u64 comfortably
     // -------------------------------------------------------------------------
-    fn post_adjusted_cost(&self, post: &PostAccount, base: u64) -> Result<u64> {
+    fn post_adjusted_cost(
+        &self,
+        post: &PostAccount,
+        unadjusted_cost_of_bling_per_vote: u64,
+    ) -> Result<u64> {
         let post_votes = match self.side {
             Side::Pump => post.upvotes as u64,
             Side::Smack => post.downvotes as u64,
         }
-        .min(1_000_000);
+        .min(MAX_VOTE_COUNT_CAP);
 
         // Bonding curve: 10_000 → 10_000 + post_votes*5
-        let curve_mult_bps = (10_000 + post_votes * 5).clamp(10_000, 1_000_000);
+        let curve_mult_bps = (10_000 + post_votes * 5).clamp(10_000, MAX_VOTE_COUNT_CAP);
 
         // base ≤ ~2e13
-        // curve_mult_bps ≤ 1_000_000
+        // curve_mult_bps ≤ MAX_VOTE_COUNT_CAP
         // multiplication ≤ 2e19 → fits under u64::MAX (≈1.8e19)?
         // No: so we must rely on clamp reducing base earlier.
         //
@@ -372,18 +380,18 @@ impl Vote {
         //
         // In worst-case theoretical max, clamp prevents overflow before this.
         //
-        let mut cost = (base * curve_mult_bps) / 10_000;
+        let mut cost = (unadjusted_cost_of_bling_per_vote * curve_mult_bps) / 10_000;
 
         // Child posts incur +10%
         if matches!(post.post_type, PostType::Child { .. }) {
             cost = (cost * 11_000) / 10_000;
         }
 
-        Ok(cost.max(1))
+        Ok(cost.max(Self::minimum_cost_in_bling()))
     }
 
     // -------------------------------------------------------------------------
-    // FINAL COST = user-adjusted cost → post-adjusted cost
+    // FINAL COST = user-adjusted cost → post-adjusted cost → scaled to BLING
     // -------------------------------------------------------------------------
     pub fn compute_cost_in_bling(
         &self,
@@ -392,9 +400,19 @@ impl Vote {
         user_account: &UserAccount,
         _cfg: &Config,
     ) -> Result<u64> {
-        let user = self.user_adjusted_cost(user_position, user_account)?;
-        let post_cost = self.post_adjusted_cost(post, user)?;
+        let user_adjusted_cost_in_bling = self.user_adjusted_cost(user_position, user_account)?;
+        let post_adjusted_cost_in_bling =
+            self.post_adjusted_cost(post, user_adjusted_cost_in_bling)?;
 
-        Ok(post_cost.max(1))
+        // Scale from vote units to BLING token amount
+        // post_cost is in "vote units" (e.g., 1, 2, 3...)
+        // Multiply by base cost to get actual BLING amount
+        // 1 vote unit = 1 SOL worth of BLING (1 * LAMPORTS_PER_SOL)
+        let cost_in_bling = post_adjusted_cost_in_bling
+            .checked_mul(PARAMS.bling_per_vote_base_cost)
+            .ok_or(ErrorCode::MathOverflow)?;
+
+        // Minimum cost is 1 SOL worth of BLING (1 * LAMPORTS_PER_SOL)
+        Ok(cost_in_bling.max(Self::minimum_cost_in_bling()))
     }
 }
