@@ -1,4 +1,6 @@
 import { create } from "zustand";
+import { Keypair } from "@solana/web3.js";
+import bs58 from "bs58";
 import { ME_QUERY, MeQueryResult } from "../graphql/users/queries";
 import {
   ONBOARD_USER_MUTATION,
@@ -24,7 +26,13 @@ type BackendUserActions = {
   onboardUser: (
     identityToken: string,
     handle: string,
-    displayName: string
+    displayName: string,
+    signMessage: (params: {
+      message: Uint8Array;
+      wallet: any;
+      options?: { uiOptions?: { title?: string; description?: string } };
+    }) => Promise<{ signature: Uint8Array }>,
+    wallet: any
   ) => Promise<void>;
   fetchMe: (identityToken: string) => Promise<void>;
   refreshMe: (identityToken: string) => Promise<void>;
@@ -54,7 +62,13 @@ export const useBackendUserStore = create<
   onboardUser: async (
     identityToken: string,
     handle: string,
-    displayName: string
+    displayName: string,
+    signMessage: (params: {
+      message: Uint8Array;
+      wallet: any;
+      options?: { uiOptions?: { title?: string; description?: string } };
+    }) => Promise<{ signature: Uint8Array }>,
+    wallet: any
   ) => {
     set({ isLoading: true, error: null });
     try {
@@ -64,12 +78,70 @@ export const useBackendUserStore = create<
         "and displayName:",
         displayName
       );
+
+      // Step 1: Generate ephemeral session key
+      const sessionKeypair = Keypair.generate();
+      const sessionKey = sessionKeypair.publicKey.toBase58();
+      console.log("🔑 onboardUser: Generated session key:", sessionKey);
+
+      // Step 2: Create message to sign
+      const message = `SESSION:${sessionKey}`;
+      const messageBytes = new TextEncoder().encode(message);
+      console.log("📝 onboardUser: Message to sign:", message);
+
+      // Step 3: Sign message with user's wallet
+      console.log("✍️  onboardUser: Requesting signature from user...");
+      const signatureResult = await signMessage({
+        message: messageBytes,
+        wallet: wallet,
+        options: {
+          uiOptions: {
+            title: "Register Session Key",
+            description:
+              "Sign this message to register a session key for 30 days",
+          },
+        },
+      });
+
+      // Step 4: Encode signature to base58
+      const signatureBytes = signatureResult.signature;
+      const signatureBase58 = bs58.encode(signatureBytes);
+      console.log(
+        "✅ onboardUser: Message signed, signature:",
+        signatureBase58.slice(0, 20) + "..."
+      );
+
+      // Step 5: Call GraphQL onboardUser mutation with session fields
+      // Note: GraphQL uses camelCase, so session_pubkey becomes sessionPubkey
+      console.log("📤 onboardUser: Calling GraphQL onboardUser mutation...");
       const data = await graphqlRequest<OnboardUserResult>(
         ONBOARD_USER_MUTATION,
-        { input: { handle, displayName } },
+        {
+          input: {
+            handle,
+            displayName,
+            sessionPubkey: sessionKey,
+            sessionMessage: message,
+            sessionSignature: signatureBase58,
+          },
+        },
         identityToken
       );
-      // OnboardUser returns user, but we'll fetch full profile with fetchMe
+
+      console.log("✅ onboardUser: User onboarded successfully!");
+
+      // Step 6: Store session if returned
+      if (data.onboardUser.session) {
+        const session = data.onboardUser.session;
+        get().setSession(
+          session.sessionAuthorityPda,
+          session.sessionKey,
+          session.expiresAt,
+          session.userWallet
+        );
+        console.log("✅ onboardUser: Session stored in state");
+      }
+
       set({ isLoading: false });
     } catch (e) {
       set({

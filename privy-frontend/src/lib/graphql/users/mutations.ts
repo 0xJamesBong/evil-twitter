@@ -20,6 +20,12 @@ export const ONBOARD_USER_MUTATION = `
           createdAt
         }
       }
+      session {
+        sessionAuthorityPda
+        sessionKey
+        expiresAt
+        userWallet
+      }
     }
   }
 `;
@@ -45,6 +51,35 @@ export interface OnboardUserResult {
         createdAt: string;
       } | null;
     };
+    session: {
+      sessionAuthorityPda: string;
+      sessionKey: string;
+      expiresAt: number;
+      userWallet: string;
+    } | null;
   };
 }
 
+export const REGISTER_SESSION_MUTATION = `
+  mutation RegisterSession($input: RegisterSessionInput!) {
+    registerSession(input: $input) {
+      session {
+        sessionAuthorityPda
+        sessionKey
+        expiresAt
+        userWallet
+      }
+    }
+  }
+`;
+
+export interface RegisterSessionResult {
+  registerSession: {
+    session: {
+      sessionAuthorityPda: string;
+      sessionKey: string;
+      expiresAt: number;
+      userWallet: string;
+    };
+  };
+}
