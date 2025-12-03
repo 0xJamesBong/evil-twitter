@@ -160,7 +160,7 @@ async fn main() {
         &everyone.keys().cloned().collect::<Vec<Pubkey>>(),
         &opinions_market,
         &usdc_mint,
-        1_000_000_000 * USDC_LAMPORTS_PER_USDC, // 1 billion USDC with 6 decimals
+        1_000 * USDC_LAMPORTS_PER_USDC, // 1 thousand USDC with 6 decimals
         &bling_mint,
         &usdc_mint,
         &stablecoin_mint,
@@ -175,7 +175,7 @@ async fn main() {
         &everyone.keys().cloned().collect::<Vec<Pubkey>>(),
         &opinions_market,
         &stablecoin_mint,
-        1_000_000_000 * USDC_LAMPORTS_PER_USDC, // 1 billion Stablecoin with 6 decimals
+        7_000 * USDC_LAMPORTS_PER_USDC, // 7 thousand Stablecoin with 6 decimals
         &bling_mint,
         &usdc_mint,
         &stablecoin_mint,
@@ -252,7 +252,7 @@ async fn main() {
             token_program: anchor_spl::token::spl_token::ID,
         })
         .args(opinions_market::instruction::RegisterValidPayment {
-            price_in_bling: 10_000, // 1 STABLECOIN = 10,000 BLING
+            price_in_bling: 11_000, // 1 STABLECOIN = 10,000 BLING
         })
         .instructions()
         .unwrap();
