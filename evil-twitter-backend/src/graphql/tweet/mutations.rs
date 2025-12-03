@@ -489,11 +489,18 @@ pub async fn tweet_vote_resolver(
         _ => return Err(async_graphql::Error::new("side must be 'pump' or 'smack'")),
     };
 
-    // Get token mint (default to BLING)
+    // Get token mint: use input.token_mint if provided, otherwise use user's default_payment_token, otherwise default to BLING
     let token_mint = if let Some(mint_str) = input.token_mint {
+        // Explicit token mint override from input
         solana_sdk::pubkey::Pubkey::from_str(&mint_str)
             .map_err(|e| async_graphql::Error::new(format!("Invalid token_mint: {}", e)))?
+    } else if let Some(ref default_mint_str) = user.default_payment_token {
+        // Use user's default payment token
+        solana_sdk::pubkey::Pubkey::from_str(default_mint_str).map_err(|e| {
+            async_graphql::Error::new(format!("Invalid default_payment_token: {}", e))
+        })?
     } else {
+        // Default to BLING if no default is set
         *app_state.solana_service.get_bling_mint()
     };
 

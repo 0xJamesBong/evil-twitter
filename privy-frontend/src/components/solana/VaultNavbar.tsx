@@ -148,6 +148,25 @@ export function VaultNavbar() {
   const selectedTokenDecimals = selectedTokenConfig?.metadata.decimals ?? 9;
   const selectedTokenMintPubkey = new PublicKey(selectedTokenMint);
 
+  // Get token configs for all tokens to get their decimals
+  const blingTokenConfig = getTokenConfig(
+    BLING_MINT_STR,
+    BLING_MINT_STR,
+    USDC_MINT_STR,
+    STABLECOIN_MINT_STR
+  );
+  const usdcTokenConfig = USDC_MINT_STR
+    ? getTokenConfig(USDC_MINT_STR, BLING_MINT_STR, USDC_MINT_STR, STABLECOIN_MINT_STR)
+    : null;
+  const stablecoinTokenConfig = STABLECOIN_MINT_STR
+    ? getTokenConfig(STABLECOIN_MINT_STR, BLING_MINT_STR, USDC_MINT_STR, STABLECOIN_MINT_STR)
+    : null;
+
+  // Get decimals from token configs (centralized)
+  const blingDecimals = blingTokenConfig?.metadata.decimals ?? 9;
+  const usdcDecimals = usdcTokenConfig?.metadata.decimals ?? 6;
+  const stablecoinDecimals = stablecoinTokenConfig?.metadata.decimals ?? 6;
+
   // Get vault balances from GraphQL (preferred) or fallback to chain balances
   const getVaultBalance = (mint: string): number | null => {
     // Try GraphQL vaultBalances first
@@ -323,7 +342,7 @@ export function VaultNavbar() {
     }
 
     try {
-      const signature = await deposit(amountNum, selectedTokenMintPubkey);
+      const signature = await deposit(amountNum, selectedTokenMintPubkey, walletBalanceDecimals);
       enqueueSnackbar(`Deposit successful! Transaction: ${signature.slice(0, 8)}...`, {
         variant: "success",
       });
@@ -372,7 +391,7 @@ export function VaultNavbar() {
     }
 
     try {
-      const signature = await withdraw(amountNum, selectedTokenMintPubkey);
+      const signature = await withdraw(amountNum, selectedTokenMintPubkey, selectedTokenDecimals);
       enqueueSnackbar(`Withdraw successful! Transaction: ${signature.slice(0, 8)}...`, {
         variant: "success",
       });
@@ -443,7 +462,7 @@ export function VaultNavbar() {
                   <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
                     <Typography variant="body2" sx={{ fontWeight: 600, color: "text.primary" }}>
                       {getVaultBalance(BLING_MINT_STR) !== null
-                        ? formatTokenBalance(getVaultBalance(BLING_MINT_STR)!, 9)
+                        ? formatTokenBalance(getVaultBalance(BLING_MINT_STR)!, blingDecimals)
                         : "N/A"}
                     </Typography>
                     <TokenDisplay
@@ -460,7 +479,7 @@ export function VaultNavbar() {
                     <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
                       <Typography variant="body2" sx={{ fontWeight: 600, color: "text.primary" }}>
                         {getVaultBalance(USDC_MINT_STR) !== null
-                          ? formatTokenBalance(getVaultBalance(USDC_MINT_STR)!, 6)
+                          ? formatTokenBalance(getVaultBalance(USDC_MINT_STR)!, usdcDecimals)
                           : "N/A"}
                       </Typography>
                       <TokenDisplay
@@ -478,7 +497,7 @@ export function VaultNavbar() {
                     <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
                       <Typography variant="body2" sx={{ fontWeight: 600, color: "text.primary" }}>
                         {getVaultBalance(STABLECOIN_MINT_STR) !== null
-                          ? formatTokenBalance(getVaultBalance(STABLECOIN_MINT_STR)!, 6)
+                          ? formatTokenBalance(getVaultBalance(STABLECOIN_MINT_STR)!, stablecoinDecimals)
                           : "N/A"}
                       </Typography>
                       <TokenDisplay

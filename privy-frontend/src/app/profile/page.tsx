@@ -33,6 +33,7 @@ import {
     getTokenName,
 } from "@/lib/utils/formatting";
 import { TokenDisplay, TokenLogo } from "@/components/tokens";
+import { getTokenConfig } from "@/lib/utils/tokens";
 import { graphqlRequest } from "@/lib/graphql/client";
 import {
     UPDATE_DEFAULT_PAYMENT_TOKEN_MUTATION,
@@ -72,10 +73,14 @@ function ProfileContent() {
         return <LoginPrompt />;
     }
 
-    // Get token decimals from wallet balances
-    const blingDecimals = balances[BLING_MINT]?.decimals ?? 9;
-    const usdcDecimals = balances[USDC_MINT]?.decimals ?? 6;
-    const stablecoinDecimals = balances[STABLECOIN_MINT]?.decimals ?? 6;
+    // Get token decimals from token configs (centralized)
+    const blingTokenConfig = getTokenConfig(BLING_MINT, BLING_MINT, USDC_MINT, STABLECOIN_MINT);
+    const usdcTokenConfig = USDC_MINT ? getTokenConfig(USDC_MINT, BLING_MINT, USDC_MINT, STABLECOIN_MINT) : null;
+    const stablecoinTokenConfig = STABLECOIN_MINT ? getTokenConfig(STABLECOIN_MINT, BLING_MINT, USDC_MINT, STABLECOIN_MINT) : null;
+
+    const blingDecimals = blingTokenConfig?.metadata.decimals ?? 9;
+    const usdcDecimals = usdcTokenConfig?.metadata.decimals ?? 6;
+    const stablecoinDecimals = stablecoinTokenConfig?.metadata.decimals ?? 6;
 
     // Handle default payment token update
     const handleUpdateDefaultToken = async (tokenMint: string | null) => {
