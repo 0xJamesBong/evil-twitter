@@ -22,6 +22,7 @@ use crate::utils::utils::{
     airdrop_sol_to_users, send_tx, setup_token_mint, setup_token_mint_ata_and_mint_to,
     setup_token_mint_ata_and_mint_to_many_users, wait_for_post_to_expire,
 };
+use opinions_market::constants::USDC_LAMPORTS_PER_USDC;
 use opinions_market::pda_seeds::*;
 use std::collections::HashMap;
 
@@ -138,9 +139,9 @@ async fn test_setup() {
 
     airdrop_sol_to_users(&rpc, &everyone).await;
 
-    setup_token_mint(&rpc, &payer, &payer, &opinions_market, &bling_mint).await;
-    setup_token_mint(&rpc, &payer, &payer, &opinions_market, &usdc_mint).await;
-    setup_token_mint(&rpc, &payer, &payer, &opinions_market, &stablecoin_mint).await;
+    setup_token_mint(&rpc, &payer, &payer, &opinions_market, &bling_mint, 9).await;
+    setup_token_mint(&rpc, &payer, &payer, &opinions_market, &usdc_mint, 6).await;
+    setup_token_mint(&rpc, &payer, &payer, &opinions_market, &stablecoin_mint, 6).await;
 
     let bling_atas = setup_token_mint_ata_and_mint_to_many_users(
         &rpc,
@@ -163,7 +164,7 @@ async fn test_setup() {
         &everyone.keys().cloned().collect::<Vec<Pubkey>>(),
         &opinions_market,
         &usdc_mint,
-        1_000_000_000 * LAMPORTS_PER_SOL,
+        1_000_000_000 * USDC_LAMPORTS_PER_USDC, // 1 billion USDC with 6 decimals
         &bling_mint,
         &usdc_mint,
         &stablecoin_mint,
@@ -278,7 +279,7 @@ async fn test_setup() {
                 &opinions_market,
                 &payer,
                 &user_2,
-                1_000 * LAMPORTS_PER_SOL,
+                1_000 * USDC_LAMPORTS_PER_USDC, // 1,000 USDC with 6 decimals
                 &usdc_pubkey,
                 &tokens,
                 &usdc_atas,
@@ -308,7 +309,7 @@ async fn test_setup() {
                 &opinions_market,
                 &payer,
                 &user_2,
-                900 * LAMPORTS_PER_SOL,
+                900 * USDC_LAMPORTS_PER_USDC, // 900 USDC with 6 decimals
                 &usdc_pubkey,
                 &tokens,
                 &usdc_atas,

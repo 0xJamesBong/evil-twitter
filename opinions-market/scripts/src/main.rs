@@ -12,6 +12,7 @@ use anchor_spl::associated_token::get_associated_token_address;
 use solana_sdk::native_token::LAMPORTS_PER_SOL;
 use std::collections::HashMap;
 
+use opinions_market::constants::USDC_LAMPORTS_PER_USDC;
 use opinions_market::pda_seeds::*;
 use opinions_market::ID;
 
@@ -78,13 +79,13 @@ async fn main() {
     // --- CREATE MINTS ---
     // // If mint already exists, skip creation
     if rpc.get_account(&bling_mint.pubkey()).await.is_err() {
-        setup_token_mint(&rpc, &payer, &payer, &opinions_market, &bling_mint).await;
+        setup_token_mint(&rpc, &payer, &payer, &opinions_market, &bling_mint, 9).await;
     }
     if rpc.get_account(&usdc_mint.pubkey()).await.is_err() {
-        setup_token_mint(&rpc, &payer, &payer, &opinions_market, &usdc_mint).await;
+        setup_token_mint(&rpc, &payer, &payer, &opinions_market, &usdc_mint, 6).await;
     }
     if rpc.get_account(&stablecoin_mint.pubkey()).await.is_err() {
-        setup_token_mint(&rpc, &payer, &payer, &opinions_market, &stablecoin_mint).await;
+        setup_token_mint(&rpc, &payer, &payer, &opinions_market, &stablecoin_mint, 6).await;
     }
     // --- CONFIG PDA ---
     let config_pda = Pubkey::find_program_address(&[CONFIG_SEED], &program_id).0;
@@ -151,7 +152,7 @@ async fn main() {
         &stablecoin_mint,
     )
     .await;
-    // MINT USDC TO EVERYONE
+    // MINT USDC TO EVERYONE (6 decimals: 1_000_000_000 tokens = 1_000_000_000 * USDC_LAMPORTS_PER_USDC lamports)
     setup_token_mint_ata_and_mint_to_many_users(
         &rpc,
         &payer,
@@ -159,14 +160,14 @@ async fn main() {
         &everyone.keys().cloned().collect::<Vec<Pubkey>>(),
         &opinions_market,
         &usdc_mint,
-        1_000_000_000 * LAMPORTS_PER_SOL,
+        1_000_000_000 * USDC_LAMPORTS_PER_USDC, // 1 billion USDC with 6 decimals
         &bling_mint,
         &usdc_mint,
         &stablecoin_mint,
     )
     .await;
 
-    // MINT STABLECOIN TO EVERYONE
+    // MINT STABLECOIN TO EVERYONE (6 decimals: 1_000_000_000 tokens = 1_000_000_000 * USDC_LAMPORTS_PER_USDC lamports)
     setup_token_mint_ata_and_mint_to_many_users(
         &rpc,
         &payer,
@@ -174,7 +175,7 @@ async fn main() {
         &everyone.keys().cloned().collect::<Vec<Pubkey>>(),
         &opinions_market,
         &stablecoin_mint,
-        1_000_000_000 * LAMPORTS_PER_SOL,
+        1_000_000_000 * USDC_LAMPORTS_PER_USDC, // 1 billion Stablecoin with 6 decimals
         &bling_mint,
         &usdc_mint,
         &stablecoin_mint,

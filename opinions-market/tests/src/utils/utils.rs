@@ -86,6 +86,7 @@ pub async fn setup_token_mint(
     mint_authority: &Keypair,
     program: &Program<&Keypair>,
     token_mint: &Keypair,
+    decimals: u8,
 ) -> Pubkey {
     let space = spl_token::state::Mint::LEN;
     let rent = rpc
@@ -108,7 +109,7 @@ pub async fn setup_token_mint(
         &token_mint.pubkey(),
         &mint_authority.pubkey(),
         None,
-        9,
+        decimals,
     )
     .unwrap();
     println!(
@@ -192,7 +193,7 @@ pub async fn setup_token_mint_ata_and_mint_to(
         &user_token_ata,
         &mint_authority.pubkey(),
         &[&mint_authority.pubkey()],
-        1_000_000_000 * LAMPORTS_PER_SOL,
+        amount,
     )
     .unwrap();
 
@@ -211,7 +212,7 @@ pub async fn setup_token_mint_ata_and_mint_to(
         .await
         .unwrap();
     if !ata_already_exists {
-        assert_eq!(user_token_balance.amount, 1_000_000_000 * LAMPORTS_PER_SOL);
+        assert_eq!(user_token_balance.amount, amount);
     }
     println!(
         "🌟 User {} balance after mint: {}",

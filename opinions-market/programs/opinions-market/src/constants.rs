@@ -8,6 +8,8 @@ pub const PRECISION: u64 = 1_000_000; // 1e6 fixed-point scale
 /// Used to cap votes, previous votes, and post votes to prevent u64 overflow
 pub const MAX_VOTE_COUNT_CAP: u64 = 1_000_000;
 
+pub const USDC_LAMPORTS_PER_USDC: u64 = 1_000_000;
+
 pub const SMACK_TO_PUMP_PRICE_RATIO: u64 = 10;
 
 pub struct PayoutParams {
