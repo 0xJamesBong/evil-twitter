@@ -1,26 +1,36 @@
 use async_graphql::{Context, InputObject, Object, Result, SimpleObject};
 use axum::http::HeaderMap;
 
+use std::str::FromStr;
 use std::sync::Arc;
 
+use base64::{Engine as _, engine::general_purpose};
+use solana_sdk::pubkey::Pubkey;
+
+use crate::solana::get_session_authority_pda;
 use crate::{app_state::AppState, graphql::user::types::UserNode, utils::auth};
 
 // ============================================================================
 // UserMutation Object
 // ============================================================================
 
+#[derive(InputObject)]
+pub struct RegisterSessionInput {
+    pub session_pubkey: String,
+    pub session_message: String,
+    pub session_signature: String,
+}
+
+#[derive(SimpleObject)]
+pub struct RegisterSessionPayload {
+    pub session: SessionInfo,
+}
+
 #[derive(Default)]
 pub struct UserMutation;
 
 #[Object]
 impl UserMutation {
-    /// Onboard a new user after Privy authentication
-    /// This mutation:
-    /// 1. Verifies the Privy access token from headers
-    /// 2. Fetches user data from Privy
-    /// 3. Determines login type (email_embedded vs phantom_external)
-    /// 4. Extracts wallet address
-    /// 5. Creates/updates User and Profile records
     async fn onboard_user(
         &self,
         ctx: &Context<'_>,
@@ -29,9 +39,19 @@ impl UserMutation {
         onboard_user_resolver(ctx, input).await
     }
 
-    // NOTE: create_onchain_user removed - createUser must be signed by the user's wallet
-    // This is because the Solana program requires user: Signer<'info>
-    // The frontend now calls the Solana program directly via useCreateUser hook
+    /// Explicit on-chain user creation (rarely used; mostly for ops)
+    async fn create_onchain_user(&self, ctx: &Context<'_>) -> Result<UserCreatePayload> {
+        create_onchain_user_resolver(ctx).await
+    }
+
+    /// Renew or register a delegated session
+    async fn register_session(
+        &self,
+        ctx: &Context<'_>,
+        input: RegisterSessionInput,
+    ) -> Result<RegisterSessionPayload> {
+        register_session_resolver(ctx, input).await
+    }
 }
 
 // ============================================================================
@@ -42,6 +62,11 @@ impl UserMutation {
 pub struct OnboardUserInput {
     pub handle: String,
     pub display_name: String,
+
+    // New fields for session registration
+    pub session_pubkey: String,    // base58
+    pub session_message: String,   // the message that was signed
+    pub session_signature: String, // base64 or hex-encoded 64 bytes
 }
 
 // ============================================================================
@@ -49,8 +74,17 @@ pub struct OnboardUserInput {
 // ============================================================================
 
 #[derive(SimpleObject)]
+pub struct SessionInfo {
+    pub session_authority_pda: String,
+    pub session_key: String,
+    pub expires_at: i64,
+    pub user_wallet: String,
+}
+
+#[derive(SimpleObject)]
 pub struct OnboardUserPayload {
     pub user: UserNode,
+    pub session: Option<SessionInfo>, // None if session registration fails or is skipped
 }
 
 #[derive(SimpleObject)]
@@ -58,12 +92,38 @@ pub struct UserCreatePayload {
     pub user: UserNode,
 }
 
-// NOTE: CreateOnchainUserPayload removed - createUser is now frontend-only
-// Keeping UserCreatePayload for potential future use
-
 // ============================================================================
 // Mutation Resolvers
 // ============================================================================
+
+/// Parse signature from base58, base64, or hex format into bytes
+/// Note: This is format conversion only - verification happens on-chain
+fn parse_signature_bytes(signature_str: &str) -> Result<[u8; 64]> {
+    // Try base58 first (most common for Solana)
+    if let Ok(bytes) = bs58::decode(signature_str).into_vec() {
+        if bytes.len() == 64 {
+            return Ok(bytes.try_into().unwrap());
+        }
+    }
+
+    // Try base64
+    if let Ok(bytes) = general_purpose::STANDARD.decode(signature_str) {
+        if bytes.len() == 64 {
+            return Ok(bytes.try_into().unwrap());
+        }
+    }
+
+    // Try hex
+    if let Ok(bytes) = hex::decode(signature_str) {
+        if bytes.len() == 64 {
+            return Ok(bytes.try_into().unwrap());
+        }
+    }
+
+    Err(async_graphql::Error::new(
+        "Invalid signature format: must be 64 bytes in base58, base64, or hex",
+    ))
+}
 
 /// Onboard a new user after Privy authentication
 pub async fn onboard_user_resolver(
@@ -245,12 +305,182 @@ pub async fn onboard_user_resolver(
         user
     };
 
+    // Parse wallet pubkey
+    let wallet_pubkey = Pubkey::from_str(&user.wallet)
+        .map_err(|e| async_graphql::Error::new(format!("Invalid wallet pubkey: {}", e)))?;
+
+    // Ensure on-chain user exists
+    let onchain_user = app_state
+        .solana_service
+        .get_user_account(&wallet_pubkey)
+        .await
+        .map_err(|e| async_graphql::Error::new(format!("Failed to check on-chain user: {}", e)))?;
+
+    if onchain_user.is_none() {
+        eprintln!("onboard_user: On-chain user does not exist, creating...");
+        app_state
+            .solana_service
+            .create_user(wallet_pubkey)
+            .await
+            .map_err(|e| {
+                async_graphql::Error::new(format!("Failed to create on-chain user: {}", e))
+            })?;
+        eprintln!("onboard_user: On-chain user created successfully");
+    }
+
+    // Register session (parse signature and pass to SolanaService - verification happens on-chain)
+    let session_key = Pubkey::from_str(&input.session_pubkey)
+        .map_err(|e| async_graphql::Error::new(format!("Invalid session pubkey: {}", e)))?;
+
+    let signature_bytes = parse_signature_bytes(&input.session_signature)?;
+    let message_bytes = input.session_message.as_bytes().to_vec();
+
+    eprintln!("onboard_user: Registering session...");
+    app_state
+        .solana_service
+        .register_session(wallet_pubkey, session_key, signature_bytes, message_bytes)
+        .await
+        .map_err(|e| async_graphql::Error::new(format!("Failed to register session: {}", e)))?;
+
+    // Derive session authority PDA and calculate expires_at
+    let program_id = app_state.solana_service.opinions_market_program().id();
+    let (session_authority_pda, _) =
+        get_session_authority_pda(&program_id, &wallet_pubkey, &session_key);
+    let expires_at = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap()
+        .as_secs() as i64
+        + (60 * 60 * 24 * 30); // 30 days
+
+    let session_info = SessionInfo {
+        session_authority_pda: session_authority_pda.to_string(),
+        session_key: input.session_pubkey.clone(),
+        expires_at,
+        user_wallet: user.wallet.clone(),
+    };
+
     Ok(OnboardUserPayload {
+        user: UserNode::from(user),
+        session: Some(session_info),
+    })
+}
+
+/// Create on-chain user account (ops/debug only)
+pub async fn create_onchain_user_resolver(ctx: &Context<'_>) -> Result<UserCreatePayload> {
+    let app_state = ctx.data::<Arc<AppState>>()?;
+    let headers = ctx
+        .data::<HeaderMap>()
+        .map_err(|_| async_graphql::Error::new("Failed to get headers from context"))?;
+
+    // Verify Privy token and get Privy ID
+    let privy_id = auth::get_privy_id_from_header(&app_state.privy_service, headers)
+        .await
+        .map_err(|(status, json)| {
+            let error_msg = json
+                .get("error")
+                .and_then(|v| v.as_str())
+                .unwrap_or("Authentication failed");
+            async_graphql::Error::new(format!("{} (status {})", error_msg, status))
+        })?;
+
+    // Get user from Mongo
+    let user = app_state
+        .mongo_service
+        .users
+        .get_user_by_privy_id(&privy_id)
+        .await?
+        .ok_or_else(|| async_graphql::Error::new("User not found in database"))?;
+
+    // Parse wallet pubkey
+    let wallet_pubkey = Pubkey::from_str(&user.wallet)
+        .map_err(|e| async_graphql::Error::new(format!("Invalid wallet pubkey: {}", e)))?;
+
+    // Check if on-chain user already exists
+    let onchain_user = app_state
+        .solana_service
+        .get_user_account(&wallet_pubkey)
+        .await
+        .map_err(|e| async_graphql::Error::new(format!("Failed to check on-chain user: {}", e)))?;
+
+    if onchain_user.is_some() {
+        return Err(async_graphql::Error::new("On-chain user already exists"));
+    }
+
+    // Create on-chain user
+    app_state
+        .solana_service
+        .create_user(wallet_pubkey)
+        .await
+        .map_err(|e| async_graphql::Error::new(format!("Failed to create on-chain user: {}", e)))?;
+
+    Ok(UserCreatePayload {
         user: UserNode::from(user),
     })
 }
 
-// NOTE: create_onchain_user_resolver removed
-// createUser must be called from the frontend because the Solana program requires user: Signer<'info>
-// The backend cannot sign on behalf of the user - only the user's wallet can sign
-// Frontend uses useCreateUser hook which calls the Solana program directly
+/// Register or renew a session for a user
+pub async fn register_session_resolver(
+    ctx: &Context<'_>,
+    input: RegisterSessionInput,
+) -> Result<RegisterSessionPayload> {
+    let app_state = ctx.data::<Arc<AppState>>()?;
+    let headers = ctx
+        .data::<HeaderMap>()
+        .map_err(|_| async_graphql::Error::new("Failed to get headers from context"))?;
+
+    // Verify Privy token and get Privy ID
+    let privy_id = auth::get_privy_id_from_header(&app_state.privy_service, headers)
+        .await
+        .map_err(|(status, json)| {
+            let error_msg = json
+                .get("error")
+                .and_then(|v| v.as_str())
+                .unwrap_or("Authentication failed");
+            async_graphql::Error::new(format!("{} (status {})", error_msg, status))
+        })?;
+
+    // Get user from Mongo
+    let user = app_state
+        .mongo_service
+        .users
+        .get_user_by_privy_id(&privy_id)
+        .await?
+        .ok_or_else(|| async_graphql::Error::new("User not found in database"))?;
+
+    // Parse pubkeys
+    let wallet_pubkey = Pubkey::from_str(&user.wallet)
+        .map_err(|e| async_graphql::Error::new(format!("Invalid wallet pubkey: {}", e)))?;
+
+    let session_key = Pubkey::from_str(&input.session_pubkey)
+        .map_err(|e| async_graphql::Error::new(format!("Invalid session pubkey: {}", e)))?;
+
+    // Parse signature (format conversion only - verification happens on-chain)
+    let signature_bytes = parse_signature_bytes(&input.session_signature)?;
+    let message_bytes = input.session_message.as_bytes().to_vec();
+
+    // Register session on-chain (SolanaService creates ed25519 instruction, program verifies)
+    app_state
+        .solana_service
+        .register_session(wallet_pubkey, session_key, signature_bytes, message_bytes)
+        .await
+        .map_err(|e| async_graphql::Error::new(format!("Failed to register session: {}", e)))?;
+
+    // Derive session authority PDA and calculate expires_at
+    let program_id = app_state.solana_service.opinions_market_program().id();
+    let (session_authority_pda, _) =
+        get_session_authority_pda(&program_id, &wallet_pubkey, &session_key);
+    let expires_at = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap()
+        .as_secs() as i64
+        + (60 * 60 * 24 * 30); // 30 days
+
+    Ok(RegisterSessionPayload {
+        session: SessionInfo {
+            session_authority_pda: session_authority_pda.to_string(),
+            session_key: input.session_pubkey,
+            expires_at,
+            user_wallet: user.wallet,
+        },
+    })
+}
