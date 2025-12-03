@@ -8,6 +8,8 @@ import {
   ONBOARD_USER_MUTATION,
   OnboardUserResult,
   SESSION_MESSAGE_QUERY,
+  UPDATE_PROFILE_MUTATION,
+  UpdateProfileResult,
 } from "@/lib/graphql/users/mutations";
 import { graphqlRequest } from "@/lib/graphql/client";
 import { useBackendUserStore } from "@/lib/stores/backendUserStore";
@@ -99,12 +101,10 @@ export function useOnboardUser() {
 
       // Step 5: Call GraphQL onboardUser mutation (only send signature, backend has session key)
       console.log("📤 useOnboardUser: Calling GraphQL onboardUser mutation...");
-      const data = await graphqlRequest<OnboardUserResult>(
+      const onboardData = await graphqlRequest<OnboardUserResult>(
         ONBOARD_USER_MUTATION,
         {
           input: {
-            handle,
-            displayName,
             sessionSignature: signatureBase58,
           },
         },
@@ -114,14 +114,14 @@ export function useOnboardUser() {
       console.log("✅ useOnboardUser: User onboarded successfully!");
       console.log(
         "   User ID:",
-        data.onboardUser.user.id,
+        onboardData.onboardUser.user.id,
         "Session PDA:",
-        data.onboardUser.session?.sessionAuthorityPda
+        onboardData.onboardUser.session?.sessionAuthorityPda
       );
 
       // Step 6: Store session if returned
-      if (data.onboardUser.session) {
-        const session = data.onboardUser.session;
+      if (onboardData.onboardUser.session) {
+        const session = onboardData.onboardUser.session;
         setSession(
           session.sessionAuthorityPda,
           session.sessionKey,
@@ -131,7 +131,32 @@ export function useOnboardUser() {
         console.log("✅ useOnboardUser: Session stored in state");
       }
 
-      // Step 7: Refresh user data and on-chain account status
+      // Step 7: Update profile with handle and displayName
+      console.log(
+        "📤 useOnboardUser: Calling GraphQL updateProfile mutation..."
+      );
+      const profileData = await graphqlRequest<UpdateProfileResult>(
+        UPDATE_PROFILE_MUTATION,
+        {
+          input: {
+            handle,
+            displayName,
+            bio: null,
+            avatarUrl: null,
+          },
+        },
+        identityToken
+      );
+
+      console.log("✅ useOnboardUser: Profile updated successfully!");
+      console.log(
+        "   Handle:",
+        profileData.updateProfile.profile?.handle,
+        "DisplayName:",
+        profileData.updateProfile.profile?.displayName
+      );
+
+      // Step 8: Refresh user data and on-chain account status
       console.log("🔄 useOnboardUser: Refreshing user data...");
       await fetchMe(identityToken);
 
@@ -143,7 +168,7 @@ export function useOnboardUser() {
 
       console.log("✅ useOnboardUser: User data refreshed");
 
-      return data.onboardUser;
+      return onboardData.onboardUser;
     } catch (err) {
       const msg = err instanceof Error ? err.message : "Failed to onboard user";
       console.error("❌ useOnboardUser: Error occurred:", msg);

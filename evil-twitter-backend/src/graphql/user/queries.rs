@@ -1,6 +1,6 @@
 use async_graphql::{Context, ID, Object, Result};
 use axum::http::HeaderMap;
-use base64::{Engine as _, engine::general_purpose};
+use base64::{Engine as _, engine::general_purpose::STANDARD};
 use futures::TryStreamExt;
 use mongodb::{Collection, bson::doc};
 
@@ -74,7 +74,7 @@ impl UserQuery {
         let message = format!("SESSION:{}", session_key);
         // Return base64-encoded message bytes
         let message_bytes = message.as_bytes();
-        Ok(base64::engine::general_purpose::STANDARD.encode(message_bytes))
+        Ok(STANDARD.encode(message_bytes))
     }
 }
 

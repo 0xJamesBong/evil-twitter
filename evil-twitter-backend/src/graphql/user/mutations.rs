@@ -51,6 +51,15 @@ impl UserMutation {
     ) -> Result<RegisterSessionPayload> {
         register_session_resolver(ctx, input).await
     }
+
+    /// Update user profile (handle, displayName, bio, avatarUrl)
+    async fn update_profile(
+        &self,
+        ctx: &Context<'_>,
+        input: UpdateProfileInput,
+    ) -> Result<UserNode> {
+        update_profile_resolver(ctx, input).await
+    }
 }
 
 // ============================================================================
@@ -59,11 +68,16 @@ impl UserMutation {
 
 #[derive(InputObject)]
 pub struct OnboardUserInput {
-    pub handle: String,
-    pub display_name: String,
-
     // Session registration - backend generates session key (payer pubkey)
     pub session_signature: String, // base58/base64/hex-encoded 64 bytes signature
+}
+
+#[derive(InputObject)]
+pub struct UpdateProfileInput {
+    pub handle: String,
+    pub display_name: String,
+    pub bio: Option<String>,
+    pub avatar_url: Option<String>,
 }
 
 // ============================================================================
@@ -236,17 +250,7 @@ pub async fn onboard_user_resolver(
             ));
         }
 
-        // Check if handle is taken
-        if app_state
-            .mongo_service
-            .profiles
-            .handle_exists(&input.handle)
-            .await?
-        {
-            return Err(async_graphql::Error::new("Handle is already taken"));
-        }
-
-        // Create new user
+        // Create new user (profile will be created separately via updateProfile mutation)
         eprintln!(
             "onboard_user: Creating new user with privy_id: {}, wallet: {}, login_type: {:?}",
             privy_id, wallet, login_type
@@ -270,34 +274,6 @@ pub async fn onboard_user_resolver(
             "onboard_user: User created successfully with ID: {:?}",
             user.id
         );
-
-        // Create profile
-        let profile = crate::models::profile::Profile {
-            id: Some(mongodb::bson::oid::ObjectId::new()),
-            user_id: user.privy_id.clone(),
-            handle: input.handle.clone(),
-            display_name: input.display_name.clone(),
-            avatar_url: None,
-            bio: None,
-            status: crate::models::profile::ProfileStatus::Active,
-            created_at: mongodb::bson::DateTime::now(),
-        };
-
-        eprintln!(
-            "onboard_user: Creating profile with handle: {}, display_name: {}",
-            input.handle, input.display_name
-        );
-        app_state
-            .mongo_service
-            .profiles
-            .create_profile(profile)
-            .await
-            .map_err(|e| {
-                eprintln!("onboard_user: Failed to create profile: {:?}", e);
-                e
-            })?;
-
-        eprintln!("onboard_user: Profile created successfully");
 
         user
     };
@@ -486,4 +462,116 @@ pub async fn register_session_resolver(
             user_wallet: user.wallet,
         },
     })
+}
+
+/// Update user profile (handle, displayName, bio, avatarUrl)
+pub async fn update_profile_resolver(
+    ctx: &Context<'_>,
+    input: UpdateProfileInput,
+) -> Result<UserNode> {
+    let app_state = ctx.data::<Arc<AppState>>()?;
+    let headers = ctx
+        .data::<HeaderMap>()
+        .map_err(|_| async_graphql::Error::new("Failed to get headers from context"))?;
+
+    // Verify Privy token and get Privy ID
+    let privy_id = auth::get_privy_id_from_header(&app_state.privy_service, headers)
+        .await
+        .map_err(|(status, json)| {
+            let error_msg = json
+                .get("error")
+                .and_then(|v| v.as_str())
+                .unwrap_or("Authentication failed");
+            async_graphql::Error::new(format!("{} (status {})", error_msg, status))
+        })?;
+
+    // Get user from Mongo
+    let user = app_state
+        .mongo_service
+        .users
+        .get_user_by_privy_id(&privy_id)
+        .await?
+        .ok_or_else(|| async_graphql::Error::new("User not found in database"))?;
+
+    // Check if handle is taken by another user
+    let existing_profile = app_state
+        .mongo_service
+        .profiles
+        .get_profile_by_user_id(&privy_id)
+        .await?;
+
+    if let Some(existing) = &existing_profile {
+        // Check if handle is being changed and if new handle is taken
+        if existing.handle != input.handle {
+            if app_state
+                .mongo_service
+                .profiles
+                .handle_exists(&input.handle)
+                .await?
+            {
+                return Err(async_graphql::Error::new("Handle is already taken"));
+            }
+        }
+
+        // Update existing profile
+        let mut updated_profile = existing.clone();
+        updated_profile.handle = input.handle.clone();
+        updated_profile.display_name = input.display_name.clone();
+        updated_profile.bio = input.bio.clone();
+        updated_profile.avatar_url = input.avatar_url.clone();
+
+        app_state
+            .mongo_service
+            .profiles
+            .update_profile(&updated_profile)
+            .await?;
+
+        eprintln!(
+            "update_profile: Profile updated with handle: {}, display_name: {}",
+            input.handle, input.display_name
+        );
+    } else {
+        // Create new profile
+        let profile = crate::models::profile::Profile {
+            id: Some(mongodb::bson::oid::ObjectId::new()),
+            user_id: user.privy_id.clone(),
+            handle: input.handle.clone(),
+            display_name: input.display_name.clone(),
+            avatar_url: input.avatar_url.clone(),
+            bio: input.bio.clone(),
+            status: crate::models::profile::ProfileStatus::Active,
+            created_at: mongodb::bson::DateTime::now(),
+        };
+
+        // Check if handle is taken
+        if app_state
+            .mongo_service
+            .profiles
+            .handle_exists(&input.handle)
+            .await?
+        {
+            return Err(async_graphql::Error::new("Handle is already taken"));
+        }
+
+        app_state
+            .mongo_service
+            .profiles
+            .create_profile(profile)
+            .await?;
+
+        eprintln!(
+            "update_profile: Profile created with handle: {}, display_name: {}",
+            input.handle, input.display_name
+        );
+    }
+
+    // Fetch updated user with profile
+    let updated_user = app_state
+        .mongo_service
+        .users
+        .get_user_by_privy_id(&privy_id)
+        .await?
+        .ok_or_else(|| async_graphql::Error::new("User not found after profile update"))?;
+
+    Ok(UserNode::from(updated_user))
 }

@@ -28,5 +28,6 @@ export function getConnection(): Connection {
 }
 
 export function getNetwork(): string {
+  console.log("getNetwork | SOLANA_NETWORK", SOLANA_NETWORK);
   return SOLANA_NETWORK;
 }
