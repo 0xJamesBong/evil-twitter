@@ -1,6 +1,6 @@
 use crate::constants::{MAX_VOTE_COUNT_CAP, PARAMS};
 use crate::ErrorCode;
-use anchor_lang::{prelude::*, solana_program::native_token::LAMPORTS_PER_SOL};
+use anchor_lang::prelude::*;
 
 // -----------------------------------------------------------------------------
 // ACCOUNTS
@@ -312,15 +312,16 @@ impl Vote {
     // -------------------------------------------------------------------------
     fn user_position_adjusted_cost(
         &self,
-        user_position: &UserPostPosition,
+        user_position_upvotes: u64,
+        user_position_downvotes: u64,
         user_account: &UserAccount,
     ) -> Result<u64> {
         // ---- FIXED CAPS (core overflow prevention) ----
         let votes = (self.votes as u64).min(MAX_VOTE_COUNT_CAP);
 
         let prev = match self.side {
-            Side::Pump => user_position.upvotes as u64,
-            Side::Smack => user_position.downvotes as u64,
+            Side::Pump => user_position_upvotes,
+            Side::Smack => user_position_downvotes,
         }
         .min(MAX_VOTE_COUNT_CAP);
 
@@ -348,6 +349,19 @@ impl Vote {
         Ok(cost.max(1))
     }
 
+    /// Convenience wrapper that extracts values from UserPostPosition
+    fn user_position_adjusted_cost_from_struct(
+        &self,
+        user_position: &UserPostPosition,
+        user_account: &UserAccount,
+    ) -> Result<u64> {
+        self.user_position_adjusted_cost(
+            user_position.upvotes as u64,
+            user_position.downvotes as u64,
+            user_account,
+        )
+    }
+
     // -------------------------------------------------------------------------
     // POST-ADJUSTED COST
     //
@@ -362,37 +376,42 @@ impl Vote {
     // -------------------------------------------------------------------------
     fn post_adjusted_cost(
         &self,
-        post: &PostAccount,
-        unadjusted_cost_of_bling_per_vote: u64,
+        post_upvotes: u64,
+        post_downvotes: u64,
+        post_type: PostType,
+        unadjusted_cost: u64,
     ) -> Result<u64> {
         let post_votes = match self.side {
-            Side::Pump => post.upvotes as u64,
-            Side::Smack => post.downvotes as u64,
+            Side::Pump => post_upvotes,
+            Side::Smack => post_downvotes,
         }
         .min(MAX_VOTE_COUNT_CAP);
 
         // Bonding curve: 10_000 → 10_000 + post_votes*5
         let curve_mult_bps = (10_000 + post_votes * 5).clamp(10_000, MAX_VOTE_COUNT_CAP);
 
-        // base ≤ ~2e13
-        // curve_mult_bps ≤ MAX_VOTE_COUNT_CAP
-        // multiplication ≤ 2e19 → fits under u64::MAX (≈1.8e19)?
-        // No: so we must rely on clamp reducing base earlier.
-        //
-        // BUT since curve_mult_bps max = 1,000,000 = 100x,
-        // and base realistically < 1e13,
-        // base * curve_mult_bps < 1e15 → SAFE.
-        //
-        // In worst-case theoretical max, clamp prevents overflow before this.
-        //
-        let mut cost = (unadjusted_cost_of_bling_per_vote * curve_mult_bps) / 10_000;
+        let mut cost = (unadjusted_cost * curve_mult_bps) / 10_000;
 
         // Child posts incur +10%
-        if matches!(post.post_type, PostType::Child { .. }) {
+        if matches!(post_type, PostType::Child { .. }) {
             cost = (cost * 11_000) / 10_000;
         }
 
         Ok(cost.max(1))
+    }
+
+    /// Convenience wrapper that extracts values from PostAccount
+    fn post_adjusted_cost_from_struct(
+        &self,
+        post: &PostAccount,
+        unadjusted_cost: u64,
+    ) -> Result<u64> {
+        self.post_adjusted_cost(
+            post.upvotes as u64,
+            post.downvotes as u64,
+            post.post_type,
+            unadjusted_cost,
+        )
     }
 
     // -------------------------------------------------------------------------
@@ -404,8 +423,9 @@ impl Vote {
         user_position: &UserPostPosition,
         user_account: &UserAccount,
     ) -> Result<u64> {
-        let user_adjusted_cost = self.user_position_adjusted_cost(user_position, user_account)?;
-        let post_adjusted_cost = self.post_adjusted_cost(post, user_adjusted_cost)?;
+        let user_adjusted_cost =
+            self.user_position_adjusted_cost_from_struct(user_position, user_account)?;
+        let post_adjusted_cost = self.post_adjusted_cost_from_struct(post, user_adjusted_cost)?;
 
         // Scale from vote units to BLING token amount
         // post_cost is in "vote units" (e.g., 1, 2, 3...)
@@ -419,16 +439,35 @@ impl Vote {
         Ok(cost_in_bling.max(Self::minimum_cost_in_bling()))
     }
 
-    // pub fn canconical_costs_of_voting_of_user(&self, user_account: &UserAccount) -> Result<u64> {
-    //     // typical post
-    //     let dummy_post = PostAccount::new(
-    //         self.user_pubkey,
-    //         "shit".as_bytes().try_into().unwrap(),
-    //         PostType::Original,
-    //         0,
-    //         &Config::default(),
-    //     );
-    //     let dummy_user_position = UserPostPosition::new(self.user_pubkey, dummy_post.key());
-    //     self.compute_cost_in_bling(&dummy_post, &dummy_user_position, user_account);
-    // }
+    /// Calculate canonical vote cost for a user
+    /// This is the cost of voting on a "boring" post (0 votes) with no previous votes,
+    /// but using the user's actual social score. Useful for displaying base costs.
+    pub fn canonical_cost_for_user(&self, user_account: &UserAccount) -> Result<u64> {
+        // Canonical scenario: boring post (0 votes), no previous votes, original post type
+        let post_upvotes = 0u64;
+        let post_downvotes = 0u64;
+        let post_type = PostType::Original;
+
+        let user_position_upvotes = 0u64;
+        let user_position_downvotes = 0u64;
+
+        // Calculate user-adjusted cost (uses social score)
+        let user_adjusted_cost = self.user_position_adjusted_cost(
+            user_position_upvotes,
+            user_position_downvotes,
+            user_account,
+        )?;
+
+        // Calculate post-adjusted cost (uses post vote counts and type)
+        let post_adjusted_cost =
+            self.post_adjusted_cost(post_upvotes, post_downvotes, post_type, user_adjusted_cost)?;
+
+        // Scale from vote units to BLING token amount
+        let cost_in_bling = post_adjusted_cost
+            .checked_mul(PARAMS.bling_per_vote_base_cost)
+            .ok_or(ErrorCode::MathOverflow)?;
+
+        // Minimum cost is 1 SOL worth of BLING
+        Ok(cost_in_bling.max(Self::minimum_cost_in_bling()))
+    }
 }
