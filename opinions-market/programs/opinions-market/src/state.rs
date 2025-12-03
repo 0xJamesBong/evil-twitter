@@ -281,6 +281,22 @@ impl Vote {
         PARAMS.bling_per_vote_base_cost
     }
 
+    fn user_account_social_score_multiplier(&self, user_account: &UserAccount) -> Result<u64> {
+        // ---- SOCIAL SCORE MULTIPLIER (5% to 200%) ----
+        let social_mult_bps = {
+            let score = user_account.social_score;
+
+            if score >= 0 {
+                // score 0–100 → discount down to 50%
+                10_000 - 50 * (score.min(100) as u64)
+            } else {
+                // score -100–0 → penalty up to +100%
+                10_000 + 100 * ((-score).min(100) as u64)
+            }
+        }
+        .clamp(5_000, 20_000); // 50%–200%
+        Ok(social_mult_bps)
+    }
     // -------------------------------------------------------------------------
     // USER-ADJUSTED COST
     //
@@ -294,7 +310,7 @@ impl Vote {
     // max raw = MAX_VOTE_COUNT_CAP * 10 * (MAX_VOTE_COUNT_CAP + 1) = 1e13 → fits in u64 safely
     // After BPS scaling raw*20000 / 10000 → < 2e13 → safe
     // -------------------------------------------------------------------------
-    fn user_adjusted_cost(
+    fn user_position_adjusted_cost(
         &self,
         user_position: &UserPostPosition,
         user_account: &UserAccount,
@@ -315,18 +331,7 @@ impl Vote {
         };
 
         // ---- SOCIAL SCORE MULTIPLIER (5% to 200%) ----
-        let social_mult_bps = {
-            let score = user_account.social_score;
-
-            if score >= 0 {
-                // score 0–100 → discount down to 50%
-                10_000 - 50 * (score.min(100) as u64)
-            } else {
-                // score -100–0 → penalty up to +100%
-                10_000 + 100 * ((-score).min(100) as u64)
-            }
-        }
-        .clamp(5_000, 20_000); // 50%–200%
+        let social_mult_bps = self.user_account_social_score_multiplier(user_account)?;
 
         // ---- CORE RAW COST ----
         //
@@ -398,9 +403,8 @@ impl Vote {
         post: &PostAccount,
         user_position: &UserPostPosition,
         user_account: &UserAccount,
-        _cfg: &Config,
     ) -> Result<u64> {
-        let user_adjusted_cost = self.user_adjusted_cost(user_position, user_account)?;
+        let user_adjusted_cost = self.user_position_adjusted_cost(user_position, user_account)?;
         let post_adjusted_cost = self.post_adjusted_cost(post, user_adjusted_cost)?;
 
         // Scale from vote units to BLING token amount
@@ -414,4 +418,17 @@ impl Vote {
         // Minimum cost is 1 SOL worth of BLING (1 * LAMPORTS_PER_SOL)
         Ok(cost_in_bling.max(Self::minimum_cost_in_bling()))
     }
+
+    // pub fn canconical_costs_of_voting_of_user(&self, user_account: &UserAccount) -> Result<u64> {
+    //     // typical post
+    //     let dummy_post = PostAccount::new(
+    //         self.user_pubkey,
+    //         "shit".as_bytes().try_into().unwrap(),
+    //         PostType::Original,
+    //         0,
+    //         &Config::default(),
+    //     );
+    //     let dummy_user_position = UserPostPosition::new(self.user_pubkey, dummy_post.key());
+    //     self.compute_cost_in_bling(&dummy_post, &dummy_user_position, user_account);
+    // }
 }

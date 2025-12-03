@@ -348,8 +348,7 @@ pub mod opinions_market {
         //
 
         let vote = Vote::new(side, valid_votes, ctx.accounts.voter.key(), post.key());
-        let cost_bling =
-            vote.compute_cost_in_bling(post, pos, &ctx.accounts.voter_user_account, cfg)?;
+        let cost_bling = vote.compute_cost_in_bling(post, pos, &ctx.accounts.voter_user_account)?;
 
         msg!("cost_bling: {}", cost_bling);
         msg!("post.upvotes BEFORE: {}", post.upvotes);
