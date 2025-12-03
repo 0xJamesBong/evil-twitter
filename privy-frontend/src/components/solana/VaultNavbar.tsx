@@ -30,7 +30,9 @@ import { useCreateUser } from "../../hooks/useCreateUser";
 import { useOnboardUser } from "../../hooks/useOnboardUser";
 import { useBackendUserStore } from "../../lib/stores/backendUserStore";
 import { useSolanaStore } from "../../lib/stores/solanaStore";
+import { useWalletTokenBalances } from "../../hooks/useWalletTokenBalances";
 import { NetworkSwitcher } from "./NetworkSwitcher";
+import { AmountInputWithSlider } from "./AmountInputWithSlider";
 
 import { formatTokenBalance } from "../../lib/utils/formatting";
 
@@ -64,6 +66,13 @@ export function VaultNavbar() {
     loadingVaultBalance,
     loadingOnchainAccount,
   } = useSolanaStore();
+
+  // Get wallet token balances for deposit
+  const { balances: walletBalances, loading: loadingWalletBalances } = useWalletTokenBalances(
+    [BLING_MINT.toBase58()],
+    undefined,
+    undefined
+  );
 
   // Fetch user data on mount and set up polling (only if authenticated)
   useEffect(() => {
@@ -109,13 +118,27 @@ export function VaultNavbar() {
   const chainVaultBalance = vaultBalances[BLING_MINT.toBase58()] ?? null;
   const displayBalance = graphqlVaultBalance !== null ? graphqlVaultBalance : chainVaultBalance;
 
+  // Get wallet balance for deposits
+  const walletBalanceRaw = walletBalances[BLING_MINT.toBase58()]?.balance ?? null;
+  const walletBalanceDecimals = walletBalances[BLING_MINT.toBase58()]?.decimals ?? 9;
+
   // BLING uses 9 decimals - convert raw balance to human-readable for display
   const displayBalanceFormatted = displayBalance !== null
     ? formatTokenBalance(displayBalance, 9)
     : "N/A";
 
+  const walletBalanceFormatted = walletBalanceRaw !== null
+    ? formatTokenBalance(walletBalanceRaw, walletBalanceDecimals)
+    : "N/A";
+
   // Convert human-readable balance to raw units for comparison
   const displayBalanceInRawUnits = displayBalance !== null ? displayBalance : 0;
+  const walletBalanceInRawUnits = walletBalanceRaw !== null ? walletBalanceRaw : 0;
+
+  // Get max available amount based on mode
+  const maxAmount = dialogMode === "deposit"
+    ? walletBalanceInRawUnits / Math.pow(10, walletBalanceDecimals)
+    : displayBalanceInRawUnits / Math.pow(10, 9);
 
   // Determine if user has on-chain account (prefer GraphQL, fallback to solanaStore)
   const hasOnchainAccountFromGraphQL = user?.hasOnchainAccount ?? null;
@@ -167,12 +190,18 @@ export function VaultNavbar() {
     }
 
     setDialogMode(mode);
+    setAmount("");
     setDialogOpen(true);
   };
 
   const handleCloseDialog = () => {
     setDialogOpen(false);
     setAmount("");
+  };
+
+  // Handle amount change from AmountInputWithSlider
+  const handleAmountChange = (value: string) => {
+    setAmount(value);
   };
 
   const handleCreateUser = async () => {
@@ -481,44 +510,31 @@ export function VaultNavbar() {
               </>
             ) : (
               <>
-                {/* Current Balance */}
-                <Box
-                  sx={{
-                    p: 2,
-                    borderRadius: 1,
-                    backgroundColor: "action.hover",
-                  }}
-                >
-                  <Typography variant="body2" color="text.secondary" gutterBottom>
-                    Current Vault Balance
-                  </Typography>
-                  <Typography variant="h6" sx={{ fontWeight: 600 }}>
-                    {loadingVaultBalance || queryLoading ? (
-                      <CircularProgress size={20} />
-                    ) : (
-                      displayBalanceFormatted
-                    )}
-                  </Typography>
-                </Box>
-
-                {/* Amount Input */}
-                <TextField
-                  label="Amount"
-                  type="number"
-                  value={amount}
-                  onChange={(e) => setAmount(e.target.value)}
-                  placeholder="Enter amount"
-                  fullWidth
-                  disabled={isLoading}
-                  inputProps={{
-                    min: 0,
-                    step: 0.000000001,
-                  }}
-                  helperText={
-                    dialogMode === "withdraw" && displayBalance !== null
-                      ? `Maximum: ${displayBalanceFormatted} BLING`
-                      : undefined
+                <AmountInputWithSlider
+                  amount={amount}
+                  onAmountChange={handleAmountChange}
+                  maxAmount={maxAmount}
+                  balanceLabel={dialogMode === "deposit" ? "Wallet Balance" : "Vault Balance"}
+                  balanceFormatted={
+                    dialogMode === "deposit" ? walletBalanceFormatted : displayBalanceFormatted
                   }
+                  balanceLoading={
+                    dialogMode === "deposit"
+                      ? loadingWalletBalances
+                      : loadingVaultBalance || queryLoading
+                  }
+                  balanceAvailableText={
+                    dialogMode === "deposit"
+                      ? walletBalanceRaw !== null
+                        ? "Available to deposit"
+                        : ""
+                      : displayBalance !== null
+                        ? "Available to withdraw"
+                        : ""
+                  }
+                  mode={dialogMode}
+                  disabled={isLoading}
+                  decimals={dialogMode === "deposit" ? walletBalanceDecimals : 9}
                 />
 
                 {/* Error Messages */}
@@ -572,3 +588,4 @@ export function VaultNavbar() {
     </>
   );
 }
+
