@@ -332,7 +332,7 @@ impl Vote {
         //
         // raw max = MAX_VOTE_COUNT_CAP * 10 * (MAX_VOTE_COUNT_CAP + 1) ≈ 1e13 → safe in u64 (limit ≈1e19)
         //
-        let raw = votes * side_mult * (prev + 1) * PARAMS.bling_per_vote_base_cost;
+        let raw = votes * side_mult * (prev + 1);
 
         // ---- APPLY SOCIAL MULTIPLIER (BPS) ----
         //
@@ -340,7 +340,7 @@ impl Vote {
         //
         let cost = (raw * social_mult_bps) / 10_000;
 
-        Ok(cost.max(Self::minimum_cost_in_bling()))
+        Ok(cost.max(1))
     }
 
     // -------------------------------------------------------------------------
@@ -387,7 +387,7 @@ impl Vote {
             cost = (cost * 11_000) / 10_000;
         }
 
-        Ok(cost.max(Self::minimum_cost_in_bling()))
+        Ok(cost.max(1))
     }
 
     // -------------------------------------------------------------------------
@@ -400,15 +400,14 @@ impl Vote {
         user_account: &UserAccount,
         _cfg: &Config,
     ) -> Result<u64> {
-        let user_adjusted_cost_in_bling = self.user_adjusted_cost(user_position, user_account)?;
-        let post_adjusted_cost_in_bling =
-            self.post_adjusted_cost(post, user_adjusted_cost_in_bling)?;
+        let user_adjusted_cost = self.user_adjusted_cost(user_position, user_account)?;
+        let post_adjusted_cost = self.post_adjusted_cost(post, user_adjusted_cost)?;
 
         // Scale from vote units to BLING token amount
         // post_cost is in "vote units" (e.g., 1, 2, 3...)
         // Multiply by base cost to get actual BLING amount
         // 1 vote unit = 1 SOL worth of BLING (1 * LAMPORTS_PER_SOL)
-        let cost_in_bling = post_adjusted_cost_in_bling
+        let cost_in_bling = post_adjusted_cost
             .checked_mul(PARAMS.bling_per_vote_base_cost)
             .ok_or(ErrorCode::MathOverflow)?;
 
