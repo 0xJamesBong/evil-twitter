@@ -7,6 +7,7 @@ use std::sync::Arc;
 
 use crate::app_state::AppState;
 use crate::graphql::tweet::types::{TweetConnection, TweetEdge, TweetNode};
+use crate::graphql::user::queries::{VaultBalances, vault_balances_resolver};
 use crate::models::{follow::Follow, profile::Profile, tweet::Tweet, user::User};
 use crate::utils::tweet::enrich_tweets_with_references;
 
@@ -225,6 +226,11 @@ impl UserNode {
             })?;
 
         Ok(balance)
+    }
+
+    /// Get user's vault balances for all valid payment tokens (BLING, USDC, Stablecoin)
+    async fn vault_balances(&self, ctx: &Context<'_>) -> Result<VaultBalances> {
+        vault_balances_resolver(ctx, &self.inner.wallet).await
     }
 
     /// Check if the user account exists on-chain

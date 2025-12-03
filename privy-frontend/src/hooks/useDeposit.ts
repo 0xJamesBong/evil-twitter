@@ -7,7 +7,7 @@ import { PublicKey } from "@solana/web3.js";
 import * as anchor from "@coral-xyz/anchor";
 import { TransactionMessage, VersionedTransaction } from "@solana/web3.js";
 import { getConnection } from "../lib/solana/connection";
-import { getAssociatedTokenAddress } from "@solana/spl-token";
+import { getAssociatedTokenAddress, getMint } from "@solana/spl-token";
 import { useSolanaStore } from "../lib/stores/solanaStore";
 import bs58 from "bs58";
 import { getProgramId, getIdl } from "../lib/solana/config";
@@ -98,8 +98,22 @@ export function useDeposit() {
         userPubkey
       );
 
-      // Convert amount to lamports (assuming 9 decimals)
-      const amountInLamports = BigInt(Math.floor(amount * 1_000_000_000));
+      // Get token decimals from mint account
+      let tokenDecimals = 9; // Default to 9 for BLING
+      try {
+        const mintInfo = await getMint(connection, tokenMint);
+        tokenDecimals = mintInfo.decimals;
+      } catch (err) {
+        console.warn(
+          `Failed to fetch mint decimals for ${tokenMint.toBase58()}, using default 9:`,
+          err
+        );
+      }
+
+      // Convert amount to lamports using actual token decimals
+      const amountInLamports = BigInt(
+        Math.floor(amount * Math.pow(10, tokenDecimals))
+      );
 
       // // Create a minimal wallet for Anchor (not used for signing)
       // const dummyWallet = {

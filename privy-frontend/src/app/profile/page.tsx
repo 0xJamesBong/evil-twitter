@@ -196,13 +196,59 @@ function ProfileContent() {
                                         </Typography>
                                     </Box>
 
-                                    <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                                        <Typography variant="body2" color="text.secondary">
-                                            Vault Balance:
+                                    <Box>
+                                        <Typography variant="body2" color="text.secondary" gutterBottom>
+                                            Vault Balances:
                                         </Typography>
-                                        <Typography variant="h6" sx={{ fontWeight: 600 }}>
-                                            {formatTokenBalance(backendUser.vaultBalance, blingDecimals)} BLING
-                                        </Typography>
+                                        <Stack spacing={1} sx={{ mt: 1 }}>
+                                            {/* BLING Balance */}
+                                            <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                                                <TokenDisplay
+                                                    mint={BLING_MINT}
+                                                    blingMint={BLING_MINT}
+                                                    usdcMint={USDC_MINT}
+                                                    stablecoinMint={STABLECOIN_MINT}
+                                                    size="small"
+                                                />
+                                                <Typography variant="body1" sx={{ fontWeight: 600 }}>
+                                                    {backendUser.vaultBalances?.bling !== null && backendUser.vaultBalances?.bling !== undefined
+                                                        ? formatTokenBalance(backendUser.vaultBalances.bling, blingDecimals)
+                                                        : backendUser.vaultBalance !== null
+                                                            ? formatTokenBalance(backendUser.vaultBalance, blingDecimals)
+                                                            : "N/A"}
+                                                </Typography>
+                                            </Box>
+                                            {/* USDC Balance */}
+                                            {USDC_MINT && backendUser.vaultBalances?.usdc !== null && (
+                                                <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                                                    <TokenDisplay
+                                                        mint={USDC_MINT}
+                                                        blingMint={BLING_MINT}
+                                                        usdcMint={USDC_MINT}
+                                                        stablecoinMint={STABLECOIN_MINT}
+                                                        size="small"
+                                                    />
+                                                    <Typography variant="body1" sx={{ fontWeight: 600 }}>
+                                                        {formatTokenBalance(backendUser.vaultBalances.usdc, usdcDecimals)}
+                                                    </Typography>
+                                                </Box>
+                                            )}
+                                            {/* Stablecoin Balance */}
+                                            {STABLECOIN_MINT && backendUser.vaultBalances?.stablecoin !== null && (
+                                                <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                                                    <TokenDisplay
+                                                        mint={STABLECOIN_MINT}
+                                                        blingMint={BLING_MINT}
+                                                        usdcMint={USDC_MINT}
+                                                        stablecoinMint={STABLECOIN_MINT}
+                                                        size="small"
+                                                    />
+                                                    <Typography variant="body1" sx={{ fontWeight: 600 }}>
+                                                        {formatTokenBalance(backendUser.vaultBalances.stablecoin, stablecoinDecimals)}
+                                                    </Typography>
+                                                </Box>
+                                            )}
+                                        </Stack>
                                     </Box>
 
                                     <Divider />

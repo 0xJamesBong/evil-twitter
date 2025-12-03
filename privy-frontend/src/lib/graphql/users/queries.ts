@@ -11,6 +11,11 @@ export const ME_QUERY = `
       defaultPaymentToken
       hasOnchainAccount
       vaultBalance
+      vaultBalances {
+        bling
+        usdc
+        stablecoin
+      }
       socialScore
       profile {
         id
@@ -38,6 +43,11 @@ export interface MeQueryResult {
     defaultPaymentToken: string | null;
     hasOnchainAccount: boolean | null;
     vaultBalance: number | null;
+    vaultBalances: {
+      bling: number;
+      usdc: number | null;
+      stablecoin: number | null;
+    };
     socialScore: number | null;
     profile: {
       id: string;
