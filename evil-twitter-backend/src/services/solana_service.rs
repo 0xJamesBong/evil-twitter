@@ -834,13 +834,16 @@ impl SolanaService {
             ));
         }
 
-        // Get token decimals (BLING typically has 9, USDC/Stablecoin have 6)
-        // We'll fetch the mint account to get decimals
-        let bling_decimals = 9u32; // BLING typically has 9 decimals
+        // Get token decimals (BLING has 9, USDC/Stablecoin have 6)
+        // Fetch decimals dynamically from mint accounts
+        let bling_decimals = self
+            .get_token_decimals(&self.bling_mint)
+            .await
+            .unwrap_or(9u32); // Default to 9 if we can't fetch (BLING standard)
         let target_decimals = self
             .get_token_decimals(target_token_mint)
             .await
-            .unwrap_or(6u32); // Default to 6 if we can't fetch
+            .unwrap_or(6u32); // Default to 6 if we can't fetch (USDC/Stablecoin standard)
 
         // price_in_bling is the conversion rate: 1 token = price_in_bling BLING (in base units)
         // So to convert X BLING lamports to token lamports:

@@ -31,9 +31,9 @@ export function useWalletTokenBalances(
   console.log("useWalletTokenBalances | solanaWallet", solanaWallet);
   // Helper to determine default decimals based on token type
   const getDefaultDecimals = (mintAddress: string): number => {
-    if (usdcMint && mintAddress === usdcMint) return 9; // need to change to 6 as we mature
-    if (stablecoinMint && mintAddress === stablecoinMint) return 9; // need to change to 6 as we mature
-    return 9; // Default for BLING and other tokens
+    if (usdcMint && mintAddress === usdcMint) return 6; // USDC has 6 decimals
+    if (stablecoinMint && mintAddress === stablecoinMint) return 6; // Stablecoin has 6 decimals
+    return 9; // Default for BLING and other tokens (BLING has 9 decimals)
   };
 
   const fetchBalances = async () => {
@@ -66,7 +66,7 @@ export function useWalletTokenBalances(
         const mintPubkey = new PublicKey(mintAddress);
 
         // Get mint info first to determine decimals (always fetch this)
-        // Use default based on token type (6 for USDC/stablecoin, 9 for others)
+        // Use default based on token type (6 for USDC/Stablecoin, 9 for BLING)
         let decimals = getDefaultDecimals(mintAddress);
         try {
           const mint = await getMint(connection, mintPubkey);

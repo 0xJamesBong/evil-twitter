@@ -171,19 +171,19 @@ async fn test_setup() {
     )
     .await;
 
-    // let stablecoin_atas = setup_token_mint_ata_and_mint_to_many_users(
-    //     &rpc,
-    //     &payer,
-    //     &mint_authority,
-    //     &everyone.keys().cloned().collect::<Vec<Pubkey>>(),
-    //     &program,
-    //     &stablecoin_mint,
-    //     1_000_000_000 * LAMPORTS_PER_SOL,
-    //     &bling_mint,
-    //     &usdc_mint,
-    //     &stablecoin_mint,
-    // )
-    // .await;
+    let stablecoin_atas = setup_token_mint_ata_and_mint_to_many_users(
+        &rpc,
+        &payer,
+        &mint_authority,
+        &everyone.keys().cloned().collect::<Vec<Pubkey>>(),
+        &opinions_market,
+        &stablecoin_mint,
+        1_000_000_000 * USDC_LAMPORTS_PER_USDC, // 1 billion Stablecoin with 6 decimals
+        &bling_mint,
+        &usdc_mint,
+        &stablecoin_mint,
+    )
+    .await;
 
     let config_pda = Pubkey::find_program_address(&[b"config"], &program_id).0;
 
