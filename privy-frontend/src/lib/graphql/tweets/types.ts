@@ -31,12 +31,19 @@ export interface TweetEnergyState {
   heightInitial: number;
 }
 
+export interface PostPotBalances {
+  bling: number;
+  usdc?: number | null;
+  stablecoin?: number | null;
+}
+
 export interface PostStateNode {
   state: string;
   upvotes: number;
   downvotes: number;
   winningSide?: string;
   endTime: number;
+  potBalances?: PostPotBalances | null;
 }
 
 export interface TweetNode {
@@ -58,4 +65,3 @@ export interface TweetNode {
   postIdHash?: string;
   postState?: PostStateNode;
 }
-

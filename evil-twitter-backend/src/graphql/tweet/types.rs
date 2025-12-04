@@ -1,12 +1,13 @@
 use async_graphql::{Context, Enum, ID, Object, Result, SimpleObject};
-use std::sync::Arc;
-use mongodb::bson::{doc, DateTime};
 use hex;
+use mongodb::bson::{DateTime, doc};
+use std::str::FromStr;
+use std::sync::Arc;
 
 use crate::app_state::AppState;
 use crate::graphql::user::types::ProfileNode;
-use crate::models::tweet::{TweetMetrics, TweetType, TweetView};
 use crate::models::post_state::PostState;
+use crate::models::tweet::{TweetMetrics, TweetType, TweetView};
 use crate::solana::get_post_pda;
 use crate::utils::tweet::TweetThreadResponse;
 
@@ -146,7 +147,7 @@ impl TweetNode {
     /// Get post state from on-chain data (cached in MongoDB, falls back to on-chain fetch)
     async fn post_state(&self, ctx: &Context<'_>) -> Result<Option<PostStateNode>> {
         let app_state = ctx.data::<Arc<AppState>>()?;
-        
+
         // Only fetch post state if tweet has a post_id_hash
         let post_id_hash = match &self.view.tweet.post_id_hash {
             Some(hash) => hash,
@@ -154,9 +155,11 @@ impl TweetNode {
         };
 
         // First, try to fetch from MongoDB post_states collection (cached)
-        let post_states_collection: mongodb::Collection<PostState> = 
-            app_state.mongo_service.db().collection(PostState::COLLECTION_NAME);
-        
+        let post_states_collection: mongodb::Collection<PostState> = app_state
+            .mongo_service
+            .db()
+            .collection(PostState::COLLECTION_NAME);
+
         let mut post_state = post_states_collection
             .find_one(doc! { "post_id_hash": post_id_hash })
             .await
@@ -181,7 +184,10 @@ impl TweetNode {
             let (post_pda, _) = get_post_pda(&program_id, &post_id_hash_array);
 
             // Fetch post account from on-chain
-            match program.account::<opinions_market::state::PostAccount>(post_pda).await {
+            match program
+                .account::<opinions_market::state::PostAccount>(post_pda)
+                .await
+            {
                 Ok(post_account) => {
                     // Convert PostAccount to PostState
                     let state_str = match post_account.state {
@@ -208,21 +214,96 @@ impl TweetNode {
                     };
 
                     // Save to MongoDB for future queries
-                    let _ = post_states_collection
-                        .insert_one(&post_state_doc)
-                        .await; // Don't fail if insert fails, just log
+                    let _ = post_states_collection.insert_one(&post_state_doc).await; // Don't fail if insert fails, just log
 
                     post_state = Some(post_state_doc);
                 }
                 Err(e) => {
                     // Post doesn't exist on-chain yet, return None
-                    eprintln!("⚠️ Post not found on-chain for post_id_hash {}: {}", post_id_hash, e);
+                    eprintln!(
+                        "⚠️ Post not found on-chain for post_id_hash {}: {}",
+                        post_id_hash, e
+                    );
                     return Ok(None);
                 }
             }
         }
 
-        Ok(post_state.map(PostStateNode::from))
+        // Fetch pot balances for the post
+        let pot_balances = if let Some(ref state) = post_state {
+            // Parse post_id_hash from hex to [u8; 32]
+            if let Ok(post_id_hash_bytes) = hex::decode(post_id_hash) {
+                if post_id_hash_bytes.len() == 32 {
+                    let mut post_id_hash_array = [0u8; 32];
+                    post_id_hash_array.copy_from_slice(&post_id_hash_bytes);
+
+                    // Get BLING mint
+                    let bling_mint = *app_state.solana_service.get_bling_mint();
+
+                    // Get BLING pot balance
+                    let bling_balance = app_state
+                        .solana_service
+                        .get_post_pot_balance(&post_id_hash_array, &bling_mint)
+                        .await
+                        .unwrap_or(0);
+
+                    // Get USDC and Stablecoin mints from environment
+                    let usdc_mint_str = std::env::var("USDC_MINT").ok();
+                    let stablecoin_mint_str = std::env::var("STABLECOIN_MINT").ok();
+
+                    // Get USDC pot balance if available
+                    let usdc_balance = if let Some(ref usdc_mint_str) = usdc_mint_str {
+                        if let Ok(usdc_mint) = solana_sdk::pubkey::Pubkey::from_str(usdc_mint_str) {
+                            app_state
+                                .solana_service
+                                .get_post_pot_balance(&post_id_hash_array, &usdc_mint)
+                                .await
+                                .ok()
+                        } else {
+                            None
+                        }
+                    } else {
+                        None
+                    };
+
+                    // Get Stablecoin pot balance if available
+                    let stablecoin_balance =
+                        if let Some(ref stablecoin_mint_str) = stablecoin_mint_str {
+                            if let Ok(stablecoin_mint) =
+                                solana_sdk::pubkey::Pubkey::from_str(stablecoin_mint_str)
+                            {
+                                app_state
+                                    .solana_service
+                                    .get_post_pot_balance(&post_id_hash_array, &stablecoin_mint)
+                                    .await
+                                    .ok()
+                            } else {
+                                None
+                            }
+                        } else {
+                            None
+                        };
+
+                    Some(PostPotBalances {
+                        bling: bling_balance,
+                        usdc: usdc_balance,
+                        stablecoin: stablecoin_balance,
+                    })
+                } else {
+                    None
+                }
+            } else {
+                None
+            }
+        } else {
+            None
+        };
+
+        Ok(post_state.map(|state| {
+            let mut node = PostStateNode::from(state);
+            node.pot_balances = pot_balances;
+            node
+        }))
     }
 
     /// Get post ID hash
@@ -259,12 +340,23 @@ impl From<TweetType> for TweetTypeOutput {
 // ============================================================================
 
 #[derive(SimpleObject, Clone)]
+pub struct PostPotBalances {
+    /// Pot balance in BLING lamports
+    pub bling: u64,
+    /// Pot balance in USDC lamports (None if USDC is not registered as valid payment or no votes)
+    pub usdc: Option<u64>,
+    /// Pot balance in Stablecoin lamports (None if Stablecoin is not registered as valid payment or no votes)
+    pub stablecoin: Option<u64>,
+}
+
+#[derive(SimpleObject, Clone)]
 pub struct PostStateNode {
     pub state: String,
     pub upvotes: u64,
     pub downvotes: u64,
     pub winning_side: Option<String>,
     pub end_time: i64,
+    pub pot_balances: Option<PostPotBalances>,
 }
 
 impl From<PostState> for PostStateNode {
@@ -275,6 +367,7 @@ impl From<PostState> for PostStateNode {
             downvotes: state.downvotes,
             winning_side: state.winning_side,
             end_time: state.end_time,
+            pot_balances: None, // Will be populated by resolver
         }
     }
 }

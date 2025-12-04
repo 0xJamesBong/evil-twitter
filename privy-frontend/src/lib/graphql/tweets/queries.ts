@@ -81,6 +81,11 @@ export const TIMELINE_QUERY = `
             downvotes
             winningSide
             endTime
+            potBalances {
+              bling
+              usdc
+              stablecoin
+            }
           }
         }
       }
@@ -285,4 +290,3 @@ export interface TweetThreadQueryResult {
     replies: TweetNode[];
   };
 }
-

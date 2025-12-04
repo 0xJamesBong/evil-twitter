@@ -1,12 +1,15 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Button, Stack, Typography, Box } from "@mui/material";
+import { Button, Stack, Typography, Box, Chip } from "@mui/material";
 import { useIdentityToken } from "@privy-io/react-auth";
 import { useSnackbar } from "notistack";
 import { useTweetStore } from "../../lib/stores/tweetStore";
 import { TweetNode } from "../../lib/graphql/tweets/types";
 import { useVoteQueue } from "../../hooks/useVoteQueue";
+import { getTokenConfig, TokenType } from "../../lib/utils/tokens";
+import { TokenDisplay } from "../tokens/TokenDisplay";
+import { formatTokenBalance } from "../../lib/utils/formatting";
 
 interface VoteButtonsProps {
     tweet: TweetNode;
@@ -310,11 +313,98 @@ export function VoteButtons({ tweet: tweetProp }: VoteButtonsProps) {
                 </Box>
             </Stack>
             {postState && (
-                <Typography variant="body2" color="text.secondary">
-                    {postState.state === "Settled" && postState.winningSide
-                        ? `Winner: ${postState.winningSide}`
-                        : postState.state}
-                </Typography>
+                <Stack direction="column" spacing={0.5} alignItems="flex-start">
+                    <Typography variant="body2" color="text.secondary">
+                        {postState.state === "Settled" && postState.winningSide
+                            ? `Winner: ${postState.winningSide}`
+                            : postState.state}
+                    </Typography>
+                    {postState.potBalances && (
+                        <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+                            {(() => {
+                                const BLING_MINT = process.env.NEXT_PUBLIC_BLING_MINT || "";
+                                const blingConfig = getTokenConfig(BLING_MINT);
+                                return (
+                                    <Chip
+                                        size="small"
+                                        label={
+                                            <Stack direction="row" spacing={0.5} alignItems="center">
+                                                <TokenDisplay
+                                                    mint={BLING_MINT}
+                                                    showSymbol={true}
+                                                    size="small"
+                                                />
+                                                <Typography variant="caption" sx={{ fontSize: "0.7rem" }}>
+                                                    {formatTokenBalance(
+                                                        postState.potBalances.bling,
+                                                        blingConfig?.metadata.decimals || 9
+                                                    )}
+                                                </Typography>
+                                            </Stack>
+                                        }
+                                        sx={{ height: "auto", py: 0.5 }}
+                                    />
+                                );
+                            })()}
+                            {postState.potBalances.usdc !== null &&
+                                postState.potBalances.usdc !== undefined && (
+                                    (() => {
+                                        const USDC_MINT = process.env.NEXT_PUBLIC_USDC_MINT || "";
+                                        const usdcConfig = getTokenConfig(USDC_MINT);
+                                        return (
+                                            <Chip
+                                                size="small"
+                                                label={
+                                                    <Stack direction="row" spacing={0.5} alignItems="center">
+                                                        <TokenDisplay
+                                                            mint={USDC_MINT}
+                                                            showSymbol={true}
+                                                            size="small"
+                                                        />
+                                                        <Typography variant="caption" sx={{ fontSize: "0.7rem" }}>
+                                                            {formatTokenBalance(
+                                                                postState.potBalances.usdc,
+                                                                usdcConfig?.metadata.decimals || 6
+                                                            )}
+                                                        </Typography>
+                                                    </Stack>
+                                                }
+                                                sx={{ height: "auto", py: 0.5 }}
+                                            />
+                                        );
+                                    })()
+                                )}
+                            {postState.potBalances.stablecoin !== null &&
+                                postState.potBalances.stablecoin !== undefined && (
+                                    (() => {
+                                        const STABLECOIN_MINT = process.env.NEXT_PUBLIC_STABLECOIN_MINT || "";
+                                        const stablecoinConfig = getTokenConfig(STABLECOIN_MINT);
+                                        return (
+                                            <Chip
+                                                size="small"
+                                                label={
+                                                    <Stack direction="row" spacing={0.5} alignItems="center">
+                                                        <TokenDisplay
+                                                            mint={STABLECOIN_MINT}
+                                                            showSymbol={true}
+                                                            size="small"
+                                                        />
+                                                        <Typography variant="caption" sx={{ fontSize: "0.7rem" }}>
+                                                            {formatTokenBalance(
+                                                                postState.potBalances.stablecoin,
+                                                                stablecoinConfig?.metadata.decimals || 6
+                                                            )}
+                                                        </Typography>
+                                                    </Stack>
+                                                }
+                                                sx={{ height: "auto", py: 0.5 }}
+                                            />
+                                        );
+                                    })()
+                                )}
+                        </Stack>
+                    )}
+                </Stack>
             )}
             {pendingVotes.size > 0 && (
                 <Typography variant="caption" color="text.secondary" sx={{ fontSize: "0.7rem" }}>

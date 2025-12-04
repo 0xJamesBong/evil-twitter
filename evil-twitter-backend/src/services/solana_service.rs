@@ -260,6 +260,36 @@ impl SolanaService {
         Ok(token_account.amount)
     }
 
+    /// Get post pot balance for a specific token mint
+    pub async fn get_post_pot_balance(
+        &self,
+        post_id_hash: &[u8; 32],
+        token_mint: &Pubkey,
+    ) -> anyhow::Result<u64> {
+        let program = self.opinions_market_program();
+        let program_id = program.id();
+        let (post_pda, _) = get_post_pda(&program_id, post_id_hash);
+        let (post_pot_token_account_pda, _) =
+            get_post_pot_token_account_pda(&program_id, &post_pda, token_mint);
+
+        let account = match self.rpc.get_account(&post_pot_token_account_pda).await {
+            Ok(account) => account,
+            Err(e) => {
+                let msg = e.to_string();
+                if msg.contains("AccountNotFound") || msg.contains("not found") {
+                    return Ok(0); // Pot doesn't exist yet (no votes in this token)
+                }
+                return Err(anyhow::anyhow!("Failed to get post pot account: {}", e));
+            }
+        };
+
+        // SPL Token decoding
+        let token_account = spl_token::state::Account::unpack_from_slice(&account.data)
+            .map_err(|_| anyhow::anyhow!("Invalid token account data"))?;
+
+        Ok(token_account.amount)
+    }
+
     // pub async fn ping(&self) -> anyhow::Result<String> {
     //     let opinions_market = self.opinions_market_program;
 
