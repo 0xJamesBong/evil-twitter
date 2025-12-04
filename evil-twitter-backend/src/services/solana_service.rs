@@ -290,6 +290,26 @@ impl SolanaService {
         Ok(token_account.amount)
     }
 
+    /// Get user's position (vote counts) for a specific post
+    pub async fn get_user_position(
+        &self,
+        user_wallet: &Pubkey,
+        post_id_hash: &[u8; 32],
+    ) -> anyhow::Result<Option<opinions_market::state::UserPostPosition>> {
+        let program = self.opinions_market_program();
+        let program_id = program.id();
+        let (post_pda, _) = get_post_pda(&program_id, post_id_hash);
+        let (position_pda, _) = get_position_pda(&program_id, &post_pda, user_wallet);
+
+        match program
+            .account::<opinions_market::state::UserPostPosition>(position_pda)
+            .await
+        {
+            Ok(position) => Ok(Some(position)),
+            Err(_) => Ok(None), // Position doesn't exist yet (user hasn't voted)
+        }
+    }
+
     // pub async fn ping(&self) -> anyhow::Result<String> {
     //     let opinions_market = self.opinions_market_program;
 

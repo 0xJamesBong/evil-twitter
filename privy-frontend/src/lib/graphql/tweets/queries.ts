@@ -86,6 +86,10 @@ export const TIMELINE_QUERY = `
               usdc
               stablecoin
             }
+            userVotes {
+              upvotes
+              downvotes
+            }
           }
         }
       }

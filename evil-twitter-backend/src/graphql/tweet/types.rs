@@ -168,7 +168,8 @@ impl TweetNode {
         // Check if cached state is stale (older than 5 seconds) and force refresh
         if let Some(ref cached_state) = post_state {
             let now = DateTime::now();
-            let cache_age_ms = now.timestamp_millis() - cached_state.last_synced_at.timestamp_millis();
+            let cache_age_ms =
+                now.timestamp_millis() - cached_state.last_synced_at.timestamp_millis();
             if cache_age_ms > 5000 {
                 // Cache is stale (older than 5 seconds), force refresh from on-chain
                 eprintln!(
@@ -244,7 +245,7 @@ impl TweetNode {
         }
 
         // Fetch pot balances for the post
-        let pot_balances = if let Some(ref state) = post_state {
+        let pot_balances = if post_state.is_some() {
             // Parse post_id_hash from hex to [u8; 32]
             if let Ok(post_id_hash_bytes) = hex::decode(post_id_hash) {
                 if post_id_hash_bytes.len() == 32 {
@@ -313,9 +314,61 @@ impl TweetNode {
             None
         };
 
+        // Fetch user position if authenticated (optional - don't fail if not authenticated)
+        let user_votes = if post_state.is_some() {
+            // Try to get authenticated user (optional - don't fail if not authenticated)
+            if let Ok(headers) = ctx.data::<axum::http::HeaderMap>() {
+                if let Ok(user) = crate::utils::auth::get_authenticated_user(
+                    &app_state.mongo_service,
+                    &app_state.privy_service,
+                    headers,
+                )
+                .await
+                {
+                    // Parse user wallet
+                    if let Ok(user_wallet) = solana_sdk::pubkey::Pubkey::from_str(&user.wallet) {
+                        // Parse post_id_hash
+                        if let Ok(post_id_hash_bytes) = hex::decode(post_id_hash) {
+                            if post_id_hash_bytes.len() == 32 {
+                                let mut post_id_hash_array = [0u8; 32];
+                                post_id_hash_array.copy_from_slice(&post_id_hash_bytes);
+
+                                // Fetch user position from on-chain
+                                if let Ok(Some(position)) = app_state
+                                    .solana_service
+                                    .get_user_position(&user_wallet, &post_id_hash_array)
+                                    .await
+                                {
+                                    Some(UserVotes {
+                                        upvotes: position.upvotes,
+                                        downvotes: position.downvotes,
+                                    })
+                                } else {
+                                    None
+                                }
+                            } else {
+                                None
+                            }
+                        } else {
+                            None
+                        }
+                    } else {
+                        None
+                    }
+                } else {
+                    None
+                }
+            } else {
+                None
+            }
+        } else {
+            None
+        };
+
         Ok(post_state.map(|state| {
             let mut node = PostStateNode::from(state);
             node.pot_balances = pot_balances;
+            node.user_votes = user_votes;
             node
         }))
     }
@@ -371,6 +424,14 @@ pub struct PostStateNode {
     pub winning_side: Option<String>,
     pub end_time: i64,
     pub pot_balances: Option<PostPotBalances>,
+    /// User's vote counts for this post (None if not authenticated or hasn't voted)
+    pub user_votes: Option<UserVotes>,
+}
+
+#[derive(SimpleObject, Clone)]
+pub struct UserVotes {
+    pub upvotes: u64,
+    pub downvotes: u64,
 }
 
 impl From<PostState> for PostStateNode {
@@ -382,6 +443,7 @@ impl From<PostState> for PostStateNode {
             winning_side: state.winning_side,
             end_time: state.end_time,
             pot_balances: None, // Will be populated by resolver
+            user_votes: None,   // Will be populated by resolver if user is authenticated
         }
     }
 }

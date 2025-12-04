@@ -37,6 +37,11 @@ export interface PostPotBalances {
   stablecoin?: number | null;
 }
 
+export interface UserVotes {
+  upvotes: number;
+  downvotes: number;
+}
+
 export interface PostStateNode {
   state: string;
   upvotes: number;
@@ -44,6 +49,7 @@ export interface PostStateNode {
   winningSide?: string;
   endTime: number;
   potBalances?: PostPotBalances | null;
+  userVotes?: UserVotes | null;
 }
 
 export interface TweetNode {

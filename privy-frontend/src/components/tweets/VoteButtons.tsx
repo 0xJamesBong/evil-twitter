@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { Button, Stack, Typography, Box, Chip } from "@mui/material";
 import { useIdentityToken } from "@privy-io/react-auth";
 import { useSnackbar } from "notistack";
@@ -15,10 +15,6 @@ interface VoteButtonsProps {
 }
 
 export function VoteButtons({ tweet: tweetProp }: VoteButtonsProps) {
-    const [userUpvotes, setUserUpvotes] = useState(0);
-    const [userDownvotes, setUserDownvotes] = useState(0);
-    const [optimisticGlobalUpvotes, setOptimisticGlobalUpvotes] = useState<number | null>(null);
-    const [optimisticGlobalDownvotes, setOptimisticGlobalDownvotes] = useState<number | null>(null);
     const [pumpAnimation, setPumpAnimation] = useState(false);
     const [smackAnimation, setSmackAnimation] = useState(false);
     const { identityToken } = useIdentityToken();
@@ -29,18 +25,11 @@ export function VoteButtons({ tweet: tweetProp }: VoteButtonsProps) {
     const tweet = tweets.find((t) => t.id === tweetProp.id) || tweetProp;
 
     const postState = tweet.postState;
-    const globalUpvotes = optimisticGlobalUpvotes !== null ? optimisticGlobalUpvotes : (postState?.upvotes || 0);
-    const globalDownvotes = optimisticGlobalDownvotes !== null ? optimisticGlobalDownvotes : (postState?.downvotes || 0);
+    const globalUpvotes = postState?.upvotes || 0;
+    const globalDownvotes = postState?.downvotes || 0;
+    const userUpvotes = postState?.userVotes?.upvotes || 0;
+    const userDownvotes = postState?.userVotes?.downvotes || 0;
     const isOpen = postState?.state === "Open";
-    console.log("postState.state:", postState?.state);
-
-    // Reset optimistic global counts when postState updates from backend
-    useEffect(() => {
-        if (postState) {
-            setOptimisticGlobalUpvotes(null);
-            setOptimisticGlobalDownvotes(null);
-        }
-    }, [postState?.upvotes, postState?.downvotes]);
 
     const handleVote = (side: "pump" | "smack") => {
         if (!tweet.id) return;
@@ -56,7 +45,7 @@ export function VoteButtons({ tweet: tweetProp }: VoteButtonsProps) {
             return;
         }
 
-        // Trigger animation immediately
+        // Trigger animation immediately (visual feedback only)
         if (side === "pump") {
             setPumpAnimation(true);
             setTimeout(() => setPumpAnimation(false), 600); // Animation duration
@@ -65,17 +54,8 @@ export function VoteButtons({ tweet: tweetProp }: VoteButtonsProps) {
             setTimeout(() => setSmackAnimation(false), 600);
         }
 
-        // Optimistically update user vote counts and global counts IMMEDIATELY (cosmetic only)
-        if (side === "pump") {
-            setUserUpvotes((prev) => prev + 1);
-            setOptimisticGlobalUpvotes((prev) => (prev !== null ? prev + 1 : globalUpvotes + 1));
-        } else {
-            setUserDownvotes((prev) => prev + 1);
-            setOptimisticGlobalDownvotes((prev) => (prev !== null ? prev + 1 : globalDownvotes + 1));
-        }
-
         // Fire-and-forget: send vote to backend (no await, no error handling)
-        // Backend will batch and process votes
+        // Backend will batch and process votes, and frontend will refresh from on-chain
         voteOnTweet(identityToken, tweet.id, side).catch((error) => {
             // Silently log errors - backend handles retries and state sync
             console.error("Vote submission error (will be retried by backend):", error);
@@ -162,7 +142,7 @@ export function VoteButtons({ tweet: tweetProp }: VoteButtonsProps) {
                                 Pump
                             </Typography>
                             <Typography variant="caption" sx={{ fontSize: "0.7rem", opacity: 0.9 }}>
-                                You: {userUpvotes} | Total: {globalUpvotes.toLocaleString()}
+                                {userUpvotes > 0 ? `You: ${userUpvotes} | ` : ""}Total: {globalUpvotes.toLocaleString()}
                             </Typography>
                         </Stack>
                     </Button>
@@ -226,7 +206,7 @@ export function VoteButtons({ tweet: tweetProp }: VoteButtonsProps) {
                                 Smack
                             </Typography>
                             <Typography variant="caption" sx={{ fontSize: "0.7rem", opacity: 0.9 }}>
-                                You: {userDownvotes} | Total: {globalDownvotes.toLocaleString()}
+                                {userDownvotes > 0 ? `You: ${userDownvotes} | ` : ""}Total: {globalDownvotes.toLocaleString()}
                             </Typography>
                         </Stack>
                     </Button>
