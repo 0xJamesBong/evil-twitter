@@ -479,34 +479,18 @@ export const useTweetStore = create<TweetStoreState & TweetStoreActions>(
           identityToken
         );
 
-        // Update tweet in store with new vote counts
-        // Optimistically update postState upvotes/downvotes based on side
+        // Update tweet in store with metrics from response
+        // Note: postState vote counts are NOT updated here - they come from backend/on-chain
+        // The backend will invalidate cache and refresh from on-chain after votes are flushed
         get().updateTweetInStore(tweetId, (tweet) => {
-          const updatedTweet = {
-          ...tweet,
-          metrics: {
-            ...tweet.metrics,
-            likes: data.tweetVote.likeCount,
-            smacks: data.tweetVote.smackCount,
-          },
+          return {
+            ...tweet,
+            metrics: {
+              ...tweet.metrics,
+              likes: data.tweetVote.likeCount,
+              smacks: data.tweetVote.smackCount,
+            },
           };
-
-          // Update postState if it exists
-          if (tweet.postState) {
-            updatedTweet.postState = {
-              ...tweet.postState,
-              upvotes:
-                side === "pump"
-                  ? tweet.postState.upvotes + 1
-                  : tweet.postState.upvotes,
-              downvotes:
-                side === "smack"
-                  ? tweet.postState.downvotes + 1
-                  : tweet.postState.downvotes,
-            };
-          }
-
-          return updatedTweet;
         });
       } catch (error) {
         const errorMessage =
