@@ -1,9 +1,16 @@
 use std::sync::Arc;
+use std::time::Duration;
 
 use dotenvy::dotenv;
-use mongodb::Client;
+use hex;
+use mongodb::{Client, bson::doc};
+use tokio::time::sleep;
 
-use evil_twitter::{app, app_state::AppState};
+use evil_twitter::{
+    app,
+    app_state::{AppState, VoteBufferKey},
+    models::post_state::PostState,
+};
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
@@ -28,6 +35,13 @@ async fn main() -> anyhow::Result<()> {
     }
     println!("Database indexes ready");
 
+    // Spawn background task to flush vote buffer
+    let app_state_for_flush = app_state.clone();
+    tokio::spawn(async move {
+        vote_flush_loop(app_state_for_flush).await;
+    });
+    println!("✅ Vote flush task started");
+
     let app = app(app_state.clone()).await;
 
     let port = std::env::var("PORT")
@@ -42,4 +56,109 @@ async fn main() -> anyhow::Result<()> {
     axum::serve(listener, app.into_make_service()).await?;
 
     Ok(())
+}
+
+/// Background task that periodically flushes accumulated votes to Solana
+async fn vote_flush_loop(app_state: Arc<AppState>) {
+    // Get batch interval from env var, default to 200ms
+    let interval_ms = std::env::var("VOTE_BATCH_INTERVAL_MS")
+        .ok()
+        .and_then(|s| s.parse::<u64>().ok())
+        .unwrap_or(200);
+
+    println!(
+        "🔄 Vote flush loop started with interval: {}ms",
+        interval_ms
+    );
+
+    loop {
+        sleep(Duration::from_millis(interval_ms)).await;
+
+        // Collect entries to flush (to avoid holding lock during async operations)
+        let entries_to_flush: Vec<(VoteBufferKey, u64)> = {
+            let mut buffer = match app_state.vote_buffer.lock() {
+                Ok(b) => b,
+                Err(e) => {
+                    eprintln!("❌ Failed to lock vote buffer: {}", e);
+                    continue;
+                }
+            };
+
+            // Collect all entries with votes > 0 and remove them from buffer
+            let mut entries = Vec::new();
+            let keys: Vec<VoteBufferKey> = buffer
+                .iter()
+                .filter_map(|(key, value)| {
+                    if value.accumulated_votes > 0 {
+                        Some(key.clone())
+                    } else {
+                        None
+                    }
+                })
+                .collect();
+
+            for key in keys {
+                if let Some(value) = buffer.remove(&key) {
+                    entries.push((key, value.accumulated_votes));
+                }
+            }
+
+            entries
+        };
+
+        // Flush each entry
+        for (key, votes) in entries_to_flush {
+            let result = app_state
+                .solana_service
+                .vote_on_post(
+                    &key.user,
+                    key.post_id_hash,
+                    key.side,
+                    &key.token_mint,
+                    votes,
+                )
+                .await;
+
+            match result {
+                Ok(signature) => {
+                    eprintln!(
+                        "✅ Flushed {} votes for user {} on post {}: {}",
+                        votes,
+                        key.user,
+                        hex::encode(key.post_id_hash),
+                        signature
+                    );
+
+                    // Invalidate MongoDB cache for this post so next query fetches fresh data
+                    let post_id_hash_hex = hex::encode(key.post_id_hash);
+                    let post_states_collection = app_state
+                        .mongo_service
+                        .db()
+                        .collection::<PostState>(PostState::COLLECTION_NAME);
+
+                    if let Err(e) = post_states_collection
+                        .delete_one(doc! { "post_id_hash": &post_id_hash_hex })
+                        .await
+                    {
+                        eprintln!(
+                            "⚠️ Failed to invalidate cache for post {}: {}",
+                            post_id_hash_hex, e
+                        );
+                    } else {
+                        eprintln!("🔄 Invalidated cache for post {}", post_id_hash_hex);
+                    }
+                }
+                Err(e) => {
+                    eprintln!(
+                        "❌ Failed to flush {} votes for user {} on post {}: {}",
+                        votes,
+                        key.user,
+                        hex::encode(key.post_id_hash),
+                        e
+                    );
+                    // Votes are lost - user can retry by clicking again
+                }
+            }
+        }
+    }
 }

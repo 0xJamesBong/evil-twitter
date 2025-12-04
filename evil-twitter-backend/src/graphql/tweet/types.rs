@@ -165,7 +165,21 @@ impl TweetNode {
             .await
             .map_err(|e| async_graphql::Error::new(format!("Failed to fetch post state: {}", e)))?;
 
-        // If not found in MongoDB, fetch from on-chain
+        // Check if cached state is stale (older than 5 seconds) and force refresh
+        if let Some(ref cached_state) = post_state {
+            let now = DateTime::now();
+            let cache_age_ms = now.timestamp_millis() - cached_state.last_synced_at.timestamp_millis();
+            if cache_age_ms > 5000 {
+                // Cache is stale (older than 5 seconds), force refresh from on-chain
+                eprintln!(
+                    "🔄 Cache stale for post {} (age: {}ms), refreshing from on-chain",
+                    post_id_hash, cache_age_ms
+                );
+                post_state = None; // Force refresh
+            }
+        }
+
+        // If not found in MongoDB or cache is stale, fetch from on-chain
         if post_state.is_none() {
             // Parse post_id_hash from hex to [u8; 32]
             let post_id_hash_bytes = hex::decode(post_id_hash)

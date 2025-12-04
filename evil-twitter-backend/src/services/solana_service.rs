@@ -601,12 +601,10 @@ impl SolanaService {
         post_id_hash: [u8; 32],
         side: Side,
         token_mint: &Pubkey,
+        votes: u64,
     ) -> anyhow::Result<Signature> {
-        // Hardcode votes to 1
-        let votes = 1u64;
-
         println!(
-            "  🔧 SolanaService::vote_on_post: Starting for user {}, post_id_hash: {}, side: {:?}, votes: {} (hardcoded), token_mint: {}",
+            "  🔧 SolanaService::vote_on_post: Starting for user {}, post_id_hash: {}, side: {:?}, votes: {}, token_mint: {}",
             voter_wallet,
             hex::encode(post_id_hash),
             side,

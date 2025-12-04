@@ -6,7 +6,6 @@ import { useIdentityToken } from "@privy-io/react-auth";
 import { useSnackbar } from "notistack";
 import { useTweetStore } from "../../lib/stores/tweetStore";
 import { TweetNode } from "../../lib/graphql/tweets/types";
-import { useVoteQueue } from "../../hooks/useVoteQueue";
 import { getTokenConfig, TokenType } from "../../lib/utils/tokens";
 import { TokenDisplay } from "../tokens/TokenDisplay";
 import { formatTokenBalance } from "../../lib/utils/formatting";
@@ -22,16 +21,9 @@ export function VoteButtons({ tweet: tweetProp }: VoteButtonsProps) {
     const [optimisticGlobalDownvotes, setOptimisticGlobalDownvotes] = useState<number | null>(null);
     const [pumpAnimation, setPumpAnimation] = useState(false);
     const [smackAnimation, setSmackAnimation] = useState(false);
-    const [pendingVotes, setPendingVotes] = useState<Set<string>>(new Set());
     const { identityToken } = useIdentityToken();
     const { voteOnTweet, tweets } = useTweetStore();
     const { enqueueSnackbar } = useSnackbar();
-
-    // Queue for serializing vote submissions (prevents race conditions on rapid clicks)
-    const enqueueVote = useVoteQueue(async (side: "pump" | "smack") => {
-        if (!identityToken || !tweet.id) return;
-        await voteOnTweet(identityToken, tweet.id, side);
-    });
 
     // Get the latest tweet from store if available, otherwise use prop
     const tweet = tweets.find((t) => t.id === tweetProp.id) || tweetProp;
@@ -41,23 +33,6 @@ export function VoteButtons({ tweet: tweetProp }: VoteButtonsProps) {
     const globalDownvotes = optimisticGlobalDownvotes !== null ? optimisticGlobalDownvotes : (postState?.downvotes || 0);
     const isOpen = postState?.state === "Open";
     console.log("postState.state:", postState?.state);
-
-    // Initialize user vote counts from localStorage (persist across page reloads)
-    useEffect(() => {
-        if (tweet.id) {
-            const key = `userVotes_${tweet.id}`;
-            const saved = localStorage.getItem(key);
-            if (saved) {
-                try {
-                    const { upvotes, downvotes } = JSON.parse(saved);
-                    setUserUpvotes(upvotes || 0);
-                    setUserDownvotes(downvotes || 0);
-                } catch (e) {
-                    // Invalid data, ignore
-                }
-            }
-        }
-    }, [tweet.id]);
 
     // Reset optimistic global counts when postState updates from backend
     useEffect(() => {
@@ -81,9 +56,6 @@ export function VoteButtons({ tweet: tweetProp }: VoteButtonsProps) {
             return;
         }
 
-        // Create unique vote ID for tracking
-        const voteId = `${tweet.id}-${side}-${Date.now()}`;
-
         // Trigger animation immediately
         if (side === "pump") {
             setPumpAnimation(true);
@@ -93,7 +65,7 @@ export function VoteButtons({ tweet: tweetProp }: VoteButtonsProps) {
             setTimeout(() => setSmackAnimation(false), 600);
         }
 
-        // Optimistically update user vote counts and global counts IMMEDIATELY
+        // Optimistically update user vote counts and global counts IMMEDIATELY (cosmetic only)
         if (side === "pump") {
             setUserUpvotes((prev) => prev + 1);
             setOptimisticGlobalUpvotes((prev) => (prev !== null ? prev + 1 : globalUpvotes + 1));
@@ -102,64 +74,12 @@ export function VoteButtons({ tweet: tweetProp }: VoteButtonsProps) {
             setOptimisticGlobalDownvotes((prev) => (prev !== null ? prev + 1 : globalDownvotes + 1));
         }
 
-        // Save to localStorage
-        const key = `userVotes_${tweet.id}`;
-        localStorage.setItem(
-            key,
-            JSON.stringify({
-                upvotes: side === "pump" ? userUpvotes + 1 : userUpvotes,
-                downvotes: side === "smack" ? userDownvotes + 1 : userDownvotes,
-            })
-        );
-
-        // Mark vote as pending
-        setPendingVotes((prev) => new Set(prev).add(voteId));
-
-        // Enqueue vote for sequential processing (prevents race conditions)
-        // UI updates are already done optimistically above, so this just ensures backend receives it
-        enqueueVote(side)
-            .then(() => {
-                // Success - remove from pending
-                setPendingVotes((prev) => {
-                    const next = new Set(prev);
-                    next.delete(voteId);
-                    return next;
-                });
-                // Don't show success snackbar for every click to avoid spam
-            })
-            .catch((error: unknown) => {
-                console.error("Failed to vote:", error);
-                const errorMessage = error instanceof Error ? error.message : "Failed to vote";
-
-                // Revert optimistic update on error
-                if (side === "pump") {
-                    setUserUpvotes((prev) => Math.max(0, prev - 1));
-                    setOptimisticGlobalUpvotes((prev) => (prev !== null ? Math.max(0, prev - 1) : null));
-                } else {
-                    setUserDownvotes((prev) => Math.max(0, prev - 1));
-                    setOptimisticGlobalDownvotes((prev) => (prev !== null ? Math.max(0, prev - 1) : null));
-                }
-
-                // Remove from pending
-                setPendingVotes((prev) => {
-                    const next = new Set(prev);
-                    next.delete(voteId);
-                    return next;
-                });
-
-                // Show user-friendly error messages
-                if (errorMessage.includes("Insufficient")) {
-                    enqueueSnackbar("Insufficient vault balance. Please deposit more tokens.", { variant: "error" });
-                } else if (errorMessage.includes("expired") || errorMessage.includes("Expired")) {
-                    enqueueSnackbar("This post has expired and can no longer be voted on", { variant: "error" });
-                } else if (errorMessage.includes("settled") || errorMessage.includes("Settled")) {
-                    enqueueSnackbar("This post has already been settled", { variant: "error" });
-                } else if (errorMessage.includes("not open") || errorMessage.includes("Not open")) {
-                    enqueueSnackbar("This post is not open for voting", { variant: "error" });
-                } else {
-                    enqueueSnackbar(errorMessage, { variant: "error" });
-                }
-            });
+        // Fire-and-forget: send vote to backend (no await, no error handling)
+        // Backend will batch and process votes
+        voteOnTweet(identityToken, tweet.id, side).catch((error) => {
+            // Silently log errors - backend handles retries and state sync
+            console.error("Vote submission error (will be retried by backend):", error);
+        });
     };
 
     if (!tweet.postIdHash) {
@@ -405,11 +325,6 @@ export function VoteButtons({ tweet: tweetProp }: VoteButtonsProps) {
                         </Stack>
                     )}
                 </Stack>
-            )}
-            {pendingVotes.size > 0 && (
-                <Typography variant="caption" color="text.secondary" sx={{ fontSize: "0.7rem" }}>
-                    {pendingVotes.size} pending...
-                </Typography>
             )}
         </Stack>
     );

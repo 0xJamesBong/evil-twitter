@@ -2,13 +2,17 @@ use async_graphql::{Context, ID, InputObject, Object, Result, SimpleObject};
 use axum::http::HeaderMap;
 use mongodb::bson::oid::ObjectId;
 use std::str::FromStr;
+use std::time::{SystemTime, UNIX_EPOCH};
 
 use hex;
 use opinions_market::state::Side;
 use std::sync::Arc;
 
 use crate::{
-    app_state::AppState, graphql::tweet::types::TweetNode, models::user::User, solana::get_post_pda,
+    app_state::{AppState, VoteBufferKey, VoteBufferValue},
+    graphql::tweet::types::TweetNode,
+    models::user::User,
+    solana::get_post_pda,
 };
 
 // ============================================================================
@@ -504,53 +508,38 @@ pub async fn tweet_vote_resolver(
         *app_state.solana_service.get_bling_mint()
     };
 
-    // Validate user has sufficient vault balance (votes are hardcoded to 1)
-    let votes = 1u64;
-    let vault_balance = app_state
-        .solana_service
-        .get_user_vault_balance(&user_wallet, &token_mint)
-        .await
-        .map_err(|e| async_graphql::Error::new(format!("Failed to check vault balance: {}", e)))?;
+    // Write vote to buffer (will be batched and sent by background flush task)
+    let now = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map_err(|e| async_graphql::Error::new(format!("Failed to get timestamp: {}", e)))?
+        .as_secs() as i64;
 
-    if vault_balance < votes {
-        return Err(async_graphql::Error::new(format!(
-            "Insufficient vault balance. You have {} but need {}",
-            vault_balance, votes
-        )));
-    }
+    let buffer_key = VoteBufferKey {
+        user: user_wallet,
+        post_id_hash,
+        side,
+        token_mint,
+    };
 
-    // Check post state before voting (optional - can also check on-chain)
-    // For now, we'll let the on-chain program handle state validation
+    // Increment accumulated votes in buffer
+    let mut buffer = app_state
+        .vote_buffer
+        .lock()
+        .map_err(|e| async_graphql::Error::new(format!("Failed to lock vote buffer: {}", e)))?;
 
-    // Call vote_on_post on-chain (backend signs transaction, votes hardcoded to 1)
-    match app_state
-        .solana_service
-        .vote_on_post(&user_wallet, post_id_hash, side, &token_mint)
-        .await
-    {
-        Ok(signature) => {
-            eprintln!("✅ Voted on post on-chain: {}", signature);
-            // Note: Post state sync can be handled separately if needed
-        }
-        Err(e) => {
-            // Map errors to user-friendly messages
-            let error_str = e.to_string();
-            let error_message = if error_str.contains("Insufficient")
-                || error_str.contains("balance")
-            {
-                "Insufficient vault balance".to_string()
-            } else if error_str.contains("not open") || error_str.contains("PostNotOpen") {
-                "Post is not open for voting".to_string()
-            } else if error_str.contains("expired") || error_str.contains("PostExpired") {
-                "Post has expired and can no longer be voted on".to_string()
-            } else if error_str.contains("settled") || error_str.contains("PostAlreadySettled") {
-                "Post has already been settled".to_string()
-            } else {
-                format!("Failed to vote: {}", error_str)
-            };
-            return Err(async_graphql::Error::new(error_message));
-        }
-    }
+    buffer
+        .entry(buffer_key)
+        .and_modify(|v| {
+            v.accumulated_votes += 1;
+            v.last_click_ts = now;
+        })
+        .or_insert_with(|| VoteBufferValue {
+            accumulated_votes: 1,
+            last_click_ts: now,
+        });
+
+    // Vote is queued, return immediate success
+    // The background flush task will handle the actual Solana transaction
 
     // Return updated metrics (will be synced from chain state)
     // For now, return current metrics
