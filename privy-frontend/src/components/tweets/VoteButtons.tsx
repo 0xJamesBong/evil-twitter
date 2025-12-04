@@ -129,12 +129,28 @@ export function VoteButtons({ tweet: tweetProp }: VoteButtonsProps) {
     }
 
     return (
-        <Stack direction="row" spacing={2} alignItems="center" sx={{ mt: 2 }}>
+        <Stack
+            direction="row"
+            spacing={2}
+            alignItems="center"
+            sx={{ mt: 2 }}
+            onClick={(e) => {
+                // Stop click event from bubbling to parent (card navigation)
+                e.stopPropagation();
+            }}
+            onMouseDown={(e) => {
+                // Also stop mousedown to prevent any drag/selection issues
+                e.stopPropagation();
+            }}
+        >
             <Stack direction="row" spacing={1} alignItems="center">
                 <Button
                     variant="contained"
                     color="success"
-                    onClick={() => handleVote("pump")}
+                    onClick={(e) => {
+                        e.stopPropagation();
+                        handleVote("pump");
+                    }}
                     disabled={loading || !isOpen}
                     sx={{
                         borderRadius: 1,
@@ -157,7 +173,10 @@ export function VoteButtons({ tweet: tweetProp }: VoteButtonsProps) {
                 <Button
                     variant="contained"
                     color="error"
-                    onClick={() => handleVote("smack")}
+                    onClick={(e) => {
+                        e.stopPropagation();
+                        handleVote("smack");
+                    }}
                     disabled={loading || !isOpen}
                     sx={{
                         borderRadius: 1,

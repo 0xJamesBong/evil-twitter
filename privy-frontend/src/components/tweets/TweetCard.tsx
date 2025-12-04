@@ -202,7 +202,17 @@ export function TweetCard({
 
                         {/* Voting Buttons for Original Tweets */}
                         {tweet.postIdHash && (
-                            <Box sx={{ mt: 1, mb: 1 }}>
+                            <Box
+                                sx={{ mt: 1, mb: 1 }}
+                                onClick={(e) => {
+                                    // Stop click event from bubbling to card navigation
+                                    e.stopPropagation();
+                                }}
+                                onMouseDown={(e) => {
+                                    // Also stop mousedown to prevent any drag/selection issues
+                                    e.stopPropagation();
+                                }}
+                            >
                                 <VoteButtons tweet={tweet} />
                             </Box>
                         )}
