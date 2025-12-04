@@ -54,6 +54,12 @@ export function VoteButtons({ tweet: tweetProp }: VoteButtonsProps) {
             setTimeout(() => setSmackAnimation(false), 600);
         }
 
+        // Show toast notification
+        enqueueSnackbar(`Voted ${side === "pump" ? "Pump" : "Smack"}!`, {
+            variant: "success",
+            autoHideDuration: 2000,
+        });
+
         // Fire-and-forget: send vote to backend (no await, no error handling)
         // Backend will batch and process votes, and frontend will refresh from on-chain
         voteOnTweet(identityToken, tweet.id, side).catch((error) => {
