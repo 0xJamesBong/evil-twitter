@@ -517,6 +517,158 @@ pub struct SettlePost<'info> {
     pub system_program: Program<'info, System>,
 }
 
+#[derive(Accounts)]
+#[instruction(post_id_hash: [u8; 32])]
+pub struct DistributeCreatorReward<'info> {
+    /// CHECK: Payer for transaction fees
+    #[account(mut)]
+    pub payer: Signer<'info>,
+
+    #[account(
+        seeds = [POST_ACCOUNT_SEED, post_id_hash.as_ref()],
+        bump,
+    )]
+    pub post: Account<'info, PostAccount>,
+
+    #[account(
+        mut,
+        seeds = [POST_POT_TOKEN_ACCOUNT_SEED, post.key().as_ref(), token_mint.key().as_ref()],
+        bump,
+        constraint = post_pot_token_account.mint == token_mint.key(),
+        constraint = post_pot_token_account.owner == post_pot_authority.key(),
+    )]
+    pub post_pot_token_account: Account<'info, TokenAccount>,
+
+    /// CHECK: Post pot authority PDA
+    #[account(
+        seeds = [POST_POT_AUTHORITY_SEED, post.key().as_ref()],
+        bump,
+    )]
+    pub post_pot_authority: UncheckedAccount<'info>,
+
+    #[account(
+        seeds = [POST_MINT_PAYOUT_SEED, post.key().as_ref(), token_mint.key().as_ref()],
+        bump = post_mint_payout.bump,
+    )]
+    pub post_mint_payout: Account<'info, PostMintPayout>,
+
+    #[account(
+        mut,
+        seeds = [USER_VAULT_TOKEN_ACCOUNT_SEED, post.creator_user.as_ref(), token_mint.key().as_ref()],
+        bump,
+        token::mint = token_mint,
+        token::authority = vault_authority,
+    )]
+    pub creator_vault_token_account: Account<'info, TokenAccount>,
+
+    /// CHECK: Vault authority PDA
+    #[account(
+        seeds = [VAULT_AUTHORITY_SEED],
+        bump,
+    )]
+    pub vault_authority: UncheckedAccount<'info>,
+
+    pub token_mint: Account<'info, Mint>,
+    pub token_program: Program<'info, Token>,
+}
+
+#[derive(Accounts)]
+#[instruction(post_id_hash: [u8; 32])]
+pub struct DistributeProtocolFee<'info> {
+    /// CHECK: Payer for transaction fees
+    #[account(mut)]
+    pub payer: Signer<'info>,
+
+    #[account(
+        seeds = [POST_ACCOUNT_SEED, post_id_hash.as_ref()],
+        bump,
+    )]
+    pub post: Account<'info, PostAccount>,
+
+    #[account(
+        mut,
+        seeds = [POST_POT_TOKEN_ACCOUNT_SEED, post.key().as_ref(), token_mint.key().as_ref()],
+        bump,
+        constraint = post_pot_token_account.mint == token_mint.key(),
+        constraint = post_pot_token_account.owner == post_pot_authority.key(),
+    )]
+    pub post_pot_token_account: Account<'info, TokenAccount>,
+
+    /// CHECK: Post pot authority PDA
+    #[account(
+        seeds = [POST_POT_AUTHORITY_SEED, post.key().as_ref()],
+        bump,
+    )]
+    pub post_pot_authority: UncheckedAccount<'info>,
+
+    #[account(
+        seeds = [POST_MINT_PAYOUT_SEED, post.key().as_ref(), token_mint.key().as_ref()],
+        bump = post_mint_payout.bump,
+    )]
+    pub post_mint_payout: Account<'info, PostMintPayout>,
+
+    #[account(
+        mut,
+        seeds = [PROTOCOL_TREASURY_TOKEN_ACCOUNT_SEED, token_mint.key().as_ref()],
+        bump,
+        token::mint = token_mint,
+        token::authority = config,
+    )]
+    pub protocol_token_treasury_token_account: Account<'info, TokenAccount>,
+
+    pub config: Account<'info, Config>,
+    pub token_mint: Account<'info, Mint>,
+    pub token_program: Program<'info, Token>,
+}
+
+#[derive(Accounts)]
+#[instruction(post_id_hash: [u8; 32])]
+pub struct DistributeParentPostShare<'info> {
+    /// CHECK: Payer for transaction fees
+    #[account(mut)]
+    pub payer: Signer<'info>,
+
+    #[account(
+        seeds = [POST_ACCOUNT_SEED, post_id_hash.as_ref()],
+        bump,
+    )]
+    pub post: Account<'info, PostAccount>,
+
+    #[account(
+        mut,
+        seeds = [POST_POT_TOKEN_ACCOUNT_SEED, post.key().as_ref(), token_mint.key().as_ref()],
+        bump,
+        constraint = post_pot_token_account.mint == token_mint.key(),
+        constraint = post_pot_token_account.owner == post_pot_authority.key(),
+    )]
+    pub post_pot_token_account: Account<'info, TokenAccount>,
+
+    /// CHECK: Post pot authority PDA
+    #[account(
+        seeds = [POST_POT_AUTHORITY_SEED, post.key().as_ref()],
+        bump,
+    )]
+    pub post_pot_authority: UncheckedAccount<'info>,
+
+    #[account(
+        seeds = [POST_MINT_PAYOUT_SEED, post.key().as_ref(), token_mint.key().as_ref()],
+        bump = post_mint_payout.bump,
+    )]
+    pub post_mint_payout: Account<'info, PostMintPayout>,
+
+    // Optional parent post (must be provided if this is a child post)
+    pub parent_post: Option<Account<'info, PostAccount>>,
+
+    /// CHECK: Parent post pot token account (optional, only needed if parent_post is Some)
+    pub parent_post_pot_token_account: Option<Account<'info, TokenAccount>>,
+
+    /// CHECK: Parent post pot authority PDA (optional, only needed if parent_post is Some)
+    pub parent_post_pot_authority: Option<UncheckedAccount<'info>>,
+
+    pub token_mint: Account<'info, Mint>,
+    pub token_program: Program<'info, Token>,
+}
+
 
 // The User-uncheckedAccount and payer-Signer pattern is used to allow for dual signing - so the user doesn't need to see a signature prompt pop-up
 

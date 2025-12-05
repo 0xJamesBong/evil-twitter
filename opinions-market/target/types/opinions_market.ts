@@ -729,6 +729,691 @@ export type OpinionsMarket = {
       ]
     },
     {
+      "name": "distributeCreatorReward",
+      "docs": [
+        "Distribute creator reward from frozen settlement.",
+        "Reads creator_fee from PostMintPayout and transfers it to creator's vault."
+      ],
+      "discriminator": [
+        236,
+        163,
+        223,
+        55,
+        91,
+        109,
+        80,
+        119
+      ],
+      "accounts": [
+        {
+          "name": "payer",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "post",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  111,
+                  115,
+                  116,
+                  95,
+                  97,
+                  99,
+                  99,
+                  111,
+                  117,
+                  110,
+                  116
+                ]
+              },
+              {
+                "kind": "arg",
+                "path": "postIdHash"
+              }
+            ]
+          }
+        },
+        {
+          "name": "postPotTokenAccount",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  111,
+                  115,
+                  116,
+                  95,
+                  112,
+                  111,
+                  116,
+                  95,
+                  116,
+                  111,
+                  107,
+                  101,
+                  110,
+                  95,
+                  97,
+                  99,
+                  99,
+                  111,
+                  117,
+                  110,
+                  116
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "post"
+              },
+              {
+                "kind": "account",
+                "path": "tokenMint"
+              }
+            ]
+          }
+        },
+        {
+          "name": "postPotAuthority",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  111,
+                  115,
+                  116,
+                  95,
+                  112,
+                  111,
+                  116,
+                  95,
+                  97,
+                  117,
+                  116,
+                  104,
+                  111,
+                  114,
+                  105,
+                  116,
+                  121
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "post"
+              }
+            ]
+          }
+        },
+        {
+          "name": "postMintPayout",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  111,
+                  115,
+                  116,
+                  95,
+                  109,
+                  105,
+                  110,
+                  116,
+                  95,
+                  112,
+                  97,
+                  121,
+                  111,
+                  117,
+                  116
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "post"
+              },
+              {
+                "kind": "account",
+                "path": "tokenMint"
+              }
+            ]
+          }
+        },
+        {
+          "name": "creatorVaultTokenAccount",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  117,
+                  115,
+                  101,
+                  114,
+                  95,
+                  118,
+                  97,
+                  117,
+                  108,
+                  116,
+                  95,
+                  116,
+                  111,
+                  107,
+                  101,
+                  110,
+                  95,
+                  97,
+                  99,
+                  99,
+                  111,
+                  117,
+                  110,
+                  116
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "post.creator_user",
+                "account": "postAccount"
+              },
+              {
+                "kind": "account",
+                "path": "tokenMint"
+              }
+            ]
+          }
+        },
+        {
+          "name": "vaultAuthority",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  118,
+                  97,
+                  117,
+                  108,
+                  116,
+                  95,
+                  97,
+                  117,
+                  116,
+                  104,
+                  111,
+                  114,
+                  105,
+                  116,
+                  121
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "tokenMint"
+        },
+        {
+          "name": "tokenProgram",
+          "address": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
+        }
+      ],
+      "args": [
+        {
+          "name": "postIdHash",
+          "type": {
+            "array": [
+              "u8",
+              32
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "distributeParentPostShare",
+      "docs": [
+        "Distribute parent post share from frozen settlement.",
+        "Reads mother_fee from PostMintPayout and transfers it to parent post's pot."
+      ],
+      "discriminator": [
+        116,
+        113,
+        172,
+        154,
+        248,
+        40,
+        239,
+        114
+      ],
+      "accounts": [
+        {
+          "name": "payer",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "post",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  111,
+                  115,
+                  116,
+                  95,
+                  97,
+                  99,
+                  99,
+                  111,
+                  117,
+                  110,
+                  116
+                ]
+              },
+              {
+                "kind": "arg",
+                "path": "postIdHash"
+              }
+            ]
+          }
+        },
+        {
+          "name": "postPotTokenAccount",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  111,
+                  115,
+                  116,
+                  95,
+                  112,
+                  111,
+                  116,
+                  95,
+                  116,
+                  111,
+                  107,
+                  101,
+                  110,
+                  95,
+                  97,
+                  99,
+                  99,
+                  111,
+                  117,
+                  110,
+                  116
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "post"
+              },
+              {
+                "kind": "account",
+                "path": "tokenMint"
+              }
+            ]
+          }
+        },
+        {
+          "name": "postPotAuthority",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  111,
+                  115,
+                  116,
+                  95,
+                  112,
+                  111,
+                  116,
+                  95,
+                  97,
+                  117,
+                  116,
+                  104,
+                  111,
+                  114,
+                  105,
+                  116,
+                  121
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "post"
+              }
+            ]
+          }
+        },
+        {
+          "name": "postMintPayout",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  111,
+                  115,
+                  116,
+                  95,
+                  109,
+                  105,
+                  110,
+                  116,
+                  95,
+                  112,
+                  97,
+                  121,
+                  111,
+                  117,
+                  116
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "post"
+              },
+              {
+                "kind": "account",
+                "path": "tokenMint"
+              }
+            ]
+          }
+        },
+        {
+          "name": "parentPost",
+          "optional": true
+        },
+        {
+          "name": "parentPostPotTokenAccount",
+          "optional": true
+        },
+        {
+          "name": "parentPostPotAuthority",
+          "optional": true
+        },
+        {
+          "name": "tokenMint"
+        },
+        {
+          "name": "tokenProgram",
+          "address": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
+        }
+      ],
+      "args": [
+        {
+          "name": "postIdHash",
+          "type": {
+            "array": [
+              "u8",
+              32
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "distributeProtocolFee",
+      "docs": [
+        "Distribute protocol fee from frozen settlement.",
+        "Reads protocol_fee from PostMintPayout and transfers it to protocol treasury."
+      ],
+      "discriminator": [
+        212,
+        187,
+        180,
+        191,
+        59,
+        44,
+        108,
+        105
+      ],
+      "accounts": [
+        {
+          "name": "payer",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "post",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  111,
+                  115,
+                  116,
+                  95,
+                  97,
+                  99,
+                  99,
+                  111,
+                  117,
+                  110,
+                  116
+                ]
+              },
+              {
+                "kind": "arg",
+                "path": "postIdHash"
+              }
+            ]
+          }
+        },
+        {
+          "name": "postPotTokenAccount",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  111,
+                  115,
+                  116,
+                  95,
+                  112,
+                  111,
+                  116,
+                  95,
+                  116,
+                  111,
+                  107,
+                  101,
+                  110,
+                  95,
+                  97,
+                  99,
+                  99,
+                  111,
+                  117,
+                  110,
+                  116
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "post"
+              },
+              {
+                "kind": "account",
+                "path": "tokenMint"
+              }
+            ]
+          }
+        },
+        {
+          "name": "postPotAuthority",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  111,
+                  115,
+                  116,
+                  95,
+                  112,
+                  111,
+                  116,
+                  95,
+                  97,
+                  117,
+                  116,
+                  104,
+                  111,
+                  114,
+                  105,
+                  116,
+                  121
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "post"
+              }
+            ]
+          }
+        },
+        {
+          "name": "postMintPayout",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  111,
+                  115,
+                  116,
+                  95,
+                  109,
+                  105,
+                  110,
+                  116,
+                  95,
+                  112,
+                  97,
+                  121,
+                  111,
+                  117,
+                  116
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "post"
+              },
+              {
+                "kind": "account",
+                "path": "tokenMint"
+              }
+            ]
+          }
+        },
+        {
+          "name": "protocolTokenTreasuryTokenAccount",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  114,
+                  111,
+                  116,
+                  111,
+                  99,
+                  111,
+                  108,
+                  95,
+                  116,
+                  114,
+                  101,
+                  97,
+                  115,
+                  117,
+                  114,
+                  121,
+                  95,
+                  116,
+                  111,
+                  107,
+                  101,
+                  110,
+                  95,
+                  97,
+                  99,
+                  99,
+                  111,
+                  117,
+                  110,
+                  116
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "tokenMint"
+              }
+            ]
+          }
+        },
+        {
+          "name": "config"
+        },
+        {
+          "name": "tokenMint"
+        },
+        {
+          "name": "tokenProgram",
+          "address": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
+        }
+      ],
+      "args": [
+        {
+          "name": "postIdHash",
+          "type": {
+            "array": [
+              "u8",
+              32
+            ]
+          }
+        }
+      ]
+    },
+    {
       "name": "initialize",
       "discriminator": [
         175,
@@ -1305,6 +1990,84 @@ export type OpinionsMarket = {
         {
           "name": "parentPost",
           "optional": true
+        },
+        {
+          "name": "parentPostPotTokenAccount",
+          "writable": true,
+          "optional": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  111,
+                  115,
+                  116,
+                  95,
+                  112,
+                  111,
+                  116,
+                  95,
+                  116,
+                  111,
+                  107,
+                  101,
+                  110,
+                  95,
+                  97,
+                  99,
+                  99,
+                  111,
+                  117,
+                  110,
+                  116
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "post"
+              },
+              {
+                "kind": "account",
+                "path": "tokenMint"
+              }
+            ]
+          }
+        },
+        {
+          "name": "parentPostPotAuthority",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  111,
+                  115,
+                  116,
+                  95,
+                  112,
+                  111,
+                  116,
+                  95,
+                  97,
+                  117,
+                  116,
+                  104,
+                  111,
+                  114,
+                  105,
+                  116,
+                  121
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "post"
+              }
+            ]
+          }
         },
         {
           "name": "config"
@@ -2281,12 +3044,32 @@ export type OpinionsMarket = {
             "type": "pubkey"
           },
           {
+            "name": "initialPot",
+            "type": "u64"
+          },
+          {
             "name": "totalPayout",
             "type": "u64"
           },
           {
             "name": "payoutPerWinningVote",
             "type": "u64"
+          },
+          {
+            "name": "creatorFee",
+            "type": "u64"
+          },
+          {
+            "name": "protocolFee",
+            "type": "u64"
+          },
+          {
+            "name": "motherFee",
+            "type": "u64"
+          },
+          {
+            "name": "frozen",
+            "type": "bool"
           },
           {
             "name": "bump",

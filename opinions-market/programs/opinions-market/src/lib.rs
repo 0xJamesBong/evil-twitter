@@ -485,6 +485,7 @@ pub mod opinions_market {
     //instructions together, each parametrized by individual token mints, and send it
     // off in one transaction.
     // Naturally this means we cannot require the PostState to be open, we only require it to be past the settlement time.
+    // This instruction does ALL the math and freezes it. NO token transfers happen here.
     pub fn settle_post(ctx: Context<SettlePost>, post_id_hash: [u8; 32]) -> Result<()> {
         msg!("\n🌟🌟🌟🌟🌟 Settling post 🌟🌟🌟🌟🌟");
         let post = &mut ctx.accounts.post;
@@ -494,11 +495,16 @@ pub mod opinions_market {
         msg!("clock.unix_timestamp: {}", now);
         msg!("post.end_time: {}", post.end_time);
 
-        // * * * * this require! must not be adopted.
-        // * * * * require!(post.state == PostState::Open, ErrorCode::PostNotOpen);
         // If still within time limit, exit early.
-        if (post.within_time_limit(now)) {
+        if post.within_time_limit(now) {
             msg!("Post is still within time limit, not doing anything and exiting early!");
+            return Ok(());
+        }
+
+        // Check if already frozen (prevent re-settlement)
+        let payout = &mut ctx.accounts.post_mint_payout;
+        if payout.frozen {
+            msg!("Post already settled and frozen, skipping");
             return Ok(());
         }
 
@@ -508,47 +514,102 @@ pub mod opinions_market {
             std::cmp::Ordering::Less => (Side::Smack, post.downvotes),
             std::cmp::Ordering::Equal => (Side::Pump, post.upvotes), // tie → Pump wins
         };
-        let pot_amount = ctx.accounts.post_pot_token_account.amount;
+        let initial_pot = ctx.accounts.post_pot_token_account.amount;
 
-        // Calculate amount to send to parent post (10% for child posts, 0 for original posts)
-        let to_mother_post = if let PostType::Child { parent: _ } = post.post_type {
-            pot_amount / 10
+        msg!("Initial pot amount: {}", initial_pot);
+        msg!(
+            "Winner: {:?}, Winning votes: {}",
+            winner,
+            total_winning_votes
+        );
+
+        // Calculate mother post fee (10% for child posts, only if parent is still open)
+        let mother_fee = if let PostType::Child { parent: _ } = post.post_type {
+            if let Some(parent_post) = &ctx.accounts.parent_post {
+                if parent_post.state == PostState::Open {
+                    initial_pot / 10
+                } else {
+                    0
+                }
+            } else {
+                initial_pot / 10 // Default to 10% if parent post account not provided
+            }
         } else {
             0
         };
-        let remaining_pot_amount = pot_amount
-            .checked_sub(to_mother_post)
+
+        let pot_after_mother = initial_pot
+            .checked_sub(mother_fee)
             .ok_or(ErrorCode::MathOverflow)?;
 
-        // TODO: Transfer to_mother_post to parent post pot if parent post is still open
+        // Calculate protocol fee (1% of remaining pot after mother fee)
+        let protocol_fee = pot_after_mother
+            .checked_mul(PARAMS.protocol_vote_settlement_fee_bps as u64)
+            .ok_or(ErrorCode::MathOverflow)?
+            .checked_div(10_000)
+            .ok_or(ErrorCode::MathOverflow)?;
 
-        // payout_per_winning_vote guards against 0
+        let pot_after_protocol = pot_after_mother
+            .checked_sub(protocol_fee)
+            .ok_or(ErrorCode::MathOverflow)?;
+
+        // Calculate creator fee (40% of remaining pot if Pump wins, 0 if Smack wins)
+        let creator_fee = match winner {
+            Side::Pump => pot_after_protocol
+                .checked_mul(PARAMS.creator_pump_win_settlement_fee_bps as u64)
+                .ok_or(ErrorCode::MathOverflow)?
+                .checked_div(10_000)
+                .ok_or(ErrorCode::MathOverflow)?,
+            Side::Smack => 0,
+        };
+
+        let total_payout = pot_after_protocol
+            .checked_sub(creator_fee)
+            .ok_or(ErrorCode::MathOverflow)?;
+
+        // Calculate payout_per_winning_vote (scaled by PRECISION)
         let payout_per_winning_vote = if total_winning_votes == 0 {
-            0 as u64
+            0
         } else {
-            remaining_pot_amount
-                .checked_mul(PRECISION) // scale up to avoid division by 0
-                .unwrap()
+            total_payout
+                .checked_mul(PRECISION)
+                .ok_or(ErrorCode::MathOverflow)?
                 .checked_div(total_winning_votes)
                 .ok_or(ErrorCode::MathOverflow)?
         };
 
-        // Save payout snapshot for claims
-        let payout = &mut ctx.accounts.post_mint_payout;
+        msg!("Fees calculated:");
+        msg!("  Mother fee: {}", mother_fee);
+        msg!("  Protocol fee: {}", protocol_fee);
+        msg!("  Creator fee: {}", creator_fee);
+        msg!("  Total payout for voters: {}", total_payout);
+        msg!("  Payout per winning vote: {}", payout_per_winning_vote);
+
+        // Freeze all calculations in PostMintPayout
         let new_payout = PostMintPayout::new(
             post.key(),
             ctx.accounts.token_mint.key(),
-            pot_amount,
+            initial_pot,
+            total_payout,
             payout_per_winning_vote,
+            creator_fee,
+            protocol_fee,
+            mother_fee,
             ctx.bumps.post_mint_payout,
         );
 
         payout.post = new_payout.post;
         payout.token_mint = new_payout.token_mint;
+        payout.initial_pot = new_payout.initial_pot;
         payout.total_payout = new_payout.total_payout;
         payout.payout_per_winning_vote = new_payout.payout_per_winning_vote;
+        payout.creator_fee = new_payout.creator_fee;
+        payout.protocol_fee = new_payout.protocol_fee;
+        payout.mother_fee = new_payout.mother_fee;
+        payout.frozen = new_payout.frozen;
         payout.bump = new_payout.bump;
 
+        // Update post state
         if post.winning_side.is_none() {
             post.winning_side = Some(winner);
         }
@@ -558,6 +619,158 @@ pub mod opinions_market {
         }
 
         require!(post.state == PostState::Settled, ErrorCode::PostNotSettled);
+
+        msg!("✅ Settlement frozen successfully. Distribution instructions can now be called.");
+
+        Ok(())
+    }
+
+    /// Distribute creator reward from frozen settlement.
+    /// Reads creator_fee from PostMintPayout and transfers it to creator's vault.
+    pub fn distribute_creator_reward(
+        ctx: Context<DistributeCreatorReward>,
+        post_id_hash: [u8; 32],
+    ) -> Result<()> {
+        let payout = &ctx.accounts.post_mint_payout;
+        require!(payout.frozen, ErrorCode::PostNotSettled);
+
+        let creator_fee = payout.creator_fee;
+        if creator_fee == 0 {
+            msg!("No creator fee to distribute");
+            return Ok(());
+        }
+
+        msg!("Distributing creator fee: {}", creator_fee);
+
+        let post_key = ctx.accounts.post.key();
+        let (_, bump) = Pubkey::find_program_address(
+            &[POST_POT_AUTHORITY_SEED, post_key.as_ref()],
+            ctx.program_id,
+        );
+
+        let bump_array = [bump];
+        let seeds_array = [POST_POT_AUTHORITY_SEED, post_key.as_ref(), &bump_array];
+        let seeds: &[&[&[u8]]] = &[&seeds_array];
+
+        let cpi = CpiContext::new_with_signer(
+            ctx.accounts.token_program.to_account_info(),
+            anchor_spl::token::Transfer {
+                from: ctx.accounts.post_pot_token_account.to_account_info(),
+                to: ctx.accounts.creator_vault_token_account.to_account_info(),
+                authority: ctx.accounts.post_pot_authority.to_account_info(),
+            },
+            seeds,
+        );
+
+        anchor_spl::token::transfer(cpi, creator_fee)?;
+
+        msg!("✅ Creator reward distributed successfully");
+
+        Ok(())
+    }
+
+    /// Distribute protocol fee from frozen settlement.
+    /// Reads protocol_fee from PostMintPayout and transfers it to protocol treasury.
+    pub fn distribute_protocol_fee(
+        ctx: Context<DistributeProtocolFee>,
+        post_id_hash: [u8; 32],
+    ) -> Result<()> {
+        let payout = &ctx.accounts.post_mint_payout;
+        require!(payout.frozen, ErrorCode::PostNotSettled);
+
+        let protocol_fee = payout.protocol_fee;
+        if protocol_fee == 0 {
+            msg!("No protocol fee to distribute");
+            return Ok(());
+        }
+
+        msg!("Distributing protocol fee: {}", protocol_fee);
+
+        let post_key = ctx.accounts.post.key();
+        let (_, bump) = Pubkey::find_program_address(
+            &[POST_POT_AUTHORITY_SEED, post_key.as_ref()],
+            ctx.program_id,
+        );
+
+        let bump_array = [bump];
+        let seeds_array = [POST_POT_AUTHORITY_SEED, post_key.as_ref(), &bump_array];
+        let seeds: &[&[&[u8]]] = &[&seeds_array];
+
+        let cpi = CpiContext::new_with_signer(
+            ctx.accounts.token_program.to_account_info(),
+            anchor_spl::token::Transfer {
+                from: ctx.accounts.post_pot_token_account.to_account_info(),
+                to: ctx
+                    .accounts
+                    .protocol_token_treasury_token_account
+                    .to_account_info(),
+                authority: ctx.accounts.post_pot_authority.to_account_info(),
+            },
+            seeds,
+        );
+
+        anchor_spl::token::transfer(cpi, protocol_fee)?;
+
+        msg!("✅ Protocol fee distributed successfully");
+
+        Ok(())
+    }
+
+    /// Distribute parent post share from frozen settlement.
+    /// Reads mother_fee from PostMintPayout and transfers it to parent post's pot.
+    pub fn distribute_parent_post_share(
+        ctx: Context<DistributeParentPostShare>,
+        post_id_hash: [u8; 32],
+    ) -> Result<()> {
+        let payout = &ctx.accounts.post_mint_payout;
+        require!(payout.frozen, ErrorCode::PostNotSettled);
+
+        let mother_fee = payout.mother_fee;
+        if mother_fee == 0 {
+            msg!("No mother post fee to distribute");
+            return Ok(());
+        }
+
+        let parent_post = ctx
+            .accounts
+            .parent_post
+            .as_ref()
+            .ok_or(ErrorCode::InvalidParentPost)?;
+        let parent_post_pot = ctx
+            .accounts
+            .parent_post_pot_token_account
+            .as_ref()
+            .ok_or(ErrorCode::InvalidParentPost)?;
+        msg!(
+            "Distributing mother post fee: {} to parent post: {}",
+            mother_fee,
+            parent_post.key()
+        );
+
+        // Transfer from child post pot to parent post pot
+        let post_key = ctx.accounts.post.key();
+        let (_, bump) = Pubkey::find_program_address(
+            &[POST_POT_AUTHORITY_SEED, post_key.as_ref()],
+            ctx.program_id,
+        );
+
+        let bump_array = [bump];
+        let seeds_array = [POST_POT_AUTHORITY_SEED, post_key.as_ref(), &bump_array];
+        let seeds: &[&[&[u8]]] = &[&seeds_array];
+
+        let cpi = CpiContext::new_with_signer(
+            ctx.accounts.token_program.to_account_info(),
+            anchor_spl::token::Transfer {
+                from: ctx.accounts.post_pot_token_account.to_account_info(),
+                to: parent_post_pot.to_account_info(),
+                authority: ctx.accounts.post_pot_authority.to_account_info(),
+            },
+            seeds,
+        );
+
+        anchor_spl::token::transfer(cpi, mother_fee)?;
+
+        msg!("✅ Parent post share distributed successfully");
 
         Ok(())
     }
@@ -575,8 +788,10 @@ pub mod opinions_market {
         let post = &ctx.accounts.post;
         let pos = &mut ctx.accounts.position;
         let claim = &mut ctx.accounts.user_post_mint_claim;
+        let payout = &ctx.accounts.post_mint_payout;
 
         require!(post.state == PostState::Settled, ErrorCode::PostNotSettled);
+        require!(payout.frozen, ErrorCode::PostNotSettled); // Must be frozen (settled)
         require!(!claim.claimed, ErrorCode::AlreadyClaimed);
 
         let winning_side = post.winning_side.ok_or(ErrorCode::NoWinner)?;
@@ -590,8 +805,6 @@ pub mod opinions_market {
             claim.claimed = true;
             return Ok(()); // non-winner → no payout
         }
-
-        let payout = &ctx.accounts.post_mint_payout;
 
         // SCALE → unscale before transfer
         let scaled = user_votes

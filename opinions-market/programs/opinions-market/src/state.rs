@@ -201,27 +201,41 @@ impl PostAccount {
 }
 
 #[account]
-#[derive(InitSpace, Copy, PartialEq, Eq, Debug)]
+#[derive(InitSpace, PartialEq, Eq, Debug)]
 pub struct PostMintPayout {
     pub post: Pubkey,
     pub token_mint: Pubkey,
-    pub total_payout: u64,
+    pub initial_pot: u64,  // Total pot before any fees
+    pub total_payout: u64, // Amount for voters (after all fees)
     pub payout_per_winning_vote: u64,
+    pub creator_fee: u64,
+    pub protocol_fee: u64,
+    pub mother_fee: u64,
+    pub frozen: bool, // Prevents re-settlement
     pub bump: u8,
 }
 impl PostMintPayout {
     pub fn new(
         post: Pubkey,
         token_mint: Pubkey,
+        initial_pot: u64,
         total_payout: u64,
         payout_per_winning_vote: u64,
+        creator_fee: u64,
+        protocol_fee: u64,
+        mother_fee: u64,
         bump: u8,
     ) -> Self {
         Self {
             post,
             token_mint,
+            initial_pot,
             total_payout,
             payout_per_winning_vote,
+            creator_fee,
+            protocol_fee,
+            mother_fee,
+            frozen: true, // Always frozen when created
             bump,
         }
     }
