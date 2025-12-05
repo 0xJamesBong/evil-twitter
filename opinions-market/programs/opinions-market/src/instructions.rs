@@ -161,7 +161,7 @@ pub struct RegisterSession<'info> {
     pub session_key: UncheckedAccount<'info>,
 
     #[account(
-        init,
+        init_if_needed,
         payer = payer,
         seeds = [SESSION_AUTHORITY_SEED, user.key().as_ref(), session_key.key().as_ref()],
         bump,

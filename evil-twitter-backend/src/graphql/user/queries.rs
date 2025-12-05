@@ -70,7 +70,7 @@ impl UserQuery {
     /// Returns base64-encoded message bytes: SESSION:{payer_pubkey}
     async fn session_message(&self, ctx: &Context<'_>) -> Result<String> {
         let app_state = ctx.data::<Arc<AppState>>()?;
-        let session_key = app_state.solana_service.payer_pubkey();
+        let session_key = app_state.solana_service.session_key_pubkey();
         let message = format!("SESSION:{}", session_key);
         // Return base64-encoded message bytes
         let message_bytes = message.as_bytes();

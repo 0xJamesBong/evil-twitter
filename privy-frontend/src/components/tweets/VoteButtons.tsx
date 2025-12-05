@@ -72,7 +72,7 @@ export function VoteButtons({ tweet: tweetProp }: VoteButtonsProps) {
         // Not an original tweet, no voting
         return null;
     }
-
+    console.log("postState", postState);
     return (
         <Stack
             direction="row"

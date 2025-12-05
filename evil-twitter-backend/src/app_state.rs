@@ -161,8 +161,15 @@ impl AppState {
         let rpc_client = Arc::new(solana_client::nonblocking::rpc_client::RpcClient::new(
             solana_rpc_url,
         ));
+        // For now, session_key is the same as payer (in production they'll be different)
+        // Clone the inner Keypair from Arc<Keypair> by serializing and deserializing
+        let payer_keypair_ref = solana_program.get_payer();
+        let session_key =
+            solana_sdk::signature::Keypair::try_from(&payer_keypair_ref.to_bytes()[..])
+                .expect("Failed to clone keypair for session_key");
         let solana_service = Arc::new(SolanaService::new(
             rpc_client,
+            session_key,
             solana_program.get_payer().clone(),
             bling_mint,
         ));

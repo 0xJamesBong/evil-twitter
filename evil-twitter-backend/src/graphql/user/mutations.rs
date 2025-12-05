@@ -317,9 +317,9 @@ pub async fn onboard_user_resolver(
         eprintln!("onboard_user: On-chain user created successfully");
     }
 
-    // Register session - backend generates session key (payer pubkey)
-    // The session key is the backend's payer pubkey
-    let session_key = app_state.solana_service.payer_pubkey();
+    // Register session - backend generates session key
+    // The session key is the backend's session key (for now same as payer, but will be different in production)
+    let session_key = app_state.solana_service.session_key_pubkey();
 
     // Construct the message that should have been signed: SESSION:{session_key}
     let message = format!("SESSION:{}", session_key);

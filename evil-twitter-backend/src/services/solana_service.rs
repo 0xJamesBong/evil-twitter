@@ -49,6 +49,7 @@ use crate::solana::{
 
 pub struct SolanaService {
     rpc: Arc<RpcClient>,
+    session_key: Keypair,
     payer: Arc<Keypair>,
     program_id: Pubkey,
     bling_mint: Pubkey,
@@ -74,11 +75,17 @@ fn read_program_id_from_idl() -> Pubkey {
 }
 
 impl SolanaService {
-    pub fn new(rpc: Arc<RpcClient>, payer: Arc<Keypair>, bling_mint: Pubkey) -> Self {
+    pub fn new(
+        rpc: Arc<RpcClient>,
+        session_key: Keypair,
+        payer: Arc<Keypair>,
+        bling_mint: Pubkey,
+    ) -> Self {
         let program_id = read_program_id_from_idl();
 
         Self {
             rpc,
+            session_key,
             payer,
             program_id,
             bling_mint,
@@ -91,6 +98,10 @@ impl SolanaService {
 
     pub fn payer_pubkey(&self) -> Pubkey {
         self.payer.pubkey()
+    }
+
+    pub fn session_key_pubkey(&self) -> Pubkey {
+        self.session_key.pubkey()
     }
 
     /// Send a fully-signed transaction (signed by backend and/or session)
@@ -550,12 +561,51 @@ impl SolanaService {
             self.payer.pubkey()
         );
 
+        println!(
+            "  🔍 SolanaService::create_post: Session Key: {}",
+            self.session_key.pubkey()
+        );
+
+        // Check if session_authority exists before proceeding
+        let session_key = self.session_key.pubkey();
+        let (session_authority_pda, _) =
+            get_session_authority_pda(&program_id, &user_wallet, &session_key);
+
+        println!(
+            "  🔍 SolanaService::create_post: Checking if session_authority exists at {}",
+            session_authority_pda
+        );
+
+        let session_exists = match self.rpc.get_account(&session_authority_pda).await {
+            Ok(_) => {
+                println!("  ✅ SolanaService::create_post: Session authority exists");
+                true
+            }
+            Err(e) => {
+                let msg = e.to_string();
+                if msg.contains("AccountNotFound") || msg.contains("not found") {
+                    println!("  ⚠️ SolanaService::create_post: Session authority does not exist");
+                    false
+                } else {
+                    return Err(anyhow::anyhow!(
+                        "Failed to check session_authority account: {}",
+                        e
+                    ));
+                }
+            }
+        };
+
+        if !session_exists {
+            return Err(anyhow::anyhow!(
+                "Session authority account does not exist for user {} with session_key {}. \
+                Please register a session first by calling register_session or onboard_user.",
+                user_wallet,
+                session_key
+            ));
+        }
+
         // Build CreatePost instruction
         println!("  🔨 SolanaService::create_post: Building CreatePost instruction...");
-        // For now, use payer as session_key when no session is registered
-        // TODO: Properly handle optional sessions
-        let (session_authority_pda, _) =
-            get_session_authority_pda(&program_id, &user_wallet, &self.payer.pubkey());
 
         let ixs = program
             .request()
@@ -563,7 +613,7 @@ impl SolanaService {
                 config: config_pda,
                 user: user_wallet,
                 payer: self.payer.pubkey(),
-                session_key: self.payer.pubkey(),
+                session_key: self.session_key.pubkey(),
                 session_authority: session_authority_pda,
                 user_account: user_account_pda,
                 post: post_pda,
@@ -725,7 +775,7 @@ impl SolanaService {
         // For now, use payer as session_key when no session is registered
         // TODO: Properly handle optional sessions
         let (session_authority_pda, _) =
-            get_session_authority_pda(&program_id, voter_wallet, &self.payer.pubkey());
+            get_session_authority_pda(&program_id, voter_wallet, &self.session_key.pubkey());
 
         let ixs = program
             .request()
@@ -733,7 +783,7 @@ impl SolanaService {
                 config: config_pda,
                 voter: *voter_wallet,
                 payer: self.payer.pubkey(),
-                session_key: self.payer.pubkey(),
+                session_key: self.session_key.pubkey(),
                 session_authority: session_authority_pda,
                 post: post_pda,
                 voter_user_account: voter_user_account_pda,
