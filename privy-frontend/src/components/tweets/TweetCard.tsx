@@ -1,5 +1,6 @@
 "use client";
 
+import { useState, useEffect } from "react";
 import {
     Box,
     Card,
@@ -42,6 +43,49 @@ export function TweetCard({
     const router = useRouter();
     const timeAgo = formatDistanceToNow(new Date(tweet.createdAt), { addSuffix: true });
     const author = tweet.author;
+    const [timeLeft, setTimeLeft] = useState<string>("");
+
+    // Calculate and update time left for open posts
+    useEffect(() => {
+        if (!tweet.postState || tweet.postState.state !== "Open" || !tweet.postState.endTime) {
+            setTimeLeft("");
+            return;
+        }
+
+        const updateTimeLeft = () => {
+            const now = Math.floor(Date.now() / 1000);
+            const endTime = tweet.postState!.endTime!;
+            const secondsLeft = endTime - now;
+
+            if (secondsLeft <= 0) {
+                setTimeLeft("Ended");
+                return;
+            }
+
+            const days = Math.floor(secondsLeft / 86400);
+            const hours = Math.floor((secondsLeft % 86400) / 3600);
+            const minutes = Math.floor((secondsLeft % 3600) / 60);
+            const seconds = secondsLeft % 60;
+
+            if (days > 0) {
+                setTimeLeft(`${days}d ${hours}h left`);
+            } else if (hours > 0) {
+                setTimeLeft(`${hours}h ${minutes}m left`);
+            } else if (minutes > 0) {
+                setTimeLeft(`${minutes}m ${seconds}s left`);
+            } else {
+                setTimeLeft(`${seconds}s left`);
+            }
+        };
+
+        // Update immediately
+        updateTimeLeft();
+
+        // Update every second
+        const interval = setInterval(updateTimeLeft, 1000);
+
+        return () => clearInterval(interval);
+    }, [tweet.postState]);
 
     const handleCardClick = () => {
         if (clickable && tweet.id) {
@@ -191,9 +235,9 @@ export function TweetCard({
                                             sx={{ fontWeight: 600 }}
                                         />
                                     )}
-                                    {tweet.postState.state === "Open" && (
+                                    {tweet.postState.state === "Open" && timeLeft && (
                                         <Typography variant="caption" color="text.secondary">
-                                            Ends: {new Date(tweet.postState.endTime * 1000).toLocaleString()}
+                                            {timeLeft}
                                         </Typography>
                                     )}
                                 </Stack>
