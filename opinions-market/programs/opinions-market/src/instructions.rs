@@ -493,6 +493,22 @@ pub struct SettlePost<'info> {
     // Optional parent post (if child)
     pub parent_post: Option<Account<'info, PostAccount>>,
 
+    #[account(
+        mut,
+        seeds = [POST_POT_TOKEN_ACCOUNT_SEED, post.key().as_ref(), token_mint.key().as_ref()],
+        bump,
+        constraint = post_pot_token_account.mint == token_mint.key(),
+        constraint = post_pot_token_account.owner == parent_post_pot_authority.key(),
+    )]
+    pub parent_post_pot_token_account: Option<Account<'info, TokenAccount>>,
+
+    /// CHECK: Post pot authority PDA derived from seeds
+    #[account(
+            seeds = [POST_POT_AUTHORITY_SEED, post.key().as_ref()],
+            bump,
+        )]
+    pub parent_post_pot_authority: UncheckedAccount<'info>,
+
     pub config: Account<'info, Config>,
     pub token_mint: Account<'info, Mint>,
 

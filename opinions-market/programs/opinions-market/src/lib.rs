@@ -510,11 +510,23 @@ pub mod opinions_market {
         };
         let pot_amount = ctx.accounts.post_pot_token_account.amount;
 
+        // Calculate amount to send to parent post (10% for child posts, 0 for original posts)
+        let to_mother_post = if let PostType::Child { parent: _ } = post.post_type {
+            pot_amount / 10
+        } else {
+            0
+        };
+        let remaining_pot_amount = pot_amount
+            .checked_sub(to_mother_post)
+            .ok_or(ErrorCode::MathOverflow)?;
+
+        // TODO: Transfer to_mother_post to parent post pot if parent post is still open
+
         // payout_per_winning_vote guards against 0
         let payout_per_winning_vote = if total_winning_votes == 0 {
             0 as u64
         } else {
-            pot_amount
+            remaining_pot_amount
                 .checked_mul(PRECISION) // scale up to avoid division by 0
                 .unwrap()
                 .checked_div(total_winning_votes)
