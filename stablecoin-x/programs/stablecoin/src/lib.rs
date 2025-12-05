@@ -3,7 +3,7 @@ use anchor_lang::prelude::*;
 pub mod instructions;
 use instructions::*;
 
-declare_id!("A2jB85khktUWWKVnuoGs2EffLF3ekEJCaM14cmHBztVa");
+declare_id!("88PtLphWetTTc5jQqCs2Ao6N12pGWG1sRqEyMjmg2c3e");
 
 #[error_code]
 pub enum StableError {

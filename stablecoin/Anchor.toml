@@ -6,14 +6,25 @@ resolution = true
 skip-lint = false
 
 [programs.localnet]
-stablecoin = "88PtLphWetTTc5jQqCs2Ao6N12pGWG1sRqEyMjmg2c3e"
+klend_tester = "7rvaTYkLd65u2NzGyhTsDgQV5NtFQJfEieWvX2dM3Hfm"
+stablecoin = "A2jB85khktUWWKVnuoGs2EffLF3ekEJCaM14cmHBztVa"
 
 [registry]
 url = "https://api.apr.dev"
 
 [provider]
 cluster = "localnet"
-wallet = "~/.config/solana/id.json"
+wallet = "~/Documents/evil-twitter/opinions-market/.secrets/assFUvBMqjyWvtRLEbWXuN84T4UdTihCjfzC8JaXtrh.json"
 
 [scripts]
-test = "cargo test"
+test = "cargo test -p klend-tester --tests -- --nocapture"
+
+[test]
+startup_wait = 5000
+shutdown_wait = 2000
+upgradeable = false
+
+[[test.genesis]]
+address = "KLend2g3cP87fffoy8q1mQqGKjrxjC8boSyAYavgmjD"
+program = "so/klend.so"
+upgradeable = true
