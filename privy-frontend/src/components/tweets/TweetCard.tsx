@@ -53,6 +53,7 @@ export function TweetCard({
     const timeAgo = formatDistanceToNow(new Date(tweet.createdAt), { addSuffix: true });
     const author = tweet.author;
     const [timeLeft, setTimeLeft] = useState<string>("");
+    const [isExpired, setIsExpired] = useState<boolean>(false);
     const currentUserId = user?.id;
     const { settlePost, loading: settleLoading } = useSettlePost();
     const { fetchTimeline } = useTweetStore();
@@ -77,6 +78,7 @@ export function TweetCard({
     useEffect(() => {
         if (!tweet.postState || tweet.postState.state !== "Open" || !tweet.postState.endTime) {
             setTimeLeft("");
+            setIsExpired(false);
             return;
         }
 
@@ -84,6 +86,9 @@ export function TweetCard({
             const now = Math.floor(Date.now() / 1000);
             const endTime = tweet.postState!.endTime!;
             const secondsLeft = endTime - now;
+
+            // Update expired state
+            setIsExpired(secondsLeft <= 0);
 
             if (secondsLeft <= 0) {
                 setTimeLeft("Ended");
@@ -128,9 +133,10 @@ export function TweetCard({
                 borderRadius: 0,
                 borderBottom: 1,
                 borderColor: "rgba(255,255,255,0.06)",
+                bgcolor: "background.paper",
                 cursor: clickable ? "pointer" : "default",
                 "&:hover": {
-                    bgcolor: clickable ? "rgba(255,255,255,0.05)" : "transparent",
+                    bgcolor: clickable ? "rgba(255,255,255,0.05)" : "background.paper",
                 },
                 transition: "background-color 0.2s",
             }}
@@ -299,11 +305,12 @@ export function TweetCard({
                                             color="primary"
                                             startIcon={settleLoading ? <CircularProgress size={14} /> : <SettleIcon />}
                                             onClick={handleSettlePost}
-                                            disabled={settleLoading}
+                                            disabled={settleLoading || !isExpired}
                                             sx={{
                                                 ml: "auto",
                                                 minWidth: 120,
                                                 fontSize: "0.75rem",
+                                                opacity: !isExpired ? 0.5 : 1,
                                             }}
                                         >
                                             {settleLoading ? "Settling..." : "Settle Post"}

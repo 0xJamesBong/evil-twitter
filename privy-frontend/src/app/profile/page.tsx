@@ -1,5 +1,6 @@
 "use client";
 
+import "@/theme/types"; // Import type declarations
 import { usePrivy } from "@privy-io/react-auth";
 import {
     Box,
@@ -507,7 +508,7 @@ function ProfileContent() {
                                             sx={{
                                                 fontFamily: "monospace",
                                                 wordBreak: "break-all",
-                                                bgcolor: "grey.100",
+                                                bgcolor: "background.paper",
                                                 p: 1,
                                                 borderRadius: 1,
                                             }}

@@ -1,5 +1,6 @@
 "use client";
 
+import "@/theme/types"; // Import type declarations
 import { usePrivy } from "@privy-io/react-auth";
 import {
     Box,
@@ -132,7 +133,7 @@ function TestContent() {
                                     variant="outlined"
                                     sx={{
                                         p: 2,
-                                        bgcolor: "grey.50",
+                                        bgcolor: "background.paper",
                                         maxHeight: 384,
                                         overflow: "auto",
                                     }}
@@ -179,7 +180,7 @@ function TestContent() {
                                     variant="outlined"
                                     sx={{
                                         p: 2,
-                                        bgcolor: "grey.50",
+                                        bgcolor: "background.paper",
                                         maxHeight: 384,
                                         overflow: "auto",
                                     }}
