@@ -15,13 +15,13 @@ use crate::{app_state::AppState, graphql::user::types::UserNode, utils::auth};
 // ============================================================================
 
 #[derive(InputObject)]
-pub struct RegisterSessionInput {
+pub struct RenewSessionInput {
     // Backend generates session key (payer pubkey), so only signature is needed
     pub session_signature: String,
 }
 
 #[derive(SimpleObject)]
-pub struct RegisterSessionPayload {
+pub struct RenewSessionPayload {
     pub session: SessionInfo,
 }
 
@@ -43,13 +43,13 @@ impl UserMutation {
         create_onchain_user_resolver(ctx).await
     }
 
-    /// Renew or register a delegated session
-    async fn register_session(
+    /// Renew a delegated session (user must already have an on-chain account)
+    async fn renew_session(
         &self,
         ctx: &Context<'_>,
-        input: RegisterSessionInput,
-    ) -> Result<RegisterSessionPayload> {
-        register_session_resolver(ctx, input).await
+        input: RenewSessionInput,
+    ) -> Result<RenewSessionPayload> {
+        renew_session_resolver(ctx, input).await
     }
 
     /// Update user profile (handle, displayName, bio, avatarUrl)
@@ -80,6 +80,9 @@ impl UserMutation {
 pub struct OnboardUserInput {
     // Session registration - backend generates session key (payer pubkey)
     pub session_signature: String, // base58/base64/hex-encoded 64 bytes signature
+    // Optional profile fields - can be set during onboarding
+    pub handle: Option<String>,
+    pub display_name: Option<String>,
 }
 
 #[derive(InputObject)]
@@ -298,26 +301,7 @@ pub async fn onboard_user_resolver(
     let wallet_pubkey = Pubkey::from_str(&user.wallet)
         .map_err(|e| async_graphql::Error::new(format!("Invalid wallet pubkey: {}", e)))?;
 
-    // Ensure on-chain user exists
-    let onchain_user = app_state
-        .solana_service
-        .get_user_account(&wallet_pubkey)
-        .await
-        .map_err(|e| async_graphql::Error::new(format!("Failed to check on-chain user: {}", e)))?;
-
-    if onchain_user.is_none() {
-        eprintln!("onboard_user: On-chain user does not exist, creating...");
-        app_state
-            .solana_service
-            .create_user(wallet_pubkey)
-            .await
-            .map_err(|e| {
-                async_graphql::Error::new(format!("Failed to create on-chain user: {}", e))
-            })?;
-        eprintln!("onboard_user: On-chain user created successfully");
-    }
-
-    // Register session - backend generates session key
+    // Backend generates session key
     // The session key is the backend's session key (for now same as payer, but will be different in production)
     let session_key = app_state.solana_service.session_key_pubkey();
 
@@ -327,12 +311,14 @@ pub async fn onboard_user_resolver(
 
     let signature_bytes = parse_signature_bytes(&input.session_signature)?;
 
-    eprintln!("onboard_user: Registering session...");
+    // Chain all 3 instructions in one transaction: create_user + ed25519_verify + register_session
+    eprintln!("onboard_user: Creating user account and registering session in one transaction...");
     app_state
         .solana_service
-        .register_session(wallet_pubkey, session_key, signature_bytes, message_bytes)
+        .onboard_user_with_session(wallet_pubkey, session_key, signature_bytes, message_bytes)
         .await
-        .map_err(|e| async_graphql::Error::new(format!("Failed to register session: {}", e)))?;
+        .map_err(|e| async_graphql::Error::new(format!("Failed to onboard user: {}", e)))?;
+    eprintln!("onboard_user: User onboarded successfully!");
 
     // Derive session authority PDA and calculate expires_at
     let program_id = app_state.solana_service.opinions_market_program().id();
@@ -351,13 +337,123 @@ pub async fn onboard_user_resolver(
         user_wallet: user.wallet.clone(),
     };
 
+    // Create/update profile if handle and display_name are provided
+    if let (Some(handle), Some(display_name)) = (&input.handle, &input.display_name) {
+        eprintln!(
+            "onboard_user: Creating/updating profile with handle: {}, display_name: {}",
+            handle, display_name
+        );
+
+        // Check if handle is taken by another user
+        let existing_profile = app_state
+            .mongo_service
+            .profiles
+            .get_profile_by_user_id(&privy_id)
+            .await?;
+
+        if let Some(mut existing) = existing_profile {
+            // Update existing profile
+            if existing.handle != *handle {
+                if app_state
+                    .mongo_service
+                    .profiles
+                    .handle_exists(handle)
+                    .await?
+                {
+                    eprintln!("onboard_user: Handle {} is already taken", handle);
+                    // Don't fail onboarding if handle is taken, just skip profile update
+                } else {
+                    existing.handle = handle.clone();
+                    existing.display_name = display_name.clone();
+                    app_state
+                        .mongo_service
+                        .profiles
+                        .update_profile(&existing)
+                        .await
+                        .map_err(|e| {
+                            eprintln!("onboard_user: Failed to update profile: {:?}", e);
+                            e
+                        })?;
+                }
+            } else {
+                existing.display_name = display_name.clone();
+                app_state
+                    .mongo_service
+                    .profiles
+                    .update_profile(&existing)
+                    .await
+                    .map_err(|e| {
+                        eprintln!("onboard_user: Failed to update profile: {:?}", e);
+                        e
+                    })?;
+            }
+        } else {
+            // Create new profile
+            if app_state
+                .mongo_service
+                .profiles
+                .handle_exists(handle)
+                .await?
+            {
+                eprintln!(
+                    "onboard_user: Handle {} is already taken, skipping profile creation",
+                    handle
+                );
+                // Don't fail onboarding if handle is taken
+            } else {
+                use crate::models::profile::Profile;
+                use mongodb::bson::DateTime;
+                use mongodb::bson::oid::ObjectId;
+
+                let now = DateTime::now();
+                let profile = Profile {
+                    id: Some(ObjectId::new()),
+                    user_id: privy_id.clone(),
+                    handle: handle.clone(),
+                    display_name: display_name.clone(),
+                    bio: None,
+                    avatar_url: None,
+                    status: crate::models::profile::ProfileStatus::Active,
+                    created_at: now,
+                };
+
+                app_state
+                    .mongo_service
+                    .profiles
+                    .create_profile(profile)
+                    .await
+                    .map_err(|e| {
+                        eprintln!("onboard_user: Failed to create profile: {:?}", e);
+                        e
+                    })?;
+            }
+        }
+        eprintln!("onboard_user: Profile created/updated successfully");
+    }
+
+    // Fetch updated user with profile
+    let updated_user = app_state
+        .mongo_service
+        .users
+        .get_user_by_privy_id(&privy_id)
+        .await?
+        .ok_or_else(|| async_graphql::Error::new("User not found after onboarding"))?;
+
     Ok(OnboardUserPayload {
-        user: UserNode::from(user),
+        user: UserNode::from(updated_user),
         session: Some(session_info),
     })
 }
 
-/// Create on-chain user account (ops/debug only)
+/// [DEPRECATED] Create on-chain user account (ops/debug only)
+///
+/// This mutation is deprecated. Use `onboardUser` mutation instead, which:
+/// - Creates the user in MongoDB
+/// - Creates the on-chain user account
+/// - Registers a session key
+/// - Creates/updates the user profile
+///
+/// This mutation only creates the on-chain account and should only be used for debugging/ops purposes.
 pub async fn create_onchain_user_resolver(ctx: &Context<'_>) -> Result<UserCreatePayload> {
     let app_state = ctx.data::<Arc<AppState>>()?;
     let headers = ctx
@@ -410,11 +506,11 @@ pub async fn create_onchain_user_resolver(ctx: &Context<'_>) -> Result<UserCreat
     })
 }
 
-/// Register or renew a session for a user
-pub async fn register_session_resolver(
+/// Renew a session for a user (user must already have an on-chain account)
+pub async fn renew_session_resolver(
     ctx: &Context<'_>,
-    input: RegisterSessionInput,
-) -> Result<RegisterSessionPayload> {
+    input: RenewSessionInput,
+) -> Result<RenewSessionPayload> {
     let app_state = ctx.data::<Arc<AppState>>()?;
     let headers = ctx
         .data::<HeaderMap>()
@@ -453,12 +549,12 @@ pub async fn register_session_resolver(
     // Parse signature (format conversion only - verification happens on-chain)
     let signature_bytes = parse_signature_bytes(&input.session_signature)?;
 
-    // Register session on-chain (SolanaService creates ed25519 instruction, program verifies)
+    // Renew session on-chain (SolanaService creates ed25519 instruction, program verifies)
     app_state
         .solana_service
-        .register_session(wallet_pubkey, session_key, signature_bytes, message_bytes)
+        .renew_session(wallet_pubkey, session_key, signature_bytes, message_bytes)
         .await
-        .map_err(|e| async_graphql::Error::new(format!("Failed to register session: {}", e)))?;
+        .map_err(|e| async_graphql::Error::new(format!("Failed to renew session: {}", e)))?;
 
     // Derive session authority PDA and calculate expires_at
     let program_id = app_state.solana_service.opinions_market_program().id();
@@ -470,7 +566,7 @@ pub async fn register_session_resolver(
         .as_secs() as i64
         + (60 * 60 * 24 * 30); // 30 days
 
-    Ok(RegisterSessionPayload {
+    Ok(RenewSessionPayload {
         session: SessionInfo {
             session_authority_pda: session_authority_pda.to_string(),
             session_key: session_key.to_string(),

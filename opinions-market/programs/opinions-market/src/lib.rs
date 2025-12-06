@@ -265,22 +265,27 @@ pub mod opinions_market {
             now,
         )?;
 
+        let relation = match parent_post_pda {
+            Some(parent_pda) => PostRelation::Reply { parent: parent_pda },
+            None => PostRelation::Root,
+        };
         let config = &ctx.accounts.config;
         let post = &mut ctx.accounts.post;
         let new_post = PostAccount::new(
             ctx.accounts.user.key(),
             post_id_hash,
-            match parent_post_pda {
-                Some(parent_pda) => PostType::Child { parent: parent_pda },
-                None => PostType::Original,
-            },
+            PostFunction::Normal,
+            relation,
             now,
             config,
+            ctx.bumps.post,
         );
 
         post.creator_user = new_post.creator_user;
         post.post_id_hash = new_post.post_id_hash;
-        post.post_type = new_post.post_type;
+        post.function = new_post.function;
+        post.relation = new_post.relation;
+        post.forced_outcome = new_post.forced_outcome;
         post.start_time = new_post.start_time;
         post.end_time = new_post.end_time;
         post.state = new_post.state;

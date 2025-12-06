@@ -1,4 +1,4 @@
-import { TweetNode } from "./types";
+import { TweetNode, PostStateNode } from "./types";
 
 export const TWEET_CREATE_MUTATION = `
   mutation TweetCreate($input: TweetCreateInput!) {
@@ -295,5 +295,65 @@ export interface TweetVoteResult {
     smackCount: number;
     likedByViewer: boolean;
     energy: number;
+  };
+}
+
+export const CLAIM_POST_REWARD_MUTATION = `
+  mutation ClaimPostReward($input: ClaimRewardInput!) {
+    claimPostReward(input: $input) {
+      signature
+      amount
+    }
+  }
+`;
+
+export interface ClaimRewardInput {
+  tweetId: string;
+  tokenMint: string;
+}
+
+export interface ClaimRewardResult {
+  claimPostReward: {
+    signature: string;
+    amount: string;
+  };
+}
+
+export const SETTLE_POST_MUTATION = `
+  mutation SettlePost($input: SettlePostInput!) {
+    settlePost(input: $input) {
+      signature
+      postState {
+        state
+        upvotes
+        downvotes
+        winningSide
+        endTime
+        potBalances {
+          bling
+          usdc
+          stablecoin
+        }
+        payoutInfo {
+          frozen
+          creatorFee
+          protocolFee
+          motherFee
+          totalPayout
+        }
+      }
+    }
+  }
+`;
+
+export interface SettlePostInput {
+  tweetId: string;
+  // tokenMint removed - backend now loops through all tokens automatically
+}
+
+export interface SettlePostResult {
+  settlePost: {
+    signature: string;
+    postState?: PostStateNode | null;
   };
 }

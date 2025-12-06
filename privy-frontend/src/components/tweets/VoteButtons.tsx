@@ -1,7 +1,8 @@
 "use client";
 
 import { useState } from "react";
-import { Button, Stack, Typography, Box, Chip } from "@mui/material";
+import { Button, Stack, Typography, Box, Chip, Tooltip } from "@mui/material";
+import "@/theme/types"; // Import type declarations
 import { useIdentityToken } from "@privy-io/react-auth";
 import { useSnackbar } from "notistack";
 import { useTweetStore } from "../../lib/stores/tweetStore";
@@ -95,63 +96,70 @@ export function VoteButtons({ tweet: tweetProp }: VoteButtonsProps) {
                         display: "inline-block",
                     }}
                 >
-                    <Button
-                        variant="contained"
-                        color="success"
-                        onClick={(e) => {
-                            e.stopPropagation();
-                            handleVote("pump");
-                        }}
-                        disabled={!isOpen}
-                        sx={{
-                            borderRadius: 1,
-                            px: 2,
-                            py: 1,
-                            position: "relative",
-                            overflow: "hidden",
-                            bgcolor: pumpAnimation ? "#4CAF50" : undefined,
-                            transform: pumpAnimation ? "scale(1.1)" : "scale(1)",
-                            transition: "all 0.3s cubic-bezier(0.4, 0, 0.2, 1)",
-                            boxShadow: pumpAnimation
-                                ? "0 0 20px rgba(76, 175, 80, 0.6), 0 4px 8px rgba(0, 0, 0, 0.2)"
-                                : "none",
-                            "&:hover": {
-                                bgcolor: "#4CAF50",
-                                transform: "scale(1.05)",
-                            },
-                            "&:active": {
-                                transform: "scale(0.95)",
-                            },
-                            "&:disabled": {
-                                opacity: 0.5,
-                                cursor: "not-allowed",
-                            },
-                        }}
+                    <Tooltip
+                        title={
+                            <Stack spacing={0.5}>
+                                <Typography variant="caption">
+                                    {userUpvotes > 0 ? `Your votes: ${userUpvotes}` : "You haven't voted yet"}
+                                </Typography>
+                                <Typography variant="caption">
+                                    Total votes: {globalUpvotes.toLocaleString()}
+                                </Typography>
+                            </Stack>
+                        }
+                        arrow
                     >
-                        {pumpAnimation && (
-                            <Box
-                                sx={{
-                                    position: "absolute",
-                                    top: "50%",
-                                    left: "50%",
-                                    transform: "translate(-50%, -50%)",
-                                    width: "100%",
-                                    height: "100%",
-                                    background: "radial-gradient(circle, rgba(255,255,255,0.4) 0%, transparent 70%)",
-                                    animation: "bling 0.6s ease-out",
-                                    pointerEvents: "none",
-                                }}
-                            />
-                        )}
-                        <Stack direction="column" spacing={0} alignItems="center" sx={{ position: "relative", zIndex: 1 }}>
-                            <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                        <Button
+                            variant={"pump" as any}
+                            onClick={(e) => {
+                                e.stopPropagation();
+                                handleVote("pump");
+                            }}
+                            disabled={!isOpen}
+                            sx={{
+                                px: 2,
+                                py: 1,
+                                minWidth: 120,
+                                width: 120,
+                                position: "relative",
+                                overflow: "hidden",
+                                transform: pumpAnimation ? "scale(1.1)" : "scale(1)",
+                                transition: "all 0.3s cubic-bezier(0.4, 0, 0.2, 1)",
+                                boxShadow: pumpAnimation
+                                    ? "0 0 20px rgba(43,227,139,0.6), 0 4px 8px rgba(0, 0, 0, 0.2)"
+                                    : undefined,
+                                "&:hover": {
+                                    transform: "scale(1.05)",
+                                },
+                                "&:active": {
+                                    transform: "scale(0.95)",
+                                },
+                                "&:disabled": {
+                                    opacity: 0.5,
+                                    cursor: "not-allowed",
+                                },
+                            }}
+                        >
+                            {pumpAnimation && (
+                                <Box
+                                    sx={{
+                                        position: "absolute",
+                                        top: "50%",
+                                        left: "50%",
+                                        transform: "translate(-50%, -50%)",
+                                        width: "100%",
+                                        height: "100%",
+                                        background: "radial-gradient(circle, rgba(255,255,255,0.4) 0%, transparent 70%)",
+                                        animation: "bling 0.6s ease-out",
+                                        pointerEvents: "none",
+                                    }}
+                                />
+                            )}
+                            <Typography variant="body2" sx={{ fontWeight: 600, position: "relative", zIndex: 1 }}>
                                 Pump
                             </Typography>
-                            <Typography variant="caption" sx={{ fontSize: "0.7rem", opacity: 0.9 }}>
-                                {userUpvotes > 0 ? `You: ${userUpvotes} | ` : ""}Total: {globalUpvotes.toLocaleString()}
-                            </Typography>
-                        </Stack>
-                    </Button>
+                        </Button>
+                    </Tooltip>
                 </Box>
                 <Box
                     sx={{
@@ -159,63 +167,70 @@ export function VoteButtons({ tweet: tweetProp }: VoteButtonsProps) {
                         display: "inline-block",
                     }}
                 >
-                    <Button
-                        variant="contained"
-                        color="error"
-                        onClick={(e) => {
-                            e.stopPropagation();
-                            handleVote("smack");
-                        }}
-                        disabled={!isOpen}
-                        sx={{
-                            borderRadius: 1,
-                            px: 2,
-                            py: 1,
-                            position: "relative",
-                            overflow: "hidden",
-                            bgcolor: smackAnimation ? "#F44336" : undefined,
-                            transform: smackAnimation ? "scale(1.1)" : "scale(1)",
-                            transition: "all 0.3s cubic-bezier(0.4, 0, 0.2, 1)",
-                            boxShadow: smackAnimation
-                                ? "0 0 20px rgba(244, 67, 54, 0.6), 0 4px 8px rgba(0, 0, 0, 0.2)"
-                                : "none",
-                            "&:hover": {
-                                bgcolor: "#F44336",
-                                transform: "scale(1.05)",
-                            },
-                            "&:active": {
-                                transform: "scale(0.95)",
-                            },
-                            "&:disabled": {
-                                opacity: 0.5,
-                                cursor: "not-allowed",
-                            },
-                        }}
+                    <Tooltip
+                        title={
+                            <Stack spacing={0.5}>
+                                <Typography variant="caption">
+                                    {userDownvotes > 0 ? `Your votes: ${userDownvotes}` : "You haven't voted yet"}
+                                </Typography>
+                                <Typography variant="caption">
+                                    Total votes: {globalDownvotes.toLocaleString()}
+                                </Typography>
+                            </Stack>
+                        }
+                        arrow
                     >
-                        {smackAnimation && (
-                            <Box
-                                sx={{
-                                    position: "absolute",
-                                    top: "50%",
-                                    left: "50%",
-                                    transform: "translate(-50%, -50%)",
-                                    width: "100%",
-                                    height: "100%",
-                                    background: "radial-gradient(circle, rgba(255,255,255,0.4) 0%, transparent 70%)",
-                                    animation: "bling 0.6s ease-out",
-                                    pointerEvents: "none",
-                                }}
-                            />
-                        )}
-                        <Stack direction="column" spacing={0} alignItems="center" sx={{ position: "relative", zIndex: 1 }}>
-                            <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                        <Button
+                            variant={"smack" as any}
+                            onClick={(e) => {
+                                e.stopPropagation();
+                                handleVote("smack");
+                            }}
+                            disabled={!isOpen}
+                            sx={{
+                                px: 2,
+                                py: 1,
+                                minWidth: 120,
+                                width: 120,
+                                position: "relative",
+                                overflow: "hidden",
+                                transform: smackAnimation ? "scale(1.1)" : "scale(1)",
+                                transition: "all 0.3s cubic-bezier(0.4, 0, 0.2, 1)",
+                                boxShadow: smackAnimation
+                                    ? "0 0 20px rgba(255,71,108,0.6), 0 4px 8px rgba(0, 0, 0, 0.2)"
+                                    : undefined,
+                                "&:hover": {
+                                    transform: "scale(1.05)",
+                                },
+                                "&:active": {
+                                    transform: "scale(0.95)",
+                                },
+                                "&:disabled": {
+                                    opacity: 0.5,
+                                    cursor: "not-allowed",
+                                },
+                            }}
+                        >
+                            {smackAnimation && (
+                                <Box
+                                    sx={{
+                                        position: "absolute",
+                                        top: "50%",
+                                        left: "50%",
+                                        transform: "translate(-50%, -50%)",
+                                        width: "100%",
+                                        height: "100%",
+                                        background: "radial-gradient(circle, rgba(255,255,255,0.4) 0%, transparent 70%)",
+                                        animation: "bling 0.6s ease-out",
+                                        pointerEvents: "none",
+                                    }}
+                                />
+                            )}
+                            <Typography variant="body2" sx={{ fontWeight: 600, position: "relative", zIndex: 1 }}>
                                 Smack
                             </Typography>
-                            <Typography variant="caption" sx={{ fontSize: "0.7rem", opacity: 0.9 }}>
-                                {userDownvotes > 0 ? `You: ${userDownvotes} | ` : ""}Total: {globalDownvotes.toLocaleString()}
-                            </Typography>
-                        </Stack>
-                    </Button>
+                        </Button>
+                    </Tooltip>
                 </Box>
             </Stack>
             {postState && (

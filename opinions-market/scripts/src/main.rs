@@ -103,9 +103,9 @@ async fn main() {
     )
     .0;
 
-    let base_duration_secs = 24 * 3600; // 1 day
-    let max_duration_secs = 7 * 24 * 3600; // 7 days
-    let extension_per_vote_secs = 60; // 1min
+    let base_duration_secs = 60 * 5; // 5 minutes
+    let max_duration_secs = 24 * 3600; // 1 day
+    let extension_per_vote_secs = 10; // 10 seconds
 
     // --- INITIALIZE PROGRAM ---
     let initialize_ix = opinions_market

@@ -42,7 +42,7 @@ export function LeftSidebar() {
                 width: 280,
                 height: "100%",
                 borderRight: 1,
-                borderColor: "grey.200",
+                borderColor: "rgba(255,255,255,0.06)",
                 borderRadius: 0,
                 display: "flex",
                 flexDirection: "column",
@@ -60,11 +60,14 @@ export function LeftSidebar() {
                                     sx={{
                                         borderRadius: 2,
                                         "&.Mui-selected": {
-                                            bgcolor: "primary.50",
+                                            bgcolor: (theme) => theme.palette.bg?.elevated || theme.palette.action.selected,
                                             color: "primary.main",
                                             "&:hover": {
-                                                bgcolor: "primary.100",
+                                                bgcolor: (theme) => theme.palette.bg?.elevated || theme.palette.action.selected,
                                             },
+                                        },
+                                        "&:hover": {
+                                            bgcolor: (theme) => theme.palette.bg?.surface2 || theme.palette.action.hover,
                                         },
                                     }}
                                 >
@@ -90,7 +93,7 @@ export function LeftSidebar() {
             </Box>
 
             {authenticated && (
-                <Box sx={{ p: 2, borderTop: 1, borderColor: "grey.200" }}>
+                <Box sx={{ p: 2, borderTop: 1, borderColor: "rgba(255,255,255,0.06)" }}>
                     <Button
                         fullWidth
                         variant="outlined"
