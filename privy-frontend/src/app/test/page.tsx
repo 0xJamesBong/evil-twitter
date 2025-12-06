@@ -74,7 +74,7 @@ function TestContent() {
 
                 <Stack spacing={2}>
                     {/* Backend Connection Test */}
-                    <Card>
+                    <Card sx={{ bgcolor: "background.paper" }}>
                         <CardContent>
                             <Typography variant="h6" gutterBottom>
                                 Backend Connection Test
@@ -115,7 +115,7 @@ function TestContent() {
                     </Card>
 
                     {/* User Data Display */}
-                    <Card>
+                    <Card sx={{ bgcolor: "background.paper" }}>
                         <CardContent>
                             <Typography variant="h6" gutterBottom>
                                 User Data
@@ -146,6 +146,7 @@ function TestContent() {
                                             wordBreak: "break-word",
                                             fontFamily: "monospace",
                                             m: 0,
+                                            color: "text.primary",
                                         }}
                                     >
                                         {privyUser
@@ -193,6 +194,7 @@ function TestContent() {
                                             wordBreak: "break-word",
                                             fontFamily: "monospace",
                                             m: 0,
+                                            color: "text.primary",
                                         }}
                                     >
                                         {backendUser
