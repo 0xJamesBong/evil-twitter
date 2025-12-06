@@ -2916,6 +2916,11 @@ export type OpinionsMarket = {
       "code": 6016,
       "name": "unauthorizedSigner",
       "msg": "Unauthorized signer"
+    },
+    {
+      "code": 6017,
+      "name": "invalidRelation",
+      "msg": "Invalid post relation"
     }
   ],
   "types": [
@@ -2968,10 +2973,53 @@ export type OpinionsMarket = {
       }
     },
     {
+      "name": "forcedOutcome",
+      "docs": [
+        "Forced settlement outcome for Answers"
+      ],
+      "type": {
+        "kind": "enum",
+        "variants": [
+          {
+            "name": "pump"
+          },
+          {
+            "name": "smack"
+          }
+        ]
+      }
+    },
+    {
       "name": "postAccount",
       "type": {
         "kind": "struct",
         "fields": [
+          {
+            "name": "function",
+            "type": {
+              "defined": {
+                "name": "postFunction"
+              }
+            }
+          },
+          {
+            "name": "relation",
+            "type": {
+              "defined": {
+                "name": "postRelation"
+              }
+            }
+          },
+          {
+            "name": "forcedOutcome",
+            "type": {
+              "option": {
+                "defined": {
+                  "name": "forcedOutcome"
+                }
+              }
+            }
+          },
           {
             "name": "creatorUser",
             "type": "pubkey"
@@ -2983,14 +3031,6 @@ export type OpinionsMarket = {
                 "u8",
                 32
               ]
-            }
-          },
-          {
-            "name": "postType",
-            "type": {
-              "defined": {
-                "name": "postType"
-              }
             }
           },
           {
@@ -3010,14 +3050,6 @@ export type OpinionsMarket = {
             }
           },
           {
-            "name": "upvotes",
-            "type": "u64"
-          },
-          {
-            "name": "downvotes",
-            "type": "u64"
-          },
-          {
             "name": "winningSide",
             "type": {
               "option": {
@@ -3026,6 +3058,47 @@ export type OpinionsMarket = {
                 }
               }
             }
+          },
+          {
+            "name": "upvotes",
+            "type": "u64"
+          },
+          {
+            "name": "downvotes",
+            "type": "u64"
+          },
+          {
+            "name": "bump",
+            "type": "u8"
+          },
+          {
+            "name": "reserved",
+            "docs": [
+              "padding to prevent future breakage"
+            ],
+            "type": {
+              "array": [
+                "u8",
+                32
+              ]
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "postFunction",
+      "type": {
+        "kind": "enum",
+        "variants": [
+          {
+            "name": "normal"
+          },
+          {
+            "name": "question"
+          },
+          {
+            "name": "answer"
           }
         ]
       }
@@ -3079,6 +3152,44 @@ export type OpinionsMarket = {
       }
     },
     {
+      "name": "postRelation",
+      "type": {
+        "kind": "enum",
+        "variants": [
+          {
+            "name": "root"
+          },
+          {
+            "name": "reply",
+            "fields": [
+              {
+                "name": "parent",
+                "type": "pubkey"
+              }
+            ]
+          },
+          {
+            "name": "quote",
+            "fields": [
+              {
+                "name": "quoted",
+                "type": "pubkey"
+              }
+            ]
+          },
+          {
+            "name": "answerTo",
+            "fields": [
+              {
+                "name": "question",
+                "type": "pubkey"
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
       "name": "postState",
       "type": {
         "kind": "enum",
@@ -3088,26 +3199,6 @@ export type OpinionsMarket = {
           },
           {
             "name": "settled"
-          }
-        ]
-      }
-    },
-    {
-      "name": "postType",
-      "type": {
-        "kind": "enum",
-        "variants": [
-          {
-            "name": "original"
-          },
-          {
-            "name": "child",
-            "fields": [
-              {
-                "name": "parent",
-                "type": "pubkey"
-              }
-            ]
           }
         ]
       }

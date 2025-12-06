@@ -1218,22 +1218,24 @@ impl SolanaService {
         // This means we must always pass accounts derived from the CURRENT post, not the parent post,
         // to satisfy the seed constraint checks.
         let (parent_post_pda, parent_post_pot_token_account_pda, parent_post_pot_authority_pda) =
-            match post_account.post_type {
-                opinions_market::state::PostType::Child { parent } => {
+            match &post_account.relation {
+                opinions_market::state::PostRelation::Reply { parent }
+                | opinions_market::state::PostRelation::Quote { quoted: parent }
+                | opinions_market::state::PostRelation::AnswerTo { question: parent } => {
                     // BUG WORKAROUND: Derive from current post (post_pda) not parent
                     // The program's seeds use post.key() so we must match that
                     let parent_pot_token_account =
                         get_post_pot_token_account_pda(&program_id, &post_pda, token_mint);
                     let parent_pot_authority = get_post_pot_authority_pda(&program_id, &post_pda);
                     (
-                        Some(parent),                     // Pass actual parent PDA for program logic
+                        Some(*parent),                    // Pass actual parent PDA for program logic
                         Some(parent_pot_token_account.0), // But derive token account from current post
                         parent_pot_authority.0,           // And derive authority from current post
                     )
                 }
-                opinions_market::state::PostType::Original => {
-                    // For original posts, pass current post's accounts to satisfy constraint
-                    // The program won't use them since it checks post_type == Original first
+                opinions_market::state::PostRelation::Root => {
+                    // For root posts, pass current post's accounts to satisfy constraint
+                    // The program won't use them since it checks relation == Root first
                     (
                         None,
                         Some(post_pot_token_account_pda),
@@ -1444,18 +1446,20 @@ impl SolanaService {
             .map_err(|e| anyhow::anyhow!("Failed to fetch post account: {}", e))?;
 
         let (parent_post_pda, parent_post_pot_token_account_pda, parent_post_pot_authority_pda) =
-            match post_account.post_type {
-                opinions_market::state::PostType::Child { parent } => {
+            match &post_account.relation {
+                opinions_market::state::PostRelation::Reply { parent }
+                | opinions_market::state::PostRelation::Quote { quoted: parent }
+                | opinions_market::state::PostRelation::AnswerTo { question: parent } => {
                     let parent_pot_token_account =
-                        get_post_pot_token_account_pda(&program_id, &parent, token_mint);
-                    let parent_pot_authority = get_post_pot_authority_pda(&program_id, &parent);
+                        get_post_pot_token_account_pda(&program_id, parent, token_mint);
+                    let parent_pot_authority = get_post_pot_authority_pda(&program_id, parent);
                     (
-                        Some(parent),
+                        Some(*parent),
                         Some(parent_pot_token_account.0),
                         Some(parent_pot_authority.0),
                     )
                 }
-                opinions_market::state::PostType::Original => {
+                opinions_market::state::PostRelation::Root => {
                     return Err(anyhow::anyhow!(
                         "Post is not a child post, cannot distribute to parent"
                     ));
@@ -1527,22 +1531,24 @@ impl SolanaService {
         // This means we must always pass accounts derived from the CURRENT post, not the parent post,
         // to satisfy the seed constraint checks.
         let (parent_post_pda, parent_post_pot_token_account_pda, parent_post_pot_authority_pda) =
-            match post_account.post_type {
-                opinions_market::state::PostType::Child { parent } => {
+            match &post_account.relation {
+                opinions_market::state::PostRelation::Reply { parent }
+                | opinions_market::state::PostRelation::Quote { quoted: parent }
+                | opinions_market::state::PostRelation::AnswerTo { question: parent } => {
                     // BUG WORKAROUND: Derive from current post (post_pda) not parent
                     // The program's seeds use post.key() so we must match that
                     let parent_pot_token_account =
                         get_post_pot_token_account_pda(&program_id, &post_pda, token_mint);
                     let parent_pot_authority = get_post_pot_authority_pda(&program_id, &post_pda);
                     (
-                        Some(parent),                     // Pass actual parent PDA for program logic
+                        Some(*parent),                    // Pass actual parent PDA for program logic
                         Some(parent_pot_token_account.0), // But derive token account from current post
                         parent_pot_authority.0,           // And derive authority from current post
                     )
                 }
-                opinions_market::state::PostType::Original => {
-                    // For original posts, pass current post's accounts to satisfy constraint
-                    // The program won't use them since it checks post_type == Original first
+                opinions_market::state::PostRelation::Root => {
+                    // For root posts, pass current post's accounts to satisfy constraint
+                    // The program won't use them since it checks relation == Root first
                     (
                         None,
                         Some(post_pot_token_account_pda),
@@ -1690,18 +1696,20 @@ impl SolanaService {
             .map_err(|e| anyhow::anyhow!("Failed to fetch post account: {}", e))?;
 
         let (parent_post_pda, parent_post_pot_token_account_pda, parent_post_pot_authority_pda) =
-            match post_account.post_type {
-                opinions_market::state::PostType::Child { parent } => {
+            match &post_account.relation {
+                opinions_market::state::PostRelation::Reply { parent }
+                | opinions_market::state::PostRelation::Quote { quoted: parent }
+                | opinions_market::state::PostRelation::AnswerTo { question: parent } => {
                     let parent_pot_token_account =
-                        get_post_pot_token_account_pda(&program_id, &parent, token_mint);
-                    let parent_pot_authority = get_post_pot_authority_pda(&program_id, &parent);
+                        get_post_pot_token_account_pda(&program_id, parent, token_mint);
+                    let parent_pot_authority = get_post_pot_authority_pda(&program_id, parent);
                     (
-                        Some(parent),
+                        Some(*parent),
                         Some(parent_pot_token_account.0),
                         Some(parent_pot_authority.0),
                     )
                 }
-                opinions_market::state::PostType::Original => {
+                opinions_market::state::PostRelation::Root => {
                     // Not a child post, return None
                     return Ok(None);
                 }
