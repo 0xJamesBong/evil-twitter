@@ -6,6 +6,7 @@ use std::time::{SystemTime, UNIX_EPOCH};
 
 use hex;
 use opinions_market::state::Side;
+use solana_sdk::pubkey::Pubkey;
 use std::sync::Arc;
 
 use crate::{
@@ -53,6 +54,24 @@ pub struct TweetVoteInput {
     pub token_mint: Option<String>, // Optional, defaults to BLING
 }
 
+#[derive(InputObject)]
+pub struct SettlePostInput {
+    pub tweet_id: ID,
+    pub token_mint: String, // Token mint pubkey as string
+}
+
+#[derive(InputObject)]
+pub struct DistributeRewardInput {
+    pub tweet_id: ID,
+    pub token_mint: String, // Token mint pubkey as string
+}
+
+#[derive(InputObject)]
+pub struct ClaimRewardInput {
+    pub tweet_id: ID,
+    pub token_mint: String, // Token mint pubkey as string
+}
+
 // ============================================================================
 // Payload Types
 // ============================================================================
@@ -87,6 +106,23 @@ pub struct TweetSmackPayload {
     pub energy: f64,
     pub tokens_charged: i64,
     pub tokens_paid_to_author: i64,
+}
+
+#[derive(SimpleObject)]
+pub struct SettlePostPayload {
+    pub signature: String,
+    pub post_state: Option<crate::graphql::tweet::types::PostStateNode>,
+}
+
+#[derive(SimpleObject)]
+pub struct DistributeRewardPayload {
+    pub signature: String,
+}
+
+#[derive(SimpleObject)]
+pub struct ClaimRewardPayload {
+    pub signature: String,
+    pub amount: String, // Amount claimed as string (in token units)
 }
 
 // ============================================================================
@@ -169,6 +205,51 @@ impl TweetMutation {
         input: TweetVoteInput,
     ) -> Result<TweetMetricsPayload> {
         tweet_vote_resolver(ctx, input).await
+    }
+
+    /// Settle a post for a specific token mint (freezes math, no transfers)
+    async fn settle_post(
+        &self,
+        ctx: &Context<'_>,
+        input: SettlePostInput,
+    ) -> Result<SettlePostPayload> {
+        settle_post_resolver(ctx, input).await
+    }
+
+    /// Distribute creator reward from frozen settlement
+    async fn distribute_creator_reward(
+        &self,
+        ctx: &Context<'_>,
+        input: DistributeRewardInput,
+    ) -> Result<DistributeRewardPayload> {
+        distribute_creator_reward_resolver(ctx, input).await
+    }
+
+    /// Distribute protocol fee from frozen settlement
+    async fn distribute_protocol_fee(
+        &self,
+        ctx: &Context<'_>,
+        input: DistributeRewardInput,
+    ) -> Result<DistributeRewardPayload> {
+        distribute_protocol_fee_resolver(ctx, input).await
+    }
+
+    /// Distribute parent post share from frozen settlement
+    async fn distribute_parent_post_share(
+        &self,
+        ctx: &Context<'_>,
+        input: DistributeRewardInput,
+    ) -> Result<DistributeRewardPayload> {
+        distribute_parent_post_share_resolver(ctx, input).await
+    }
+
+    /// Claim voter reward for a settled post
+    async fn claim_post_reward(
+        &self,
+        ctx: &Context<'_>,
+        input: ClaimRewardInput,
+    ) -> Result<ClaimRewardPayload> {
+        claim_post_reward_resolver(ctx, input).await
     }
 }
 
@@ -549,5 +630,283 @@ pub async fn tweet_vote_resolver(
         smack_count: tweet.metrics.smacks,
         liked_by_viewer: tweet.viewer_context.is_liked,
         energy: tweet.energy_state.energy,
+    })
+}
+
+/// Settle a post for a specific token mint
+pub async fn settle_post_resolver(
+    ctx: &Context<'_>,
+    input: SettlePostInput,
+) -> Result<SettlePostPayload> {
+    let app_state = ctx.data::<Arc<AppState>>()?;
+
+    // Get tweet to extract post_id_hash
+    let tweet_id = parse_object_id(&input.tweet_id)?;
+    let tweet = app_state
+        .mongo_service
+        .tweets
+        .get_tweet_by_id(tweet_id)
+        .await?
+        .ok_or_else(|| async_graphql::Error::new("Tweet not found"))?;
+
+    let post_id_hash_hex = tweet
+        .post_id_hash
+        .ok_or_else(|| async_graphql::Error::new("Tweet does not have a post_id_hash"))?;
+
+    // Parse post_id_hash from hex to [u8; 32]
+    let post_id_hash_bytes = hex::decode(&post_id_hash_hex)
+        .map_err(|e| async_graphql::Error::new(format!("Invalid post_id_hash: {}", e)))?;
+
+    if post_id_hash_bytes.len() != 32 {
+        return Err(async_graphql::Error::new("post_id_hash must be 32 bytes"));
+    }
+
+    let mut post_id_hash = [0u8; 32];
+    post_id_hash.copy_from_slice(&post_id_hash_bytes);
+
+    // Parse token_mint
+    let token_mint = Pubkey::from_str(&input.token_mint)
+        .map_err(|e| async_graphql::Error::new(format!("Invalid token_mint: {}", e)))?;
+
+    // Call settle_post_for_mint
+    let signature = app_state
+        .solana_service
+        .settle_post_for_mint(post_id_hash, &token_mint)
+        .await
+        .map_err(|e| async_graphql::Error::new(format!("Failed to settle post: {}", e)))?;
+
+    // Fetch updated post state by creating a new TweetNode
+    let tweet_after = app_state
+        .mongo_service
+        .tweets
+        .get_tweet_by_id(tweet_id)
+        .await?
+        .ok_or_else(|| async_graphql::Error::new("Tweet not found after settlement"))?;
+
+    let enriched = app_state
+        .mongo_service
+        .tweets
+        .enrich_tweets(vec![tweet_after])
+        .await?;
+
+    let tweet_node = enriched.into_iter().next().map(TweetNode::from);
+
+    // Get post state through the resolver (it's a GraphQL field, not a direct method)
+    // We'll return None for now and let the client refetch if needed
+    let post_state = None;
+
+    Ok(SettlePostPayload {
+        signature: signature.to_string(),
+        post_state,
+    })
+}
+
+/// Distribute creator reward
+pub async fn distribute_creator_reward_resolver(
+    ctx: &Context<'_>,
+    input: DistributeRewardInput,
+) -> Result<DistributeRewardPayload> {
+    let app_state = ctx.data::<Arc<AppState>>()?;
+
+    let tweet_id = parse_object_id(&input.tweet_id)?;
+    let tweet = app_state
+        .mongo_service
+        .tweets
+        .get_tweet_by_id(tweet_id)
+        .await?
+        .ok_or_else(|| async_graphql::Error::new("Tweet not found"))?;
+
+    let post_id_hash_hex = tweet
+        .post_id_hash
+        .ok_or_else(|| async_graphql::Error::new("Tweet does not have a post_id_hash"))?;
+
+    let post_id_hash_bytes = hex::decode(&post_id_hash_hex)
+        .map_err(|e| async_graphql::Error::new(format!("Invalid post_id_hash: {}", e)))?;
+
+    if post_id_hash_bytes.len() != 32 {
+        return Err(async_graphql::Error::new("post_id_hash must be 32 bytes"));
+    }
+
+    let mut post_id_hash = [0u8; 32];
+    post_id_hash.copy_from_slice(&post_id_hash_bytes);
+
+    let token_mint = Pubkey::from_str(&input.token_mint)
+        .map_err(|e| async_graphql::Error::new(format!("Invalid token_mint: {}", e)))?;
+
+    let signature = app_state
+        .solana_service
+        .distribute_creator_reward(post_id_hash, &token_mint)
+        .await
+        .map_err(|e| {
+            async_graphql::Error::new(format!("Failed to distribute creator reward: {}", e))
+        })?;
+
+    Ok(DistributeRewardPayload {
+        signature: signature.to_string(),
+    })
+}
+
+/// Distribute protocol fee
+pub async fn distribute_protocol_fee_resolver(
+    ctx: &Context<'_>,
+    input: DistributeRewardInput,
+) -> Result<DistributeRewardPayload> {
+    let app_state = ctx.data::<Arc<AppState>>()?;
+
+    let tweet_id = parse_object_id(&input.tweet_id)?;
+    let tweet = app_state
+        .mongo_service
+        .tweets
+        .get_tweet_by_id(tweet_id)
+        .await?
+        .ok_or_else(|| async_graphql::Error::new("Tweet not found"))?;
+
+    let post_id_hash_hex = tweet
+        .post_id_hash
+        .ok_or_else(|| async_graphql::Error::new("Tweet does not have a post_id_hash"))?;
+
+    let post_id_hash_bytes = hex::decode(&post_id_hash_hex)
+        .map_err(|e| async_graphql::Error::new(format!("Invalid post_id_hash: {}", e)))?;
+
+    if post_id_hash_bytes.len() != 32 {
+        return Err(async_graphql::Error::new("post_id_hash must be 32 bytes"));
+    }
+
+    let mut post_id_hash = [0u8; 32];
+    post_id_hash.copy_from_slice(&post_id_hash_bytes);
+
+    let token_mint = Pubkey::from_str(&input.token_mint)
+        .map_err(|e| async_graphql::Error::new(format!("Invalid token_mint: {}", e)))?;
+
+    let signature = app_state
+        .solana_service
+        .distribute_protocol_fee(post_id_hash, &token_mint)
+        .await
+        .map_err(|e| {
+            async_graphql::Error::new(format!("Failed to distribute protocol fee: {}", e))
+        })?;
+
+    Ok(DistributeRewardPayload {
+        signature: signature.to_string(),
+    })
+}
+
+/// Distribute parent post share
+pub async fn distribute_parent_post_share_resolver(
+    ctx: &Context<'_>,
+    input: DistributeRewardInput,
+) -> Result<DistributeRewardPayload> {
+    let app_state = ctx.data::<Arc<AppState>>()?;
+
+    let tweet_id = parse_object_id(&input.tweet_id)?;
+    let tweet = app_state
+        .mongo_service
+        .tweets
+        .get_tweet_by_id(tweet_id)
+        .await?
+        .ok_or_else(|| async_graphql::Error::new("Tweet not found"))?;
+
+    let post_id_hash_hex = tweet
+        .post_id_hash
+        .ok_or_else(|| async_graphql::Error::new("Tweet does not have a post_id_hash"))?;
+
+    let post_id_hash_bytes = hex::decode(&post_id_hash_hex)
+        .map_err(|e| async_graphql::Error::new(format!("Invalid post_id_hash: {}", e)))?;
+
+    if post_id_hash_bytes.len() != 32 {
+        return Err(async_graphql::Error::new("post_id_hash must be 32 bytes"));
+    }
+
+    let mut post_id_hash = [0u8; 32];
+    post_id_hash.copy_from_slice(&post_id_hash_bytes);
+
+    let token_mint = Pubkey::from_str(&input.token_mint)
+        .map_err(|e| async_graphql::Error::new(format!("Invalid token_mint: {}", e)))?;
+
+    let signature = app_state
+        .solana_service
+        .distribute_parent_post_share(post_id_hash, &token_mint)
+        .await
+        .map_err(|e| {
+            async_graphql::Error::new(format!("Failed to distribute parent post share: {}", e))
+        })?;
+
+    Ok(DistributeRewardPayload {
+        signature: signature.to_string(),
+    })
+}
+
+/// Claim voter reward
+pub async fn claim_post_reward_resolver(
+    ctx: &Context<'_>,
+    input: ClaimRewardInput,
+) -> Result<ClaimRewardPayload> {
+    let app_state = ctx.data::<Arc<AppState>>()?;
+    let user = get_authenticated_user_from_ctx(ctx).await?;
+
+    let tweet_id = parse_object_id(&input.tweet_id)?;
+    let tweet = app_state
+        .mongo_service
+        .tweets
+        .get_tweet_by_id(tweet_id)
+        .await?
+        .ok_or_else(|| async_graphql::Error::new("Tweet not found"))?;
+
+    let post_id_hash_hex = tweet
+        .post_id_hash
+        .ok_or_else(|| async_graphql::Error::new("Tweet does not have a post_id_hash"))?;
+
+    let post_id_hash_bytes = hex::decode(&post_id_hash_hex)
+        .map_err(|e| async_graphql::Error::new(format!("Invalid post_id_hash: {}", e)))?;
+
+    if post_id_hash_bytes.len() != 32 {
+        return Err(async_graphql::Error::new("post_id_hash must be 32 bytes"));
+    }
+
+    let mut post_id_hash = [0u8; 32];
+    post_id_hash.copy_from_slice(&post_id_hash_bytes);
+
+    let token_mint = Pubkey::from_str(&input.token_mint)
+        .map_err(|e| async_graphql::Error::new(format!("Invalid token_mint: {}", e)))?;
+
+    let user_wallet = Pubkey::from_str(&user.wallet)
+        .map_err(|e| async_graphql::Error::new(format!("Invalid user wallet: {}", e)))?;
+
+    // Check claimable amount first
+    let claimable_amount = app_state
+        .solana_service
+        .get_claimable_reward(&user_wallet, &post_id_hash, &token_mint)
+        .await
+        .map_err(|e| {
+            async_graphql::Error::new(format!("Failed to check claimable reward: {}", e))
+        })?;
+
+    let claimable_amount = claimable_amount
+        .ok_or_else(|| async_graphql::Error::new("No reward available to claim"))?;
+
+    // Get token decimals for formatting (default to 9 for BLING, 6 for USDC/stablecoin)
+    // We'll use a reasonable default since get_token_decimals is private
+    let token_decimals = if &token_mint == app_state.solana_service.get_bling_mint() {
+        9
+    } else {
+        6 // Default for USDC and stablecoin
+    };
+
+    // Format amount as string
+    let amount_string = format!(
+        "{}",
+        claimable_amount as f64 / 10_f64.powi(token_decimals as i32)
+    );
+
+    // Call claim_post_reward on-chain (uses session authority, backend signs)
+    let signature = app_state
+        .solana_service
+        .claim_post_reward(&user_wallet, post_id_hash, &token_mint)
+        .await
+        .map_err(|e| async_graphql::Error::new(format!("Failed to claim reward: {}", e)))?;
+
+    Ok(ClaimRewardPayload {
+        signature: signature.to_string(),
+        amount: amount_string,
     })
 }

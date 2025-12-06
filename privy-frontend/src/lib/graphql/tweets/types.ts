@@ -42,6 +42,14 @@ export interface UserVotes {
   downvotes: number;
 }
 
+export interface PostMintPayoutNode {
+  frozen: boolean;
+  creatorFee: string;
+  protocolFee: string;
+  motherFee: string;
+  totalPayout: string;
+}
+
 export interface PostStateNode {
   state: string;
   upvotes: number;
@@ -50,6 +58,7 @@ export interface PostStateNode {
   endTime: number;
   potBalances?: PostPotBalances | null;
   userVotes?: UserVotes | null;
+  payoutInfo?: PostMintPayoutNode | null;
 }
 
 export interface TweetNode {

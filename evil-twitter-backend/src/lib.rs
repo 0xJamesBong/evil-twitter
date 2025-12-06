@@ -13,14 +13,13 @@ pub mod utils;
 use crate::app_state::AppState;
 use crate::graphql::graphql_routes;
 
-use axum::{Router, routing::{get, post}};
+use axum::{Router, routing::get};
 use std::sync::Arc;
 use tower_http::cors::CorsLayer;
 use utoipa_swagger_ui::SwaggerUi;
 
 use crate::routes::{
     ping::ping_handler,
-    session::{create_user, register_session},
 };
 
 /// API documentation
@@ -63,8 +62,6 @@ pub async fn app(app_state: Arc<AppState>) -> Router {
         .split_for_parts();
 
     let app = app
-        .route("/api/user/createUser", post(create_user))
-        .route("/api/session/register", post(register_session))
         .with_state(app_state.clone())
         .merge(graphql_routes)
         .merge(SwaggerUi::new("/doc").url("/api-docs/openapi.json", api))

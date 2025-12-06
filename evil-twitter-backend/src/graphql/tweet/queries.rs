@@ -1,10 +1,12 @@
 use async_graphql::{Context, ID, Object, Result};
 use mongodb::bson::oid::ObjectId;
-
+use solana_sdk::pubkey::Pubkey;
+use std::str::FromStr;
 use std::sync::Arc;
 
 use crate::app_state::AppState;
 use crate::graphql::tweet::types::{TweetConnection, TweetEdge, TweetNode, TweetThreadNode};
+use crate::models::user::User;
 
 // Helper functions
 fn parse_object_id(id: &ID) -> Result<ObjectId> {
@@ -38,6 +40,14 @@ impl TweetQuery {
         #[graphql(default = "")] _after: String,
     ) -> Result<TweetConnection> {
         timeline_resolver(ctx, first, _after).await
+    }
+
+    /// Get all claimable rewards for the authenticated user
+    async fn claimable_rewards(
+        &self,
+        ctx: &Context<'_>,
+    ) -> Result<Vec<crate::graphql::tweet::types::ClaimableRewardNode>> {
+        claimable_rewards_resolver(ctx).await
     }
 }
 
@@ -111,4 +121,45 @@ pub async fn timeline_resolver(
         edges: edges.clone(),
         total_count: edges.len() as i64,
     })
+}
+
+/// Get all claimable rewards for the authenticated user
+pub async fn claimable_rewards_resolver(
+    ctx: &Context<'_>,
+) -> Result<Vec<crate::graphql::tweet::types::ClaimableRewardNode>> {
+    use crate::graphql::tweet::types::ClaimableRewardNode;
+    use axum::http::HeaderMap;
+
+    let app_state = ctx.data::<Arc<AppState>>()?;
+    let headers = ctx
+        .data::<HeaderMap>()
+        .map_err(|_| async_graphql::Error::new("Failed to get headers from context"))?;
+
+    let user = crate::utils::auth::get_authenticated_user(
+        &app_state.mongo_service,
+        &app_state.privy_service,
+        headers,
+    )
+    .await
+    .map_err(|(status, json)| {
+        let error_msg = json
+            .0
+            .get("error")
+            .and_then(|v| v.as_str())
+            .unwrap_or("Authentication failed");
+        async_graphql::Error::new(format!("{} (status {})", error_msg, status))
+    })?;
+
+    let _user_wallet = Pubkey::from_str(&user.wallet)
+        .map_err(|e| async_graphql::Error::new(format!("Invalid user wallet: {}", e)))?;
+
+    // For now, return empty vector - this would require scanning all posts
+    // In a production system, you'd want to:
+    // 1. Get all posts user has voted on
+    // 2. Filter to settled posts
+    // 3. Check claimable rewards for each
+    // This is expensive, so we'll implement a simpler version that checks specific posts
+    // when requested from the frontend
+
+    Ok(vec![])
 }

@@ -365,10 +365,52 @@ impl TweetNode {
             None
         };
 
+        // Fetch payout info if post is settled
+        let payout_info = if let Some(ref state) = post_state {
+            if state.state == "Settled" {
+                // Parse post_id_hash
+                if let Ok(post_id_hash_bytes) = hex::decode(post_id_hash) {
+                    if post_id_hash_bytes.len() == 32 {
+                        let mut post_id_hash_array = [0u8; 32];
+                        post_id_hash_array.copy_from_slice(&post_id_hash_bytes);
+
+                        // Get BLING mint (default token for payout info)
+                        let bling_mint = *app_state.solana_service.get_bling_mint();
+
+                        // Fetch payout account
+                        if let Ok(Some(payout)) = app_state
+                            .solana_service
+                            .get_post_mint_payout(&post_id_hash_array, &bling_mint)
+                            .await
+                        {
+                            Some(PostMintPayoutNode {
+                                frozen: payout.frozen,
+                                creator_fee: payout.creator_fee.to_string(),
+                                protocol_fee: payout.protocol_fee.to_string(),
+                                mother_fee: payout.mother_fee.to_string(),
+                                total_payout: payout.total_payout.to_string(),
+                            })
+                        } else {
+                            None
+                        }
+                    } else {
+                        None
+                    }
+                } else {
+                    None
+                }
+            } else {
+                None
+            }
+        } else {
+            None
+        };
+
         Ok(post_state.map(|state| {
             let mut node = PostStateNode::from(state);
             node.pot_balances = pot_balances;
             node.user_votes = user_votes;
+            node.payout_info = payout_info;
             node
         }))
     }
@@ -426,6 +468,8 @@ pub struct PostStateNode {
     pub pot_balances: Option<PostPotBalances>,
     /// User's vote counts for this post (None if not authenticated or hasn't voted)
     pub user_votes: Option<UserVotes>,
+    /// Payout information if post is settled
+    pub payout_info: Option<PostMintPayoutNode>,
 }
 
 #[derive(SimpleObject, Clone)]
@@ -444,8 +488,22 @@ impl From<PostState> for PostStateNode {
             end_time: state.end_time,
             pot_balances: None, // Will be populated by resolver
             user_votes: None,   // Will be populated by resolver if user is authenticated
+            payout_info: None,  // Will be populated by resolver if post is settled
         }
     }
+}
+
+// ============================================================================
+// Post Mint Payout Node
+// ============================================================================
+
+#[derive(SimpleObject, Clone)]
+pub struct PostMintPayoutNode {
+    pub frozen: bool,
+    pub creator_fee: String,
+    pub protocol_fee: String,
+    pub mother_fee: String,
+    pub total_payout: String,
 }
 
 // ============================================================================
@@ -538,4 +596,17 @@ impl TweetThreadNode {
     async fn replies(&self) -> &Vec<TweetNode> {
         &self.replies
     }
+}
+
+// ============================================================================
+// Claimable Reward Node
+// ============================================================================
+
+#[derive(SimpleObject, Clone)]
+pub struct ClaimableRewardNode {
+    pub tweet_id: ID,
+    pub post_id_hash: String,
+    pub token_mint: String,
+    pub amount: String,      // Amount as string (in token units)
+    pub reward_type: String, // "creator" or "voter"
 }

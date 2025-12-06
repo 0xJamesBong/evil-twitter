@@ -124,7 +124,9 @@ export function useRenewSession() {
       throw new Error(msg);
     } finally {
       setLoading(false);
-      console.log("🏁 useRenewSession: Flow completed, loading set to false");
+      console.log(
+        "🏁 useRenewSession: Flow completed, loading set to false"
+      );
     }
   };
 
