@@ -47,7 +47,7 @@ pub fn sign_message_for_session_registration(
 
 pub fn create_ed25519_instruction_for_session(user: &Keypair, session_key: &Pubkey) -> Instruction {
     // Get the signature and message (reuse existing function)
-    let (message, message_bytes, signature_bytes) =
+    let (_message, message_bytes, signature_bytes) =
         sign_message_for_session_registration(user, session_key);
 
     // Use the function that accepts signature bytes directly
@@ -64,7 +64,7 @@ pub async fn wait_for_post_to_expire(
     post_pda: &Pubkey,
 ) {
     let post_account = opinions_market
-        .account::<opinions_market::state::PostAccount>(*post_pda)
+        .account::<opinions_market::states::PostAccount>(*post_pda)
         .await
         .unwrap();
     let end = post_account.end_time;
@@ -84,7 +84,7 @@ pub async fn setup_token_mint(
     rpc: &RpcClient,
     payer: &Keypair,
     mint_authority: &Keypair,
-    program: &Program<&Keypair>,
+    _program: &Program<&Keypair>,
     token_mint: &Keypair,
     decimals: u8,
 ) -> Pubkey {

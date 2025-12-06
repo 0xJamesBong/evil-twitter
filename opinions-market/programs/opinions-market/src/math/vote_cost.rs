@@ -1,5 +1,5 @@
 use crate::constants::{MAX_VOTE_COUNT_CAP, PARAMS, SMACK_TO_PUMP_PRICE_RATIO};
-use crate::state::{PostRelation, Side, UserAccount};
+use crate::states::{PostRelation, Side, UserAccount};
 use crate::ErrorCode;
 use anchor_lang::prelude::*;
 

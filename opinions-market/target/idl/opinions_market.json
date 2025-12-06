@@ -3617,8 +3617,73 @@
             "type": "i64"
           },
           {
+            "name": "attack_surface",
+            "type": {
+              "defined": {
+                "name": "UserAccountAttackSurface"
+              }
+            }
+          },
+          {
             "name": "bump",
             "type": "u8"
+          }
+        ]
+      }
+    },
+    {
+      "name": "UserAccountAttackSurface",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "enabled",
+            "type": "bool"
+          },
+          {
+            "name": "surface_1",
+            "type": "i16"
+          },
+          {
+            "name": "surface_2",
+            "type": "i16"
+          },
+          {
+            "name": "surface_3",
+            "type": "i16"
+          },
+          {
+            "name": "surface_4",
+            "type": "i16"
+          },
+          {
+            "name": "surface_5",
+            "type": "i16"
+          },
+          {
+            "name": "surface_6",
+            "type": "i16"
+          },
+          {
+            "name": "surface_7",
+            "type": "i16"
+          },
+          {
+            "name": "surface_8",
+            "type": "i16"
+          },
+          {
+            "name": "surface_9",
+            "type": "i16"
+          },
+          {
+            "name": "padding",
+            "type": {
+              "array": [
+                "u8",
+                31
+              ]
+            }
           }
         ]
       }

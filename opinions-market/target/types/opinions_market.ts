@@ -3623,8 +3623,73 @@ export type OpinionsMarket = {
             "type": "i64"
           },
           {
+            "name": "attackSurface",
+            "type": {
+              "defined": {
+                "name": "userAccountAttackSurface"
+              }
+            }
+          },
+          {
             "name": "bump",
             "type": "u8"
+          }
+        ]
+      }
+    },
+    {
+      "name": "userAccountAttackSurface",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "enabled",
+            "type": "bool"
+          },
+          {
+            "name": "surface1",
+            "type": "i16"
+          },
+          {
+            "name": "surface2",
+            "type": "i16"
+          },
+          {
+            "name": "surface3",
+            "type": "i16"
+          },
+          {
+            "name": "surface4",
+            "type": "i16"
+          },
+          {
+            "name": "surface5",
+            "type": "i16"
+          },
+          {
+            "name": "surface6",
+            "type": "i16"
+          },
+          {
+            "name": "surface7",
+            "type": "i16"
+          },
+          {
+            "name": "surface8",
+            "type": "i16"
+          },
+          {
+            "name": "surface9",
+            "type": "i16"
+          },
+          {
+            "name": "padding",
+            "type": {
+              "array": [
+                "u8",
+                31
+              ]
+            }
           }
         ]
       }

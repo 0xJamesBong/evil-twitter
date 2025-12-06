@@ -6,7 +6,6 @@ use anchor_client::{
 use anchor_client::solana_sdk::{pubkey::Pubkey, signature::read_keypair_file};
 
 use anchor_spl::token::spl_token;
-use solana_program_test::ProgramTest;
 use solana_sdk::{
     native_token::LAMPORTS_PER_SOL,
     signature::{Keypair, Signer},
@@ -20,8 +19,7 @@ use crate::utils::phenomena::{
     test_phenomena_vote_on_post, test_phenomena_withdraw,
 };
 use crate::utils::utils::{
-    airdrop_sol_to_users, send_tx, setup_token_mint, setup_token_mint_ata_and_mint_to,
-    setup_token_mint_ata_and_mint_to_many_users, wait_for_post_to_expire,
+    airdrop_sol_to_users, send_tx, setup_token_mint, setup_token_mint_ata_and_mint_to_many_users,
 };
 use opinions_market::constants::USDC_LAMPORTS_PER_USDC;
 use opinions_market::pda_seeds::*;
@@ -413,7 +411,7 @@ async fn test_setup() {
                 &user_2,
                 &session_key,
                 &post_p1_pda,
-                opinions_market::state::Side::Pump,
+                opinions_market::states::Side::Pump,
                 1,
                 &bling_pubkey,
                 &bling_atas,
@@ -431,7 +429,7 @@ async fn test_setup() {
                 &user_1,
                 &session_key,
                 &post_p2_pda,
-                opinions_market::state::Side::Smack,
+                opinions_market::states::Side::Smack,
                 2,
                 &bling_pubkey,
                 &bling_atas,
@@ -449,7 +447,7 @@ async fn test_setup() {
                 &user_1,
                 &session_key,
                 &post_p2_pda,
-                opinions_market::state::Side::Smack,
+                opinions_market::states::Side::Smack,
                 1,
                 &bling_pubkey,
                 &bling_atas,
@@ -469,7 +467,7 @@ async fn test_setup() {
                 &user_1,
                 &session_key,
                 &post_p2_pda,
-                opinions_market::state::Side::Smack,
+                opinions_market::states::Side::Smack,
                 1,
                 &bling_pubkey,
                 &bling_atas,
@@ -489,7 +487,7 @@ async fn test_setup() {
                 &user_1,
                 &session_key,
                 &post_p2_pda,
-                opinions_market::state::Side::Pump,
+                opinions_market::states::Side::Pump,
                 1,
                 &usdc_pubkey,
                 &bling_atas,
@@ -509,7 +507,7 @@ async fn test_setup() {
                 &user_1,
                 &session_key,
                 &post_p2_pda,
-                opinions_market::state::Side::Pump,
+                opinions_market::states::Side::Pump,
                 1,
                 &stablecoin_pubkey,
                 &stablecoin_atas,
@@ -583,7 +581,7 @@ async fn test_setup() {
                 &user_2,
                 &session_key,
                 &question_post_pda,
-                opinions_market::state::Side::Pump,
+                opinions_market::states::Side::Pump,
                 1,
                 &bling_pubkey,
                 &bling_atas,
@@ -599,7 +597,7 @@ async fn test_setup() {
                 &user_2,
                 &session_key,
                 &answer_post_pda,
-                opinions_market::state::Side::Pump,
+                opinions_market::states::Side::Pump,
                 1,
                 &bling_pubkey,
                 &bling_atas,

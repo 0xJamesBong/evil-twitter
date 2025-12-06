@@ -3,7 +3,7 @@ use anchor_lang::require;
 use anchor_lang::solana_program;
 use anchor_lang::solana_program::sysvar::instructions::load_instruction_at_checked;
 
-use crate::state::SessionAuthority;
+use crate::states::SessionAuthority;
 
 pub fn validate_session_signature<'info>(
     user: &Pubkey,
