@@ -14,7 +14,8 @@ use solana_sdk::{
 
 use crate::config::TIME_CONFIG_FAST;
 use crate::utils::phenomena::{
-    test_phenomena_add_valid_payment, test_phenomena_claim_post_reward, test_phenomena_create_post,
+    test_phenomena_add_valid_payment, test_phenomena_claim_post_reward,
+    test_phenomena_create_answer, test_phenomena_create_post, test_phenomena_create_question,
     test_phenomena_create_user, test_phenomena_deposit, test_phenomena_settle_post,
     test_phenomena_vote_on_post, test_phenomena_withdraw,
 };
@@ -548,6 +549,64 @@ async fn test_setup() {
             )
             .await;
         }
+
+        {
+            // question
+            println!("user 1 creating a question post Q1");
+            let (question_post_pda, question_post_id_hash) = test_phenomena_create_question(
+                &rpc,
+                &opinions_market,
+                &payer,
+                &user_1,
+                &session_key,
+                &config_pda,
+            )
+            .await;
+
+            let (answer_post_pda, answer_post_id_hash) = test_phenomena_create_answer(
+                &rpc,
+                &opinions_market,
+                &payer,
+                &user_1,
+                &session_key,
+                &config_pda,
+                question_post_pda,
+                question_post_id_hash,
+            )
+            .await;
+
+            println!("user 2 upvoting user 1's question post Q1");
+            test_phenomena_vote_on_post(
+                &rpc,
+                &opinions_market,
+                &payer,
+                &user_2,
+                &session_key,
+                &question_post_pda,
+                opinions_market::state::Side::Pump,
+                1,
+                &bling_pubkey,
+                &bling_atas,
+                &config_pda,
+            )
+            .await;
+
+            println!("user 2 upvoting user 1's answer post A1");
+            test_phenomena_vote_on_post(
+                &rpc,
+                &opinions_market,
+                &payer,
+                &user_2,
+                &session_key,
+                &answer_post_pda,
+                opinions_market::state::Side::Pump,
+                1,
+                &bling_pubkey,
+                &bling_atas,
+                &config_pda,
+            )
+            .await;
+        };
 
         // {
         //     println!("user 3 trying to make a post");

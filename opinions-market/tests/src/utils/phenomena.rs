@@ -488,32 +488,44 @@ pub async fn test_phenomena_create_post(
         "Post end_time should be after start_time"
     );
 
-    // Verify post type
+    // Verify post relation and function
     match parent_post_pda {
         Some(parent) => {
-            if let opinions_market::state::PostType::Child {
+            // Child posts should be Normal function with Reply relation
+            assert_eq!(
+                post_account.function,
+                opinions_market::state::PostFunction::Normal,
+                "Child post should have Normal function"
+            );
+            if let opinions_market::state::PostRelation::Reply {
                 parent: stored_parent,
-            } = post_account.post_type
+            } = &post_account.relation
             {
                 assert_eq!(
-                    stored_parent, parent,
+                    *stored_parent, parent,
                     "Child post parent PDA should match provided parent"
                 );
-                println!("✅ Post type is Child with correct parent");
+                println!("✅ Post relation is Reply with correct parent");
             } else {
                 panic!(
-                    "Post type mismatch: expected Child post but got {:?}",
-                    post_account.post_type
+                    "Post relation mismatch: expected Reply but got {:?}",
+                    post_account.relation
                 );
             }
         }
         None => {
+            // Root posts should be Normal function with Root relation
             assert_eq!(
-                post_account.post_type,
-                opinions_market::state::PostType::Original,
-                "Post type should be Original when no parent is provided"
+                post_account.function,
+                opinions_market::state::PostFunction::Normal,
+                "Root post should have Normal function"
             );
-            println!("✅ Post type is Original");
+            assert_eq!(
+                post_account.relation,
+                opinions_market::state::PostRelation::Root,
+                "Post relation should be Root when no parent is provided"
+            );
+            println!("✅ Post relation is Root");
         }
     }
 
@@ -533,6 +545,319 @@ pub async fn test_phenomena_create_post(
     println!("post_id_hash: {:?}", hex::encode(hash));
 
     (post_pda, hash)
+}
+
+pub async fn test_phenomena_create_question(
+    rpc: &RpcClient,
+    opinions_market: &Program<&Keypair>,
+    payer: &Keypair,
+    creator: &Keypair,
+    session_key: &Keypair,
+    config_pda: &Pubkey,
+) -> (Pubkey, [u8; 32]) {
+    println!("{:} creates a question", creator.pubkey());
+
+    // Generate a unique post_id_hash
+    let hash = crate::utils::utils::generate_post_id_hash();
+
+    let user_account_pda = Pubkey::find_program_address(
+        &[USER_ACCOUNT_SEED, creator.pubkey().as_ref()],
+        &opinions_market.id(),
+    )
+    .0;
+
+    let post_pda =
+        Pubkey::find_program_address(&[POST_ACCOUNT_SEED, hash.as_ref()], &opinions_market.id()).0;
+    let session_authority_pda = Pubkey::find_program_address(
+        &[
+            SESSION_AUTHORITY_SEED,
+            creator.pubkey().as_ref(),
+            session_key.pubkey().as_ref(),
+        ],
+        &opinions_market.id(),
+    )
+    .0;
+
+    let create_question_ix = opinions_market
+        .request()
+        .accounts(opinions_market::accounts::CreatePost {
+            config: *config_pda,
+            user: creator.pubkey(),
+            payer: payer.pubkey(),
+            session_key: session_key.pubkey(),
+            session_authority: session_authority_pda,
+            user_account: user_account_pda,
+            post: post_pda,
+            system_program: system_program::ID,
+        })
+        .args(opinions_market::instruction::CreateQuestion { post_id_hash: hash })
+        .instructions()
+        .unwrap();
+
+    // Both payer and creator (user) must sign
+    let create_question_tx = send_tx(&rpc, create_question_ix, &payer.pubkey(), &[&payer])
+        .await
+        .unwrap();
+    println!("create question tx: {:?}", create_question_tx);
+
+    // Verify question was created and all fields are correct
+    let post_account = opinions_market
+        .account::<opinions_market::state::PostAccount>(post_pda)
+        .await
+        .unwrap();
+
+    // Verify creator
+    assert_eq!(
+        post_account.creator_user,
+        creator.pubkey(),
+        "Question creator_user should match creator wallet"
+    );
+
+    // Verify post_id_hash
+    assert_eq!(
+        post_account.post_id_hash, hash,
+        "Question post_id_hash should match generated hash"
+    );
+
+    // Verify state is Open
+    assert_eq!(post_account.state, opinions_market::state::PostState::Open);
+    println!("✅ Question state is Open");
+
+    // Verify initial vote counts
+    assert_eq!(
+        post_account.upvotes, 0,
+        "New question should have 0 upvotes"
+    );
+    assert_eq!(
+        post_account.downvotes, 0,
+        "New question should have 0 downvotes"
+    );
+
+    // Verify winning_side is None for new question
+    assert_eq!(
+        post_account.winning_side, None,
+        "New question should not have a winning_side"
+    );
+    println!("✅ Question winning_side is None (correct for new question)");
+
+    // Verify timestamps are set correctly
+    assert!(
+        post_account.start_time > 0,
+        "Question start_time should be set to a valid timestamp"
+    );
+
+    let expected_end_time = post_account.start_time + (TIME_CONFIG_FAST.base_duration_secs) as i64;
+    assert_eq!(
+        post_account.end_time, expected_end_time,
+        "Question end_time should be start_time + {} seconds (base_duration_secs)",
+        TIME_CONFIG_FAST.base_duration_secs
+    );
+
+    assert!(
+        post_account.end_time > post_account.start_time,
+        "Question end_time should be after start_time"
+    );
+
+    // Verify question function and relation
+    assert_eq!(
+        post_account.function,
+        opinions_market::state::PostFunction::Question,
+        "Post should have Question function"
+    );
+    assert_eq!(
+        post_account.relation,
+        opinions_market::state::PostRelation::Root,
+        "Question relation should be Root"
+    );
+    println!("✅ Question function and relation verified");
+
+    // Verify forced_outcome is None
+    assert_eq!(
+        post_account.forced_outcome, None,
+        "New question should not have a forced_outcome"
+    );
+
+    println!("✅ Question created successfully with all fields verified");
+    println!("   - Creator: {}", post_account.creator_user);
+    println!("   - Function: Question");
+    println!("   - Relation: Root");
+    println!("   - State: Open");
+    println!("   - Start time: {}", post_account.start_time);
+    println!("   - End time: {}", post_account.end_time);
+    println!(
+        "   - Upvotes: {}, Downvotes: {}",
+        post_account.upvotes, post_account.downvotes
+    );
+    println!("question_pda: {}", post_pda);
+    println!("question_id_hash: {:?}", hex::encode(hash));
+
+    (post_pda, hash)
+}
+
+pub async fn test_phenomena_create_answer(
+    rpc: &RpcClient,
+    opinions_market: &Program<&Keypair>,
+    payer: &Keypair,
+    creator: &Keypair,
+    session_key: &Keypair,
+    config_pda: &Pubkey,
+    question_post_pda: Pubkey,
+    question_post_id_hash: [u8; 32],
+) -> (Pubkey, [u8; 32]) {
+    println!(
+        "{:} creates an answer to question {:}",
+        creator.pubkey(),
+        question_post_pda
+    );
+
+    // Generate a unique post_id_hash for the answer
+    let answer_hash = crate::utils::utils::generate_post_id_hash();
+
+    let user_account_pda = Pubkey::find_program_address(
+        &[USER_ACCOUNT_SEED, creator.pubkey().as_ref()],
+        &opinions_market.id(),
+    )
+    .0;
+
+    let answer_pda = Pubkey::find_program_address(
+        &[POST_ACCOUNT_SEED, answer_hash.as_ref()],
+        &opinions_market.id(),
+    )
+    .0;
+    let session_authority_pda = Pubkey::find_program_address(
+        &[
+            SESSION_AUTHORITY_SEED,
+            creator.pubkey().as_ref(),
+            session_key.pubkey().as_ref(),
+        ],
+        &opinions_market.id(),
+    )
+    .0;
+
+    let create_answer_ix = opinions_market
+        .request()
+        .accounts(opinions_market::accounts::CreateAnswer {
+            config: *config_pda,
+            user: creator.pubkey(),
+            payer: payer.pubkey(),
+            session_key: session_key.pubkey(),
+            session_authority: session_authority_pda,
+            user_account: user_account_pda,
+            post: answer_pda,
+            question_post: question_post_pda,
+            system_program: system_program::ID,
+        })
+        .args(opinions_market::instruction::CreateAnswer {
+            answer_post_id_hash: answer_hash,
+            _question_post_id_hash: question_post_id_hash,
+        })
+        .instructions()
+        .unwrap();
+
+    // Both payer and creator (user) must sign
+    let create_answer_tx = send_tx(&rpc, create_answer_ix, &payer.pubkey(), &[&payer])
+        .await
+        .unwrap();
+    println!("create answer tx: {:?}", create_answer_tx);
+
+    // Verify answer was created and all fields are correct
+    let post_account = opinions_market
+        .account::<opinions_market::state::PostAccount>(answer_pda)
+        .await
+        .unwrap();
+
+    // Verify creator
+    assert_eq!(
+        post_account.creator_user,
+        creator.pubkey(),
+        "Answer creator_user should match creator wallet"
+    );
+
+    // Verify post_id_hash
+    assert_eq!(
+        post_account.post_id_hash, answer_hash,
+        "Answer post_id_hash should match generated hash"
+    );
+
+    // Verify state is Open
+    assert_eq!(post_account.state, opinions_market::state::PostState::Open);
+    println!("✅ Answer state is Open");
+
+    // Verify initial vote counts
+    assert_eq!(post_account.upvotes, 0, "New answer should have 0 upvotes");
+    assert_eq!(
+        post_account.downvotes, 0,
+        "New answer should have 0 downvotes"
+    );
+
+    // Verify winning_side is None for new answer
+    assert_eq!(
+        post_account.winning_side, None,
+        "New answer should not have a winning_side"
+    );
+    println!("✅ Answer winning_side is None (correct for new answer)");
+
+    // Verify timestamps are set correctly
+    assert!(
+        post_account.start_time > 0,
+        "Answer start_time should be set to a valid timestamp"
+    );
+
+    let expected_end_time = post_account.start_time + (TIME_CONFIG_FAST.base_duration_secs) as i64;
+    assert_eq!(
+        post_account.end_time, expected_end_time,
+        "Answer end_time should be start_time + {} seconds (base_duration_secs)",
+        TIME_CONFIG_FAST.base_duration_secs
+    );
+
+    assert!(
+        post_account.end_time > post_account.start_time,
+        "Answer end_time should be after start_time"
+    );
+
+    // Verify answer function and relation
+    assert_eq!(
+        post_account.function,
+        opinions_market::state::PostFunction::Answer,
+        "Post should have Answer function"
+    );
+    if let opinions_market::state::PostRelation::AnswerTo {
+        question: stored_question,
+    } = &post_account.relation
+    {
+        assert_eq!(
+            *stored_question, question_post_pda,
+            "Answer question PDA should match provided question"
+        );
+        println!("✅ Answer relation is AnswerTo with correct question");
+    } else {
+        panic!(
+            "Answer relation mismatch: expected AnswerTo but got {:?}",
+            post_account.relation
+        );
+    }
+
+    // Verify forced_outcome is None (may be set later by question owner)
+    assert_eq!(
+        post_account.forced_outcome, None,
+        "New answer should not have a forced_outcome"
+    );
+
+    println!("✅ Answer created successfully with all fields verified");
+    println!("   - Creator: {}", post_account.creator_user);
+    println!("   - Function: Answer");
+    println!("   - Relation: AnswerTo({})", question_post_pda);
+    println!("   - State: Open");
+    println!("   - Start time: {}", post_account.start_time);
+    println!("   - End time: {}", post_account.end_time);
+    println!(
+        "   - Upvotes: {}, Downvotes: {}",
+        post_account.upvotes, post_account.downvotes
+    );
+    println!("answer_pda: {}", answer_pda);
+    println!("answer_id_hash: {:?}", hex::encode(answer_hash));
+
+    (answer_pda, answer_hash)
 }
 
 pub async fn test_phenomena_vote_on_post(
@@ -952,34 +1277,37 @@ pub async fn test_phenomena_settle_post(
         .0;
 
         // Handle parent post if this is a child post
-        let parent_post_pda = match post_account.post_type {
-            opinions_market::state::PostType::Child { parent } => Some(parent),
-            opinions_market::state::PostType::Original => None,
+        let parent_post_pda = match &post_account.relation {
+            opinions_market::state::PostRelation::Reply { parent } => Some(*parent),
+            opinions_market::state::PostRelation::Quote { quoted: parent } => Some(*parent),
+            opinions_market::state::PostRelation::AnswerTo { question: parent } => Some(*parent),
+            opinions_market::state::PostRelation::Root => None,
         };
 
         // Derive parent post pot accounts if this is a child post
-        let (parent_post_pot_token_account_pda, parent_post_pot_authority_pda) = if let Some(parent_pda) = parent_post_pda {
-            let parent_pot_token_account = Pubkey::find_program_address(
-                &[
-                    POST_POT_TOKEN_ACCOUNT_SEED,
-                    parent_pda.as_ref(),
-                    token_mint.as_ref(),
-                ],
-                &opinions_market.id(),
-            )
-            .0;
+        let (parent_post_pot_token_account_pda, parent_post_pot_authority_pda) =
+            if let Some(parent_pda) = parent_post_pda {
+                let parent_pot_token_account = Pubkey::find_program_address(
+                    &[
+                        POST_POT_TOKEN_ACCOUNT_SEED,
+                        parent_pda.as_ref(),
+                        token_mint.as_ref(),
+                    ],
+                    &opinions_market.id(),
+                )
+                .0;
 
-            let parent_pot_authority = Pubkey::find_program_address(
-                &[POST_POT_AUTHORITY_SEED, parent_pda.as_ref()],
-                &opinions_market.id(),
-            )
-            .0;
+                let parent_pot_authority = Pubkey::find_program_address(
+                    &[POST_POT_AUTHORITY_SEED, parent_pda.as_ref()],
+                    &opinions_market.id(),
+                )
+                .0;
 
-            (Some(parent_pot_token_account), parent_pot_authority)
-        } else {
-            // Use post_pot_authority as fallback when there's no parent (struct requires non-optional)
-            (None, post_pot_authority_pda)
-        };
+                (Some(parent_pot_token_account), parent_pot_authority)
+            } else {
+                // Use post_pot_authority as fallback when there's no parent (struct requires non-optional)
+                (None, post_pot_authority_pda)
+            };
 
         let settle_ix = opinions_market
             .request()
@@ -1020,7 +1348,7 @@ pub async fn test_phenomena_settle_post(
             opinions_market::state::PostState::Settled
         );
         println!("✅ Post state is Settled");
-        
+
         // Verify post_mint_payout was created and has payout info
         let payout_account = opinions_market
             .account::<opinions_market::state::PostMintPayout>(post_mint_payout_pda)
@@ -1029,7 +1357,10 @@ pub async fn test_phenomena_settle_post(
 
         assert_eq!(payout_account.post, *post_pda);
         assert_eq!(payout_account.token_mint, *token_mint);
-        assert!(payout_account.frozen, "Payout should be frozen after settlement");
+        assert!(
+            payout_account.frozen,
+            "Payout should be frozen after settlement"
+        );
 
         // Check if payout was stored in the payout account
         if settled_post.upvotes > settled_post.downvotes
@@ -1056,11 +1387,8 @@ pub async fn test_phenomena_settle_post(
 
         // 1. Distribute creator reward (if creator fee > 0)
         if payout_account.creator_fee > 0 {
-            let vault_authority_pda = Pubkey::find_program_address(
-                &[VAULT_AUTHORITY_SEED],
-                &opinions_market.id(),
-            )
-            .0;
+            let vault_authority_pda =
+                Pubkey::find_program_address(&[VAULT_AUTHORITY_SEED], &opinions_market.id()).0;
 
             let creator_vault_token_account_pda = Pubkey::find_program_address(
                 &[
@@ -1123,7 +1451,7 @@ pub async fn test_phenomena_settle_post(
         // 3. Distribute parent post share (if mother fee > 0 and it's a child post)
         if payout_account.mother_fee > 0 && parent_post_pda.is_some() {
             let parent_post_pda_unwrapped = parent_post_pda.unwrap();
-            
+
             let parent_post_pot_token_account_pda = Pubkey::find_program_address(
                 &[
                     POST_POT_TOKEN_ACCOUNT_SEED,

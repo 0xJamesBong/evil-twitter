@@ -306,6 +306,199 @@
       ]
     },
     {
+      "name": "create_answer",
+      "discriminator": [
+        40,
+        0,
+        255,
+        68,
+        75,
+        97,
+        185,
+        35
+      ],
+      "accounts": [
+        {
+          "name": "config",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  99,
+                  111,
+                  110,
+                  102,
+                  105,
+                  103
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "user",
+          "writable": true
+        },
+        {
+          "name": "payer",
+          "writable": true
+        },
+        {
+          "name": "session_key",
+          "writable": true
+        },
+        {
+          "name": "session_authority",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  115,
+                  101,
+                  115,
+                  115,
+                  105,
+                  111,
+                  110,
+                  95,
+                  97,
+                  117,
+                  116,
+                  104,
+                  111,
+                  114,
+                  105,
+                  116,
+                  121
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "user"
+              },
+              {
+                "kind": "account",
+                "path": "session_key"
+              }
+            ]
+          }
+        },
+        {
+          "name": "user_account",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  117,
+                  115,
+                  101,
+                  114,
+                  95,
+                  97,
+                  99,
+                  99,
+                  111,
+                  117,
+                  110,
+                  116
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "user"
+              }
+            ]
+          }
+        },
+        {
+          "name": "post",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  111,
+                  115,
+                  116,
+                  95,
+                  97,
+                  99,
+                  99,
+                  111,
+                  117,
+                  110,
+                  116
+                ]
+              },
+              {
+                "kind": "arg",
+                "path": "answer_post_id_hash"
+              }
+            ]
+          }
+        },
+        {
+          "name": "question_post",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  111,
+                  115,
+                  116,
+                  95,
+                  97,
+                  99,
+                  99,
+                  111,
+                  117,
+                  110,
+                  116
+                ]
+              },
+              {
+                "kind": "arg",
+                "path": "question_post_id_hash"
+              }
+            ]
+          }
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "answer_post_id_hash",
+          "type": {
+            "array": [
+              "u8",
+              32
+            ]
+          }
+        },
+        {
+          "name": "_question_post_id_hash",
+          "type": {
+            "array": [
+              "u8",
+              32
+            ]
+          }
+        }
+      ]
+    },
+    {
       "name": "create_post",
       "discriminator": [
         123,
@@ -463,6 +656,166 @@
           "name": "parent_post_pda",
           "type": {
             "option": "pubkey"
+          }
+        }
+      ]
+    },
+    {
+      "name": "create_question",
+      "docs": [
+        "Core MVP voting instruction.",
+        "User pays from their vault; everything is denominated in BLING."
+      ],
+      "discriminator": [
+        222,
+        74,
+        49,
+        30,
+        160,
+        220,
+        179,
+        27
+      ],
+      "accounts": [
+        {
+          "name": "config",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  99,
+                  111,
+                  110,
+                  102,
+                  105,
+                  103
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "user",
+          "writable": true
+        },
+        {
+          "name": "payer",
+          "writable": true
+        },
+        {
+          "name": "session_key",
+          "writable": true
+        },
+        {
+          "name": "session_authority",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  115,
+                  101,
+                  115,
+                  115,
+                  105,
+                  111,
+                  110,
+                  95,
+                  97,
+                  117,
+                  116,
+                  104,
+                  111,
+                  114,
+                  105,
+                  116,
+                  121
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "user"
+              },
+              {
+                "kind": "account",
+                "path": "session_key"
+              }
+            ]
+          }
+        },
+        {
+          "name": "user_account",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  117,
+                  115,
+                  101,
+                  114,
+                  95,
+                  97,
+                  99,
+                  99,
+                  111,
+                  117,
+                  110,
+                  116
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "user"
+              }
+            ]
+          }
+        },
+        {
+          "name": "post",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  111,
+                  115,
+                  116,
+                  95,
+                  97,
+                  99,
+                  99,
+                  111,
+                  117,
+                  110,
+                  116
+                ]
+              },
+              {
+                "kind": "arg",
+                "path": "post_id_hash"
+              }
+            ]
+          }
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "post_id_hash",
+          "type": {
+            "array": [
+              "u8",
+              32
+            ]
           }
         }
       ]
@@ -2092,10 +2445,6 @@
     },
     {
       "name": "vote_on_post",
-      "docs": [
-        "Core MVP voting instruction.",
-        "User pays from their vault; everything is denominated in BLING."
-      ],
       "discriminator": [
         220,
         160,
@@ -2910,6 +3259,21 @@
       "code": 6016,
       "name": "UnauthorizedSigner",
       "msg": "Unauthorized signer"
+    },
+    {
+      "code": 6017,
+      "name": "InvalidRelation",
+      "msg": "Invalid post relation"
+    },
+    {
+      "code": 6018,
+      "name": "AnswerMustTargetQuestion",
+      "msg": "Answer must target a Question post"
+    },
+    {
+      "code": 6019,
+      "name": "AnswerTargetNotRoot",
+      "msg": "Answer target must be a Root post"
     }
   ],
   "types": [
@@ -2962,10 +3326,53 @@
       }
     },
     {
+      "name": "ForcedOutcome",
+      "docs": [
+        "Forced settlement outcome for Answers"
+      ],
+      "type": {
+        "kind": "enum",
+        "variants": [
+          {
+            "name": "Pump"
+          },
+          {
+            "name": "Smack"
+          }
+        ]
+      }
+    },
+    {
       "name": "PostAccount",
       "type": {
         "kind": "struct",
         "fields": [
+          {
+            "name": "function",
+            "type": {
+              "defined": {
+                "name": "PostFunction"
+              }
+            }
+          },
+          {
+            "name": "relation",
+            "type": {
+              "defined": {
+                "name": "PostRelation"
+              }
+            }
+          },
+          {
+            "name": "forced_outcome",
+            "type": {
+              "option": {
+                "defined": {
+                  "name": "ForcedOutcome"
+                }
+              }
+            }
+          },
           {
             "name": "creator_user",
             "type": "pubkey"
@@ -2977,14 +3384,6 @@
                 "u8",
                 32
               ]
-            }
-          },
-          {
-            "name": "post_type",
-            "type": {
-              "defined": {
-                "name": "PostType"
-              }
             }
           },
           {
@@ -3004,14 +3403,6 @@
             }
           },
           {
-            "name": "upvotes",
-            "type": "u64"
-          },
-          {
-            "name": "downvotes",
-            "type": "u64"
-          },
-          {
             "name": "winning_side",
             "type": {
               "option": {
@@ -3020,6 +3411,47 @@
                 }
               }
             }
+          },
+          {
+            "name": "upvotes",
+            "type": "u64"
+          },
+          {
+            "name": "downvotes",
+            "type": "u64"
+          },
+          {
+            "name": "bump",
+            "type": "u8"
+          },
+          {
+            "name": "reserved",
+            "docs": [
+              "padding to prevent future breakage"
+            ],
+            "type": {
+              "array": [
+                "u8",
+                32
+              ]
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "PostFunction",
+      "type": {
+        "kind": "enum",
+        "variants": [
+          {
+            "name": "Normal"
+          },
+          {
+            "name": "Question"
+          },
+          {
+            "name": "Answer"
           }
         ]
       }
@@ -3073,6 +3505,44 @@
       }
     },
     {
+      "name": "PostRelation",
+      "type": {
+        "kind": "enum",
+        "variants": [
+          {
+            "name": "Root"
+          },
+          {
+            "name": "Reply",
+            "fields": [
+              {
+                "name": "parent",
+                "type": "pubkey"
+              }
+            ]
+          },
+          {
+            "name": "Quote",
+            "fields": [
+              {
+                "name": "quoted",
+                "type": "pubkey"
+              }
+            ]
+          },
+          {
+            "name": "AnswerTo",
+            "fields": [
+              {
+                "name": "question",
+                "type": "pubkey"
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
       "name": "PostState",
       "type": {
         "kind": "enum",
@@ -3082,26 +3552,6 @@
           },
           {
             "name": "Settled"
-          }
-        ]
-      }
-    },
-    {
-      "name": "PostType",
-      "type": {
-        "kind": "enum",
-        "variants": [
-          {
-            "name": "Original"
-          },
-          {
-            "name": "Child",
-            "fields": [
-              {
-                "name": "parent",
-                "type": "pubkey"
-              }
-            ]
           }
         ]
       }

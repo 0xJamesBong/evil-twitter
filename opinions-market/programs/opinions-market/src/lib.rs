@@ -49,6 +49,12 @@ pub enum ErrorCode {
     SessionExpired,
     #[msg("Unauthorized signer")]
     UnauthorizedSigner,
+    #[msg("Invalid post relation")]
+    InvalidRelation,
+    #[msg("Answer must target a Question post")]
+    AnswerMustTargetQuestion,
+    #[msg("Answer target must be a Root post")]
+    AnswerTargetNotRoot,
 }
 #[derive(Accounts)]
 pub struct Ping {}
@@ -265,22 +271,27 @@ pub mod opinions_market {
             now,
         )?;
 
+        let relation = match parent_post_pda {
+            Some(parent_pda) => PostRelation::Reply { parent: parent_pda },
+            None => PostRelation::Root,
+        };
         let config = &ctx.accounts.config;
         let post = &mut ctx.accounts.post;
         let new_post = PostAccount::new(
             ctx.accounts.user.key(),
             post_id_hash,
-            match parent_post_pda {
-                Some(parent_pda) => PostType::Child { parent: parent_pda },
-                None => PostType::Original,
-            },
+            PostFunction::Normal,
+            relation,
             now,
             config,
+            ctx.bumps.post,
         );
 
         post.creator_user = new_post.creator_user;
         post.post_id_hash = new_post.post_id_hash;
-        post.post_type = new_post.post_type;
+        post.function = new_post.function;
+        post.relation = new_post.relation;
+        post.forced_outcome = new_post.forced_outcome;
         post.start_time = new_post.start_time;
         post.end_time = new_post.end_time;
         post.state = new_post.state;
@@ -293,6 +304,137 @@ pub mod opinions_market {
 
     /// Core MVP voting instruction.
     /// User pays from their vault; everything is denominated in BLING.
+
+    pub fn create_question(ctx: Context<CreatePost>, post_id_hash: [u8; 32]) -> Result<()> {
+        let clock = Clock::get()?;
+        let now = clock.unix_timestamp;
+
+        // ---------------------------------------------------------------------
+        // Auth: wallet OR session
+        // ---------------------------------------------------------------------
+        assert_session_or_wallet(
+            &ctx.accounts.user.key(),
+            &ctx.accounts.session_authority.user,
+            Some(&ctx.accounts.session_authority),
+            now,
+        )?;
+
+        let config = &ctx.accounts.config;
+        let post = &mut ctx.accounts.post;
+
+        // ---------------------------------------------------------------------
+        // Enforced invariants
+        // ---------------------------------------------------------------------
+        let function = PostFunction::Question;
+        let relation = PostRelation::Root;
+
+        // ---------------------------------------------------------------------
+        // Initialize PostAccount
+        // ---------------------------------------------------------------------
+        let new_post = PostAccount::new(
+            ctx.accounts.user.key(),
+            post_id_hash,
+            function,
+            relation,
+            now,
+            config,
+            ctx.bumps.post,
+        );
+
+        // ---------------------------------------------------------------------
+        // Write to account
+        // ---------------------------------------------------------------------
+        post.function = new_post.function;
+        post.relation = new_post.relation;
+        post.forced_outcome = None;
+
+        post.creator_user = new_post.creator_user;
+        post.post_id_hash = new_post.post_id_hash;
+        post.start_time = new_post.start_time;
+        post.end_time = new_post.end_time;
+        post.state = new_post.state;
+        post.upvotes = new_post.upvotes;
+        post.downvotes = new_post.downvotes;
+        post.winning_side = new_post.winning_side;
+        post.bump = new_post.bump;
+        post.reserved = new_post.reserved;
+
+        Ok(())
+    }
+
+    pub fn create_answer(
+        ctx: Context<CreateAnswer>,
+        answer_post_id_hash: [u8; 32],
+        _question_post_id_hash: [u8; 32],
+    ) -> Result<()> {
+        let clock = Clock::get()?;
+        let now = clock.unix_timestamp;
+
+        // ---------------------------------------------------------------------
+        // Auth
+        // ---------------------------------------------------------------------
+        assert_session_or_wallet(
+            &ctx.accounts.user.key(),
+            &ctx.accounts.session_authority.user,
+            Some(&ctx.accounts.session_authority),
+            now,
+        )?;
+
+        let config = &ctx.accounts.config;
+        let post = &mut ctx.accounts.post;
+        let question = &ctx.accounts.question_post;
+
+        // ---------------------------------------------------------------------
+        // Enforced invariants (redundant safety)
+        // ---------------------------------------------------------------------
+        require!(
+            question.function == PostFunction::Question,
+            ErrorCode::AnswerMustTargetQuestion
+        );
+
+        require!(
+            matches!(question.relation, PostRelation::Root),
+            ErrorCode::AnswerTargetNotRoot
+        );
+
+        // ---------------------------------------------------------------------
+        // Construct Answer
+        // ---------------------------------------------------------------------
+        let function = PostFunction::Answer;
+        let relation = PostRelation::AnswerTo {
+            question: question.key(),
+        };
+
+        let new_post = PostAccount::new(
+            ctx.accounts.user.key(),
+            answer_post_id_hash,
+            function,
+            relation,
+            now,
+            config,
+            ctx.bumps.post,
+        );
+
+        // ---------------------------------------------------------------------
+        // Write
+        // ---------------------------------------------------------------------
+        post.function = new_post.function;
+        post.relation = new_post.relation;
+        post.forced_outcome = None; // may be set later by question owner
+
+        post.creator_user = new_post.creator_user;
+        post.post_id_hash = new_post.post_id_hash;
+        post.start_time = new_post.start_time;
+        post.end_time = new_post.end_time;
+        post.state = new_post.state;
+        post.upvotes = new_post.upvotes;
+        post.downvotes = new_post.downvotes;
+        post.winning_side = new_post.winning_side;
+        post.bump = new_post.bump;
+        post.reserved = new_post.reserved;
+
+        Ok(())
+    }
 
     pub fn vote_on_post(
         ctx: Context<VoteOnPost>,
@@ -485,6 +627,10 @@ pub mod opinions_market {
     //instructions together, each parametrized by individual token mints, and send it
     // off in one transaction.
     // Naturally this means we cannot require the PostState to be open, we only require it to be past the settlement time.
+    // This is token mint specific - to settle the pots for all tokens, chain all the
+    //instructions together, each parametrized by individual token mints, and send it
+    // off in one transaction.
+    // Naturally this means we cannot require the PostState to be open, we only require it to be past the settlement time.
     // This instruction does ALL the math and freezes it. NO token transfers happen here.
     pub fn settle_post(ctx: Context<SettlePost>, post_id_hash: [u8; 32]) -> Result<()> {
         msg!("\n🌟🌟🌟🌟🌟 Settling post 🌟🌟🌟🌟🌟");
@@ -524,20 +670,31 @@ pub mod opinions_market {
         );
 
         // Calculate mother post fee (10% for child posts, only if parent is still open)
-        let mother_fee = match post.post_type {
-            PostType::Child { .. } => {
-                let parent = ctx
+        let mother_fee = match (&post.function, &post.relation) {
+            // Replies and quotes feed parent pot (if parent still open)
+            (PostFunction::Normal, PostRelation::Reply { parent })
+            | (PostFunction::Normal, PostRelation::Quote { quoted: parent }) => {
+                let parent_post = ctx
                     .accounts
                     .parent_post
                     .as_ref()
                     .ok_or(ErrorCode::InvalidParentPost)?;
-                if parent.state == PostState::Open {
+
+                if parent_post.state == PostState::Open {
                     initial_pot / 10
                 } else {
                     0
                 }
             }
-            _ => 0,
+
+            // Answers NEVER feed question pot
+            (PostFunction::Answer, PostRelation::AnswerTo { .. }) => 0,
+
+            // Roots never have a mother
+            (_, PostRelation::Root) => 0,
+
+            // All other combinations
+            _ => return err!(ErrorCode::InvalidRelation),
         };
 
         let pot_after_mother = initial_pot

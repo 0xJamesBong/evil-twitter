@@ -329,6 +329,7 @@ export const SETTLE_POST_MUTATION = `
         downvotes
         winningSide
         endTime
+        function
         potBalances {
           bling
           usdc
@@ -355,5 +356,124 @@ export interface SettlePostResult {
   settlePost: {
     signature: string;
     postState?: PostStateNode | null;
+  };
+}
+
+export const TWEET_QUESTION_MUTATION = `
+  mutation TweetQuestion($input: TweetQuestionInput!) {
+    tweetQuestion(input: $input) {
+      tweet {
+        id
+        ownerId
+        content
+        tweetType
+        createdAt
+        updatedAt
+        replyDepth
+        metrics {
+          likes
+          retweets
+          quotes
+          replies
+          impressions
+          smacks
+        }
+        energyState {
+          energy
+          kineticEnergy
+          potentialEnergy
+          energyGainedFromSupport
+          energyLostFromAttacks
+          mass
+          velocityInitial
+          heightInitial
+        }
+        author {
+          id
+          userId
+          handle
+          displayName
+          avatarUrl
+          bio
+          status
+          createdAt
+        }
+        rootTweetId
+        quotedTweetId
+        repliedToTweetId
+      }
+      onchainSignature
+    }
+  }
+`;
+
+export interface TweetQuestionInput {
+  content: string;
+}
+
+export interface TweetQuestionResult {
+  tweetQuestion: {
+    tweet: TweetNode;
+    onchainSignature?: string | null;
+  };
+}
+
+export const TWEET_ANSWER_MUTATION = `
+  mutation TweetAnswer($input: TweetAnswerInput!) {
+    tweetAnswer(input: $input) {
+      tweet {
+        id
+        ownerId
+        content
+        tweetType
+        createdAt
+        updatedAt
+        replyDepth
+        metrics {
+          likes
+          retweets
+          quotes
+          replies
+          impressions
+          smacks
+        }
+        energyState {
+          energy
+          kineticEnergy
+          potentialEnergy
+          energyGainedFromSupport
+          energyLostFromAttacks
+          mass
+          velocityInitial
+          heightInitial
+        }
+        author {
+          id
+          userId
+          handle
+          displayName
+          avatarUrl
+          bio
+          status
+          createdAt
+        }
+        rootTweetId
+        quotedTweetId
+        repliedToTweetId
+      }
+      onchainSignature
+    }
+  }
+`;
+
+export interface TweetAnswerInput {
+  content: string;
+  questionTweetId: string;
+}
+
+export interface TweetAnswerResult {
+  tweetAnswer: {
+    tweet: TweetNode;
+    onchainSignature?: string | null;
   };
 }

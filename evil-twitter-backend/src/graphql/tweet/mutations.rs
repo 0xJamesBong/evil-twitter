@@ -38,6 +38,17 @@ pub struct TweetQuoteInput {
 }
 
 #[derive(InputObject)]
+pub struct TweetQuestionInput {
+    pub content: String,
+}
+
+#[derive(InputObject)]
+pub struct TweetAnswerInput {
+    pub content: String,
+    pub question_tweet_id: ID,
+}
+
+#[derive(InputObject)]
 pub struct TweetSupportInput {
     pub tool_id: Option<ID>,
 }
@@ -191,6 +202,24 @@ impl TweetMutation {
     /// Quote a tweet
     async fn tweet_quote(&self, ctx: &Context<'_>, input: TweetQuoteInput) -> Result<TweetPayload> {
         tweet_quote_resolver(ctx, input).await
+    }
+
+    /// Create a question
+    async fn tweet_question(
+        &self,
+        ctx: &Context<'_>,
+        input: TweetQuestionInput,
+    ) -> Result<TweetPayload> {
+        tweet_question_resolver(ctx, input).await
+    }
+
+    /// Create an answer to a question
+    async fn tweet_answer(
+        &self,
+        ctx: &Context<'_>,
+        input: TweetAnswerInput,
+    ) -> Result<TweetPayload> {
+        tweet_answer_resolver(ctx, input).await
     }
 
     /// Retweet a tweet
@@ -523,6 +552,153 @@ pub async fn tweet_quote_resolver(
                     eprintln!("⚠️ Failed to create quote post on-chain: {}", e);
                     // Don't fail the quote creation if on-chain creation fails
                     // The quote is already in MongoDB, on-chain can be retried
+                }
+            }
+        }
+    }
+
+    Ok(TweetPayload {
+        tweet: TweetNode::from(view),
+        onchain_signature,
+    })
+}
+
+/// Create a question
+pub async fn tweet_question_resolver(
+    ctx: &Context<'_>,
+    input: TweetQuestionInput,
+) -> Result<TweetPayload> {
+    let app_state = ctx.data::<Arc<AppState>>()?;
+    let user = get_authenticated_user_from_ctx(ctx).await?;
+
+    // Create tweet in MongoDB (generates post_id_hash)
+    let view = app_state
+        .mongo_service
+        .tweets
+        .create_tweet_with_author(user.clone(), input.content)
+        .await?;
+
+    // Create question on-chain if post_id_hash exists
+    let mut onchain_signature: Option<String> = None;
+    if let Some(post_id_hash_hex) = &view.tweet.post_id_hash {
+        // Parse user's Solana wallet
+        let user_wallet = solana_sdk::pubkey::Pubkey::from_str(&user.wallet)
+            .map_err(|e| async_graphql::Error::new(format!("Invalid user wallet: {}", e)))?;
+
+        // Parse post_id_hash from hex to [u8; 32]
+        let post_id_hash_bytes = hex::decode(post_id_hash_hex)
+            .map_err(|e| async_graphql::Error::new(format!("Invalid post_id_hash: {}", e)))?;
+
+        if post_id_hash_bytes.len() != 32 {
+            return Err(async_graphql::Error::new("post_id_hash must be 32 bytes"));
+        }
+
+        let mut post_id_hash = [0u8; 32];
+        post_id_hash.copy_from_slice(&post_id_hash_bytes);
+
+        eprintln!("❓ tweet_question: Creating QUESTION POST");
+
+        // Call create_question on-chain (backend signs transaction)
+        match app_state
+            .solana_service
+            .create_question(user_wallet, post_id_hash)
+            .await
+        {
+            Ok(signature) => {
+                eprintln!("❓ ✅ Created question post on-chain: {}", signature);
+                onchain_signature = Some(signature.to_string());
+            }
+            Err(e) => {
+                eprintln!("⚠️ Failed to create question post on-chain: {}", e);
+                // Don't fail the question creation if on-chain creation fails
+                // The question is already in MongoDB, on-chain can be retried
+            }
+        }
+    }
+
+    Ok(TweetPayload {
+        tweet: TweetNode::from(view),
+        onchain_signature,
+    })
+}
+
+/// Create an answer to a question
+pub async fn tweet_answer_resolver(
+    ctx: &Context<'_>,
+    input: TweetAnswerInput,
+) -> Result<TweetPayload> {
+    let app_state = ctx.data::<Arc<AppState>>()?;
+    let user = get_authenticated_user_from_ctx(ctx).await?;
+    let question_id = parse_object_id(&input.question_tweet_id)?;
+
+    // Get question tweet to extract post_id_hash for question PDA
+    let question_tweet = app_state
+        .mongo_service
+        .tweets
+        .get_tweet_by_id(question_id)
+        .await?
+        .ok_or_else(|| async_graphql::Error::new("Question tweet not found"))?;
+
+    // Create answer tweet in MongoDB (generates post_id_hash)
+    let view = app_state
+        .mongo_service
+        .tweets
+        .create_tweet_with_author(user.clone(), input.content)
+        .await?;
+
+    // Create answer on-chain if post_id_hash exists and question has post_id_hash
+    let mut onchain_signature: Option<String> = None;
+    if let Some(answer_post_id_hash_hex) = &view.tweet.post_id_hash {
+        if let Some(question_post_id_hash_hex) = &question_tweet.post_id_hash {
+            // Parse user's Solana wallet
+            let user_wallet = solana_sdk::pubkey::Pubkey::from_str(&user.wallet)
+                .map_err(|e| async_graphql::Error::new(format!("Invalid user wallet: {}", e)))?;
+
+            // Parse answer post_id_hash from hex to [u8; 32]
+            let answer_post_id_hash_bytes = hex::decode(answer_post_id_hash_hex)
+                .map_err(|e| async_graphql::Error::new(format!("Invalid post_id_hash: {}", e)))?;
+
+            if answer_post_id_hash_bytes.len() != 32 {
+                return Err(async_graphql::Error::new("post_id_hash must be 32 bytes"));
+            }
+
+            let mut answer_post_id_hash = [0u8; 32];
+            answer_post_id_hash.copy_from_slice(&answer_post_id_hash_bytes);
+
+            // Parse question post_id_hash
+            let question_post_id_hash_bytes =
+                hex::decode(question_post_id_hash_hex).map_err(|e| {
+                    async_graphql::Error::new(format!("Invalid question post_id_hash: {}", e))
+                })?;
+
+            if question_post_id_hash_bytes.len() != 32 {
+                return Err(async_graphql::Error::new(
+                    "question post_id_hash must be 32 bytes",
+                ));
+            }
+
+            let mut question_post_id_hash = [0u8; 32];
+            question_post_id_hash.copy_from_slice(&question_post_id_hash_bytes);
+
+            eprintln!(
+                "💬 tweet_answer: Creating ANSWER POST - Question Post ID Hash: {:?}",
+                hex::encode(question_post_id_hash)
+            );
+
+            // Call create_answer on-chain
+            match app_state
+                .solana_service
+                .create_answer(user_wallet, answer_post_id_hash, question_post_id_hash)
+                .await
+            {
+                Ok(signature) => {
+                    eprintln!("💬 ✅ Created answer post on-chain: {}", signature);
+                    onchain_signature = Some(signature.to_string());
+                }
+                Err(e) => {
+                    eprintln!("⚠️ Failed to create answer post on-chain: {}", e);
+                    // Don't fail the answer creation if on-chain creation fails
+                    // The answer is already in MongoDB, on-chain can be retried
                 }
             }
         }

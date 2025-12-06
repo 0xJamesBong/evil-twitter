@@ -42,6 +42,11 @@ pub struct PostState {
     #[schema(example = "1704153600")]
     pub end_time: i64,
 
+    /// Post function: "Normal", "Question", or "Answer"
+    #[serde(default)]
+    #[schema(example = "Normal")]
+    pub function: Option<String>,
+
     /// Last time this state was synced from chain
     #[schema(example = "2024-01-01T00:00:00Z")]
     pub last_synced_at: DateTime,
@@ -50,4 +55,3 @@ pub struct PostState {
 impl PostState {
     pub const COLLECTION_NAME: &str = "post_states";
 }
-

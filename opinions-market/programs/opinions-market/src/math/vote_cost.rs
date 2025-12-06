@@ -1,5 +1,5 @@
 use crate::constants::{MAX_VOTE_COUNT_CAP, PARAMS, SMACK_TO_PUMP_PRICE_RATIO};
-use crate::state::{PostType, Side, UserAccount};
+use crate::state::{PostRelation, Side, UserAccount};
 use crate::ErrorCode;
 use anchor_lang::prelude::*;
 
@@ -78,13 +78,13 @@ pub fn base_user_cost(
 /// - post_upvotes: Number of upvotes on the post
 /// - post_downvotes: Number of downvotes on the post
 /// - side: Pump or Smack (determines which vote count to use)
-/// - post_type: Original or Child (child posts get +10%)
+/// - relation: PostRelation (child posts get +10%)
 pub fn post_curve_cost(
     unadjusted_cost: u64,
     post_upvotes: u64,
     post_downvotes: u64,
     side: Side,
-    post_type: PostType,
+    relation: PostRelation,
 ) -> Result<u64> {
     let post_votes = match side {
         Side::Pump => post_upvotes,
@@ -97,8 +97,11 @@ pub fn post_curve_cost(
 
     let mut cost = (unadjusted_cost * curve_mult_bps) / 10_000;
 
-    // Child posts incur +10%
-    if matches!(post_type, PostType::Child { .. }) {
+    // Child posts (Reply, Quote, AnswerTo) incur +10%
+    if matches!(
+        relation,
+        PostRelation::Reply { .. } | PostRelation::Quote { .. } | PostRelation::AnswerTo { .. }
+    ) {
         cost = (cost * 11_000) / 10_000;
     }
 

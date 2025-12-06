@@ -855,6 +855,320 @@ impl SolanaService {
         Ok(signature)
     }
 
+    /// Create a question post account on-chain, signed by backend payer only
+    pub async fn create_question(
+        &self,
+        user_wallet: Pubkey,
+        post_id_hash: [u8; 32],
+    ) -> anyhow::Result<Signature> {
+        eprintln!("  ❓ ========================================");
+        eprintln!("  ❓ QUESTION POST - Creating question post");
+        eprintln!("  ❓ ========================================");
+
+        println!(
+            "  🔧 SolanaService::create_question: Starting for user {}",
+            user_wallet
+        );
+
+        let program = self.opinions_market_program();
+        let program_id = program.id();
+        println!(
+            "  📍 SolanaService::create_question: Program ID: {}",
+            program_id
+        );
+
+        // Derive PDAs
+        let (config_pda, _) = get_config_pda(&program_id);
+        let (user_account_pda, _) = get_user_account_pda(&program_id, &user_wallet);
+        let (post_pda, _) = get_post_pda(&program_id, &post_id_hash);
+        println!(
+            "  📍 SolanaService::create_question: Config PDA: {}",
+            config_pda
+        );
+        println!(
+            "  📍 SolanaService::create_question: User Account PDA: {}",
+            user_account_pda
+        );
+        println!(
+            "  📍 SolanaService::create_question: Post PDA: {}",
+            post_pda
+        );
+        println!(
+            "  💰 SolanaService::create_question: Payer: {}",
+            self.payer.pubkey()
+        );
+        println!(
+            "  🔍 SolanaService::create_question: Session Key: {}",
+            self.session_key.pubkey()
+        );
+
+        // Check if session_authority exists before proceeding
+        let session_key = self.session_key.pubkey();
+        let (session_authority_pda, _) =
+            get_session_authority_pda(&program_id, &user_wallet, &session_key);
+
+        println!(
+            "  🔍 SolanaService::create_question: Checking if session_authority exists at {}",
+            session_authority_pda
+        );
+
+        let session_exists = match self.rpc.get_account(&session_authority_pda).await {
+            Ok(_) => {
+                println!("  ✅ SolanaService::create_question: Session authority exists");
+                true
+            }
+            Err(e) => {
+                let msg = e.to_string();
+                if msg.contains("AccountNotFound") || msg.contains("not found") {
+                    println!(
+                        "  ⚠️ SolanaService::create_question: Session authority does not exist"
+                    );
+                    false
+                } else {
+                    return Err(anyhow::anyhow!(
+                        "Failed to check session_authority account: {}",
+                        e
+                    ));
+                }
+            }
+        };
+
+        if !session_exists {
+            return Err(anyhow::anyhow!(
+                "Session authority account does not exist for user {} with session_key {}. \
+                Please register a session first by calling renewSession or onboardUser.",
+                user_wallet,
+                session_key
+            ));
+        }
+
+        // Build CreateQuestion instruction
+        println!("  🔨 SolanaService::create_question: Building CreateQuestion instruction...");
+
+        let ixs = program
+            .request()
+            .accounts(opinions_market::accounts::CreatePost {
+                config: config_pda,
+                user: user_wallet,
+                payer: self.payer.pubkey(),
+                session_key: self.session_key.pubkey(),
+                session_authority: session_authority_pda,
+                user_account: user_account_pda,
+                post: post_pda,
+                system_program: solana_sdk::system_program::ID,
+            })
+            .args(opinions_market::instruction::CreateQuestion { post_id_hash })
+            .instructions()
+            .map_err(|e| {
+                eprintln!(
+                    "  ❌ SolanaService::create_question: Failed to build instruction: {}",
+                    e
+                );
+                anyhow::anyhow!("Failed to build CreateQuestion instruction: {}", e)
+            })?;
+
+        println!("  ✅ SolanaService::create_question: Instruction built successfully");
+
+        // Build transaction signed by payer only
+        println!(
+            "  ✍️  SolanaService::create_question: Building and signing transaction with payer..."
+        );
+        let tx = self.build_partial_signed_tx(ixs).await.map_err(|e| {
+            eprintln!(
+                "  ❌ SolanaService::create_question: Failed to build transaction: {}",
+                e
+            );
+            e
+        })?;
+
+        println!("  ✅ SolanaService::create_question: Transaction built and signed");
+
+        // Send and confirm transaction
+        println!("  📡 SolanaService::create_question: Sending transaction to network...");
+        let signature = self.send_signed_tx(&tx).await.map_err(|e| {
+            eprintln!(
+                "  ❌ SolanaService::create_question: Failed to send transaction: {}",
+                e
+            );
+            e
+        })?;
+
+        println!(
+            "  ✅ SolanaService::create_question: Transaction confirmed! Signature: {}",
+            signature
+        );
+
+        eprintln!(
+            "  ❓ ✅ QUESTION POST created successfully! Signature: {}",
+            signature
+        );
+
+        Ok(signature)
+    }
+
+    /// Create an answer post account on-chain, signed by backend payer only
+    pub async fn create_answer(
+        &self,
+        user_wallet: Pubkey,
+        answer_post_id_hash: [u8; 32],
+        question_post_id_hash: [u8; 32],
+    ) -> anyhow::Result<Signature> {
+        eprintln!("  💬 ========================================");
+        eprintln!("  💬 ANSWER POST - Creating answer post");
+        eprintln!(
+            "  💬 Question Post ID Hash: {:?}",
+            hex::encode(question_post_id_hash)
+        );
+        eprintln!("  💬 ========================================");
+
+        println!(
+            "  🔧 SolanaService::create_answer: Starting for user {}",
+            user_wallet
+        );
+
+        let program = self.opinions_market_program();
+        let program_id = program.id();
+        println!(
+            "  📍 SolanaService::create_answer: Program ID: {}",
+            program_id
+        );
+
+        // Derive PDAs
+        let (config_pda, _) = get_config_pda(&program_id);
+        let (user_account_pda, _) = get_user_account_pda(&program_id, &user_wallet);
+        let (answer_post_pda, _) = get_post_pda(&program_id, &answer_post_id_hash);
+        let (question_post_pda, _) = get_post_pda(&program_id, &question_post_id_hash);
+        println!(
+            "  📍 SolanaService::create_answer: Config PDA: {}",
+            config_pda
+        );
+        println!(
+            "  📍 SolanaService::create_answer: User Account PDA: {}",
+            user_account_pda
+        );
+        println!(
+            "  📍 SolanaService::create_answer: Answer Post PDA: {}",
+            answer_post_pda
+        );
+        println!(
+            "  📍 SolanaService::create_answer: Question Post PDA: {}",
+            question_post_pda
+        );
+        println!(
+            "  💰 SolanaService::create_answer: Payer: {}",
+            self.payer.pubkey()
+        );
+        println!(
+            "  🔍 SolanaService::create_answer: Session Key: {}",
+            self.session_key.pubkey()
+        );
+
+        // Check if session_authority exists before proceeding
+        let session_key = self.session_key.pubkey();
+        let (session_authority_pda, _) =
+            get_session_authority_pda(&program_id, &user_wallet, &session_key);
+
+        println!(
+            "  🔍 SolanaService::create_answer: Checking if session_authority exists at {}",
+            session_authority_pda
+        );
+
+        let session_exists = match self.rpc.get_account(&session_authority_pda).await {
+            Ok(_) => {
+                println!("  ✅ SolanaService::create_answer: Session authority exists");
+                true
+            }
+            Err(e) => {
+                let msg = e.to_string();
+                if msg.contains("AccountNotFound") || msg.contains("not found") {
+                    println!("  ⚠️ SolanaService::create_answer: Session authority does not exist");
+                    false
+                } else {
+                    return Err(anyhow::anyhow!(
+                        "Failed to check session_authority account: {}",
+                        e
+                    ));
+                }
+            }
+        };
+
+        if !session_exists {
+            return Err(anyhow::anyhow!(
+                "Session authority account does not exist for user {} with session_key {}. \
+                Please register a session first by calling renewSession or onboardUser.",
+                user_wallet,
+                session_key
+            ));
+        }
+
+        // Build CreateAnswer instruction
+        println!("  🔨 SolanaService::create_answer: Building CreateAnswer instruction...");
+
+        let ixs = program
+            .request()
+            .accounts(opinions_market::accounts::CreateAnswer {
+                config: config_pda,
+                user: user_wallet,
+                payer: self.payer.pubkey(),
+                session_key: self.session_key.pubkey(),
+                session_authority: session_authority_pda,
+                user_account: user_account_pda,
+                post: answer_post_pda,
+                question_post: question_post_pda,
+                system_program: solana_sdk::system_program::ID,
+            })
+            .args(opinions_market::instruction::CreateAnswer {
+                answer_post_id_hash,
+                _question_post_id_hash: question_post_id_hash,
+            })
+            .instructions()
+            .map_err(|e| {
+                eprintln!(
+                    "  ❌ SolanaService::create_answer: Failed to build instruction: {}",
+                    e
+                );
+                anyhow::anyhow!("Failed to build CreateAnswer instruction: {}", e)
+            })?;
+
+        println!("  ✅ SolanaService::create_answer: Instruction built successfully");
+
+        // Build transaction signed by payer only
+        println!(
+            "  ✍️  SolanaService::create_answer: Building and signing transaction with payer..."
+        );
+        let tx = self.build_partial_signed_tx(ixs).await.map_err(|e| {
+            eprintln!(
+                "  ❌ SolanaService::create_answer: Failed to build transaction: {}",
+                e
+            );
+            e
+        })?;
+
+        println!("  ✅ SolanaService::create_answer: Transaction built and signed");
+
+        // Send and confirm transaction
+        println!("  📡 SolanaService::create_answer: Sending transaction to network...");
+        let signature = self.send_signed_tx(&tx).await.map_err(|e| {
+            eprintln!(
+                "  ❌ SolanaService::create_answer: Failed to send transaction: {}",
+                e
+            );
+            e
+        })?;
+
+        println!(
+            "  ✅ SolanaService::create_answer: Transaction confirmed! Signature: {}",
+            signature
+        );
+
+        eprintln!(
+            "  💬 ✅ ANSWER POST created successfully! Signature: {}",
+            signature
+        );
+
+        Ok(signature)
+    }
+
     pub async fn vote_on_post(
         &self,
         voter_wallet: &Pubkey,
@@ -1218,22 +1532,24 @@ impl SolanaService {
         // This means we must always pass accounts derived from the CURRENT post, not the parent post,
         // to satisfy the seed constraint checks.
         let (parent_post_pda, parent_post_pot_token_account_pda, parent_post_pot_authority_pda) =
-            match post_account.post_type {
-                opinions_market::state::PostType::Child { parent } => {
+            match &post_account.relation {
+                opinions_market::state::PostRelation::Reply { parent }
+                | opinions_market::state::PostRelation::Quote { quoted: parent }
+                | opinions_market::state::PostRelation::AnswerTo { question: parent } => {
                     // BUG WORKAROUND: Derive from current post (post_pda) not parent
                     // The program's seeds use post.key() so we must match that
                     let parent_pot_token_account =
                         get_post_pot_token_account_pda(&program_id, &post_pda, token_mint);
                     let parent_pot_authority = get_post_pot_authority_pda(&program_id, &post_pda);
                     (
-                        Some(parent),                     // Pass actual parent PDA for program logic
+                        Some(*parent),                    // Pass actual parent PDA for program logic
                         Some(parent_pot_token_account.0), // But derive token account from current post
                         parent_pot_authority.0,           // And derive authority from current post
                     )
                 }
-                opinions_market::state::PostType::Original => {
-                    // For original posts, pass current post's accounts to satisfy constraint
-                    // The program won't use them since it checks post_type == Original first
+                opinions_market::state::PostRelation::Root => {
+                    // For root posts, pass current post's accounts to satisfy constraint
+                    // The program won't use them since it checks relation == Root first
                     (
                         None,
                         Some(post_pot_token_account_pda),
@@ -1444,18 +1760,20 @@ impl SolanaService {
             .map_err(|e| anyhow::anyhow!("Failed to fetch post account: {}", e))?;
 
         let (parent_post_pda, parent_post_pot_token_account_pda, parent_post_pot_authority_pda) =
-            match post_account.post_type {
-                opinions_market::state::PostType::Child { parent } => {
+            match &post_account.relation {
+                opinions_market::state::PostRelation::Reply { parent }
+                | opinions_market::state::PostRelation::Quote { quoted: parent }
+                | opinions_market::state::PostRelation::AnswerTo { question: parent } => {
                     let parent_pot_token_account =
-                        get_post_pot_token_account_pda(&program_id, &parent, token_mint);
-                    let parent_pot_authority = get_post_pot_authority_pda(&program_id, &parent);
+                        get_post_pot_token_account_pda(&program_id, parent, token_mint);
+                    let parent_pot_authority = get_post_pot_authority_pda(&program_id, parent);
                     (
-                        Some(parent),
+                        Some(*parent),
                         Some(parent_pot_token_account.0),
                         Some(parent_pot_authority.0),
                     )
                 }
-                opinions_market::state::PostType::Original => {
+                opinions_market::state::PostRelation::Root => {
                     return Err(anyhow::anyhow!(
                         "Post is not a child post, cannot distribute to parent"
                     ));
@@ -1527,22 +1845,24 @@ impl SolanaService {
         // This means we must always pass accounts derived from the CURRENT post, not the parent post,
         // to satisfy the seed constraint checks.
         let (parent_post_pda, parent_post_pot_token_account_pda, parent_post_pot_authority_pda) =
-            match post_account.post_type {
-                opinions_market::state::PostType::Child { parent } => {
+            match &post_account.relation {
+                opinions_market::state::PostRelation::Reply { parent }
+                | opinions_market::state::PostRelation::Quote { quoted: parent }
+                | opinions_market::state::PostRelation::AnswerTo { question: parent } => {
                     // BUG WORKAROUND: Derive from current post (post_pda) not parent
                     // The program's seeds use post.key() so we must match that
                     let parent_pot_token_account =
                         get_post_pot_token_account_pda(&program_id, &post_pda, token_mint);
                     let parent_pot_authority = get_post_pot_authority_pda(&program_id, &post_pda);
                     (
-                        Some(parent),                     // Pass actual parent PDA for program logic
+                        Some(*parent),                    // Pass actual parent PDA for program logic
                         Some(parent_pot_token_account.0), // But derive token account from current post
                         parent_pot_authority.0,           // And derive authority from current post
                     )
                 }
-                opinions_market::state::PostType::Original => {
-                    // For original posts, pass current post's accounts to satisfy constraint
-                    // The program won't use them since it checks post_type == Original first
+                opinions_market::state::PostRelation::Root => {
+                    // For root posts, pass current post's accounts to satisfy constraint
+                    // The program won't use them since it checks relation == Root first
                     (
                         None,
                         Some(post_pot_token_account_pda),
@@ -1690,18 +2010,20 @@ impl SolanaService {
             .map_err(|e| anyhow::anyhow!("Failed to fetch post account: {}", e))?;
 
         let (parent_post_pda, parent_post_pot_token_account_pda, parent_post_pot_authority_pda) =
-            match post_account.post_type {
-                opinions_market::state::PostType::Child { parent } => {
+            match &post_account.relation {
+                opinions_market::state::PostRelation::Reply { parent }
+                | opinions_market::state::PostRelation::Quote { quoted: parent }
+                | opinions_market::state::PostRelation::AnswerTo { question: parent } => {
                     let parent_pot_token_account =
-                        get_post_pot_token_account_pda(&program_id, &parent, token_mint);
-                    let parent_pot_authority = get_post_pot_authority_pda(&program_id, &parent);
+                        get_post_pot_token_account_pda(&program_id, parent, token_mint);
+                    let parent_pot_authority = get_post_pot_authority_pda(&program_id, parent);
                     (
-                        Some(parent),
+                        Some(*parent),
                         Some(parent_pot_token_account.0),
                         Some(parent_pot_authority.0),
                     )
                 }
-                opinions_market::state::PostType::Original => {
+                opinions_market::state::PostRelation::Root => {
                     // Not a child post, return None
                     return Ok(None);
                 }
