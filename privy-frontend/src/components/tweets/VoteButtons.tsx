@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { Button, Stack, Typography, Box, Chip, Tooltip } from "@mui/material";
+import "@/theme/types"; // Import type declarations
 import { useIdentityToken } from "@privy-io/react-auth";
 import { useSnackbar } from "notistack";
 import { useTweetStore } from "../../lib/stores/tweetStore";
@@ -109,29 +110,25 @@ export function VoteButtons({ tweet: tweetProp }: VoteButtonsProps) {
                         arrow
                     >
                         <Button
-                            variant="contained"
-                            color="success"
+                            variant={"pump" as any}
                             onClick={(e) => {
                                 e.stopPropagation();
                                 handleVote("pump");
                             }}
                             disabled={!isOpen}
                             sx={{
-                                borderRadius: 1,
                                 px: 2,
                                 py: 1,
                                 minWidth: 120,
                                 width: 120,
                                 position: "relative",
                                 overflow: "hidden",
-                                bgcolor: pumpAnimation ? "#4CAF50" : undefined,
                                 transform: pumpAnimation ? "scale(1.1)" : "scale(1)",
                                 transition: "all 0.3s cubic-bezier(0.4, 0, 0.2, 1)",
                                 boxShadow: pumpAnimation
-                                    ? "0 0 20px rgba(76, 175, 80, 0.6), 0 4px 8px rgba(0, 0, 0, 0.2)"
-                                    : "none",
+                                    ? "0 0 20px rgba(43,227,139,0.6), 0 4px 8px rgba(0, 0, 0, 0.2)"
+                                    : undefined,
                                 "&:hover": {
-                                    bgcolor: "#4CAF50",
                                     transform: "scale(1.05)",
                                 },
                                 "&:active": {
@@ -184,29 +181,25 @@ export function VoteButtons({ tweet: tweetProp }: VoteButtonsProps) {
                         arrow
                     >
                         <Button
-                            variant="contained"
-                            color="error"
+                            variant={"smack" as any}
                             onClick={(e) => {
                                 e.stopPropagation();
                                 handleVote("smack");
                             }}
                             disabled={!isOpen}
                             sx={{
-                                borderRadius: 1,
                                 px: 2,
                                 py: 1,
                                 minWidth: 120,
                                 width: 120,
                                 position: "relative",
                                 overflow: "hidden",
-                                bgcolor: smackAnimation ? "#F44336" : undefined,
                                 transform: smackAnimation ? "scale(1.1)" : "scale(1)",
                                 transition: "all 0.3s cubic-bezier(0.4, 0, 0.2, 1)",
                                 boxShadow: smackAnimation
-                                    ? "0 0 20px rgba(244, 67, 54, 0.6), 0 4px 8px rgba(0, 0, 0, 0.2)"
-                                    : "none",
+                                    ? "0 0 20px rgba(255,71,108,0.6), 0 4px 8px rgba(0, 0, 0, 0.2)"
+                                    : undefined,
                                 "&:hover": {
-                                    bgcolor: "#F44336",
                                     transform: "scale(1.05)",
                                 },
                                 "&:active": {

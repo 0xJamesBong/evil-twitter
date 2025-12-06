@@ -348,7 +348,7 @@ export const SETTLE_POST_MUTATION = `
 
 export interface SettlePostInput {
   tweetId: string;
-  tokenMint: string;
+  // tokenMint removed - backend now loops through all tokens automatically
 }
 
 export interface SettlePostResult {

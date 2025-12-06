@@ -11,6 +11,7 @@ import {
     Stack,
     Chip,
 } from "@mui/material";
+import "@/theme/types"; // Import type declarations
 import {
     ChatBubbleOutline as ReplyIcon,
     Repeat as RetweetIcon,
@@ -23,7 +24,11 @@ import { useRouter } from "next/navigation";
 import { TweetNode } from "@/lib/graphql/tweets/types";
 import { VoteButtons } from "./VoteButtons";
 import { RewardCollection } from "./RewardCollection";
-import { useUser } from "@privy-io/react-auth";
+import { useUser, useIdentityToken } from "@privy-io/react-auth";
+import { useSettlePost } from "@/hooks/useSettlePost";
+import { Button, CircularProgress } from "@mui/material";
+import { AccountBalance as SettleIcon } from "@mui/icons-material";
+import { useTweetStore } from "@/lib/stores/tweetStore";
 
 interface TweetCardProps {
     tweet: TweetNode;
@@ -44,15 +49,36 @@ export function TweetCard({
 }: TweetCardProps) {
     const router = useRouter();
     const { user } = useUser();
+    const { identityToken } = useIdentityToken();
     const timeAgo = formatDistanceToNow(new Date(tweet.createdAt), { addSuffix: true });
     const author = tweet.author;
     const [timeLeft, setTimeLeft] = useState<string>("");
+    const [isExpired, setIsExpired] = useState<boolean>(false);
     const currentUserId = user?.id;
+    const { settlePost, loading: settleLoading } = useSettlePost();
+    const { fetchTimeline } = useTweetStore();
+
+    const handleSettlePost = async (e: React.MouseEvent) => {
+        e.stopPropagation();
+        if (!tweet.id) return;
+
+        try {
+            // Settle the post and refresh the timeline after success
+            await settlePost(tweet.id, async () => {
+                // Refresh the timeline to show updated post state
+                await fetchTimeline(identityToken || undefined);
+            });
+        } catch (error) {
+            // Error is already handled in the hook
+            console.error("Failed to settle post:", error);
+        }
+    };
 
     // Calculate and update time left for open posts
     useEffect(() => {
         if (!tweet.postState || tweet.postState.state !== "Open" || !tweet.postState.endTime) {
             setTimeLeft("");
+            setIsExpired(false);
             return;
         }
 
@@ -60,6 +86,9 @@ export function TweetCard({
             const now = Math.floor(Date.now() / 1000);
             const endTime = tweet.postState!.endTime!;
             const secondsLeft = endTime - now;
+
+            // Update expired state
+            setIsExpired(secondsLeft <= 0);
 
             if (secondsLeft <= 0) {
                 setTimeLeft("Ended");
@@ -103,10 +132,11 @@ export function TweetCard({
             sx={{
                 borderRadius: 0,
                 borderBottom: 1,
-                borderColor: "grey.200",
+                borderColor: "rgba(255,255,255,0.06)",
+                bgcolor: "background.paper",
                 cursor: clickable ? "pointer" : "default",
                 "&:hover": {
-                    bgcolor: clickable ? "grey.50" : "transparent",
+                    bgcolor: clickable ? "rgba(255,255,255,0.05)" : "background.paper",
                 },
                 transition: "background-color 0.2s",
             }}
@@ -157,7 +187,7 @@ export function TweetCard({
                                     mb: 1,
                                     height: 20,
                                     fontSize: "0.7rem",
-                                    bgcolor: "primary.50",
+                                    bgcolor: "rgba(63,169,245,0.2)",
                                     color: "primary.main",
                                 }}
                             />
@@ -180,11 +210,11 @@ export function TweetCard({
                             <Box
                                 sx={{
                                     border: 1,
-                                    borderColor: "grey.300",
+                                    borderColor: "rgba(255,255,255,0.06)",
                                     borderRadius: 2,
                                     p: 2,
                                     mt: 1,
-                                    bgcolor: "grey.50",
+                                    bgcolor: "#181C20",
                                 }}
                             >
                                 <Stack direction="row" spacing={1} alignItems="center" sx={{ mb: 1 }}>
@@ -212,10 +242,14 @@ export function TweetCard({
                                     mt: 1,
                                     mb: 1,
                                     p: 1.5,
-                                    bgcolor: tweet.postState.state === "Open" ? "info.50" : "grey.100",
+                                    bgcolor: tweet.postState?.state === "Open"
+                                        ? "rgba(40,231,213,0.15)"
+                                        : "#181C20",
                                     borderRadius: 1,
                                     border: 1,
-                                    borderColor: tweet.postState.state === "Open" ? "info.200" : "grey.300",
+                                    borderColor: tweet.postState.state === "Open"
+                                        ? "rgba(40,231,213,0.3)"
+                                        : "rgba(255,255,255,0.06)",
                                 }}
                             >
                                 <Stack direction="row" spacing={2} alignItems="center" flexWrap="wrap">
@@ -225,10 +259,22 @@ export function TweetCard({
                                         color={tweet.postState.state === "Open" ? "info" : "default"}
                                         sx={{ fontWeight: 600 }}
                                     />
-                                    <Typography variant="body2" color="text.secondary">
+                                    <Typography
+                                        variant="body2"
+                                        sx={{
+                                            color: "#FFFFFF",
+                                            fontWeight: 500
+                                        }}
+                                    >
                                         Pump: {tweet.postState.upvotes.toLocaleString()}
                                     </Typography>
-                                    <Typography variant="body2" color="text.secondary">
+                                    <Typography
+                                        variant="body2"
+                                        sx={{
+                                            color: "#FFFFFF",
+                                            fontWeight: 500
+                                        }}
+                                    >
                                         Smack: {tweet.postState.downvotes.toLocaleString()}
                                     </Typography>
                                     {tweet.postState.state === "Settled" && tweet.postState.winningSide && (
@@ -240,9 +286,35 @@ export function TweetCard({
                                         />
                                     )}
                                     {tweet.postState.state === "Open" && timeLeft && (
-                                        <Typography variant="caption" color="text.secondary">
+                                        <Typography
+                                            variant="caption"
+                                            sx={{
+                                                color: "#FFFFFF",
+                                                fontWeight: 600,
+                                                fontSize: "0.75rem"
+                                            }}
+                                        >
                                             {timeLeft}
                                         </Typography>
+                                    )}
+                                    {/* Settle Post Button - Only show for Open posts */}
+                                    {tweet.postState.state === "Open" && (
+                                        <Button
+                                            size="small"
+                                            variant="outlined"
+                                            color="primary"
+                                            startIcon={settleLoading ? <CircularProgress size={14} /> : <SettleIcon />}
+                                            onClick={handleSettlePost}
+                                            disabled={settleLoading || !isExpired}
+                                            sx={{
+                                                ml: "auto",
+                                                minWidth: 120,
+                                                fontSize: "0.75rem",
+                                                opacity: !isExpired ? 0.5 : 1,
+                                            }}
+                                        >
+                                            {settleLoading ? "Settling..." : "Settle Post"}
+                                        </Button>
                                     )}
                                 </Stack>
                             </Box>
@@ -303,7 +375,7 @@ export function TweetCard({
                                     className="reply-icon"
                                     sx={{
                                         color: "text.secondary",
-                                        "&:hover": { bgcolor: "primary.50" },
+                                        "&:hover": { bgcolor: "rgba(63,169,245,0.15)" },
                                     }}
                                 >
                                     <ReplyIcon fontSize="small" />
@@ -342,7 +414,7 @@ export function TweetCard({
                                     className="retweet-icon"
                                     sx={{
                                         color: "text.secondary",
-                                        "&:hover": { bgcolor: "success.50" },
+                                        "&:hover": { bgcolor: "rgba(43,227,139,0.15)" },
                                     }}
                                 >
                                     <RetweetIcon fontSize="small" />
@@ -381,7 +453,7 @@ export function TweetCard({
                                     className="like-icon"
                                     sx={{
                                         color: "text.secondary",
-                                        "&:hover": { bgcolor: "error.50" },
+                                        "&:hover": { bgcolor: "rgba(255,71,108,0.15)" },
                                     }}
                                 >
                                     <LikeIcon fontSize="small" />
@@ -420,7 +492,7 @@ export function TweetCard({
                                     className="quote-icon"
                                     sx={{
                                         color: "text.secondary",
-                                        "&:hover": { bgcolor: "primary.50" },
+                                        "&:hover": { bgcolor: "rgba(63,169,245,0.15)" },
                                     }}
                                 >
                                     <QuoteIcon fontSize="small" />

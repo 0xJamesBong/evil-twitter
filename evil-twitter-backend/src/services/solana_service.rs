@@ -689,6 +689,18 @@ impl SolanaService {
         post_id_hash: [u8; 32],
         parent_post_pda: Option<Pubkey>,
     ) -> anyhow::Result<Signature> {
+        // Log post type prominently
+        if let Some(parent_pda) = parent_post_pda {
+            eprintln!("  🌳 ========================================");
+            eprintln!("  🌳 CHILD POST (REPLY) - Creating reply post");
+            eprintln!("  🌳 Parent Post (Mother) PDA: {}", parent_pda);
+            eprintln!("  🌳 ========================================");
+        } else {
+            eprintln!("  📝 ========================================");
+            eprintln!("  📝 ORIGINAL POST - Creating original post");
+            eprintln!("  📝 ========================================");
+        }
+
         println!(
             "  🔧 SolanaService::create_post: Starting for user {}",
             user_wallet
@@ -716,7 +728,7 @@ impl SolanaService {
         println!("  📍 SolanaService::create_post: Post PDA: {}", post_pda);
         if let Some(parent) = parent_post_pda {
             println!(
-                "  📍 SolanaService::create_post: Parent Post PDA: {}",
+                "  🌳 SolanaService::create_post: Parent Post (Mother) PDA: {}",
                 parent
             );
         }
@@ -826,6 +838,20 @@ impl SolanaService {
             "  ✅ SolanaService::create_post: Transaction confirmed! Signature: {}",
             signature
         );
+
+        // Log completion with post type
+        if parent_post_pda.is_some() {
+            eprintln!(
+                "  🌳 ✅ CHILD POST (REPLY) created successfully! Signature: {}",
+                signature
+            );
+        } else {
+            eprintln!(
+                "  📝 ✅ ORIGINAL POST created successfully! Signature: {}",
+                signature
+            );
+        }
+
         Ok(signature)
     }
 
@@ -1187,19 +1213,33 @@ impl SolanaService {
             .map_err(|e| anyhow::anyhow!("Failed to fetch post account: {}", e))?;
 
         // Handle parent post if this is a child post
+        // NOTE: The Solana program has a bug in SettlePost instruction where parent_post_pot_token_account
+        // and parent_post_pot_authority are derived using post.key() (current post) instead of parent_post.key().
+        // This means we must always pass accounts derived from the CURRENT post, not the parent post,
+        // to satisfy the seed constraint checks.
         let (parent_post_pda, parent_post_pot_token_account_pda, parent_post_pot_authority_pda) =
             match post_account.post_type {
                 opinions_market::state::PostType::Child { parent } => {
+                    // BUG WORKAROUND: Derive from current post (post_pda) not parent
+                    // The program's seeds use post.key() so we must match that
                     let parent_pot_token_account =
-                        get_post_pot_token_account_pda(&program_id, &parent, token_mint);
-                    let parent_pot_authority = get_post_pot_authority_pda(&program_id, &parent);
+                        get_post_pot_token_account_pda(&program_id, &post_pda, token_mint);
+                    let parent_pot_authority = get_post_pot_authority_pda(&program_id, &post_pda);
                     (
-                        Some(parent),
-                        Some(parent_pot_token_account.0),
-                        parent_pot_authority.0,
+                        Some(parent),                     // Pass actual parent PDA for program logic
+                        Some(parent_pot_token_account.0), // But derive token account from current post
+                        parent_pot_authority.0,           // And derive authority from current post
                     )
                 }
-                opinions_market::state::PostType::Original => (None, None, post_pot_authority_pda),
+                opinions_market::state::PostType::Original => {
+                    // For original posts, pass current post's accounts to satisfy constraint
+                    // The program won't use them since it checks post_type == Original first
+                    (
+                        None,
+                        Some(post_pot_token_account_pda),
+                        post_pot_authority_pda,
+                    )
+                }
             };
 
         println!("  🔨 SolanaService::settle_post_for_mint: Building SettlePost instruction...");
@@ -1453,6 +1493,244 @@ impl SolanaService {
             signature
         );
         Ok(signature)
+    }
+
+    /// Build SettlePost instruction (returns instruction, doesn't send)
+    pub async fn build_settle_post_instruction(
+        &self,
+        post_id_hash: [u8; 32],
+        token_mint: &Pubkey,
+    ) -> anyhow::Result<Vec<Instruction>> {
+        let program = self.opinions_market_program();
+        let program_id = program.id();
+
+        // Derive PDAs
+        let (config_pda, _) = get_config_pda(&program_id);
+        let (post_pda, _) = get_post_pda(&program_id, &post_id_hash);
+        let (post_pot_token_account_pda, _) =
+            get_post_pot_token_account_pda(&program_id, &post_pda, token_mint);
+        let (post_pot_authority_pda, _) = get_post_pot_authority_pda(&program_id, &post_pda);
+        let (post_mint_payout_pda, _) =
+            get_post_mint_payout_pda(&program_id, &post_pda, token_mint);
+        let (protocol_treasury_token_account_pda, _) =
+            get_protocol_treasury_token_account_pda(&program_id, token_mint);
+
+        // Fetch post account to check if it's a child post
+        let post_account = program
+            .account::<opinions_market::state::PostAccount>(post_pda)
+            .await
+            .map_err(|e| anyhow::anyhow!("Failed to fetch post account: {}", e))?;
+
+        // Handle parent post if this is a child post
+        // NOTE: The Solana program has a bug in SettlePost instruction where parent_post_pot_token_account
+        // and parent_post_pot_authority are derived using post.key() (current post) instead of parent_post.key().
+        // This means we must always pass accounts derived from the CURRENT post, not the parent post,
+        // to satisfy the seed constraint checks.
+        let (parent_post_pda, parent_post_pot_token_account_pda, parent_post_pot_authority_pda) =
+            match post_account.post_type {
+                opinions_market::state::PostType::Child { parent } => {
+                    // BUG WORKAROUND: Derive from current post (post_pda) not parent
+                    // The program's seeds use post.key() so we must match that
+                    let parent_pot_token_account =
+                        get_post_pot_token_account_pda(&program_id, &post_pda, token_mint);
+                    let parent_pot_authority = get_post_pot_authority_pda(&program_id, &post_pda);
+                    (
+                        Some(parent),                     // Pass actual parent PDA for program logic
+                        Some(parent_pot_token_account.0), // But derive token account from current post
+                        parent_pot_authority.0,           // And derive authority from current post
+                    )
+                }
+                opinions_market::state::PostType::Original => {
+                    // For original posts, pass current post's accounts to satisfy constraint
+                    // The program won't use them since it checks post_type == Original first
+                    (
+                        None,
+                        Some(post_pot_token_account_pda),
+                        post_pot_authority_pda,
+                    )
+                }
+            };
+
+        let ixs = program
+            .request()
+            .accounts(opinions_market::accounts::SettlePost {
+                payer: self.payer.pubkey(),
+                post: post_pda,
+                post_pot_token_account: post_pot_token_account_pda,
+                post_pot_authority: post_pot_authority_pda,
+                post_mint_payout: post_mint_payout_pda,
+                protocol_token_treasury_token_account: protocol_treasury_token_account_pda,
+                parent_post: parent_post_pda,
+                parent_post_pot_token_account: parent_post_pot_token_account_pda,
+                parent_post_pot_authority: parent_post_pot_authority_pda,
+                config: config_pda,
+                token_mint: *token_mint,
+                token_program: spl_token::ID,
+                system_program: solana_sdk::system_program::ID,
+            })
+            .args(opinions_market::instruction::SettlePost { post_id_hash })
+            .instructions()
+            .map_err(|e| anyhow::anyhow!("Failed to build SettlePost instruction: {}", e))?;
+
+        Ok(ixs)
+    }
+
+    /// Build DistributeCreatorReward instruction (returns instruction, doesn't send)
+    pub async fn build_distribute_creator_reward_instruction(
+        &self,
+        post_id_hash: [u8; 32],
+        token_mint: &Pubkey,
+    ) -> anyhow::Result<Vec<Instruction>> {
+        let program = self.opinions_market_program();
+        let program_id = program.id();
+
+        // Derive PDAs
+        let (post_pda, _) = get_post_pda(&program_id, &post_id_hash);
+        let (post_pot_token_account_pda, _) =
+            get_post_pot_token_account_pda(&program_id, &post_pda, token_mint);
+        let (post_pot_authority_pda, _) = get_post_pot_authority_pda(&program_id, &post_pda);
+        let (post_mint_payout_pda, _) =
+            get_post_mint_payout_pda(&program_id, &post_pda, token_mint);
+
+        // Fetch post account to get creator_user
+        let post_account = program
+            .account::<opinions_market::state::PostAccount>(post_pda)
+            .await
+            .map_err(|e| anyhow::anyhow!("Failed to fetch post account: {}", e))?;
+
+        let (creator_vault_token_account_pda, _) =
+            get_user_vault_token_account_pda(&program_id, &post_account.creator_user, token_mint);
+        let (vault_authority_pda, _) = get_vault_authority_pda(&program_id);
+
+        let ixs = program
+            .request()
+            .accounts(opinions_market::accounts::DistributeCreatorReward {
+                payer: self.payer.pubkey(),
+                post: post_pda,
+                post_pot_token_account: post_pot_token_account_pda,
+                post_pot_authority: post_pot_authority_pda,
+                post_mint_payout: post_mint_payout_pda,
+                creator_vault_token_account: creator_vault_token_account_pda,
+                vault_authority: vault_authority_pda,
+                token_mint: *token_mint,
+                token_program: spl_token::ID,
+            })
+            .args(opinions_market::instruction::DistributeCreatorReward { post_id_hash })
+            .instructions()
+            .map_err(|e| {
+                anyhow::anyhow!("Failed to build DistributeCreatorReward instruction: {}", e)
+            })?;
+
+        Ok(ixs)
+    }
+
+    /// Build DistributeProtocolFee instruction (returns instruction, doesn't send)
+    pub async fn build_distribute_protocol_fee_instruction(
+        &self,
+        post_id_hash: [u8; 32],
+        token_mint: &Pubkey,
+    ) -> anyhow::Result<Vec<Instruction>> {
+        let program = self.opinions_market_program();
+        let program_id = program.id();
+
+        // Derive PDAs
+        let (config_pda, _) = get_config_pda(&program_id);
+        let (post_pda, _) = get_post_pda(&program_id, &post_id_hash);
+        let (post_pot_token_account_pda, _) =
+            get_post_pot_token_account_pda(&program_id, &post_pda, token_mint);
+        let (post_pot_authority_pda, _) = get_post_pot_authority_pda(&program_id, &post_pda);
+        let (post_mint_payout_pda, _) =
+            get_post_mint_payout_pda(&program_id, &post_pda, token_mint);
+        let (protocol_treasury_token_account_pda, _) =
+            get_protocol_treasury_token_account_pda(&program_id, token_mint);
+
+        let ixs = program
+            .request()
+            .accounts(opinions_market::accounts::DistributeProtocolFee {
+                payer: self.payer.pubkey(),
+                post: post_pda,
+                post_pot_token_account: post_pot_token_account_pda,
+                post_pot_authority: post_pot_authority_pda,
+                post_mint_payout: post_mint_payout_pda,
+                protocol_token_treasury_token_account: protocol_treasury_token_account_pda,
+                config: config_pda,
+                token_mint: *token_mint,
+                token_program: spl_token::ID,
+            })
+            .args(opinions_market::instruction::DistributeProtocolFee { post_id_hash })
+            .instructions()
+            .map_err(|e| {
+                anyhow::anyhow!("Failed to build DistributeProtocolFee instruction: {}", e)
+            })?;
+
+        Ok(ixs)
+    }
+
+    /// Build DistributeParentPostShare instruction (returns instruction, doesn't send)
+    pub async fn build_distribute_parent_post_share_instruction(
+        &self,
+        post_id_hash: [u8; 32],
+        token_mint: &Pubkey,
+    ) -> anyhow::Result<Option<Vec<Instruction>>> {
+        let program = self.opinions_market_program();
+        let program_id = program.id();
+
+        // Derive PDAs
+        let (post_pda, _) = get_post_pda(&program_id, &post_id_hash);
+        let (post_pot_token_account_pda, _) =
+            get_post_pot_token_account_pda(&program_id, &post_pda, token_mint);
+        let (post_pot_authority_pda, _) = get_post_pot_authority_pda(&program_id, &post_pda);
+        let (post_mint_payout_pda, _) =
+            get_post_mint_payout_pda(&program_id, &post_pda, token_mint);
+
+        // Fetch post account to check if it's a child post
+        let post_account = program
+            .account::<opinions_market::state::PostAccount>(post_pda)
+            .await
+            .map_err(|e| anyhow::anyhow!("Failed to fetch post account: {}", e))?;
+
+        let (parent_post_pda, parent_post_pot_token_account_pda, parent_post_pot_authority_pda) =
+            match post_account.post_type {
+                opinions_market::state::PostType::Child { parent } => {
+                    let parent_pot_token_account =
+                        get_post_pot_token_account_pda(&program_id, &parent, token_mint);
+                    let parent_pot_authority = get_post_pot_authority_pda(&program_id, &parent);
+                    (
+                        Some(parent),
+                        Some(parent_pot_token_account.0),
+                        Some(parent_pot_authority.0),
+                    )
+                }
+                opinions_market::state::PostType::Original => {
+                    // Not a child post, return None
+                    return Ok(None);
+                }
+            };
+
+        let ixs = program
+            .request()
+            .accounts(opinions_market::accounts::DistributeParentPostShare {
+                payer: self.payer.pubkey(),
+                post: post_pda,
+                post_pot_token_account: post_pot_token_account_pda,
+                post_pot_authority: post_pot_authority_pda,
+                post_mint_payout: post_mint_payout_pda,
+                parent_post: parent_post_pda,
+                parent_post_pot_token_account: parent_post_pot_token_account_pda,
+                parent_post_pot_authority: parent_post_pot_authority_pda,
+                token_mint: *token_mint,
+                token_program: spl_token::ID,
+            })
+            .args(opinions_market::instruction::DistributeParentPostShare { post_id_hash })
+            .instructions()
+            .map_err(|e| {
+                anyhow::anyhow!(
+                    "Failed to build DistributeParentPostShare instruction: {}",
+                    e
+                )
+            })?;
+
+        Ok(Some(ixs))
     }
 
     /// Get PostMintPayout account to check frozen status and fees

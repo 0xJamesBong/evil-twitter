@@ -1,5 +1,6 @@
 "use client";
 
+import "@/theme/types"; // Import type declarations
 import { useState, useEffect, useMemo } from "react";
 import { useWallets } from "@privy-io/react-auth/solana";
 import { usePrivy } from "@privy-io/react-auth";
@@ -169,7 +170,7 @@ function SignMessageContent() {
                                             variant="outlined"
                                             sx={{
                                                 p: 2,
-                                                bgcolor: "grey.50",
+                                                bgcolor: "background.paper",
                                             }}
                                         >
                                             <Typography
@@ -196,7 +197,7 @@ function SignMessageContent() {
                                             variant="outlined"
                                             sx={{
                                                 p: 2,
-                                                bgcolor: "grey.50",
+                                                bgcolor: "background.paper",
                                             }}
                                         >
                                             <Typography
@@ -223,7 +224,7 @@ function SignMessageContent() {
                                             variant="outlined"
                                             sx={{
                                                 p: 2,
-                                                bgcolor: "grey.50",
+                                                bgcolor: "background.paper",
                                             }}
                                         >
                                             <Typography variant="body1">
@@ -252,7 +253,7 @@ function SignMessageContent() {
                                             variant="outlined"
                                             sx={{
                                                 p: 2,
-                                                bgcolor: "grey.50",
+                                                bgcolor: "background.paper",
                                             }}
                                         >
                                             <Typography

@@ -6,6 +6,7 @@ import { toSolanaWalletConnectors } from "@privy-io/react-auth/solana";
 import { ThemeProvider } from "@mui/material/styles";
 import CssBaseline from "@mui/material/CssBaseline";
 import { SnackbarProvider } from "notistack";
+import "@/theme/types"; // Import types first
 import { theme } from "@/theme/theme";
 import { AnchorProvider } from "@coral-xyz/anchor";
 import { getConnection } from "@/lib/solana/connection";
