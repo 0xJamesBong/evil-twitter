@@ -11,6 +11,7 @@ import {
     Stack,
     Chip,
 } from "@mui/material";
+import "@/theme/types"; // Import type declarations
 import {
     ChatBubbleOutline as ReplyIcon,
     Repeat as RetweetIcon,
@@ -180,7 +181,7 @@ export function TweetCard({
                                     mb: 1,
                                     height: 20,
                                     fontSize: "0.7rem",
-                                    bgcolor: "primary.50",
+                                    bgcolor: "rgba(63,169,245,0.2)",
                                     color: "primary.main",
                                 }}
                             />
@@ -203,11 +204,11 @@ export function TweetCard({
                             <Box
                                 sx={{
                                     border: 1,
-                                    borderColor: "grey.300",
+                                    borderColor: "rgba(255,255,255,0.06)",
                                     borderRadius: 2,
                                     p: 2,
                                     mt: 1,
-                                    bgcolor: "grey.50",
+                                    bgcolor: "#181C20",
                                 }}
                             >
                                 <Stack direction="row" spacing={1} alignItems="center" sx={{ mb: 1 }}>
@@ -235,10 +236,14 @@ export function TweetCard({
                                     mt: 1,
                                     mb: 1,
                                     p: 1.5,
-                                    bgcolor: tweet.postState.state === "Open" ? "info.50" : "grey.100",
+                                    bgcolor: tweet.postState?.state === "Open"
+                                        ? "rgba(40,231,213,0.15)"
+                                        : "#181C20",
                                     borderRadius: 1,
                                     border: 1,
-                                    borderColor: tweet.postState.state === "Open" ? "info.200" : "grey.300",
+                                    borderColor: tweet.postState.state === "Open"
+                                        ? "rgba(40,231,213,0.3)"
+                                        : "rgba(255,255,255,0.06)",
                                 }}
                             >
                                 <Stack direction="row" spacing={2} alignItems="center" flexWrap="wrap">
@@ -248,10 +253,22 @@ export function TweetCard({
                                         color={tweet.postState.state === "Open" ? "info" : "default"}
                                         sx={{ fontWeight: 600 }}
                                     />
-                                    <Typography variant="body2" color="text.secondary">
+                                    <Typography
+                                        variant="body2"
+                                        sx={{
+                                            color: "#FFFFFF",
+                                            fontWeight: 500
+                                        }}
+                                    >
                                         Pump: {tweet.postState.upvotes.toLocaleString()}
                                     </Typography>
-                                    <Typography variant="body2" color="text.secondary">
+                                    <Typography
+                                        variant="body2"
+                                        sx={{
+                                            color: "#FFFFFF",
+                                            fontWeight: 500
+                                        }}
+                                    >
                                         Smack: {tweet.postState.downvotes.toLocaleString()}
                                     </Typography>
                                     {tweet.postState.state === "Settled" && tweet.postState.winningSide && (
@@ -263,7 +280,14 @@ export function TweetCard({
                                         />
                                     )}
                                     {tweet.postState.state === "Open" && timeLeft && (
-                                        <Typography variant="caption" color="text.secondary">
+                                        <Typography
+                                            variant="caption"
+                                            sx={{
+                                                color: "#FFFFFF",
+                                                fontWeight: 600,
+                                                fontSize: "0.75rem"
+                                            }}
+                                        >
                                             {timeLeft}
                                         </Typography>
                                     )}
@@ -344,7 +368,7 @@ export function TweetCard({
                                     className="reply-icon"
                                     sx={{
                                         color: "text.secondary",
-                                        "&:hover": { bgcolor: "primary.50" },
+                                        "&:hover": { bgcolor: "rgba(63,169,245,0.15)" },
                                     }}
                                 >
                                     <ReplyIcon fontSize="small" />
@@ -383,7 +407,7 @@ export function TweetCard({
                                     className="retweet-icon"
                                     sx={{
                                         color: "text.secondary",
-                                        "&:hover": { bgcolor: "success.50" },
+                                        "&:hover": { bgcolor: "rgba(43,227,139,0.15)" },
                                     }}
                                 >
                                     <RetweetIcon fontSize="small" />
@@ -422,7 +446,7 @@ export function TweetCard({
                                     className="like-icon"
                                     sx={{
                                         color: "text.secondary",
-                                        "&:hover": { bgcolor: "error.50" },
+                                        "&:hover": { bgcolor: "rgba(255,71,108,0.15)" },
                                     }}
                                 >
                                     <LikeIcon fontSize="small" />
@@ -461,7 +485,7 @@ export function TweetCard({
                                     className="quote-icon"
                                     sx={{
                                         color: "text.secondary",
-                                        "&:hover": { bgcolor: "primary.50" },
+                                        "&:hover": { bgcolor: "rgba(63,169,245,0.15)" },
                                     }}
                                 >
                                     <QuoteIcon fontSize="small" />
