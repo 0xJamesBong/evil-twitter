@@ -81,6 +81,7 @@ export const TIMELINE_QUERY = `
             downvotes
             winningSide
             endTime
+            function
             potBalances {
               bling
               usdc
@@ -171,6 +172,24 @@ export const TWEET_QUERY = `
       rootTweetId
       quotedTweetId
       repliedToTweetId
+      postIdHash
+      postState {
+        state
+        upvotes
+        downvotes
+        winningSide
+        endTime
+        function
+        potBalances {
+          bling
+          usdc
+          stablecoin
+        }
+        userVotes {
+          upvotes
+          downvotes
+        }
+      }
     }
   }
 `;
@@ -244,6 +263,24 @@ export const TWEET_THREAD_QUERY = `
         rootTweetId
         quotedTweetId
         repliedToTweetId
+        postIdHash
+        postState {
+          state
+          upvotes
+          downvotes
+          winningSide
+          endTime
+          function
+          potBalances {
+            bling
+            usdc
+            stablecoin
+          }
+          userVotes {
+            upvotes
+            downvotes
+          }
+        }
       }
       parents {
         id
@@ -263,6 +300,24 @@ export const TWEET_THREAD_QUERY = `
           displayName
           avatarUrl
         }
+        postIdHash
+        postState {
+          state
+          upvotes
+          downvotes
+          winningSide
+          endTime
+          function
+          potBalances {
+            bling
+            usdc
+            stablecoin
+          }
+          userVotes {
+            upvotes
+            downvotes
+          }
+        }
       }
       replies {
         id
@@ -281,6 +336,24 @@ export const TWEET_THREAD_QUERY = `
           handle
           displayName
           avatarUrl
+        }
+        postIdHash
+        postState {
+          state
+          upvotes
+          downvotes
+          winningSide
+          endTime
+          function
+          potBalances {
+            bling
+            usdc
+            stablecoin
+          }
+          userVotes {
+            upvotes
+            downvotes
+          }
         }
       }
     }

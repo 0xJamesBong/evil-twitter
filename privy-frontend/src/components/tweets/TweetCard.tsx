@@ -18,6 +18,8 @@ import {
     FormatQuote as QuoteIcon,
     FavoriteBorder as LikeIcon,
     MoreHoriz as MoreIcon,
+    QuestionAnswer as AnswerIcon,
+    QuestionAnswer as QuestionAnswerIcon,
 } from "@mui/icons-material";
 import { formatDistanceToNow } from "date-fns";
 import { useRouter } from "next/navigation";
@@ -34,6 +36,7 @@ interface TweetCardProps {
     tweet: TweetNode;
     onReply?: (tweet: TweetNode) => void;
     onQuote?: (tweet: TweetNode) => void;
+    onAnswer?: (tweet: TweetNode) => void;
     onRetweet?: (tweet: TweetNode) => void;
     onLike?: (tweet: TweetNode) => void;
     clickable?: boolean; // Whether the card should be clickable to navigate to detail page
@@ -43,6 +46,7 @@ export function TweetCard({
     tweet,
     onReply,
     onQuote,
+    onAnswer,
     onRetweet,
     onLike,
     clickable = true,
@@ -189,6 +193,42 @@ export function TweetCard({
                                     fontSize: "0.7rem",
                                     bgcolor: "rgba(63,169,245,0.2)",
                                     color: "primary.main",
+                                }}
+                            />
+                        )}
+
+                        {/* Question Badge */}
+                        {tweet.postState?.function === "Question" && (
+                            <Chip
+                                icon={<QuestionAnswerIcon fontSize="small" />}
+                                label="Question"
+                                size="small"
+                                sx={{
+                                    mb: 1,
+                                    ml: tweet.tweetType !== "Original" ? 1 : 0,
+                                    height: 20,
+                                    fontSize: "0.7rem",
+                                    bgcolor: "rgba(255,193,7,0.2)",
+                                    color: "warning.main",
+                                    fontWeight: 600,
+                                }}
+                            />
+                        )}
+
+                        {/* Answer Badge */}
+                        {tweet.postState?.function === "Answer" && (
+                            <Chip
+                                icon={<QuestionAnswerIcon fontSize="small" />}
+                                label="Answer"
+                                size="small"
+                                sx={{
+                                    mb: 1,
+                                    ml: tweet.tweetType !== "Original" ? 1 : 0,
+                                    height: 20,
+                                    fontSize: "0.7rem",
+                                    bgcolor: "rgba(76,175,80,0.2)",
+                                    color: "success.main",
+                                    fontWeight: 600,
                                 }}
                             />
                         )}
@@ -508,6 +548,36 @@ export function TweetCard({
                                     </Typography>
                                 )}
                             </Box>
+
+                            {/* Answer - Show only for questions */}
+                            {tweet.postIdHash && tweet.postState?.function === "Question" && (
+                                <Box
+                                    sx={{
+                                        display: "flex",
+                                        alignItems: "center",
+                                        gap: 0.5,
+                                        cursor: "pointer",
+                                        "&:hover": {
+                                            "& .answer-icon": { color: "warning.main" },
+                                        },
+                                    }}
+                                >
+                                    <IconButton
+                                        size="small"
+                                        onClick={(e) => {
+                                            e.stopPropagation();
+                                            onAnswer?.(tweet);
+                                        }}
+                                        className="answer-icon"
+                                        sx={{
+                                            color: "text.secondary",
+                                            "&:hover": { bgcolor: "rgba(255,193,7,0.15)" },
+                                        }}
+                                    >
+                                        <AnswerIcon fontSize="small" />
+                                    </IconButton>
+                                </Box>
+                            )}
                         </Stack>
                     </Box>
                 </Stack>

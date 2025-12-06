@@ -7,6 +7,8 @@ import {
   TWEET_RETWEET_MUTATION,
   TWEET_LIKE_MUTATION,
   TWEET_VOTE_MUTATION,
+  TWEET_QUESTION_MUTATION,
+  TWEET_ANSWER_MUTATION,
   TweetCreateInput,
   TweetCreateResult,
   TweetReplyInput,
@@ -17,6 +19,10 @@ import {
   TweetLikeResult,
   TweetVoteInput,
   TweetVoteResult,
+  TweetQuestionInput,
+  TweetQuestionResult,
+  TweetAnswerInput,
+  TweetAnswerResult,
 } from "../graphql/tweets/mutations";
 import {
   TIMELINE_QUERY,
@@ -68,6 +74,13 @@ type TweetStoreState = {
 
   showReplyThreadModal: boolean;
   replyThreadTweetId: string | null;
+
+  showQuestionModal: boolean;
+  questionContent: string;
+
+  showAnswerModal: boolean;
+  answerQuestionId: string | null;
+  answerContent: string;
 };
 
 type TweetStoreActions = {
@@ -101,6 +114,15 @@ type TweetStoreActions = {
     identityToken: string,
     content: string,
     quotedTweetId: string
+  ) => Promise<{ tweet: TweetNode; onchainSignature?: string | null }>;
+  questionTweet: (
+    identityToken: string,
+    content: string
+  ) => Promise<{ tweet: TweetNode; onchainSignature?: string | null }>;
+  answerTweet: (
+    identityToken: string,
+    content: string,
+    questionTweetId: string
   ) => Promise<{ tweet: TweetNode; onchainSignature?: string | null }>;
   retweetTweet: (identityToken: string, tweetId: string) => Promise<TweetNode>;
   likeTweet: (
@@ -139,6 +161,16 @@ type TweetStoreActions = {
 
   openReplyThreadModal: (tweetId: string) => void;
   closeReplyThreadModal: () => void;
+
+  openQuestionModal: () => void;
+  closeQuestionModal: () => void;
+  setQuestionContent: (content: string) => void;
+  clearQuestionData: () => void;
+
+  openAnswerModal: (questionTweetId: string) => void;
+  closeAnswerModal: () => void;
+  setAnswerContent: (content: string) => void;
+  clearAnswerData: () => void;
 };
 
 export const useTweetStore = create<TweetStoreState & TweetStoreActions>(
@@ -160,6 +192,11 @@ export const useTweetStore = create<TweetStoreState & TweetStoreActions>(
     replyContent: "",
     showReplyThreadModal: false,
     replyThreadTweetId: null,
+    showQuestionModal: false,
+    questionContent: "",
+    showAnswerModal: false,
+    answerQuestionId: null,
+    answerContent: "",
 
     // ========================================================================
     // Fetch Operations
@@ -388,6 +425,69 @@ export const useTweetStore = create<TweetStoreState & TweetStoreActions>(
       } catch (error) {
         const errorMessage =
           error instanceof Error ? error.message : "Failed to quote tweet";
+        set({ error: errorMessage, isCreating: false });
+        throw error;
+      }
+    },
+
+    questionTweet: async (identityToken: string, content: string) => {
+      set({ isCreating: true, error: null });
+      try {
+        const input: TweetQuestionInput = { content: content.trim() };
+        const data = await graphqlRequest<TweetQuestionResult>(
+          TWEET_QUESTION_MUTATION,
+          { input },
+          identityToken
+        );
+
+        const newTweet = data.tweetQuestion.tweet;
+        const onchainSignature = data.tweetQuestion.onchainSignature;
+
+        // Optimistic update: add to timeline
+        set((state) => ({
+          tweets: [newTweet, ...state.tweets],
+          isCreating: false,
+        }));
+
+        return { tweet: newTweet, onchainSignature };
+      } catch (error) {
+        const errorMessage =
+          error instanceof Error ? error.message : "Failed to create question";
+        set({ error: errorMessage, isCreating: false });
+        throw error;
+      }
+    },
+
+    answerTweet: async (
+      identityToken: string,
+      content: string,
+      questionTweetId: string
+    ) => {
+      set({ isCreating: true, error: null });
+      try {
+        const input: TweetAnswerInput = {
+          content: content.trim(),
+          questionTweetId: questionTweetId,
+        };
+        const data = await graphqlRequest<TweetAnswerResult>(
+          TWEET_ANSWER_MUTATION,
+          { input },
+          identityToken
+        );
+
+        const newTweet = data.tweetAnswer.tweet;
+        const onchainSignature = data.tweetAnswer.onchainSignature;
+
+        // Optimistic update: add to timeline
+        set((state) => ({
+          tweets: [newTweet, ...state.tweets],
+          isCreating: false,
+        }));
+
+        return { tweet: newTweet, onchainSignature };
+      } catch (error) {
+        const errorMessage =
+          error instanceof Error ? error.message : "Failed to create answer";
         set({ error: errorMessage, isCreating: false });
         throw error;
       }
@@ -637,6 +737,59 @@ export const useTweetStore = create<TweetStoreState & TweetStoreActions>(
       set({
         showReplyThreadModal: false,
         replyThreadTweetId: null,
+      });
+    },
+
+    openQuestionModal: () => {
+      set({
+        showQuestionModal: true,
+        questionContent: "",
+      });
+    },
+
+    closeQuestionModal: () => {
+      set({
+        showQuestionModal: false,
+        questionContent: "",
+      });
+    },
+
+    setQuestionContent: (content: string) => {
+      set({ questionContent: content });
+    },
+
+    clearQuestionData: () => {
+      set({
+        showQuestionModal: false,
+        questionContent: "",
+      });
+    },
+
+    openAnswerModal: (questionTweetId: string) => {
+      set({
+        showAnswerModal: true,
+        answerQuestionId: questionTweetId,
+        answerContent: "",
+      });
+    },
+
+    closeAnswerModal: () => {
+      set({
+        showAnswerModal: false,
+        answerQuestionId: null,
+        answerContent: "",
+      });
+    },
+
+    setAnswerContent: (content: string) => {
+      set({ answerContent: content });
+    },
+
+    clearAnswerData: () => {
+      set({
+        showAnswerModal: false,
+        answerQuestionId: null,
+        answerContent: "",
       });
     },
   })

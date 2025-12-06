@@ -56,6 +56,7 @@ export interface PostStateNode {
   downvotes: number;
   winningSide?: string;
   endTime: number;
+  function?: string | null; // "Normal", "Question", or "Answer"
   potBalances?: PostPotBalances | null;
   userVotes?: UserVotes | null;
   payoutInfo?: PostMintPayoutNode | null;

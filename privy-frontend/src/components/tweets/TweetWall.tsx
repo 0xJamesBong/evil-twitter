@@ -1,13 +1,14 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Box, TextField, Button, Stack, Paper, CircularProgress } from "@mui/material";
-import { Send as SendIcon } from "@mui/icons-material";
+import { Box, TextField, Button, Stack, Paper, CircularProgress, Tabs, Tab } from "@mui/material";
+import { Send as SendIcon, HelpOutline as QuestionIcon } from "@mui/icons-material";
 import { useIdentityToken } from "@privy-io/react-auth";
 import { useSnackbar } from "notistack";
 import { TweetCard } from "./TweetCard";
 import { ReplyModal } from "./ReplyModal";
 import { QuoteModal } from "./QuoteModal";
+import { AnswerModal } from "./AnswerModal";
 import { RetweetModal } from "./RetweetModal";
 import { useTweetStore } from "@/lib/stores/tweetStore";
 import { TweetNode } from "@/lib/graphql/tweets/types";
@@ -23,15 +24,20 @@ export function TweetWall() {
         createTweet,
         replyTweet,
         quoteTweet,
+        questionTweet,
+        answerTweet,
         retweetTweet,
         likeTweet,
         fetchTimeline,
         showReplyModal,
         showQuoteModal,
+        showAnswerModal,
         replyTweetId,
         quoteTweetId,
+        answerQuestionId,
         replyContent,
         quoteContent,
+        answerContent,
         openReplyModal,
         closeReplyModal,
         setReplyContent,
@@ -40,8 +46,14 @@ export function TweetWall() {
         closeQuoteModal,
         setQuoteContent,
         clearQuoteData,
+        openAnswerModal,
+        closeAnswerModal,
+        setAnswerContent,
+        clearAnswerData,
     } = useTweetStore();
     const [newTweetContent, setNewTweetContent] = useState("");
+    const [questionContent, setQuestionContent] = useState("");
+    const [activeTab, setActiveTab] = useState<"tweet" | "question">("tweet");
 
     // Fetch timeline on mount (works for both authenticated and unauthenticated users)
     useEffect(() => {
@@ -59,6 +71,10 @@ export function TweetWall() {
 
     const handleQuote = (tweet: TweetNode) => {
         openQuoteModal(tweet.id || "");
+    };
+
+    const handleAnswer = (tweet: TweetNode) => {
+        openAnswerModal(tweet.id || "");
     };
 
     const handleRetweet = async (tweet: TweetNode) => {
@@ -117,7 +133,7 @@ export function TweetWall() {
         try {
             const result = await quoteTweet(identityToken, quoteContent.trim(), quoteTweetId);
             clearQuoteData();
-            
+
             // Show toast with transaction ID if post was created on-chain
             if (result.onchainSignature) {
                 enqueueSnackbar(
@@ -125,7 +141,7 @@ export function TweetWall() {
                     { variant: "success" }
                 );
             } else {
-            enqueueSnackbar("Quote tweet posted!", { variant: "success" });
+                enqueueSnackbar("Quote tweet posted!", { variant: "success" });
             }
         } catch (e) {
             enqueueSnackbar(
@@ -145,7 +161,7 @@ export function TweetWall() {
         try {
             const result = await createTweet(identityToken!, newTweetContent.trim());
             setNewTweetContent("");
-            
+
             // Show toast with transaction ID if post was created on-chain
             if (result.onchainSignature) {
                 enqueueSnackbar(
@@ -163,49 +179,164 @@ export function TweetWall() {
         }
     };
 
+    const handlePostQuestion = async () => {
+        console.log("handlePostQuestion called", { questionContent, identityToken: !!identityToken });
+        if (!questionContent.trim()) {
+            console.log("Question content is empty");
+            return;
+        }
+        if (!identityToken) {
+            enqueueSnackbar("Please log in to ask a question", { variant: "error" });
+            return;
+        }
+
+        try {
+            console.log("Calling questionTweet mutation...");
+            const result = await questionTweet(identityToken!, questionContent.trim());
+            console.log("Question tweet result:", result);
+            setQuestionContent("");
+
+            // Show toast with transaction ID if post was created on-chain
+            if (result.onchainSignature) {
+                enqueueSnackbar(
+                    `Question posted! Transaction: ${result.onchainSignature.slice(0, 8)}...`,
+                    { variant: "success" }
+                );
+            } else {
+                enqueueSnackbar("Question posted!", { variant: "success" });
+            }
+        } catch (e) {
+            console.error("Error posting question:", e);
+            enqueueSnackbar(
+                e instanceof Error ? e.message : "Failed to post question",
+                { variant: "error" }
+            );
+        }
+    };
+
+    const handleSubmitAnswer = async () => {
+        if (!identityToken || !answerQuestionId || !answerContent.trim()) return;
+
+        try {
+            const result = await answerTweet(identityToken, answerContent.trim(), answerQuestionId);
+            clearAnswerData();
+
+            // Show toast with transaction ID if post was created on-chain
+            if (result.onchainSignature) {
+                enqueueSnackbar(
+                    `Answer posted! Transaction: ${result.onchainSignature.slice(0, 8)}...`,
+                    { variant: "success" }
+                );
+            } else {
+                enqueueSnackbar("Answer posted!", { variant: "success" });
+            }
+        } catch (e) {
+            enqueueSnackbar(
+                e instanceof Error ? e.message : "Failed to post answer",
+                { variant: "error" }
+            );
+        }
+    };
+
     return (
         <Box sx={{ maxWidth: 600, mx: "auto" }}>
-            {/* Compose Tweet - Only show if authenticated */}
+            {/* Compose Tweet/Question - Only show if authenticated */}
             {identityToken && (
                 <Paper
                     elevation={0}
                     sx={{
-                        p: 2,
                         borderBottom: 1,
                         borderColor: "rgba(255,255,255,0.06)",
                     }}
                 >
-                    <Stack spacing={2}>
-                        <TextField
-                            placeholder="What's happening?"
-                            multiline
-                            rows={3}
-                            value={newTweetContent}
-                            onChange={(e) => setNewTweetContent(e.target.value)}
-                            variant="outlined"
-                            sx={{
-                                "& .MuiOutlinedInput-root": {
-                                    "& fieldset": {
-                                        border: "none",
-                                    },
-                                },
-                            }}
+                    <Tabs
+                        value={activeTab}
+                        onChange={(_, newValue) => setActiveTab(newValue)}
+                        sx={{
+                            borderBottom: 1,
+                            borderColor: "rgba(255,255,255,0.06)",
+                        }}
+                    >
+                        <Tab label="Tweet" value="tweet" />
+                        <Tab
+                            label="Ask Question"
+                            value="question"
+                            icon={<QuestionIcon />}
+                            iconPosition="start"
                         />
-                        <Stack direction="row" justifyContent="flex-end">
-                            <Button
-                                variant="contained"
-                                onClick={handlePostTweet}
-                                disabled={!newTweetContent.trim() || isCreating}
-                                startIcon={isCreating ? <CircularProgress size={16} /> : <SendIcon />}
-                                sx={{
-                                    borderRadius: "9999px",
-                                    px: 3,
-                                }}
-                            >
-                                {isCreating ? "Posting..." : "Tweet"}
-                            </Button>
-                        </Stack>
-                    </Stack>
+                    </Tabs>
+
+                    {activeTab === "tweet" && (
+                        <Box sx={{ p: 2 }}>
+                            <Stack spacing={2}>
+                                <TextField
+                                    placeholder="What's happening?"
+                                    multiline
+                                    rows={3}
+                                    value={newTweetContent}
+                                    onChange={(e) => setNewTweetContent(e.target.value)}
+                                    variant="outlined"
+                                    sx={{
+                                        "& .MuiOutlinedInput-root": {
+                                            "& fieldset": {
+                                                border: "none",
+                                            },
+                                        },
+                                    }}
+                                />
+                                <Stack direction="row" justifyContent="flex-end">
+                                    <Button
+                                        variant="contained"
+                                        onClick={handlePostTweet}
+                                        disabled={!newTweetContent.trim() || isCreating}
+                                        startIcon={isCreating ? <CircularProgress size={16} /> : <SendIcon />}
+                                        sx={{
+                                            borderRadius: "9999px",
+                                            px: 3,
+                                        }}
+                                    >
+                                        {isCreating ? "Posting..." : "Tweet"}
+                                    </Button>
+                                </Stack>
+                            </Stack>
+                        </Box>
+                    )}
+
+                    {activeTab === "question" && (
+                        <Box sx={{ p: 2 }}>
+                            <Stack spacing={2}>
+                                <TextField
+                                    placeholder="What would you like to know?"
+                                    multiline
+                                    rows={3}
+                                    value={questionContent}
+                                    onChange={(e) => setQuestionContent(e.target.value)}
+                                    variant="outlined"
+                                    sx={{
+                                        "& .MuiOutlinedInput-root": {
+                                            "& fieldset": {
+                                                border: "none",
+                                            },
+                                        },
+                                    }}
+                                />
+                                <Stack direction="row" justifyContent="flex-end">
+                                    <Button
+                                        variant="contained"
+                                        onClick={handlePostQuestion}
+                                        disabled={!questionContent.trim() || isCreating}
+                                        startIcon={isCreating ? <CircularProgress size={16} /> : <QuestionIcon />}
+                                        sx={{
+                                            borderRadius: "9999px",
+                                            px: 3,
+                                        }}
+                                    >
+                                        {isCreating ? "Posting..." : "Ask Question"}
+                                    </Button>
+                                </Stack>
+                            </Stack>
+                        </Box>
+                    )}
                 </Paper>
             )}
 
@@ -226,6 +357,7 @@ export function TweetWall() {
                             tweet={tweet}
                             onReply={handleReply}
                             onQuote={handleQuote}
+                            onAnswer={handleAnswer}
                             onRetweet={handleRetweet}
                             onLike={handleLike}
                         />
@@ -250,6 +382,15 @@ export function TweetWall() {
                 content={quoteContent}
                 onContentChange={setQuoteContent}
                 onSubmit={handleSubmitQuote}
+                isSubmitting={isCreating}
+            />
+            <AnswerModal
+                open={showAnswerModal}
+                onClose={closeAnswerModal}
+                question={answerQuestionId ? tweets.find((t) => t.id === answerQuestionId) || null : null}
+                content={answerContent}
+                onContentChange={setAnswerContent}
+                onSubmit={handleSubmitAnswer}
                 isSubmitting={isCreating}
             />
         </Box>

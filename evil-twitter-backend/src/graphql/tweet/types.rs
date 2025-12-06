@@ -215,6 +215,12 @@ impl TweetNode {
                         opinions_market::state::Side::Smack => "Smack".to_string(),
                     });
 
+                    let function = Some(match post_account.function {
+                        opinions_market::state::PostFunction::Normal => "Normal".to_string(),
+                        opinions_market::state::PostFunction::Question => "Question".to_string(),
+                        opinions_market::state::PostFunction::Answer => "Answer".to_string(),
+                    });
+
                     let post_state_doc = PostState {
                         id: None,
                         post_id_hash: post_id_hash.to_string(),
@@ -225,6 +231,7 @@ impl TweetNode {
                         winning_side: winning_side.clone(),
                         start_time: post_account.start_time,
                         end_time: post_account.end_time,
+                        function,
                         last_synced_at: DateTime::now(),
                     };
 
@@ -465,6 +472,8 @@ pub struct PostStateNode {
     pub downvotes: u64,
     pub winning_side: Option<String>,
     pub end_time: i64,
+    /// Post function: "Normal", "Question", or "Answer"
+    pub function: Option<String>,
     pub pot_balances: Option<PostPotBalances>,
     /// User's vote counts for this post (None if not authenticated or hasn't voted)
     pub user_votes: Option<UserVotes>,
@@ -486,6 +495,7 @@ impl From<PostState> for PostStateNode {
             downvotes: state.downvotes,
             winning_side: state.winning_side,
             end_time: state.end_time,
+            function: state.function,
             pot_balances: None, // Will be populated by resolver
             user_votes: None,   // Will be populated by resolver if user is authenticated
             payout_info: None,  // Will be populated by resolver if post is settled
