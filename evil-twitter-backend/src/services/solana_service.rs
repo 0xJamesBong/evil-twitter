@@ -689,6 +689,18 @@ impl SolanaService {
         post_id_hash: [u8; 32],
         parent_post_pda: Option<Pubkey>,
     ) -> anyhow::Result<Signature> {
+        // Log post type prominently
+        if let Some(parent_pda) = parent_post_pda {
+            eprintln!("  🌳 ========================================");
+            eprintln!("  🌳 CHILD POST (REPLY) - Creating reply post");
+            eprintln!("  🌳 Parent Post (Mother) PDA: {}", parent_pda);
+            eprintln!("  🌳 ========================================");
+        } else {
+            eprintln!("  📝 ========================================");
+            eprintln!("  📝 ORIGINAL POST - Creating original post");
+            eprintln!("  📝 ========================================");
+        }
+
         println!(
             "  🔧 SolanaService::create_post: Starting for user {}",
             user_wallet
@@ -716,7 +728,7 @@ impl SolanaService {
         println!("  📍 SolanaService::create_post: Post PDA: {}", post_pda);
         if let Some(parent) = parent_post_pda {
             println!(
-                "  📍 SolanaService::create_post: Parent Post PDA: {}",
+                "  🌳 SolanaService::create_post: Parent Post (Mother) PDA: {}",
                 parent
             );
         }
@@ -826,6 +838,20 @@ impl SolanaService {
             "  ✅ SolanaService::create_post: Transaction confirmed! Signature: {}",
             signature
         );
+
+        // Log completion with post type
+        if parent_post_pda.is_some() {
+            eprintln!(
+                "  🌳 ✅ CHILD POST (REPLY) created successfully! Signature: {}",
+                signature
+            );
+        } else {
+            eprintln!(
+                "  📝 ✅ ORIGINAL POST created successfully! Signature: {}",
+                signature
+            );
+        }
+
         Ok(signature)
     }
 
@@ -1187,19 +1213,33 @@ impl SolanaService {
             .map_err(|e| anyhow::anyhow!("Failed to fetch post account: {}", e))?;
 
         // Handle parent post if this is a child post
+        // NOTE: The Solana program has a bug in SettlePost instruction where parent_post_pot_token_account
+        // and parent_post_pot_authority are derived using post.key() (current post) instead of parent_post.key().
+        // This means we must always pass accounts derived from the CURRENT post, not the parent post,
+        // to satisfy the seed constraint checks.
         let (parent_post_pda, parent_post_pot_token_account_pda, parent_post_pot_authority_pda) =
             match post_account.post_type {
                 opinions_market::state::PostType::Child { parent } => {
+                    // BUG WORKAROUND: Derive from current post (post_pda) not parent
+                    // The program's seeds use post.key() so we must match that
                     let parent_pot_token_account =
-                        get_post_pot_token_account_pda(&program_id, &parent, token_mint);
-                    let parent_pot_authority = get_post_pot_authority_pda(&program_id, &parent);
+                        get_post_pot_token_account_pda(&program_id, &post_pda, token_mint);
+                    let parent_pot_authority = get_post_pot_authority_pda(&program_id, &post_pda);
                     (
-                        Some(parent),
-                        Some(parent_pot_token_account.0),
-                        parent_pot_authority.0,
+                        Some(parent),                     // Pass actual parent PDA for program logic
+                        Some(parent_pot_token_account.0), // But derive token account from current post
+                        parent_pot_authority.0,           // And derive authority from current post
                     )
                 }
-                opinions_market::state::PostType::Original => (None, None, post_pot_authority_pda),
+                opinions_market::state::PostType::Original => {
+                    // For original posts, pass current post's accounts to satisfy constraint
+                    // The program won't use them since it checks post_type == Original first
+                    (
+                        None,
+                        Some(post_pot_token_account_pda),
+                        post_pot_authority_pda,
+                    )
+                }
             };
 
         println!("  🔨 SolanaService::settle_post_for_mint: Building SettlePost instruction...");

@@ -24,6 +24,9 @@ import { TweetNode } from "@/lib/graphql/tweets/types";
 import { VoteButtons } from "./VoteButtons";
 import { RewardCollection } from "./RewardCollection";
 import { useUser } from "@privy-io/react-auth";
+import { useSettlePost } from "@/hooks/useSettlePost";
+import { Button, CircularProgress } from "@mui/material";
+import { AccountBalance as SettleIcon } from "@mui/icons-material";
 
 interface TweetCardProps {
     tweet: TweetNode;
@@ -48,6 +51,19 @@ export function TweetCard({
     const author = tweet.author;
     const [timeLeft, setTimeLeft] = useState<string>("");
     const currentUserId = user?.id;
+    const { settlePost, loading: settleLoading } = useSettlePost();
+
+    const handleSettlePost = async (e: React.MouseEvent) => {
+        e.stopPropagation();
+        if (!tweet.id) return;
+
+        try {
+            await settlePost(tweet.id, tweet.postState?.potBalances);
+        } catch (error) {
+            // Error is already handled in the hook
+            console.error("Failed to settle post:", error);
+        }
+    };
 
     // Calculate and update time left for open posts
     useEffect(() => {
@@ -243,6 +259,24 @@ export function TweetCard({
                                         <Typography variant="caption" color="text.secondary">
                                             {timeLeft}
                                         </Typography>
+                                    )}
+                                    {/* Settle Post Button - Only show for Open posts */}
+                                    {tweet.postState.state === "Open" && (
+                                        <Button
+                                            size="small"
+                                            variant="outlined"
+                                            color="primary"
+                                            startIcon={settleLoading ? <CircularProgress size={14} /> : <SettleIcon />}
+                                            onClick={handleSettlePost}
+                                            disabled={settleLoading}
+                                            sx={{
+                                                ml: "auto",
+                                                minWidth: 120,
+                                                fontSize: "0.75rem",
+                                            }}
+                                        >
+                                            {settleLoading ? "Settling..." : "Settle Post"}
+                                        </Button>
                                     )}
                                 </Stack>
                             </Box>

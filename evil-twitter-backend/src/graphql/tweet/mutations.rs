@@ -290,6 +290,8 @@ pub async fn tweet_create_resolver(
         let mut post_id_hash = [0u8; 32];
         post_id_hash.copy_from_slice(&post_id_hash_bytes);
 
+        eprintln!("📝 tweet_create: Creating ORIGINAL POST (no parent)");
+
         // Call create_post on-chain (backend signs transaction)
         match app_state
             .solana_service
@@ -297,7 +299,7 @@ pub async fn tweet_create_resolver(
             .await
         {
             Ok(signature) => {
-                eprintln!("✅ Created post on-chain: {}", signature);
+                eprintln!("📝 ✅ Created original post on-chain: {}", signature);
                 onchain_signature = Some(signature.to_string());
             }
             Err(e) => {
@@ -403,6 +405,11 @@ pub async fn tweet_reply_resolver(
             let program_id = app_state.solana_service.opinions_market_program().id();
             let (parent_post_pda, _) = get_post_pda(&program_id, &parent_post_id_hash);
 
+            eprintln!(
+                "🌳 tweet_reply: Creating CHILD POST (REPLY) - Parent Post PDA: {}",
+                parent_post_pda
+            );
+
             // Call create_post on-chain with parent_post_pda
             match app_state
                 .solana_service
@@ -410,11 +417,17 @@ pub async fn tweet_reply_resolver(
                 .await
             {
                 Ok(signature) => {
-                    eprintln!("✅ Created reply post on-chain: {}", signature);
+                    eprintln!(
+                        "🌳 ✅ Created reply post (CHILD POST) on-chain: {}",
+                        signature
+                    );
                     onchain_signature = Some(signature.to_string());
                 }
                 Err(e) => {
-                    eprintln!("⚠️ Failed to create reply post on-chain: {}", e);
+                    eprintln!(
+                        "🌳 ⚠️ Failed to create reply post (CHILD POST) on-chain: {}",
+                        e
+                    );
                     // Don't fail the reply creation if on-chain creation fails
                     // The reply is already in MongoDB, on-chain can be retried
                 }
@@ -488,6 +501,11 @@ pub async fn tweet_quote_resolver(
             let program_id = app_state.solana_service.opinions_market_program().id();
             let (parent_post_pda, _) = get_post_pda(&program_id, &parent_post_id_hash);
 
+            eprintln!(
+                "🌳 tweet_quote: Creating CHILD POST (QUOTE) - Parent Post PDA: {}",
+                parent_post_pda
+            );
+
             // Call create_post on-chain with parent_post_pda
             match app_state
                 .solana_service
@@ -495,7 +513,10 @@ pub async fn tweet_quote_resolver(
                 .await
             {
                 Ok(signature) => {
-                    eprintln!("✅ Created quote post on-chain: {}", signature);
+                    eprintln!(
+                        "🌳 ✅ Created quote post (CHILD POST) on-chain: {}",
+                        signature
+                    );
                     onchain_signature = Some(signature.to_string());
                 }
                 Err(e) => {

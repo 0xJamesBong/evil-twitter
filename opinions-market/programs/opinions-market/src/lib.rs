@@ -524,18 +524,20 @@ pub mod opinions_market {
         );
 
         // Calculate mother post fee (10% for child posts, only if parent is still open)
-        let mother_fee = if let PostType::Child { parent: _ } = post.post_type {
-            if let Some(parent_post) = &ctx.accounts.parent_post {
-                if parent_post.state == PostState::Open {
+        let mother_fee = match post.post_type {
+            PostType::Child { .. } => {
+                let parent = ctx
+                    .accounts
+                    .parent_post
+                    .as_ref()
+                    .ok_or(ErrorCode::InvalidParentPost)?;
+                if parent.state == PostState::Open {
                     initial_pot / 10
                 } else {
                     0
                 }
-            } else {
-                initial_pot / 10 // Default to 10% if parent post account not provided
             }
-        } else {
-            0
+            _ => 0,
         };
 
         let pot_after_mother = initial_pot
