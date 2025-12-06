@@ -51,6 +51,10 @@ pub enum ErrorCode {
     UnauthorizedSigner,
     #[msg("Invalid post relation")]
     InvalidRelation,
+    #[msg("Answer must target a Question post")]
+    AnswerMustTargetQuestion,
+    #[msg("Answer target must be a Root post")]
+    AnswerTargetNotRoot,
 }
 #[derive(Accounts)]
 pub struct Ping {}
@@ -301,134 +305,136 @@ pub mod opinions_market {
     /// Core MVP voting instruction.
     /// User pays from their vault; everything is denominated in BLING.
 
-    // pub fn create_question(ctx: Context<CreatePost>, post_id_hash: [u8; 32]) -> Result<()> {
-    //     let clock = Clock::get()?;
-    //     let now = clock.unix_timestamp;
+    pub fn create_question(ctx: Context<CreatePost>, post_id_hash: [u8; 32]) -> Result<()> {
+        let clock = Clock::get()?;
+        let now = clock.unix_timestamp;
 
-    //     // ---------------------------------------------------------------------
-    //     // Auth: wallet OR session
-    //     // ---------------------------------------------------------------------
-    //     assert_session_or_wallet(
-    //         &ctx.accounts.user.key(),
-    //         &ctx.accounts.session_authority.user,
-    //         Some(&ctx.accounts.session_authority),
-    //         now,
-    //     )?;
+        // ---------------------------------------------------------------------
+        // Auth: wallet OR session
+        // ---------------------------------------------------------------------
+        assert_session_or_wallet(
+            &ctx.accounts.user.key(),
+            &ctx.accounts.session_authority.user,
+            Some(&ctx.accounts.session_authority),
+            now,
+        )?;
 
-    //     let config = &ctx.accounts.config;
-    //     let post = &mut ctx.accounts.post;
+        let config = &ctx.accounts.config;
+        let post = &mut ctx.accounts.post;
 
-    //     // ---------------------------------------------------------------------
-    //     // Enforced invariants
-    //     // ---------------------------------------------------------------------
-    //     let function = PostFunction::Question;
-    //     let relation = PostRelation::Root;
+        // ---------------------------------------------------------------------
+        // Enforced invariants
+        // ---------------------------------------------------------------------
+        let function = PostFunction::Question;
+        let relation = PostRelation::Root;
 
-    //     // ---------------------------------------------------------------------
-    //     // Initialize PostAccount
-    //     // ---------------------------------------------------------------------
-    //     let new_post = PostAccount::new(
-    //         ctx.accounts.user.key(),
-    //         post_id_hash,
-    //         function,
-    //         relation,
-    //         now,
-    //         config,
-    //         ctx.bumps.post,
-    //     );
+        // ---------------------------------------------------------------------
+        // Initialize PostAccount
+        // ---------------------------------------------------------------------
+        let new_post = PostAccount::new(
+            ctx.accounts.user.key(),
+            post_id_hash,
+            function,
+            relation,
+            now,
+            config,
+            ctx.bumps.post,
+        );
 
-    //     // ---------------------------------------------------------------------
-    //     // Write to account
-    //     // ---------------------------------------------------------------------
-    //     post.function = new_post.function;
-    //     post.relation = new_post.relation;
-    //     post.forced_outcome = None;
+        // ---------------------------------------------------------------------
+        // Write to account
+        // ---------------------------------------------------------------------
+        post.function = new_post.function;
+        post.relation = new_post.relation;
+        post.forced_outcome = None;
 
-    //     post.creator_user = new_post.creator_user;
-    //     post.post_id_hash = new_post.post_id_hash;
-    //     post.start_time = new_post.start_time;
-    //     post.end_time = new_post.end_time;
-    //     post.state = new_post.state;
-    //     post.upvotes = new_post.upvotes;
-    //     post.downvotes = new_post.downvotes;
-    //     post.winning_side = new_post.winning_side;
-    //     post.bump = new_post.bump;
-    //     post.reserved = new_post.reserved;
+        post.creator_user = new_post.creator_user;
+        post.post_id_hash = new_post.post_id_hash;
+        post.start_time = new_post.start_time;
+        post.end_time = new_post.end_time;
+        post.state = new_post.state;
+        post.upvotes = new_post.upvotes;
+        post.downvotes = new_post.downvotes;
+        post.winning_side = new_post.winning_side;
+        post.bump = new_post.bump;
+        post.reserved = new_post.reserved;
 
-    //     Ok(())
-    // }
-    // pub fn create_answer(
-    //     ctx: Context<CreateAnswer>,
-    //     post_id_hash: [u8; 32],
-    // ) -> Result<()> {
-    //     let clock = Clock::get()?;
-    //     let now = clock.unix_timestamp;
+        Ok(())
+    }
 
-    //     // ---------------------------------------------------------------------
-    //     // Auth
-    //     // ---------------------------------------------------------------------
-    //     assert_session_or_wallet(
-    //         &ctx.accounts.user.key(),
-    //         &ctx.accounts.session_authority.user,
-    //         Some(&ctx.accounts.session_authority),
-    //         now,
-    //     )?;
+    pub fn create_answer(
+        ctx: Context<CreateAnswer>,
+        answer_post_id_hash: [u8; 32],
+        _question_post_id_hash: [u8; 32],
+    ) -> Result<()> {
+        let clock = Clock::get()?;
+        let now = clock.unix_timestamp;
 
-    //     let config = &ctx.accounts.config;
-    //     let post = &mut ctx.accounts.post;
-    //     let question = &ctx.accounts.question_post;
+        // ---------------------------------------------------------------------
+        // Auth
+        // ---------------------------------------------------------------------
+        assert_session_or_wallet(
+            &ctx.accounts.user.key(),
+            &ctx.accounts.session_authority.user,
+            Some(&ctx.accounts.session_authority),
+            now,
+        )?;
 
-    //     // ---------------------------------------------------------------------
-    //     // Enforced invariants (redundant safety)
-    //     // ---------------------------------------------------------------------
-    //     require!(
-    //         question.function == PostFunction::Question,
-    //         ErrorCode::AnswerMustTargetQuestion
-    //     );
+        let config = &ctx.accounts.config;
+        let post = &mut ctx.accounts.post;
+        let question = &ctx.accounts.question_post;
 
-    //     require!(
-    //         matches!(question.relation, PostRelation::Root),
-    //         ErrorCode::AnswerTargetNotRoot
-    //     );
+        // ---------------------------------------------------------------------
+        // Enforced invariants (redundant safety)
+        // ---------------------------------------------------------------------
+        require!(
+            question.function == PostFunction::Question,
+            ErrorCode::AnswerMustTargetQuestion
+        );
 
-    //     // ---------------------------------------------------------------------
-    //     // Construct Answer
-    //     // ---------------------------------------------------------------------
-    //     let function = PostFunction::Answer;
-    //     let relation = PostRelation::AnswerTo {
-    //         question: question.key(),
-    //     };
+        require!(
+            matches!(question.relation, PostRelation::Root),
+            ErrorCode::AnswerTargetNotRoot
+        );
 
-    //     let new_post = PostAccount::new(
-    //         ctx.accounts.user.key(),
-    //         post_id_hash,
-    //         function,
-    //         relation,
-    //         now,
-    //         config,
-    //         ctx.bumps.post,
-    //     );
+        // ---------------------------------------------------------------------
+        // Construct Answer
+        // ---------------------------------------------------------------------
+        let function = PostFunction::Answer;
+        let relation = PostRelation::AnswerTo {
+            question: question.key(),
+        };
 
-    //     // ---------------------------------------------------------------------
-    //     // Write
-    //     // ---------------------------------------------------------------------
-    //     post.function = new_post.function;
-    //     post.relation = new_post.relation;
-    //     post.forced_outcome = None; // may be set later by question owner
+        let new_post = PostAccount::new(
+            ctx.accounts.user.key(),
+            answer_post_id_hash,
+            function,
+            relation,
+            now,
+            config,
+            ctx.bumps.post,
+        );
 
-    //     post.creator_user = new_post.creator_user;
-    //     post.post_id_hash = new_post.post_id_hash;
-    //     post.start_time = new_post.start_time;
-    //     post.end_time = new_post.end_time;
-    //     post.state = new_post.state;
-    //     post.upvotes = new_post.upvotes;
-    //     post.downvotes = new_post.downvotes;
-    //     post.winning_side = new_post.winning_side;
-    //     post.bump = new_post.bump;
-    //     post.reserved = new_post.reserved;
+        // ---------------------------------------------------------------------
+        // Write
+        // ---------------------------------------------------------------------
+        post.function = new_post.function;
+        post.relation = new_post.relation;
+        post.forced_outcome = None; // may be set later by question owner
 
-    //     Ok(())
-    // }
+        post.creator_user = new_post.creator_user;
+        post.post_id_hash = new_post.post_id_hash;
+        post.start_time = new_post.start_time;
+        post.end_time = new_post.end_time;
+        post.state = new_post.state;
+        post.upvotes = new_post.upvotes;
+        post.downvotes = new_post.downvotes;
+        post.winning_side = new_post.winning_side;
+        post.bump = new_post.bump;
+        post.reserved = new_post.reserved;
+
+        Ok(())
+    }
 
     pub fn vote_on_post(
         ctx: Context<VoteOnPost>,

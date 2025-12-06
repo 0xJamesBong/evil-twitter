@@ -146,7 +146,7 @@ pub enum PostRelation {
 }
 
 /// Forced settlement outcome for Answers
-#[derive(AnchorSerialize, AnchorDeserialize, Clone, Copy, PartialEq, Eq)]
+#[derive(AnchorSerialize, AnchorDeserialize, Clone, Copy, PartialEq, Eq, InitSpace, Debug)]
 pub enum ForcedOutcome {
     Pump,
     Smack,

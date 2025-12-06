@@ -316,6 +316,58 @@ pub struct CreatePost<'info> {
     pub system_program: Program<'info, System>,
 }
 
+#[derive(Accounts)]
+#[instruction(answer_post_id_hash: [u8; 32], question_post_id_hash: [u8; 32])]
+pub struct CreateAnswer<'info> {
+    #[account(mut,
+        seeds = [CONFIG_SEED],
+        bump,
+    )]
+    pub config: Account<'info, Config>,
+    /// CHECK: real user identity (owner of UserAccount and vaults)
+    #[account(mut)]
+    pub user: UncheckedAccount<'info>,
+
+    /// CHECK: Signer paying the TX fee (user or backend)
+    #[account(mut)]
+    pub payer: UncheckedAccount<'info>,
+
+    /// CHECK: ephemeral delegated session key
+    #[account(mut)]
+    pub session_key: UncheckedAccount<'info>,
+
+    #[account(
+        mut,
+        seeds = [SESSION_AUTHORITY_SEED, user.key().as_ref(), session_key.key().as_ref()],
+        bump,
+    )]
+    pub session_authority: Account<'info, SessionAuthority>,
+
+    #[account(
+        seeds = [USER_ACCOUNT_SEED, user.key().as_ref()],
+        bump,
+    )]
+    pub user_account: Account<'info, UserAccount>,
+
+    #[account(
+        init,
+        payer = payer,
+        seeds = [POST_ACCOUNT_SEED, answer_post_id_hash.as_ref()],
+        bump,
+        space = 8 + PostAccount::INIT_SPACE,
+    )]
+    pub post: Account<'info, PostAccount>,
+
+    /// CHECK: The question post this answer targets
+    #[account(
+        seeds = [POST_ACCOUNT_SEED, question_post_id_hash.as_ref()],
+        bump,
+    )]
+    pub question_post: Account<'info, PostAccount>,
+
+    pub system_program: Program<'info, System>,
+}
+
 
 
 // The User-uncheckedAccount and payer-Signer pattern is used to allow for dual signing - so the user doesn't need to see a signature prompt pop-up
