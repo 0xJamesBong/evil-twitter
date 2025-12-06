@@ -57,7 +57,7 @@ pub struct TweetVoteInput {
 #[derive(InputObject)]
 pub struct SettlePostInput {
     pub tweet_id: ID,
-    pub token_mint: String, // Token mint pubkey as string
+    // token_mint removed - will loop through all tokens for the post
 }
 
 #[derive(InputObject)]
@@ -654,7 +654,7 @@ pub async fn tweet_vote_resolver(
     })
 }
 
-/// Settle a post for a specific token mint
+/// Settle a post for all token mints (loops through all tokens and chains instructions)
 pub async fn settle_post_resolver(
     ctx: &Context<'_>,
     input: SettlePostInput,
@@ -685,32 +685,132 @@ pub async fn settle_post_resolver(
     let mut post_id_hash = [0u8; 32];
     post_id_hash.copy_from_slice(&post_id_hash_bytes);
 
-    // Parse token_mint
-    let token_mint = Pubkey::from_str(&input.token_mint)
-        .map_err(|e| async_graphql::Error::new(format!("Invalid token_mint: {}", e)))?;
+    // Get all token mints
+    let bling_mint = *app_state.solana_service.get_bling_mint();
+    let usdc_mint_str = std::env::var("USDC_MINT").ok();
+    let stablecoin_mint_str = std::env::var("STABLECOIN_MINT").ok();
 
-    // Call settle_post_for_mint
+    // Collect all token mints to check
+    let mut token_mints: Vec<Pubkey> = vec![bling_mint];
+
+    if let Some(ref usdc_mint_str) = usdc_mint_str {
+        if let Ok(usdc_mint) = Pubkey::from_str(usdc_mint_str) {
+            token_mints.push(usdc_mint);
+        }
+    }
+
+    if let Some(ref stablecoin_mint_str) = stablecoin_mint_str {
+        if let Ok(stablecoin_mint) = Pubkey::from_str(stablecoin_mint_str) {
+            token_mints.push(stablecoin_mint);
+        }
+    }
+
+    // Collect all instructions to chain
+    let mut all_instructions: Vec<solana_sdk::instruction::Instruction> = Vec::new();
+
+    // Loop through each token mint and build instructions
+    for token_mint in &token_mints {
+        // Check pot balance - skip if zero
+        let pot_balance = app_state
+            .solana_service
+            .get_post_pot_balance(&post_id_hash, token_mint)
+            .await
+            .map_err(|e| async_graphql::Error::new(format!("Failed to get pot balance: {}", e)))?;
+
+        if pot_balance == 0 {
+            eprintln!("  ⏭️  Skipping token {} - zero balance", token_mint);
+            continue;
+        }
+
+        eprintln!(
+            "  🔧 Processing token {} with balance {}",
+            token_mint, pot_balance
+        );
+
+        // Build settle instruction
+        let settle_ixs = app_state
+            .solana_service
+            .build_settle_post_instruction(post_id_hash, token_mint)
+            .await
+            .map_err(|e| {
+                async_graphql::Error::new(format!(
+                    "Failed to build settle instruction for token {}: {}",
+                    token_mint, e
+                ))
+            })?;
+        all_instructions.extend(settle_ixs);
+
+        // Build distribute creator reward instruction
+        let creator_ixs = app_state
+            .solana_service
+            .build_distribute_creator_reward_instruction(post_id_hash, token_mint)
+            .await
+            .map_err(|e| {
+                async_graphql::Error::new(format!(
+                    "Failed to build distribute creator reward instruction for token {}: {}",
+                    token_mint, e
+                ))
+            })?;
+        all_instructions.extend(creator_ixs);
+
+        // Build distribute protocol fee instruction
+        let protocol_ixs = app_state
+            .solana_service
+            .build_distribute_protocol_fee_instruction(post_id_hash, token_mint)
+            .await
+            .map_err(|e| {
+                async_graphql::Error::new(format!(
+                    "Failed to build distribute protocol fee instruction for token {}: {}",
+                    token_mint, e
+                ))
+            })?;
+        all_instructions.extend(protocol_ixs);
+
+        // Build distribute parent post share instruction (if child post)
+        let parent_ixs_opt = app_state
+            .solana_service
+            .build_distribute_parent_post_share_instruction(post_id_hash, token_mint)
+            .await
+            .map_err(|e| {
+                async_graphql::Error::new(format!(
+                    "Failed to build distribute parent post share instruction for token {}: {}",
+                    token_mint, e
+                ))
+            })?;
+
+        if let Some(parent_ixs) = parent_ixs_opt {
+            all_instructions.extend(parent_ixs);
+        }
+    }
+
+    if all_instructions.is_empty() {
+        return Err(async_graphql::Error::new(
+            "No tokens with non-zero balances to settle",
+        ));
+    }
+
+    eprintln!(
+        "  📦 Built {} total instructions for settlement",
+        all_instructions.len()
+    );
+
+    // Build and send transaction with all chained instructions
+    let tx = app_state
+        .solana_service
+        .build_partial_signed_tx(all_instructions)
+        .await
+        .map_err(|e| async_graphql::Error::new(format!("Failed to build transaction: {}", e)))?;
+
     let signature = app_state
         .solana_service
-        .settle_post_for_mint(post_id_hash, &token_mint)
+        .send_signed_tx(&tx)
         .await
-        .map_err(|e| async_graphql::Error::new(format!("Failed to settle post: {}", e)))?;
+        .map_err(|e| async_graphql::Error::new(format!("Failed to send transaction: {}", e)))?;
 
-    // Fetch updated post state by creating a new TweetNode
-    let tweet_after = app_state
-        .mongo_service
-        .tweets
-        .get_tweet_by_id(tweet_id)
-        .await?
-        .ok_or_else(|| async_graphql::Error::new("Tweet not found after settlement"))?;
-
-    let enriched = app_state
-        .mongo_service
-        .tweets
-        .enrich_tweets(vec![tweet_after])
-        .await?;
-
-    let tweet_node = enriched.into_iter().next().map(TweetNode::from);
+    eprintln!(
+        "  ✅ Settlement transaction confirmed! Signature: {}",
+        signature
+    );
 
     // Get post state through the resolver (it's a GraphQL field, not a direct method)
     // We'll return None for now and let the client refetch if needed
