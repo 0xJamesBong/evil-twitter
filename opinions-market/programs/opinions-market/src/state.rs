@@ -121,7 +121,7 @@ impl UserAccount {
             0, // post_upvotes
             0, // post_downvotes
             side,
-            PostType::Original,
+            PostRelation::Root,
         )?;
 
         // Convert to BLING lamports
@@ -130,14 +130,14 @@ impl UserAccount {
 }
 use anchor_lang::prelude::*;
 
-#[derive(AnchorSerialize, AnchorDeserialize, Clone, Copy, PartialEq, Eq)]
+#[derive(AnchorSerialize, AnchorDeserialize, Clone, Copy, PartialEq, Eq, Debug)]
 pub enum PostFunction {
     Normal,
     Question,
     Answer,
 }
 
-#[derive(AnchorSerialize, AnchorDeserialize, Clone, PartialEq, Eq)]
+#[derive(AnchorSerialize, AnchorDeserialize, Clone, PartialEq, Eq, Debug)]
 pub enum PostRelation {
     Root,
     Reply { parent: Pubkey },
@@ -185,6 +185,21 @@ pub struct PostAccount {
 }
 
 impl PostAccount {
+    pub const INIT_SPACE: usize = 8 +                             // discriminator
+        1 +                             // function
+        1 + 32 +                        // relation + its pubkey (worst case AnswerTo / Reply)
+        1 +                             // forced_outcome Option tag
+        1 +                             // forced_outcome value (if Some)
+        32 +                            // creator_user
+        32 +                            // post_id_hash
+        8 + 8 +                         // start_time + end_time
+        1 +                             // state enum
+        1 +                             // winning_side Option tag
+        1 +                             // winning_side value (if Some)
+        8 + 8 +                         // upvotes + downvotes
+        1 +                             // bump
+        32; // reserved
+
     pub fn new(
         creator_user: Pubkey,
         post_id_hash: [u8; 32],
@@ -377,7 +392,7 @@ impl Vote {
             post.upvotes as u64,
             post.downvotes as u64,
             self.side,
-            post.post_type,
+            post.relation.clone(),
         )?;
 
         // Convert to BLING lamports

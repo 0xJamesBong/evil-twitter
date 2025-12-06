@@ -488,32 +488,44 @@ pub async fn test_phenomena_create_post(
         "Post end_time should be after start_time"
     );
 
-    // Verify post type
+    // Verify post relation and function
     match parent_post_pda {
         Some(parent) => {
-            if let opinions_market::state::PostType::Child {
+            // Child posts should be Normal function with Reply relation
+            assert_eq!(
+                post_account.function,
+                opinions_market::state::PostFunction::Normal,
+                "Child post should have Normal function"
+            );
+            if let opinions_market::state::PostRelation::Reply {
                 parent: stored_parent,
-            } = post_account.post_type
+            } = &post_account.relation
             {
                 assert_eq!(
-                    stored_parent, parent,
+                    *stored_parent, parent,
                     "Child post parent PDA should match provided parent"
                 );
-                println!("✅ Post type is Child with correct parent");
+                println!("✅ Post relation is Reply with correct parent");
             } else {
                 panic!(
-                    "Post type mismatch: expected Child post but got {:?}",
-                    post_account.post_type
+                    "Post relation mismatch: expected Reply but got {:?}",
+                    post_account.relation
                 );
             }
         }
         None => {
+            // Root posts should be Normal function with Root relation
             assert_eq!(
-                post_account.post_type,
-                opinions_market::state::PostType::Original,
-                "Post type should be Original when no parent is provided"
+                post_account.function,
+                opinions_market::state::PostFunction::Normal,
+                "Root post should have Normal function"
             );
-            println!("✅ Post type is Original");
+            assert_eq!(
+                post_account.relation,
+                opinions_market::state::PostRelation::Root,
+                "Post relation should be Root when no parent is provided"
+            );
+            println!("✅ Post relation is Root");
         }
     }
 
@@ -952,34 +964,37 @@ pub async fn test_phenomena_settle_post(
         .0;
 
         // Handle parent post if this is a child post
-        let parent_post_pda = match post_account.post_type {
-            opinions_market::state::PostType::Child { parent } => Some(parent),
-            opinions_market::state::PostType::Original => None,
+        let parent_post_pda = match &post_account.relation {
+            opinions_market::state::PostRelation::Reply { parent } => Some(*parent),
+            opinions_market::state::PostRelation::Quote { quoted: parent } => Some(*parent),
+            opinions_market::state::PostRelation::AnswerTo { question: parent } => Some(*parent),
+            opinions_market::state::PostRelation::Root => None,
         };
 
         // Derive parent post pot accounts if this is a child post
-        let (parent_post_pot_token_account_pda, parent_post_pot_authority_pda) = if let Some(parent_pda) = parent_post_pda {
-            let parent_pot_token_account = Pubkey::find_program_address(
-                &[
-                    POST_POT_TOKEN_ACCOUNT_SEED,
-                    parent_pda.as_ref(),
-                    token_mint.as_ref(),
-                ],
-                &opinions_market.id(),
-            )
-            .0;
+        let (parent_post_pot_token_account_pda, parent_post_pot_authority_pda) =
+            if let Some(parent_pda) = parent_post_pda {
+                let parent_pot_token_account = Pubkey::find_program_address(
+                    &[
+                        POST_POT_TOKEN_ACCOUNT_SEED,
+                        parent_pda.as_ref(),
+                        token_mint.as_ref(),
+                    ],
+                    &opinions_market.id(),
+                )
+                .0;
 
-            let parent_pot_authority = Pubkey::find_program_address(
-                &[POST_POT_AUTHORITY_SEED, parent_pda.as_ref()],
-                &opinions_market.id(),
-            )
-            .0;
+                let parent_pot_authority = Pubkey::find_program_address(
+                    &[POST_POT_AUTHORITY_SEED, parent_pda.as_ref()],
+                    &opinions_market.id(),
+                )
+                .0;
 
-            (Some(parent_pot_token_account), parent_pot_authority)
-        } else {
-            // Use post_pot_authority as fallback when there's no parent (struct requires non-optional)
-            (None, post_pot_authority_pda)
-        };
+                (Some(parent_pot_token_account), parent_pot_authority)
+            } else {
+                // Use post_pot_authority as fallback when there's no parent (struct requires non-optional)
+                (None, post_pot_authority_pda)
+            };
 
         let settle_ix = opinions_market
             .request()
@@ -1020,7 +1035,7 @@ pub async fn test_phenomena_settle_post(
             opinions_market::state::PostState::Settled
         );
         println!("✅ Post state is Settled");
-        
+
         // Verify post_mint_payout was created and has payout info
         let payout_account = opinions_market
             .account::<opinions_market::state::PostMintPayout>(post_mint_payout_pda)
@@ -1029,7 +1044,10 @@ pub async fn test_phenomena_settle_post(
 
         assert_eq!(payout_account.post, *post_pda);
         assert_eq!(payout_account.token_mint, *token_mint);
-        assert!(payout_account.frozen, "Payout should be frozen after settlement");
+        assert!(
+            payout_account.frozen,
+            "Payout should be frozen after settlement"
+        );
 
         // Check if payout was stored in the payout account
         if settled_post.upvotes > settled_post.downvotes
@@ -1056,11 +1074,8 @@ pub async fn test_phenomena_settle_post(
 
         // 1. Distribute creator reward (if creator fee > 0)
         if payout_account.creator_fee > 0 {
-            let vault_authority_pda = Pubkey::find_program_address(
-                &[VAULT_AUTHORITY_SEED],
-                &opinions_market.id(),
-            )
-            .0;
+            let vault_authority_pda =
+                Pubkey::find_program_address(&[VAULT_AUTHORITY_SEED], &opinions_market.id()).0;
 
             let creator_vault_token_account_pda = Pubkey::find_program_address(
                 &[
@@ -1123,7 +1138,7 @@ pub async fn test_phenomena_settle_post(
         // 3. Distribute parent post share (if mother fee > 0 and it's a child post)
         if payout_account.mother_fee > 0 && parent_post_pda.is_some() {
             let parent_post_pda_unwrapped = parent_post_pda.unwrap();
-            
+
             let parent_post_pot_token_account_pda = Pubkey::find_program_address(
                 &[
                     POST_POT_TOKEN_ACCOUNT_SEED,
