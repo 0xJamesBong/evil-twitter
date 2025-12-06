@@ -9,9 +9,9 @@ export function Header() {
       position="static"
       elevation={0}
       sx={{
-        backgroundColor: "background.paper",
+        backgroundColor: (theme) => theme.palette.bg?.surface1 || theme.palette.background.paper,
         borderBottom: 1,
-        borderColor: "grey.200",
+        borderColor: "rgba(255,255,255,0.06)",
         height: 60,
       }}
     >

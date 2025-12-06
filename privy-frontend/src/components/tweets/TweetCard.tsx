@@ -126,10 +126,10 @@ export function TweetCard({
             sx={{
                 borderRadius: 0,
                 borderBottom: 1,
-                borderColor: "grey.200",
+                borderColor: "rgba(255,255,255,0.06)",
                 cursor: clickable ? "pointer" : "default",
                 "&:hover": {
-                    bgcolor: clickable ? "grey.50" : "transparent",
+                    bgcolor: clickable ? "rgba(255,255,255,0.05)" : "transparent",
                 },
                 transition: "background-color 0.2s",
             }}

@@ -63,7 +63,7 @@ export function RetweetModal({ open, onClose, tweet }: RetweetModalProps) {
                             bgcolor: "background.paper",
                             borderRadius: 2,
                             border: 1,
-                            borderColor: "grey.300",
+                            borderColor: "rgba(255,255,255,0.06)",
                         }}
                     >
                         <Box sx={{ display: "flex", gap: 2 }}>
