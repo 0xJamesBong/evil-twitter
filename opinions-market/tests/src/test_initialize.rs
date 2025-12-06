@@ -22,6 +22,7 @@ use crate::utils::utils::{
     airdrop_sol_to_users, send_tx, setup_token_mint, setup_token_mint_ata_and_mint_to,
     setup_token_mint_ata_and_mint_to_many_users, wait_for_post_to_expire,
 };
+use opinions_market::constants::USDC_LAMPORTS_PER_USDC;
 use opinions_market::pda_seeds::*;
 use std::collections::HashMap;
 
@@ -138,9 +139,9 @@ async fn test_setup() {
 
     airdrop_sol_to_users(&rpc, &everyone).await;
 
-    setup_token_mint(&rpc, &payer, &payer, &opinions_market, &bling_mint).await;
-    setup_token_mint(&rpc, &payer, &payer, &opinions_market, &usdc_mint).await;
-    setup_token_mint(&rpc, &payer, &payer, &opinions_market, &stablecoin_mint).await;
+    setup_token_mint(&rpc, &payer, &payer, &opinions_market, &bling_mint, 9).await;
+    setup_token_mint(&rpc, &payer, &payer, &opinions_market, &usdc_mint, 6).await;
+    setup_token_mint(&rpc, &payer, &payer, &opinions_market, &stablecoin_mint, 6).await;
 
     let bling_atas = setup_token_mint_ata_and_mint_to_many_users(
         &rpc,
@@ -163,26 +164,26 @@ async fn test_setup() {
         &everyone.keys().cloned().collect::<Vec<Pubkey>>(),
         &opinions_market,
         &usdc_mint,
-        1_000_000_000 * LAMPORTS_PER_SOL,
+        1_000_000_000 * USDC_LAMPORTS_PER_USDC, // 1 billion USDC with 6 decimals
         &bling_mint,
         &usdc_mint,
         &stablecoin_mint,
     )
     .await;
 
-    // let stablecoin_atas = setup_token_mint_ata_and_mint_to_many_users(
-    //     &rpc,
-    //     &payer,
-    //     &mint_authority,
-    //     &everyone.keys().cloned().collect::<Vec<Pubkey>>(),
-    //     &program,
-    //     &stablecoin_mint,
-    //     1_000_000_000 * LAMPORTS_PER_SOL,
-    //     &bling_mint,
-    //     &usdc_mint,
-    //     &stablecoin_mint,
-    // )
-    // .await;
+    let stablecoin_atas = setup_token_mint_ata_and_mint_to_many_users(
+        &rpc,
+        &payer,
+        &mint_authority,
+        &everyone.keys().cloned().collect::<Vec<Pubkey>>(),
+        &opinions_market,
+        &stablecoin_mint,
+        1_000_000_000 * USDC_LAMPORTS_PER_USDC, // 1 billion Stablecoin with 6 decimals
+        &bling_mint,
+        &usdc_mint,
+        &stablecoin_mint,
+    )
+    .await;
 
     let config_pda = Pubkey::find_program_address(&[b"config"], &program_id).0;
 
@@ -227,9 +228,43 @@ async fn test_setup() {
         test_phenomena_add_valid_payment(&rpc, &opinions_market, &payer, &admin, &usdc_pubkey)
             .await;
 
-        test_phenomena_create_user(&rpc, &opinions_market, &payer, &user_1, &config_pda).await;
-        test_phenomena_create_user(&rpc, &opinions_market, &payer, &user_2, &config_pda).await;
-        test_phenomena_create_user(&rpc, &opinions_market, &payer, &user_3, &config_pda).await;
+        // Register Stablecoin as a valid payment token
+        test_phenomena_add_valid_payment(
+            &rpc,
+            &opinions_market,
+            &payer,
+            &admin,
+            &stablecoin_pubkey,
+        )
+        .await;
+
+        test_phenomena_create_user(
+            &rpc,
+            &opinions_market,
+            &payer,
+            &user_1,
+            &session_key,
+            &config_pda,
+        )
+        .await;
+        test_phenomena_create_user(
+            &rpc,
+            &opinions_market,
+            &payer,
+            &user_2,
+            &session_key,
+            &config_pda,
+        )
+        .await;
+        test_phenomena_create_user(
+            &rpc,
+            &opinions_market,
+            &payer,
+            &user_3,
+            &session_key,
+            &config_pda,
+        )
+        .await;
 
         {
             println!("user 1 depositing 10_000_000 bling to their vault");
@@ -254,7 +289,7 @@ async fn test_setup() {
                 &opinions_market,
                 &payer,
                 &user_2,
-                1_000 * LAMPORTS_PER_SOL,
+                1_000 * USDC_LAMPORTS_PER_USDC, // 1,000 USDC with 6 decimals
                 &usdc_pubkey,
                 &tokens,
                 &usdc_atas,
@@ -284,7 +319,7 @@ async fn test_setup() {
                 &opinions_market,
                 &payer,
                 &user_2,
-                900 * LAMPORTS_PER_SOL,
+                900 * USDC_LAMPORTS_PER_USDC, // 900 USDC with 6 decimals
                 &usdc_pubkey,
                 &tokens,
                 &usdc_atas,
@@ -308,6 +343,37 @@ async fn test_setup() {
             .await;
         }
 
+        {
+            println!("user 1 depositing 1_000_000 usdc to their vault");
+            test_phenomena_deposit(
+                &rpc,
+                &opinions_market,
+                &payer,
+                &user_1,
+                1_000_000 * USDC_LAMPORTS_PER_USDC, // 1,000,000 USDC with 6 decimals
+                &usdc_pubkey,
+                &tokens,
+                &usdc_atas,
+                &config_pda,
+            )
+            .await;
+        }
+        {
+            println!("user 1 depositing 1_000_000 stablecoin to their vault");
+            test_phenomena_deposit(
+                &rpc,
+                &opinions_market,
+                &payer,
+                &user_1,
+                1_000_000 * USDC_LAMPORTS_PER_USDC, // 1,000,000 Stablecoin with 6 decimals
+                &stablecoin_pubkey,
+                &tokens,
+                &stablecoin_atas,
+                &config_pda,
+            )
+            .await;
+        }
+
         //// ===== CREATING POSTS =====
         let (post_p1_pda, post_p1_id_hash) = {
             println!("user 1 creating an original post P1");
@@ -316,6 +382,7 @@ async fn test_setup() {
                 &opinions_market,
                 &payer,
                 &user_1,
+                &session_key,
                 &config_pda,
                 None, // Original post
             )
@@ -329,6 +396,7 @@ async fn test_setup() {
                 &opinions_market,
                 &payer,
                 &user_2,
+                &session_key,
                 &config_pda,
                 Some(post_p1_pda), // Child post
             )
@@ -342,6 +410,7 @@ async fn test_setup() {
                 &opinions_market,
                 &payer,
                 &user_2,
+                &session_key,
                 &post_p1_pda,
                 opinions_market::state::Side::Pump,
                 1,
@@ -359,6 +428,7 @@ async fn test_setup() {
                 &opinions_market,
                 &payer,
                 &user_1,
+                &session_key,
                 &post_p2_pda,
                 opinions_market::state::Side::Smack,
                 2,
@@ -376,6 +446,7 @@ async fn test_setup() {
                 &opinions_market,
                 &payer,
                 &user_1,
+                &session_key,
                 &post_p2_pda,
                 opinions_market::state::Side::Smack,
                 1,
@@ -395,11 +466,52 @@ async fn test_setup() {
                 &opinions_market,
                 &payer,
                 &user_1,
+                &session_key,
                 &post_p2_pda,
                 opinions_market::state::Side::Smack,
                 1,
                 &bling_pubkey,
                 &bling_atas,
+                &config_pda,
+            )
+            .await;
+        }
+
+        {
+            println!("user 1 upvoting user 2's child post with USDC");
+            // Note: This is the same as the previous vote since P2 is already a child post
+            // If you meant a different child post, we'd need to create another one first
+            test_phenomena_vote_on_post(
+                &rpc,
+                &opinions_market,
+                &payer,
+                &user_1,
+                &session_key,
+                &post_p2_pda,
+                opinions_market::state::Side::Pump,
+                1,
+                &usdc_pubkey,
+                &bling_atas,
+                &config_pda,
+            )
+            .await;
+        }
+
+        {
+            println!("user 1 upvoting user 2's child post with stablecoin");
+            // Note: This is the same as the previous vote since P2 is already a child post
+            // If you meant a different child post, we'd need to create another one first
+            test_phenomena_vote_on_post(
+                &rpc,
+                &opinions_market,
+                &payer,
+                &user_1,
+                &session_key,
+                &post_p2_pda,
+                opinions_market::state::Side::Pump,
+                1,
+                &stablecoin_pubkey,
+                &stablecoin_atas,
                 &config_pda,
             )
             .await;
@@ -428,6 +540,7 @@ async fn test_setup() {
                 &opinions_market,
                 &payer,
                 &user_2,
+                &session_key,
                 &post_p1_pda,
                 &bling_pubkey,
                 &tokens,

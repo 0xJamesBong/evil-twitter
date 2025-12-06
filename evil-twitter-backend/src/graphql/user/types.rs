@@ -7,6 +7,7 @@ use std::sync::Arc;
 
 use crate::app_state::AppState;
 use crate::graphql::tweet::types::{TweetConnection, TweetEdge, TweetNode};
+use crate::graphql::user::queries::{VaultBalances, vault_balances_resolver};
 use crate::models::{follow::Follow, profile::Profile, tweet::Tweet, user::User};
 use crate::utils::tweet::enrich_tweets_with_references;
 
@@ -92,6 +93,12 @@ impl UserNode {
 
     async fn created_at(&self) -> String {
         self.inner.created_at.to_chrono().to_rfc3339()
+    }
+
+    /// Get the user's default payment token mint address
+    /// Returns None if BLING (the default)
+    async fn default_payment_token(&self) -> Option<&str> {
+        self.inner.default_payment_token.as_deref()
     }
 
     /// Get the user's profile
@@ -219,6 +226,11 @@ impl UserNode {
             })?;
 
         Ok(balance)
+    }
+
+    /// Get user's vault balances for all valid payment tokens (BLING, USDC, Stablecoin)
+    async fn vault_balances(&self, ctx: &Context<'_>) -> Result<VaultBalances> {
+        vault_balances_resolver(ctx, &self.inner.wallet).await
     }
 
     /// Check if the user account exists on-chain

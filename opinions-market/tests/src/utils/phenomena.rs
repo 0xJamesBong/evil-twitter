@@ -5,14 +5,14 @@ use anchor_client::anchor_lang::solana_program::example_mocks::solana_sdk::syste
 use anchor_client::Program;
 use anchor_spl::token::spl_token;
 use solana_client::nonblocking::rpc_client::RpcClient;
-use solana_sdk::clock::Clock;
 use solana_sdk::pubkey::Pubkey;
 use solana_sdk::{signature::Keypair, signer::Signer};
 
 use crate::config::TIME_CONFIG_FAST;
 use crate::utils::rates::RATES;
 use crate::utils::utils::{
-    current_chain_timestamp, send_tx, wait_for_post_to_expire, PRIVILEGES_HASH,
+    create_ed25519_instruction_for_session, current_chain_timestamp, send_tx,
+    sign_message_for_session_registration, wait_for_post_to_expire, PRIVILEGES_HASH,
 };
 use opinions_market::pda_seeds::*;
 
@@ -23,6 +23,7 @@ pub async fn test_phenomena_add_valid_payment(
     opinions_market: &Program<&Keypair>,
     payer: &Keypair,
     admin: &Keypair,
+
     new_token_mint: &Pubkey,
 ) {
     println!("adding {:} as an valid payment mint", new_token_mint);
@@ -103,6 +104,7 @@ pub async fn test_phenomena_create_user(
     opinions_market: &Program<&Keypair>,
     payer: &Keypair,
     user: &Keypair,
+    session_key: &Keypair,
     config_pda: &Pubkey,
 ) {
     println!("creating user {:}", user.pubkey());
@@ -144,6 +146,65 @@ pub async fn test_phenomena_create_user(
     );
 
     println!("✅ User account created successfully");
+
+    // regisaer session
+    // let now = Clock::get().unwrap().unix_timestamp;
+    // user signs (for verification purposes, though ed25519_ix will re-sign)
+    let _signature_bytes = sign_message_for_session_registration(user, &session_key.pubkey());
+    // --------------------------
+    // ED25519 VERIFY IX
+    // --------------------------
+    let ed25519_ix = create_ed25519_instruction_for_session(user, &session_key.pubkey());
+
+    // Derive session authority PDA
+    let (session_authority_pda, _) = Pubkey::find_program_address(
+        &[
+            SESSION_AUTHORITY_SEED,
+            user.pubkey().as_ref(),
+            session_key.pubkey().as_ref(),
+        ],
+        &opinions_market.id(),
+    );
+
+    // Instructions sysvar ID
+    let instructions_sysvar = solana_sdk::sysvar::instructions::ID;
+
+    let register_session_ix = opinions_market
+        .request()
+        .accounts(opinions_market::accounts::RegisterSession {
+            payer: payer.pubkey(),
+            user: user.pubkey(),
+            session_key: session_key.pubkey(),
+            session_authority: session_authority_pda,
+            instructions_sysvar,
+            system_program: system_program::ID,
+        })
+        .args(opinions_market::instruction::RegisterSession { expected_index: 0 })
+        .instructions()
+        .unwrap();
+
+    // Build Vec<Instruction> with ed25519 first, then register_session
+    let mut ed25519_and_register_session_ix = vec![ed25519_ix];
+    ed25519_and_register_session_ix.extend(register_session_ix);
+
+    let ed25519_and_register_session_tx = send_tx(
+        &rpc,
+        ed25519_and_register_session_ix,
+        &payer.pubkey(),
+        &[&payer],
+    )
+    .await
+    .unwrap();
+    println!("register session tx: {:?}", ed25519_and_register_session_tx);
+
+    // verify session was registered
+    let session_authority = opinions_market
+        .account::<opinions_market::state::SessionAuthority>(session_authority_pda)
+        .await
+        .unwrap();
+
+    assert_eq!(session_authority.user, user.pubkey());
+    assert_eq!(session_authority.session_key, session_key.pubkey());
 }
 
 pub async fn test_phenomena_deposit(
@@ -312,6 +373,7 @@ pub async fn test_phenomena_create_post(
     opinions_market: &Program<&Keypair>,
     payer: &Keypair,
     creator: &Keypair,
+    session_key: &Keypair,
     config_pda: &Pubkey,
 
     parent_post_pda: Option<Pubkey>,
@@ -334,13 +396,23 @@ pub async fn test_phenomena_create_post(
 
     let post_pda =
         Pubkey::find_program_address(&[POST_ACCOUNT_SEED, hash.as_ref()], &opinions_market.id()).0;
-
+    let session_authority_pda = Pubkey::find_program_address(
+        &[
+            SESSION_AUTHORITY_SEED,
+            creator.pubkey().as_ref(),
+            session_key.pubkey().as_ref(),
+        ],
+        &opinions_market.id(),
+    )
+    .0;
     let create_post_ix = opinions_market
         .request()
         .accounts(opinions_market::accounts::CreatePost {
             config: *config_pda,
             user: creator.pubkey(),
             payer: payer.pubkey(),
+            session_key: session_key.pubkey(),
+            session_authority: session_authority_pda,
             user_account: user_account_pda,
             post: post_pda,
             system_program: system_program::ID,
@@ -468,6 +540,7 @@ pub async fn test_phenomena_vote_on_post(
     opinions_market: &Program<&Keypair>,
     payer: &Keypair,
     voter: &Keypair,
+    session_key: &Keypair,
     post_pda: &Pubkey,
     side: opinions_market::state::Side,
     votes: u64,
@@ -633,12 +706,24 @@ pub async fn test_phenomena_vote_on_post(
     )
     .0;
 
+    let session_authority_pda = Pubkey::find_program_address(
+        &[
+            SESSION_AUTHORITY_SEED,
+            voter.pubkey().as_ref(),
+            session_key.pubkey().as_ref(),
+        ],
+        &opinions_market.id(),
+    )
+    .0;
+
     let vote_ix = opinions_market
         .request()
         .accounts(opinions_market::accounts::VoteOnPost {
             config: *config_pda,
             voter: voter.pubkey(),
             payer: payer.pubkey(),
+            session_key: session_key.pubkey(),
+            session_authority: session_authority_pda,
             post: *post_pda,
             voter_user_account: voter_user_account_pda,
             position: position_pda,
@@ -872,6 +957,30 @@ pub async fn test_phenomena_settle_post(
             opinions_market::state::PostType::Original => None,
         };
 
+        // Derive parent post pot accounts if this is a child post
+        let (parent_post_pot_token_account_pda, parent_post_pot_authority_pda) = if let Some(parent_pda) = parent_post_pda {
+            let parent_pot_token_account = Pubkey::find_program_address(
+                &[
+                    POST_POT_TOKEN_ACCOUNT_SEED,
+                    parent_pda.as_ref(),
+                    token_mint.as_ref(),
+                ],
+                &opinions_market.id(),
+            )
+            .0;
+
+            let parent_pot_authority = Pubkey::find_program_address(
+                &[POST_POT_AUTHORITY_SEED, parent_pda.as_ref()],
+                &opinions_market.id(),
+            )
+            .0;
+
+            (Some(parent_pot_token_account), parent_pot_authority)
+        } else {
+            // Use post_pot_authority as fallback when there's no parent (struct requires non-optional)
+            (None, post_pot_authority_pda)
+        };
+
         let settle_ix = opinions_market
             .request()
             .accounts(opinions_market::accounts::SettlePost {
@@ -881,6 +990,8 @@ pub async fn test_phenomena_settle_post(
                 post_mint_payout: post_mint_payout_pda,
                 protocol_token_treasury_token_account: protocol_treasury_token_account_pda,
                 parent_post: parent_post_pda,
+                parent_post_pot_token_account: parent_post_pot_token_account_pda,
+                parent_post_pot_authority: parent_post_pot_authority_pda,
                 config: *config_pda,
                 token_mint: *token_mint,
                 payer: payer.pubkey(),
@@ -909,6 +1020,7 @@ pub async fn test_phenomena_settle_post(
             opinions_market::state::PostState::Settled
         );
         println!("✅ Post state is Settled");
+        
         // Verify post_mint_payout was created and has payout info
         let payout_account = opinions_market
             .account::<opinions_market::state::PostMintPayout>(post_mint_payout_pda)
@@ -917,6 +1029,7 @@ pub async fn test_phenomena_settle_post(
 
         assert_eq!(payout_account.post, *post_pda);
         assert_eq!(payout_account.token_mint, *token_mint);
+        assert!(payout_account.frozen, "Payout should be frozen after settlement");
 
         // Check if payout was stored in the payout account
         if settled_post.upvotes > settled_post.downvotes
@@ -933,6 +1046,140 @@ pub async fn test_phenomena_settle_post(
             opinions_market::state::Side::Smack => "Smack",
         };
         println!("✅ Post settled successfully, {} won", winning_side);
+        println!("  Creator fee: {}", payout_account.creator_fee);
+        println!("  Protocol fee: {}", payout_account.protocol_fee);
+        println!("  Mother fee: {}", payout_account.mother_fee);
+        println!("  Total payout for voters: {}", payout_account.total_payout);
+
+        // Now chain the distribution instructions
+        let mut distribution_ixs = Vec::new();
+
+        // 1. Distribute creator reward (if creator fee > 0)
+        if payout_account.creator_fee > 0 {
+            let vault_authority_pda = Pubkey::find_program_address(
+                &[VAULT_AUTHORITY_SEED],
+                &opinions_market.id(),
+            )
+            .0;
+
+            let creator_vault_token_account_pda = Pubkey::find_program_address(
+                &[
+                    USER_VAULT_TOKEN_ACCOUNT_SEED,
+                    settled_post.creator_user.as_ref(),
+                    token_mint.as_ref(),
+                ],
+                &opinions_market.id(),
+            )
+            .0;
+
+            let distribute_creator_ix = opinions_market
+                .request()
+                .accounts(opinions_market::accounts::DistributeCreatorReward {
+                    payer: payer.pubkey(),
+                    post: *post_pda,
+                    post_pot_token_account: post_pot_token_account_pda,
+                    post_pot_authority: post_pot_authority_pda,
+                    post_mint_payout: post_mint_payout_pda,
+                    creator_vault_token_account: creator_vault_token_account_pda,
+                    vault_authority: vault_authority_pda,
+                    token_mint: *token_mint,
+                    token_program: spl_token::ID,
+                })
+                .args(opinions_market::instruction::DistributeCreatorReward {
+                    post_id_hash: post_id_hash,
+                })
+                .instructions()
+                .unwrap();
+
+            distribution_ixs.push(distribute_creator_ix);
+            println!("  Added distribute_creator_reward instruction");
+        }
+
+        // 2. Distribute protocol fee (if protocol fee > 0)
+        if payout_account.protocol_fee > 0 {
+            let distribute_protocol_ix = opinions_market
+                .request()
+                .accounts(opinions_market::accounts::DistributeProtocolFee {
+                    payer: payer.pubkey(),
+                    post: *post_pda,
+                    post_pot_token_account: post_pot_token_account_pda,
+                    post_pot_authority: post_pot_authority_pda,
+                    post_mint_payout: post_mint_payout_pda,
+                    protocol_token_treasury_token_account: protocol_treasury_token_account_pda,
+                    config: *config_pda,
+                    token_mint: *token_mint,
+                    token_program: spl_token::ID,
+                })
+                .args(opinions_market::instruction::DistributeProtocolFee {
+                    post_id_hash: post_id_hash,
+                })
+                .instructions()
+                .unwrap();
+
+            distribution_ixs.push(distribute_protocol_ix);
+            println!("  Added distribute_protocol_fee instruction");
+        }
+
+        // 3. Distribute parent post share (if mother fee > 0 and it's a child post)
+        if payout_account.mother_fee > 0 && parent_post_pda.is_some() {
+            let parent_post_pda_unwrapped = parent_post_pda.unwrap();
+            
+            let parent_post_pot_token_account_pda = Pubkey::find_program_address(
+                &[
+                    POST_POT_TOKEN_ACCOUNT_SEED,
+                    parent_post_pda_unwrapped.as_ref(),
+                    token_mint.as_ref(),
+                ],
+                &opinions_market.id(),
+            )
+            .0;
+
+            let parent_post_pot_authority_pda = Pubkey::find_program_address(
+                &[POST_POT_AUTHORITY_SEED, parent_post_pda_unwrapped.as_ref()],
+                &opinions_market.id(),
+            )
+            .0;
+
+            let distribute_parent_ix = opinions_market
+                .request()
+                .accounts(opinions_market::accounts::DistributeParentPostShare {
+                    payer: payer.pubkey(),
+                    post: *post_pda,
+                    post_pot_token_account: post_pot_token_account_pda,
+                    post_pot_authority: post_pot_authority_pda,
+                    post_mint_payout: post_mint_payout_pda,
+                    parent_post: parent_post_pda,
+                    parent_post_pot_token_account: Some(parent_post_pot_token_account_pda),
+                    parent_post_pot_authority: Some(parent_post_pot_authority_pda),
+                    token_mint: *token_mint,
+                    token_program: spl_token::ID,
+                })
+                .args(opinions_market::instruction::DistributeParentPostShare {
+                    post_id_hash: post_id_hash,
+                })
+                .instructions()
+                .unwrap();
+
+            distribution_ixs.push(distribute_parent_ix);
+            println!("  Added distribute_parent_post_share instruction");
+        }
+
+        // Send all distribution instructions in one transaction
+        if !distribution_ixs.is_empty() {
+            // Combine all instructions into a single transaction
+            let mut combined_ixs = Vec::new();
+            for mut ix_vec in distribution_ixs {
+                combined_ixs.append(&mut ix_vec);
+            }
+
+            let distribute_tx = send_tx(&rpc, combined_ixs, &payer.pubkey(), &[&payer])
+                .await
+                .unwrap();
+            println!("✅ Distribution transactions sent: {:?}", distribute_tx);
+            println!("✅ All fees distributed successfully");
+        } else {
+            println!("⚠️  No fees to distribute (all fees are 0)");
+        }
     }
 }
 
@@ -941,6 +1188,7 @@ pub async fn test_phenomena_claim_post_reward(
     opinions_market: &Program<&Keypair>,
     payer: &Keypair,
     user: &Keypair,
+    session_key: &Keypair,
     post_pda: &Pubkey,
     token_mint: &Pubkey,
     tokens: &HashMap<Pubkey, String>,
@@ -1027,6 +1275,16 @@ pub async fn test_phenomena_claim_post_reward(
     )
     .0;
 
+    let session_authority_pda = Pubkey::find_program_address(
+        &[
+            SESSION_AUTHORITY_SEED,
+            user.pubkey().as_ref(),
+            session_key.pubkey().as_ref(),
+        ],
+        &opinions_market.id(),
+    )
+    .0;
+
     // Get initial balances and state
     // Check if position exists (user must have voted on this post)
     let position_result = opinions_market
@@ -1104,6 +1362,8 @@ pub async fn test_phenomena_claim_post_reward(
             config: *config_pda,
             user: user.pubkey(),
             payer: payer.pubkey(),
+            session_key: session_key.pubkey(),
+            session_authority: session_authority_pda,
             post: *post_pda,
             position: position_pda,
             user_post_mint_claim: user_post_mint_claim_pda,

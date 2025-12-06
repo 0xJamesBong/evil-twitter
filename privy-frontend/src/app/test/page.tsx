@@ -1,5 +1,6 @@
 "use client";
 
+import "@/theme/types"; // Import type declarations
 import { usePrivy } from "@privy-io/react-auth";
 import {
     Box,
@@ -73,7 +74,7 @@ function TestContent() {
 
                 <Stack spacing={2}>
                     {/* Backend Connection Test */}
-                    <Card>
+                    <Card sx={{ bgcolor: "background.paper" }}>
                         <CardContent>
                             <Typography variant="h6" gutterBottom>
                                 Backend Connection Test
@@ -114,7 +115,7 @@ function TestContent() {
                     </Card>
 
                     {/* User Data Display */}
-                    <Card>
+                    <Card sx={{ bgcolor: "background.paper" }}>
                         <CardContent>
                             <Typography variant="h6" gutterBottom>
                                 User Data
@@ -132,7 +133,7 @@ function TestContent() {
                                     variant="outlined"
                                     sx={{
                                         p: 2,
-                                        bgcolor: "grey.50",
+                                        bgcolor: "background.paper",
                                         maxHeight: 384,
                                         overflow: "auto",
                                     }}
@@ -145,6 +146,7 @@ function TestContent() {
                                             wordBreak: "break-word",
                                             fontFamily: "monospace",
                                             m: 0,
+                                            color: "text.primary",
                                         }}
                                     >
                                         {privyUser
@@ -179,7 +181,7 @@ function TestContent() {
                                     variant="outlined"
                                     sx={{
                                         p: 2,
-                                        bgcolor: "grey.50",
+                                        bgcolor: "background.paper",
                                         maxHeight: 384,
                                         overflow: "auto",
                                     }}
@@ -192,6 +194,7 @@ function TestContent() {
                                             wordBreak: "break-word",
                                             fontFamily: "monospace",
                                             m: 0,
+                                            color: "text.primary",
                                         }}
                                     >
                                         {backendUser

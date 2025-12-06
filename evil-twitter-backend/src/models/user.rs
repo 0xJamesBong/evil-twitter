@@ -40,6 +40,11 @@ pub struct User {
 
     #[schema(example = "2024-01-01T00:00:00Z")]
     pub created_at: DateTime,
+
+    /// Default payment token mint address (pubkey as string)
+    /// None means BLING (the default)
+    #[schema(example = "7xKXtg2CZ3QZ4Z3J3J3J3J3J3J3J3J3J3J3J3J3J3")]
+    pub default_payment_token: Option<String>,
 }
 
 #[derive(Debug, Deserialize, ToSchema)]

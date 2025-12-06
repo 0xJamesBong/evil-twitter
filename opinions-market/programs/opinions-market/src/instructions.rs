@@ -1,8 +1,10 @@
 use crate::pda_seeds::*;
 use crate::state::*;
 use anchor_lang::prelude::*;
+use anchor_lang::solana_program::sysvar::instructions;
 use anchor_spl::token::{Mint, Token, TokenAccount};
 use crate::ErrorCode;
+
 
 // -----------------------------------------------------------------------------
 // CONTEXTS
@@ -13,6 +15,7 @@ pub struct Initialize<'info> {
     #[account(mut)]
     pub admin: Signer<'info>,
 
+    /// CHECK: Payer for transaction fees and account initialization
     #[account(mut)]
     pub payer: Signer<'info>,
     #[account(
@@ -83,6 +86,7 @@ pub struct RegisterValidPayment<'info> {
     pub token_program: Program<'info, Token>,
 }
 
+
 #[derive(Accounts)]
 pub struct ModifyAcceptedMint<'info> {
     #[account(
@@ -143,6 +147,37 @@ pub struct CreateUser<'info> {
 }
 
 
+#[derive(Accounts)]
+#[instruction(expected_index: u8)]
+pub struct RegisterSession<'info> {
+    /// CHECK: Payer for transaction fees and session authority account initialization
+    #[account(mut)]
+    pub payer: Signer<'info>,
+
+    /// CHECK: the user wallet we are delegating authority for
+    pub user: UncheckedAccount<'info>,
+
+    /// CHECK: ephemeral delegated session key
+    pub session_key: UncheckedAccount<'info>,
+
+    #[account(
+        init_if_needed,
+        payer = payer,
+        seeds = [SESSION_AUTHORITY_SEED, user.key().as_ref(), session_key.key().as_ref()],
+        bump,
+        space = 8 + SessionAuthority::INIT_SPACE,
+    )]
+    pub session_authority: Account<'info, SessionAuthority>,
+
+    /// CHECK: sysvar required to load instructions in the tx
+    #[account(address = instructions::ID)]
+    pub instructions_sysvar: UncheckedAccount<'info>,
+
+    pub system_program: Program<'info, System>,
+}
+
+
+
 /// User deposits from their wallet into the program-controlled vault.
 /// Also initializes the program-controlled vault if it doesn't exist.
 #[derive(Accounts)]
@@ -151,6 +186,7 @@ pub struct Deposit<'info> {
     #[account(mut)]
     pub user: Signer<'info>,
 
+    /// CHECK: Payer for transaction fees (can be user or backend)
     #[account(mut)]
     pub payer: Signer<'info>,
 
@@ -201,6 +237,7 @@ pub struct Withdraw<'info> {
     #[account(mut)]
     pub user: Signer<'info>,    
 
+    /// CHECK: Payer for transaction fees (can be user or backend)
     #[account(mut)]
     pub payer: Signer<'info>,
 
@@ -247,10 +284,21 @@ pub struct CreatePost<'info> {
     #[account(mut)]
     pub user: UncheckedAccount<'info>,
  
-   /// Signer paying the TX fee (user or backend)
+   /// CHECK: Signer paying the TX fee (user or backend)
    #[account(mut)]
-   pub payer: Signer<'info>,
-    
+   pub payer: UncheckedAccount<'info>,
+
+    /// CHECK: ephemeral delegated session key
+    #[account(mut)]
+    pub session_key: UncheckedAccount<'info>,
+
+    #[account(
+        mut,
+        seeds = [SESSION_AUTHORITY_SEED, user.key().as_ref(), session_key.key().as_ref()],
+        bump,
+    )]
+    pub session_authority: Account<'info, SessionAuthority>,
+
     #[account(
         seeds = [USER_ACCOUNT_SEED, user.key().as_ref()],
         bump,
@@ -284,9 +332,22 @@ pub struct VoteOnPost<'info> {
      #[account(mut)]
      pub voter: UncheckedAccount<'info>,
     
-    /// Signer paying the TX fee (user or backend)
+    /// CHECK: Signer paying the TX fee (user or backend)
     #[account(mut)]
     pub payer: Signer<'info>,
+
+
+    /// CHECK: ephemeral delegated session key
+    #[account(mut)]
+    pub session_key: UncheckedAccount<'info>,
+
+    #[account(
+        mut,
+        seeds = [SESSION_AUTHORITY_SEED, voter.key().as_ref(), session_key.key().as_ref()],
+        bump,
+    )]
+    pub session_authority: Account<'info, SessionAuthority>,
+
  
     #[account(
         mut,
@@ -383,7 +444,7 @@ pub struct VoteOnPost<'info> {
 #[derive(Accounts)]
 #[instruction(post_id_hash: [u8; 32])]
 pub struct SettlePost<'info> {
-    
+    /// CHECK: Payer for transaction fees
     #[account(mut)]
     pub payer: Signer<'info>,
 
@@ -432,12 +493,180 @@ pub struct SettlePost<'info> {
     // Optional parent post (if child)
     pub parent_post: Option<Account<'info, PostAccount>>,
 
+    #[account(
+        mut,
+        seeds = [POST_POT_TOKEN_ACCOUNT_SEED, post.key().as_ref(), token_mint.key().as_ref()],
+        bump,
+        constraint = post_pot_token_account.mint == token_mint.key(),
+        constraint = post_pot_token_account.owner == parent_post_pot_authority.key(),
+    )]
+    pub parent_post_pot_token_account: Option<Account<'info, TokenAccount>>,
+
+    /// CHECK: Post pot authority PDA derived from seeds
+    #[account(
+            seeds = [POST_POT_AUTHORITY_SEED, post.key().as_ref()],
+            bump,
+        )]
+    pub parent_post_pot_authority: UncheckedAccount<'info>,
+
     pub config: Account<'info, Config>,
     pub token_mint: Account<'info, Mint>,
 
     
     pub token_program: Program<'info, Token>,
     pub system_program: Program<'info, System>,
+}
+
+#[derive(Accounts)]
+#[instruction(post_id_hash: [u8; 32])]
+pub struct DistributeCreatorReward<'info> {
+    /// CHECK: Payer for transaction fees
+    #[account(mut)]
+    pub payer: Signer<'info>,
+
+    #[account(
+        seeds = [POST_ACCOUNT_SEED, post_id_hash.as_ref()],
+        bump,
+    )]
+    pub post: Account<'info, PostAccount>,
+
+    #[account(
+        mut,
+        seeds = [POST_POT_TOKEN_ACCOUNT_SEED, post.key().as_ref(), token_mint.key().as_ref()],
+        bump,
+        constraint = post_pot_token_account.mint == token_mint.key(),
+        constraint = post_pot_token_account.owner == post_pot_authority.key(),
+    )]
+    pub post_pot_token_account: Account<'info, TokenAccount>,
+
+    /// CHECK: Post pot authority PDA
+    #[account(
+        seeds = [POST_POT_AUTHORITY_SEED, post.key().as_ref()],
+        bump,
+    )]
+    pub post_pot_authority: UncheckedAccount<'info>,
+
+    #[account(
+        seeds = [POST_MINT_PAYOUT_SEED, post.key().as_ref(), token_mint.key().as_ref()],
+        bump = post_mint_payout.bump,
+    )]
+    pub post_mint_payout: Account<'info, PostMintPayout>,
+
+    #[account(
+        mut,
+        seeds = [USER_VAULT_TOKEN_ACCOUNT_SEED, post.creator_user.as_ref(), token_mint.key().as_ref()],
+        bump,
+        token::mint = token_mint,
+        token::authority = vault_authority,
+    )]
+    pub creator_vault_token_account: Account<'info, TokenAccount>,
+
+    /// CHECK: Vault authority PDA
+    #[account(
+        seeds = [VAULT_AUTHORITY_SEED],
+        bump,
+    )]
+    pub vault_authority: UncheckedAccount<'info>,
+
+    pub token_mint: Account<'info, Mint>,
+    pub token_program: Program<'info, Token>,
+}
+
+#[derive(Accounts)]
+#[instruction(post_id_hash: [u8; 32])]
+pub struct DistributeProtocolFee<'info> {
+    /// CHECK: Payer for transaction fees
+    #[account(mut)]
+    pub payer: Signer<'info>,
+
+    #[account(
+        seeds = [POST_ACCOUNT_SEED, post_id_hash.as_ref()],
+        bump,
+    )]
+    pub post: Account<'info, PostAccount>,
+
+    #[account(
+        mut,
+        seeds = [POST_POT_TOKEN_ACCOUNT_SEED, post.key().as_ref(), token_mint.key().as_ref()],
+        bump,
+        constraint = post_pot_token_account.mint == token_mint.key(),
+        constraint = post_pot_token_account.owner == post_pot_authority.key(),
+    )]
+    pub post_pot_token_account: Account<'info, TokenAccount>,
+
+    /// CHECK: Post pot authority PDA
+    #[account(
+        seeds = [POST_POT_AUTHORITY_SEED, post.key().as_ref()],
+        bump,
+    )]
+    pub post_pot_authority: UncheckedAccount<'info>,
+
+    #[account(
+        seeds = [POST_MINT_PAYOUT_SEED, post.key().as_ref(), token_mint.key().as_ref()],
+        bump = post_mint_payout.bump,
+    )]
+    pub post_mint_payout: Account<'info, PostMintPayout>,
+
+    #[account(
+        mut,
+        seeds = [PROTOCOL_TREASURY_TOKEN_ACCOUNT_SEED, token_mint.key().as_ref()],
+        bump,
+        token::mint = token_mint,
+        token::authority = config,
+    )]
+    pub protocol_token_treasury_token_account: Account<'info, TokenAccount>,
+
+    pub config: Account<'info, Config>,
+    pub token_mint: Account<'info, Mint>,
+    pub token_program: Program<'info, Token>,
+}
+
+#[derive(Accounts)]
+#[instruction(post_id_hash: [u8; 32])]
+pub struct DistributeParentPostShare<'info> {
+    /// CHECK: Payer for transaction fees
+    #[account(mut)]
+    pub payer: Signer<'info>,
+
+    #[account(
+        seeds = [POST_ACCOUNT_SEED, post_id_hash.as_ref()],
+        bump,
+    )]
+    pub post: Account<'info, PostAccount>,
+
+    #[account(
+        mut,
+        seeds = [POST_POT_TOKEN_ACCOUNT_SEED, post.key().as_ref(), token_mint.key().as_ref()],
+        bump,
+        constraint = post_pot_token_account.mint == token_mint.key(),
+        constraint = post_pot_token_account.owner == post_pot_authority.key(),
+    )]
+    pub post_pot_token_account: Account<'info, TokenAccount>,
+
+    /// CHECK: Post pot authority PDA
+    #[account(
+        seeds = [POST_POT_AUTHORITY_SEED, post.key().as_ref()],
+        bump,
+    )]
+    pub post_pot_authority: UncheckedAccount<'info>,
+
+    #[account(
+        seeds = [POST_MINT_PAYOUT_SEED, post.key().as_ref(), token_mint.key().as_ref()],
+        bump = post_mint_payout.bump,
+    )]
+    pub post_mint_payout: Account<'info, PostMintPayout>,
+
+    // Optional parent post (must be provided if this is a child post)
+    pub parent_post: Option<Account<'info, PostAccount>>,
+
+    /// CHECK: Parent post pot token account (optional, only needed if parent_post is Some)
+    pub parent_post_pot_token_account: Option<Account<'info, TokenAccount>>,
+
+    /// CHECK: Parent post pot authority PDA (optional, only needed if parent_post is Some)
+    pub parent_post_pot_authority: Option<UncheckedAccount<'info>>,
+
+    pub token_mint: Account<'info, Mint>,
+    pub token_program: Program<'info, Token>,
 }
 
 
@@ -455,12 +684,25 @@ pub struct ClaimPostReward<'info> {
     #[account(mut)]
     pub user: UncheckedAccount<'info>,
      
-   /// Signer paying the TX fee (user or backend)
+   /// CHECK: Signer paying the TX fee (user or backend)
    #[account(
     mut,
     
     )]
     pub payer: Signer<'info>,
+
+
+    /// CHECK: ephemeral delegated session key
+    #[account(mut)]
+    pub session_key: UncheckedAccount<'info>,
+
+    #[account(
+        mut,
+        seeds = [SESSION_AUTHORITY_SEED, user.key().as_ref(), session_key.key().as_ref()],
+        bump,
+    )]
+    pub session_authority: Account<'info, SessionAuthority>,
+
 
     #[account(
         mut,

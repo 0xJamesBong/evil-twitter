@@ -12,7 +12,7 @@ export function AuthenticatedLayout({ children }: AuthenticatedLayoutProps) {
     return (
         <Box
             sx={{
-                backgroundColor: "background.default",
+                backgroundColor: (theme) => theme.palette.bg?.base || theme.palette.background.default,
                 minHeight: "100vh",
                 display: "flex",
                 flexDirection: "column",
@@ -33,7 +33,7 @@ export function AuthenticatedLayout({ children }: AuthenticatedLayoutProps) {
                         flexGrow: 1,
                         overflowY: "auto",
                         borderRight: 1,
-                        borderColor: "grey.200",
+                        borderColor: "rgba(255,255,255,0.06)",
                     }}
                 >
                     {children}

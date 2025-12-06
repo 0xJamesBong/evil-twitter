@@ -29,6 +29,8 @@ export function formatTokenBalance(
 
 /**
  * Gets the display name for a token based on its mint address
+ * @deprecated Use getTokenName from @/lib/utils/tokens instead
+ * This function is kept for backward compatibility but will be removed in a future version.
  * @param mint - The token mint address
  * @param blingMint - BLING token mint address (optional, defaults to env var)
  * @param usdcMint - USDC token mint address (optional, defaults to env var)

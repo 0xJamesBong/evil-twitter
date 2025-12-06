@@ -1,8 +1,9 @@
-use async_graphql::{Context, ID, Object, Result};
+use async_graphql::{Context, ID, Object, Result, SimpleObject};
 use axum::http::HeaderMap;
+use base64::{Engine as _, engine::general_purpose::STANDARD};
 use futures::TryStreamExt;
 use mongodb::{Collection, bson::doc};
-
+use std::str::FromStr;
 use std::sync::Arc;
 
 use crate::app_state::AppState;
@@ -63,6 +64,36 @@ impl UserQuery {
         filters: Option<crate::graphql::user::types::DiscoverFilters>,
     ) -> Result<Vec<UserNode>> {
         discover_users_resolver(ctx, filters).await
+    }
+
+    /// Get the complete message bytes ready to sign for session registration
+    /// Returns base64-encoded message bytes: SESSION:{payer_pubkey}
+    async fn session_message(&self, ctx: &Context<'_>) -> Result<String> {
+        let app_state = ctx.data::<Arc<AppState>>()?;
+        let session_key = app_state.solana_service.session_key_pubkey();
+        let message = format!("SESSION:{}", session_key);
+        // Return base64-encoded message bytes
+        let message_bytes = message.as_bytes();
+        Ok(STANDARD.encode(message_bytes))
+    }
+
+    /// Get canonical vote cost for the authenticated user
+    /// Returns the cost in BLING lamports for voting on a "boring" post (0 votes)
+    /// with no previous votes, using the user's actual social score.
+    /// side: "Pump" or "Smack"
+    async fn canonical_vote_cost(&self, ctx: &Context<'_>, side: String) -> Result<u64> {
+        canonical_vote_cost_resolver(ctx, side).await
+    }
+
+    /// Get canonical vote costs in multiple tokens (BLING, USDC, Stablecoin)
+    /// Returns costs in lamports for each token
+    /// side: "Pump" or "Smack"
+    async fn canonical_vote_costs(
+        &self,
+        ctx: &Context<'_>,
+        side: String,
+    ) -> Result<CanonicalVoteCosts> {
+        canonical_vote_costs_resolver(ctx, side).await
     }
 }
 
@@ -196,4 +227,266 @@ pub async fn discover_users_resolver(
     }
 
     Ok(results)
+}
+
+/// Get canonical vote cost for the authenticated user
+pub async fn canonical_vote_cost_resolver(ctx: &Context<'_>, side: String) -> Result<u64> {
+    let app_state = ctx.data::<Arc<AppState>>()?;
+    let headers = ctx
+        .data::<HeaderMap>()
+        .map_err(|_| async_graphql::Error::new("Failed to get headers from context"))?;
+
+    // Get authenticated user
+    let privy_id = auth::get_privy_id_from_header(&app_state.privy_service, headers)
+        .await
+        .map_err(|(status, json)| {
+            let error_msg = json
+                .get("error")
+                .and_then(|v| v.as_str())
+                .unwrap_or("Authentication failed");
+            async_graphql::Error::new(format!("{} (status {})", error_msg, status))
+        })?;
+
+    let user = app_state
+        .mongo_service
+        .users
+        .get_user_by_privy_id(&privy_id)
+        .await?
+        .ok_or_else(|| async_graphql::Error::new("User not found"))?;
+
+    // Parse wallet pubkey
+    let wallet_pubkey = solana_sdk::pubkey::Pubkey::from_str(&user.wallet)
+        .map_err(|e| async_graphql::Error::new(format!("Invalid wallet pubkey: {}", e)))?;
+
+    // Parse side
+    let vote_side = match side.as_str() {
+        "Pump" => opinions_market::state::Side::Pump,
+        "Smack" => opinions_market::state::Side::Smack,
+        _ => {
+            return Err(async_graphql::Error::new(
+                "Invalid side: must be 'Pump' or 'Smack'",
+            ));
+        }
+    };
+
+    // Call SolanaService to get canonical cost (fetches UserAccount and computes using same logic as on-chain)
+    let cost = app_state
+        .solana_service
+        .get_canonical_cost(&wallet_pubkey, vote_side)
+        .await
+        .map_err(|e| {
+            eprintln!("canonical_cost error: {:?}", e);
+            async_graphql::Error::new("Failed to compute canonical cost")
+        })?;
+
+    Ok(cost)
+}
+
+// ============================================================================
+// Canonical Vote Costs
+// ============================================================================
+
+#[derive(SimpleObject)]
+pub struct CanonicalVoteCosts {
+    /// Cost in BLING lamports
+    pub bling: u64,
+    /// Cost in USDC lamports (None if USDC is not registered as valid payment)
+    pub usdc: Option<u64>,
+    /// Cost in Stablecoin lamports (None if Stablecoin is not registered as valid payment)
+    pub stablecoin: Option<u64>,
+}
+
+/// Get canonical vote costs in multiple tokens
+pub async fn canonical_vote_costs_resolver(
+    ctx: &Context<'_>,
+    side: String,
+) -> Result<CanonicalVoteCosts> {
+    let app_state = ctx.data::<Arc<AppState>>()?;
+    let headers = ctx
+        .data::<HeaderMap>()
+        .map_err(|_| async_graphql::Error::new("Failed to get headers from context"))?;
+
+    // Get authenticated user
+    let privy_id = auth::get_privy_id_from_header(&app_state.privy_service, headers)
+        .await
+        .map_err(|(status, json)| {
+            let error_msg = json
+                .get("error")
+                .and_then(|v| v.as_str())
+                .unwrap_or("Authentication failed");
+            async_graphql::Error::new(format!("{} (status {})", error_msg, status))
+        })?;
+
+    let user = app_state
+        .mongo_service
+        .users
+        .get_user_by_privy_id(&privy_id)
+        .await?
+        .ok_or_else(|| async_graphql::Error::new("User not found"))?;
+
+    // Parse wallet pubkey
+    let wallet_pubkey = solana_sdk::pubkey::Pubkey::from_str(&user.wallet)
+        .map_err(|e| async_graphql::Error::new(format!("Invalid wallet pubkey: {}", e)))?;
+
+    // Parse side
+    let vote_side = match side.as_str() {
+        "Pump" => opinions_market::state::Side::Pump,
+        "Smack" => opinions_market::state::Side::Smack,
+        _ => {
+            return Err(async_graphql::Error::new(
+                "Invalid side: must be 'Pump' or 'Smack'",
+            ));
+        }
+    };
+
+    // Get canonical cost in BLING
+
+    let bling_cost = app_state
+        .solana_service
+        .get_canonical_cost(&wallet_pubkey, vote_side)
+        .await
+        .map_err(|e| {
+            eprintln!("canonical_cost error: {:?}", e);
+            async_graphql::Error::new("Failed to compute canonical cost")
+        })?;
+
+    // Get USDC and Stablecoin mints from environment or config
+    // For now, we'll try to get them from environment variables or use defaults
+    let usdc_mint_str = std::env::var("USDC_MINT").ok();
+    let stablecoin_mint_str = std::env::var("STABLECOIN_MINT").ok();
+
+    // Convert to USDC if available
+    let usdc_cost = if let Some(ref usdc_mint_str) = usdc_mint_str {
+        if let Ok(usdc_mint) = solana_sdk::pubkey::Pubkey::from_str(usdc_mint_str) {
+            match app_state
+                .solana_service
+                .convert_bling_to_token(bling_cost, &usdc_mint)
+                .await
+            {
+                Ok(cost) => Some(cost),
+                Err(e) => {
+                    eprintln!("Failed to convert to USDC: {}", e);
+                    None
+                }
+            }
+        } else {
+            None
+        }
+    } else {
+        None
+    };
+
+    // Convert to Stablecoin if available
+    let stablecoin_cost = if let Some(ref stablecoin_mint_str) = stablecoin_mint_str {
+        if let Ok(stablecoin_mint) = solana_sdk::pubkey::Pubkey::from_str(stablecoin_mint_str) {
+            match app_state
+                .solana_service
+                .convert_bling_to_token(bling_cost, &stablecoin_mint)
+                .await
+            {
+                Ok(cost) => Some(cost),
+                Err(e) => {
+                    eprintln!("Failed to convert to Stablecoin: {}", e);
+                    None
+                }
+            }
+        } else {
+            None
+        }
+    } else {
+        None
+    };
+
+    Ok(CanonicalVoteCosts {
+        bling: bling_cost,
+        usdc: usdc_cost,
+        stablecoin: stablecoin_cost,
+    })
+}
+
+// ============================================================================
+// Vault Balances
+// ============================================================================
+
+#[derive(SimpleObject)]
+pub struct VaultBalances {
+    /// Vault balance in BLING lamports
+    pub bling: u64,
+    /// Vault balance in USDC lamports (None if USDC is not registered as valid payment)
+    pub usdc: Option<u64>,
+    /// Vault balance in Stablecoin lamports (None if Stablecoin is not registered as valid payment)
+    pub stablecoin: Option<u64>,
+}
+
+/// Get vault balances for all valid payment tokens
+pub async fn vault_balances_resolver(ctx: &Context<'_>, wallet: &str) -> Result<VaultBalances> {
+    let app_state = ctx.data::<Arc<AppState>>()?;
+
+    // Parse user's Solana wallet
+    let user_wallet = solana_sdk::pubkey::Pubkey::from_str(wallet)
+        .map_err(|e| async_graphql::Error::new(format!("Invalid user wallet: {}", e)))?;
+
+    // Get BLING mint
+    let bling_mint = *app_state.solana_service.get_bling_mint();
+
+    // Get BLING vault balance
+    let bling_balance = app_state
+        .solana_service
+        .get_user_vault_balance(&user_wallet, &bling_mint)
+        .await
+        .map_err(|e| {
+            async_graphql::Error::new(format!("Failed to get BLING vault balance: {}", e))
+        })?;
+
+    // Get USDC and Stablecoin mints from environment
+    let usdc_mint_str = std::env::var("USDC_MINT").ok();
+    let stablecoin_mint_str = std::env::var("STABLECOIN_MINT").ok();
+
+    // Get USDC vault balance if available
+    let usdc_balance = if let Some(ref usdc_mint_str) = usdc_mint_str {
+        if let Ok(usdc_mint) = solana_sdk::pubkey::Pubkey::from_str(usdc_mint_str) {
+            match app_state
+                .solana_service
+                .get_user_vault_balance(&user_wallet, &usdc_mint)
+                .await
+            {
+                Ok(balance) => Some(balance),
+                Err(e) => {
+                    eprintln!("Failed to get USDC vault balance: {}", e);
+                    None
+                }
+            }
+        } else {
+            None
+        }
+    } else {
+        None
+    };
+
+    // Get Stablecoin vault balance if available
+    let stablecoin_balance = if let Some(ref stablecoin_mint_str) = stablecoin_mint_str {
+        if let Ok(stablecoin_mint) = solana_sdk::pubkey::Pubkey::from_str(stablecoin_mint_str) {
+            match app_state
+                .solana_service
+                .get_user_vault_balance(&user_wallet, &stablecoin_mint)
+                .await
+            {
+                Ok(balance) => Some(balance),
+                Err(e) => {
+                    eprintln!("Failed to get Stablecoin vault balance: {}", e);
+                    None
+                }
+            }
+        } else {
+            None
+        }
+    } else {
+        None
+    };
+
+    Ok(VaultBalances {
+        bling: bling_balance,
+        usdc: usdc_balance,
+        stablecoin: stablecoin_balance,
+    })
 }

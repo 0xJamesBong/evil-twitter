@@ -1,9 +1,8 @@
 "use client";
 
-import { useState } from "react";
-import { useWallets, useSignMessage, useSignTransaction } from "@privy-io/react-auth/solana";
-import { VersionedTransaction } from "@solana/web3.js";
-import bs58 from "bs58";
+import "@/theme/types"; // Import type declarations
+import { useState, useEffect, useMemo } from "react";
+import { useWallets } from "@privy-io/react-auth/solana";
 import { usePrivy } from "@privy-io/react-auth";
 import {
     Box,
@@ -23,121 +22,52 @@ import { ArrowBack as ArrowLeftIcon, CheckCircle as CheckCircleIcon } from "@mui
 import { FullScreenLoader } from "@/components/ui/fullscreen-loader";
 import { LoginPrompt } from "@/components/auth/LoginPrompt";
 import { useBackendUserStore } from "@/lib/stores/backendUserStore";
-import { getBackendUrl } from "@/lib/config";
-
-interface SessionData {
-    message: string;
-    signature: string;
-    wallet: string;
-    sessionAuthorityPda: string;
-    expiresAt: number;
-    txSignature?: string;
-}
+import { useRenewSession, SessionData } from "@/hooks/useRenewSession";
 
 function SignMessageContent() {
     const { ready, authenticated, logout } = usePrivy();
     const { wallets } = useWallets();
-    const { signMessage } = useSignMessage();
-    const { signTransaction } = useSignTransaction();
-    const { setSession } = useBackendUserStore();
-    const [sessionData, setSessionData] = useState<SessionData | null>(null);
-    const [loading, setLoading] = useState(false);
-    const [error, setError] = useState<string | null>(null);
+    const { renewSession, loading, error } = useRenewSession();
+    const { setSession, sessionAuthorityPda, sessionKey, sessionExpiresAt, sessionUserWallet } = useBackendUserStore();
+    const [newlyRegisteredSession, setNewlyRegisteredSession] = useState<SessionData | null>(null);
 
-    const handleSign = async () => {
+    // Get existing session from store or newly registered session
+    const sessionData = useMemo<SessionData | null>(() => {
+        // If we just registered a new session, use that
+        if (newlyRegisteredSession) {
+            return newlyRegisteredSession;
+        }
+
+        // Otherwise, check if we have an existing session in the store
+        if (sessionAuthorityPda && sessionKey && sessionExpiresAt && sessionUserWallet) {
+            return {
+                sessionAuthorityPda,
+                sessionKey,
+                expiresAt: sessionExpiresAt,
+                userWallet: sessionUserWallet,
+            };
+        }
+
+        return null;
+    }, [newlyRegisteredSession, sessionAuthorityPda, sessionKey, sessionExpiresAt, sessionUserWallet]);
+
+    const handleRegister = async () => {
         try {
-            setLoading(true);
-            setError(null);
-            setSessionData(null);
+            const data = await renewSession();
 
-            const selectedWallet = wallets[0];
-            if (!selectedWallet) {
-                throw new Error("No wallet connected");
-            }
+            // Store session in Zustand
+            setSession(
+                data.sessionAuthorityPda,
+                data.sessionKey,
+                data.expiresAt,
+                data.userWallet
+            );
 
-            // Step 1: Create message with timestamp and nonce
-            const timestamp = Math.floor(Date.now() / 1000);
-            const nonce = Math.random().toString(36).substring(7);
-            const message = `delegate-session|${timestamp}|${nonce}`;
-            const messageBytes = new TextEncoder().encode(message);
-
-            // Step 2: User signs the message
-            const result = await signMessage({
-                message: messageBytes,
-                wallet: selectedWallet,
-                options: {
-                    uiOptions: { title: "Sign to delegate session permissions" },
-                },
-            });
-
-            const signatureBase58 = bs58.encode(result.signature);
-
-            // Step 3: Send to backend /api/session/init
-            const expiresAt = timestamp + 86400; // 24 hours from now
-            const backendUrl = getBackendUrl();
-            const initResponse = await fetch(`${backendUrl}/api/session/init`, {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({
-                    wallet: selectedWallet.address,
-                    signature: signatureBase58,
-                    expires: expiresAt,
-                    message,
-                }),
-            });
-
-            if (!initResponse.ok) {
-                const errorText = await initResponse.text();
-                throw new Error(`Backend error: ${errorText}`);
-            }
-
-            const { tx_base64, session_authority_pda, expires_at } = await initResponse.json();
-
-            // Step 4: Deserialize and sign the transaction
-            const txBuffer = Buffer.from(tx_base64, "base64");
-            const tx = VersionedTransaction.deserialize(txBuffer);
-
-            const signedTxResult = await signTransaction({
-                transaction: tx as any,
-                wallet: selectedWallet,
-            });
-
-            // Extract the signed transaction
-            const signedTx = (signedTxResult as any).transaction || signedTxResult;
-
-            // Step 5: Submit signed transaction to backend
-            const signedTxBase64 = Buffer.from(signedTx.serialize()).toString("base64");
-
-            const submitResponse = await fetch(`${backendUrl}/api/session/submit`, {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ transaction: signedTxBase64 }),
-            });
-
-            if (!submitResponse.ok) {
-                const errorText = await submitResponse.text();
-                throw new Error(`Backend submit error: ${errorText}`);
-            }
-
-            const { signature: txSignature } = await submitResponse.json();
-
-            // Step 6: Store session in Zustand
-            setSession(session_authority_pda, expires_at);
-
-            setSessionData({
-                message,
-                signature: signatureBase58,
-                wallet: selectedWallet.address,
-                sessionAuthorityPda: session_authority_pda,
-                expiresAt: expires_at,
-                txSignature,
-            });
+            // Set newly registered session to trigger display
+            setNewlyRegisteredSession(data);
         } catch (err) {
-            const errorMessage = err instanceof Error ? err.message : "Failed to sign message";
-            setError(errorMessage);
-            console.error("Failed to sign message:", err);
-        } finally {
-            setLoading(false);
+            // Error is already handled by the hook
+            console.error("Failed to register session:", err);
         }
     };
 
@@ -179,10 +109,12 @@ function SignMessageContent() {
                     <Card>
                         <CardContent>
                             <Typography variant="h6" gutterBottom>
-                                Sign Message
+                                Register Session Key
                             </Typography>
                             <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
-                                Sign a message with your Solana wallet to delegate session signing permissions.
+                                Sign a message with your Solana wallet to register a session key.
+                                This allows the backend to sign transactions on your behalf for 30 days.
+                                You only need to do this once.
                             </Typography>
 
                             {!selectedWallet && (
@@ -193,17 +125,17 @@ function SignMessageContent() {
 
                             <Button
                                 variant="contained"
-                                onClick={handleSign}
+                                onClick={handleRegister}
                                 disabled={loading || !selectedWallet}
                                 sx={{ mb: 2 }}
                             >
                                 {loading ? (
                                     <>
                                         <CircularProgress size={16} sx={{ mr: 1 }} />
-                                        Signing...
+                                        Registering Session...
                                     </>
                                 ) : (
-                                    "Sign Message"
+                                    "Register Session Key"
                                 )}
                             </Button>
 
@@ -221,7 +153,7 @@ function SignMessageContent() {
                                 <Box sx={{ display: "flex", alignItems: "center", mb: 2 }}>
                                     <CheckCircleIcon sx={{ color: "success.main", mr: 1 }} />
                                     <Typography variant="h6">
-                                        Session Delegation Successful
+                                        {newlyRegisteredSession ? "Session Registered Successfully" : "Current Session"}
                                     </Typography>
                                 </Box>
 
@@ -238,7 +170,7 @@ function SignMessageContent() {
                                             variant="outlined"
                                             sx={{
                                                 p: 2,
-                                                bgcolor: "grey.50",
+                                                bgcolor: "background.paper",
                                             }}
                                         >
                                             <Typography
@@ -249,6 +181,33 @@ function SignMessageContent() {
                                                 }}
                                             >
                                                 {sessionData.sessionAuthorityPda}
+                                            </Typography>
+                                        </Paper>
+                                    </Box>
+
+                                    {/* Session Key */}
+                                    <Box>
+                                        <Typography
+                                            variant="subtitle2"
+                                            sx={{ mb: 1, color: "text.secondary", fontWeight: 600 }}
+                                        >
+                                            Session Key (Public Key)
+                                        </Typography>
+                                        <Paper
+                                            variant="outlined"
+                                            sx={{
+                                                p: 2,
+                                                bgcolor: "background.paper",
+                                            }}
+                                        >
+                                            <Typography
+                                                variant="body2"
+                                                sx={{
+                                                    fontFamily: "monospace",
+                                                    wordBreak: "break-all",
+                                                }}
+                                            >
+                                                {sessionData.sessionKey}
                                             </Typography>
                                         </Paper>
                                     </Box>
@@ -265,66 +224,46 @@ function SignMessageContent() {
                                             variant="outlined"
                                             sx={{
                                                 p: 2,
-                                                bgcolor: "grey.50",
+                                                bgcolor: "background.paper",
                                             }}
                                         >
                                             <Typography variant="body1">
                                                 {new Date(sessionData.expiresAt * 1000).toLocaleString()}
                                             </Typography>
+                                            <Chip
+                                                label={`${Math.floor((sessionData.expiresAt - Math.floor(Date.now() / 1000)) / 86400)} days remaining`}
+                                                color="success"
+                                                size="small"
+                                                sx={{ mt: 1 }}
+                                            />
                                         </Paper>
                                     </Box>
 
-                                    {/* Transaction Signature */}
-                                    {sessionData.txSignature && (
-                                        <Box>
-                                            <Typography
-                                                variant="subtitle2"
-                                                sx={{ mb: 1, color: "text.secondary", fontWeight: 600 }}
-                                            >
-                                                Transaction Signature
-                                            </Typography>
-                                            <Paper
-                                                variant="outlined"
-                                                sx={{
-                                                    p: 2,
-                                                    bgcolor: "grey.50",
-                                                    maxHeight: 200,
-                                                    overflow: "auto",
-                                                }}
-                                            >
-                                                <Typography
-                                                    variant="body2"
-                                                    sx={{
-                                                        fontFamily: "monospace",
-                                                        wordBreak: "break-all",
-                                                        fontSize: "0.75rem",
-                                                    }}
-                                                >
-                                                    {sessionData.txSignature}
-                                                </Typography>
-                                            </Paper>
-                                        </Box>
-                                    )}
-
                                     <Divider sx={{ my: 1 }} />
 
-                                    {/* Message */}
+                                    {/* User Wallet */}
                                     <Box>
                                         <Typography
                                             variant="subtitle2"
                                             sx={{ mb: 1, color: "text.secondary", fontWeight: 600 }}
                                         >
-                                            Signed Message
+                                            User Wallet
                                         </Typography>
                                         <Paper
                                             variant="outlined"
                                             sx={{
                                                 p: 2,
-                                                bgcolor: "grey.50",
+                                                bgcolor: "background.paper",
                                             }}
                                         >
-                                            <Typography variant="body2">
-                                                {sessionData.message}
+                                            <Typography
+                                                variant="body2"
+                                                sx={{
+                                                    fontFamily: "monospace",
+                                                    wordBreak: "break-all",
+                                                }}
+                                            >
+                                                {sessionData.userWallet}
                                             </Typography>
                                         </Paper>
                                     </Box>
@@ -341,4 +280,3 @@ function SignMessageContent() {
 export default function SignMessage() {
     return <SignMessageContent />;
 }
-

@@ -7,7 +7,7 @@ import { PublicKey } from "@solana/web3.js";
 import * as anchor from "@coral-xyz/anchor";
 import { TransactionMessage, VersionedTransaction } from "@solana/web3.js";
 import { getConnection } from "../lib/solana/connection";
-import { getAssociatedTokenAddress } from "@solana/spl-token";
+import { getAssociatedTokenAddress, getMint } from "@solana/spl-token";
 import { useSolanaStore } from "../lib/stores/solanaStore";
 import bs58 from "bs58";
 import { getProgramId, getIdl } from "../lib/solana/config";
@@ -68,7 +68,8 @@ export function useDeposit() {
   console.log("solanaWallet", solanaWallet);
   const deposit = async (
     amount: number,
-    tokenMint: PublicKey
+    tokenMint: PublicKey,
+    tokenDecimals?: number // Optional: if provided, use this instead of fetching
   ): Promise<string> => {
     if (!solanaWallet) {
       throw new Error("No Solana wallet connected");
@@ -98,8 +99,49 @@ export function useDeposit() {
         userPubkey
       );
 
-      // Convert amount to lamports (assuming 9 decimals)
-      const amountInLamports = BigInt(Math.floor(amount * 1_000_000_000));
+      // Get token decimals: use provided value, or fetch from mint account, or default to 9
+      let finalTokenDecimals = tokenDecimals ?? 9; // Use provided decimals if available
+      if (finalTokenDecimals === 9 && tokenDecimals === undefined) {
+        // Only fetch if not provided and we're using the default
+        try {
+          const mintInfo = await getMint(connection, tokenMint);
+          finalTokenDecimals = mintInfo.decimals;
+        } catch (err) {
+          console.warn(
+            `Failed to fetch mint decimals for ${tokenMint.toBase58()}, using default 9:`,
+            err
+          );
+        }
+      }
+
+      // Convert amount to lamports using actual token decimals
+      // Use string-based arithmetic to avoid JavaScript number precision issues
+      const amountStr = amount.toString();
+      const decimalIndex = amountStr.indexOf(".");
+      let wholePart = amountStr;
+      let fractionalPart = "";
+
+      if (decimalIndex !== -1) {
+        wholePart = amountStr.substring(0, decimalIndex);
+        fractionalPart = amountStr.substring(decimalIndex + 1);
+      }
+
+      // Pad or truncate fractional part to match decimals
+      const fractionalPadded = fractionalPart
+        .padEnd(finalTokenDecimals, "0")
+        .substring(0, finalTokenDecimals);
+
+      // Combine whole and fractional parts using BigInt to avoid precision loss
+      const decimalsMultiplier = BigInt(10 ** finalTokenDecimals);
+      const amountInLamports =
+        BigInt(wholePart || "0") * decimalsMultiplier +
+        BigInt(fractionalPadded || "0");
+
+      // Ensure the amount fits in u64 (max value: 2^64 - 1)
+      const maxU64 = BigInt("18446744073709551615");
+      if (amountInLamports > maxU64) {
+        throw new Error(`Amount ${amountInLamports} exceeds maximum u64 value`);
+      }
 
       // // Create a minimal wallet for Anchor (not used for signing)
       // const dummyWallet = {

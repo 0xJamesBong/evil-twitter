@@ -1,4 +1,5 @@
 import { create } from "zustand";
+import bs58 from "bs58";
 import { ME_QUERY, MeQueryResult } from "../graphql/users/queries";
 import {
   ONBOARD_USER_MUTATION,
@@ -13,7 +14,9 @@ type BackendUserState = {
   isLoading: boolean;
   error: string | null;
   sessionAuthorityPda: string | null;
+  sessionKey: string | null;
   sessionExpiresAt: number | null;
+  sessionUserWallet: string | null;
   sessionActive: boolean;
 };
 
@@ -22,13 +25,24 @@ type BackendUserActions = {
   onboardUser: (
     identityToken: string,
     handle: string,
-    displayName: string
+    displayName: string,
+    signMessage: (params: {
+      message: Uint8Array;
+      wallet: any;
+      options?: { uiOptions?: { title?: string; description?: string } };
+    }) => Promise<{ signature: Uint8Array }>,
+    wallet: any
   ) => Promise<void>;
   fetchMe: (identityToken: string) => Promise<void>;
   refreshMe: (identityToken: string) => Promise<void>;
   clear: () => void;
   // Session management
-  setSession: (sessionAuthorityPda: string, expiresAt: number) => void;
+  setSession: (
+    sessionAuthorityPda: string,
+    sessionKey: string,
+    expiresAt: number,
+    userWallet: string
+  ) => void;
   clearSession: () => void;
   isSessionValid: () => boolean;
 };
@@ -40,12 +54,20 @@ export const useBackendUserStore = create<
   isLoading: false,
   error: null,
   sessionAuthorityPda: null,
+  sessionKey: null,
   sessionExpiresAt: null,
+  sessionUserWallet: null,
   sessionActive: false,
   onboardUser: async (
     identityToken: string,
     handle: string,
-    displayName: string
+    displayName: string,
+    signMessage: (params: {
+      message: Uint8Array;
+      wallet: any;
+      options?: { uiOptions?: { title?: string; description?: string } };
+    }) => Promise<{ signature: Uint8Array }>,
+    wallet: any
   ) => {
     set({ isLoading: true, error: null });
     try {
@@ -55,12 +77,76 @@ export const useBackendUserStore = create<
         "and displayName:",
         displayName
       );
+
+      // Step 1: Get complete message bytes from backend (ready to sign)
+      console.log("🔑 onboardUser: Fetching session message from backend...");
+      const { SESSION_MESSAGE_QUERY } = await import(
+        "../graphql/users/mutations"
+      );
+      const sessionMessageData = await graphqlRequest<{
+        sessionMessage: string;
+      }>(SESSION_MESSAGE_QUERY, undefined, identityToken);
+      // Decode base64 message bytes (backend returns base64-encoded message)
+      const base64Message = sessionMessageData.sessionMessage;
+      const binaryString = atob(base64Message);
+      const messageBytes = Uint8Array.from(binaryString, (char) =>
+        char.charCodeAt(0)
+      );
+      console.log(
+        "✅ onboardUser: Got message bytes from backend, length:",
+        messageBytes.length
+      );
+
+      // Step 3: Sign message with user's wallet
+      console.log("✍️  onboardUser: Requesting signature from user...");
+      const signatureResult = await signMessage({
+        message: messageBytes,
+        wallet: wallet,
+        options: {
+          uiOptions: {
+            title: "Register Session Key",
+            description:
+              "Sign this message to register a session key for 30 days",
+          },
+        },
+      });
+
+      // Step 4: Encode signature to base58
+      const signatureBytes = signatureResult.signature;
+      const signatureBase58 = bs58.encode(signatureBytes);
+      console.log(
+        "✅ onboardUser: Message signed, signature:",
+        signatureBase58.slice(0, 20) + "..."
+      );
+
+      // Step 5: Call GraphQL onboardUser mutation (only send signature, backend has session key)
+      console.log("📤 onboardUser: Calling GraphQL onboardUser mutation...");
       const data = await graphqlRequest<OnboardUserResult>(
         ONBOARD_USER_MUTATION,
-        { input: { handle, displayName } },
+        {
+          input: {
+            handle,
+            displayName,
+            sessionSignature: signatureBase58,
+          },
+        },
         identityToken
       );
-      // OnboardUser returns user, but we'll fetch full profile with fetchMe
+
+      console.log("✅ onboardUser: User onboarded successfully!");
+
+      // Step 6: Store session if returned
+      if (data.onboardUser.session) {
+        const session = data.onboardUser.session;
+        get().setSession(
+          session.sessionAuthorityPda,
+          session.sessionKey,
+          session.expiresAt,
+          session.userWallet
+        );
+        console.log("✅ onboardUser: Session stored in state");
+      }
+
       set({ isLoading: false });
     } catch (e) {
       set({
@@ -107,18 +193,27 @@ export const useBackendUserStore = create<
   clear: () => {
     set({ user: null, isLoading: false, error: null });
   },
-  setSession: (sessionAuthorityPda: string, expiresAt: number) => {
+  setSession: (
+    sessionAuthorityPda: string,
+    sessionKey: string,
+    expiresAt: number,
+    userWallet: string
+  ) => {
     const now = Math.floor(Date.now() / 1000);
     set({
       sessionAuthorityPda,
+      sessionKey,
       sessionExpiresAt: expiresAt,
+      sessionUserWallet: userWallet,
       sessionActive: expiresAt > now,
     });
   },
   clearSession: () => {
     set({
       sessionAuthorityPda: null,
+      sessionKey: null,
       sessionExpiresAt: null,
+      sessionUserWallet: null,
       sessionActive: false,
     });
   },

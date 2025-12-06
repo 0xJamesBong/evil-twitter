@@ -121,6 +121,7 @@ impl UserService {
             email,
             status: crate::models::user::UserStatus::Active,
             created_at: now,
+            default_payment_token: None,
         };
 
         self.create_user(user).await

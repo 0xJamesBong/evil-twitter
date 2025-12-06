@@ -1,6 +1,7 @@
 "use client";
 
 import { usePrivy, useIdentityToken } from "@privy-io/react-auth";
+import { useWallets, useSignMessage } from "@privy-io/react-auth/solana";
 import { useEffect, useRef } from "react";
 import { useBackendUserStore } from "@/lib/stores/backendUserStore";
 import { Alert, Snackbar } from "@mui/material";
@@ -8,6 +9,8 @@ import { Alert, Snackbar } from "@mui/material";
 export function SyncPrivy() {
     const { authenticated, user } = usePrivy();
     const { identityToken } = useIdentityToken();
+    const { wallets } = useWallets();
+    const { signMessage } = useSignMessage();
     const backendUser = useBackendUserStore((state) => state.user);
     const isLoading = useBackendUserStore((state) => state.isLoading);
     const error = useBackendUserStore((state) => state.error);
@@ -84,13 +87,16 @@ export function SyncPrivy() {
                 let handle = "";
                 let displayName = "";
 
-                // Get Solana wallet address from Privy user
-                // Privy user object structure may vary, so we use type assertion
-                const privyUserAny = user as any;
-                const solanaWallet = privyUserAny?.wallets?.find(
-                    (w: any) => w.chainType === "solana" || w.chain_type === "solana"
-                ) || privyUserAny?.wallet;
+                // Get Solana wallet for signing (use wallets from useWallets hook)
+                const solanaWallet =
+                    wallets.find((w: any) => w.walletClientType === "privy") || wallets[0];
 
+                if (!solanaWallet) {
+                    console.error("SyncPrivy: No Solana wallet found for signing");
+                    throw new Error("No Solana wallet connected");
+                }
+
+                // Derive handle/displayName from user data
                 if (user?.email?.address) {
                     const prefix = user.email.address.split("@")[0];
                     handle = prefix;
@@ -106,8 +112,8 @@ export function SyncPrivy() {
 
                 console.log("SyncPrivy: Onboarding user with handle:", handle, "displayName:", displayName);
 
-                // Onboard new user
-                await onboardUser(identityToken, handle, displayName);
+                // Onboard new user (includes session registration)
+                await onboardUser(identityToken, handle, displayName, signMessage, solanaWallet);
                 console.log("SyncPrivy: Onboarding successful");
 
                 // Fetch the newly created user
@@ -122,7 +128,7 @@ export function SyncPrivy() {
         };
 
         run();
-    }, [authenticated, user, backendUser, identityToken]);
+    }, [authenticated, user, backendUser, identityToken, wallets, signMessage]);
 
     // Use store's loading/error state
     const displayLoading = isLoading;

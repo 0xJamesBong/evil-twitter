@@ -1,9 +1,11 @@
 use anchor_lang::prelude::*;
 
 pub mod instructions;
+pub mod math;
+
 use instructions::*;
 
-declare_id!("88PtLphWetTTc5jQqCs2Ao6N12pGWG1sRqEyMjmg2c3e");
+declare_id!("A2jB85khktUWWKVnuoGs2EffLF3ekEJCaM14cmHBztVa");
 
 #[error_code]
 pub enum StableError {

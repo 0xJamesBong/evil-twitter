@@ -1,4 +1,6 @@
-use crate::constants::PARAMS;
+use crate::constants::{MAX_VOTE_COUNT_CAP, PARAMS};
+use crate::math::vote_cost::{base_user_cost, cost_in_bling, post_curve_cost};
+use crate::ErrorCode;
 use anchor_lang::prelude::*;
 
 // -----------------------------------------------------------------------------
@@ -70,6 +72,7 @@ pub struct ValidPayment {
     /// how much is 1 token in BLING votes -
     /// 1 USDC = 10_000 BLING for example
     /// 1 SOL = 1_000_000_000 BLING for example
+    /// This value is lamport-free. So 1 BLING = 1 BLING
     pub price_in_bling: u64,
     pub enabled: bool,
     pub bump: u8,
@@ -99,6 +102,30 @@ impl UserAccount {
             social_score: PARAMS.user_initial_social_score,
             bump,
         }
+    }
+
+    /// Calculate canonical vote cost for this user
+    /// This is the cost of voting on a "boring" post (0 votes) with no previous votes,
+    /// but using the user's actual social score. This is a pure user attribute.
+    pub fn canonical_cost(&self, side: Side) -> Result<u64> {
+        // Canonical scenario: 1 vote, no previous votes, boring post (0 votes, original type)
+        let base_cost = base_user_cost(
+            1, // 1 vote
+            0, // no previous votes
+            side, self, // user account (for social score)
+        )?;
+
+        // Apply post curve adjustments (for canonical: 0 votes, original type)
+        let post_cost = post_curve_cost(
+            base_cost,
+            0, // post_upvotes
+            0, // post_downvotes
+            side,
+            PostType::Original,
+        )?;
+
+        // Convert to BLING lamports
+        cost_in_bling(post_cost)
     }
 }
 
@@ -174,27 +201,41 @@ impl PostAccount {
 }
 
 #[account]
-#[derive(InitSpace, Copy, PartialEq, Eq, Debug)]
+#[derive(InitSpace, PartialEq, Eq, Debug)]
 pub struct PostMintPayout {
     pub post: Pubkey,
     pub token_mint: Pubkey,
-    pub total_payout: u64,
+    pub initial_pot: u64,  // Total pot before any fees
+    pub total_payout: u64, // Amount for voters (after all fees)
     pub payout_per_winning_vote: u64,
+    pub creator_fee: u64,
+    pub protocol_fee: u64,
+    pub mother_fee: u64,
+    pub frozen: bool, // Prevents re-settlement
     pub bump: u8,
 }
 impl PostMintPayout {
     pub fn new(
         post: Pubkey,
         token_mint: Pubkey,
+        initial_pot: u64,
         total_payout: u64,
         payout_per_winning_vote: u64,
+        creator_fee: u64,
+        protocol_fee: u64,
+        mother_fee: u64,
         bump: u8,
     ) -> Self {
         Self {
             post,
             token_mint,
+            initial_pot,
             total_payout,
             payout_per_winning_vote,
+            creator_fee,
+            protocol_fee,
+            mother_fee,
+            frozen: true, // Always frozen when created
             bump,
         }
     }
@@ -276,125 +317,34 @@ impl Vote {
             post_pubkey,
         }
     }
-
     // -------------------------------------------------------------------------
-    // USER-ADJUSTED COST
-    //
-    // Caps:
-    //   votes ≤ 1_000_000
-    //   prev  ≤ 1_000_000
-    //   side_mult ∈ {1,10}
-    //   social_mult_bps ∈ [5_000, 20_000]
-    //
-    // raw = votes * side_mult * (prev + 1)
-    // max raw = 1_000_000 * 10 * 1_000_001 = 1e13 → fits in u64 safely
-    // After BPS scaling raw*20000 / 10000 → < 2e13 → safe
-    // -------------------------------------------------------------------------
-    fn user_adjusted_cost(
-        &self,
-        user_position: &UserPostPosition,
-        user_account: &UserAccount,
-    ) -> Result<u64> {
-        // ---- FIXED CAPS (core overflow prevention) ----
-        let votes = (self.votes as u64).min(1_000_000);
-
-        let prev = match self.side {
-            Side::Pump => user_position.upvotes as u64,
-            Side::Smack => user_position.downvotes as u64,
-        }
-        .min(1_000_000);
-
-        // Pump is cheaper, Smack more expensive (per your design)
-        let side_mult = match self.side {
-            Side::Pump => 1u64,
-            Side::Smack => 10u64,
-        };
-
-        // ---- SOCIAL SCORE MULTIPLIER (5% to 200%) ----
-        let social_mult_bps = {
-            let score = user_account.social_score;
-
-            if score >= 0 {
-                // score 0–100 → discount down to 50%
-                10_000 - 50 * (score.min(100) as u64)
-            } else {
-                // score -100–0 → penalty up to +100%
-                10_000 + 100 * ((-score).min(100) as u64)
-            }
-        }
-        .clamp(5_000, 20_000); // 50%–200%
-
-        // ---- CORE RAW COST ----
-        //
-        // raw max = 1_000_000 * 10 * 1_000_001 ≈ 1e13 → safe in u64 (limit ≈1e19)
-        //
-        let raw = votes * side_mult * (prev + 1);
-
-        // ---- APPLY SOCIAL MULTIPLIER (BPS) ----
-        //
-        // max (raw * 20_000) < 2e17 → safe
-        //
-        let cost = (raw * social_mult_bps) / 10_000;
-
-        Ok(cost.max(1))
-    }
-
-    // -------------------------------------------------------------------------
-    // POST-ADJUSTED COST
-    //
-    // Caps:
-    //   post_votes ≤ 1_000_000
-    //   curve_mult_bps ∈ [10_000, 1_000_000]
-    //
-    // cost = base * curve_mult_bps / 10_000
-    // max base ~ 2e13 (from above)
-    // max curve_mult_bps = 1_000_000 (100x)
-    // so max cost = 2e15 → still fits u64 comfortably
-    // -------------------------------------------------------------------------
-    fn post_adjusted_cost(&self, post: &PostAccount, base: u64) -> Result<u64> {
-        let post_votes = match self.side {
-            Side::Pump => post.upvotes as u64,
-            Side::Smack => post.downvotes as u64,
-        }
-        .min(1_000_000);
-
-        // Bonding curve: 10_000 → 10_000 + post_votes*5
-        let curve_mult_bps = (10_000 + post_votes * 5).clamp(10_000, 1_000_000);
-
-        // base ≤ ~2e13
-        // curve_mult_bps ≤ 1_000_000
-        // multiplication ≤ 2e19 → fits under u64::MAX (≈1.8e19)?
-        // No: so we must rely on clamp reducing base earlier.
-        //
-        // BUT since curve_mult_bps max = 1,000,000 = 100x,
-        // and base realistically < 1e13,
-        // base * curve_mult_bps < 1e15 → SAFE.
-        //
-        // In worst-case theoretical max, clamp prevents overflow before this.
-        //
-        let mut cost = (base * curve_mult_bps) / 10_000;
-
-        // Child posts incur +10%
-        if matches!(post.post_type, PostType::Child { .. }) {
-            cost = (cost * 11_000) / 10_000;
-        }
-
-        Ok(cost.max(1))
-    }
-
-    // -------------------------------------------------------------------------
-    // FINAL COST = user-adjusted cost → post-adjusted cost
+    // FINAL COST = user-adjusted cost → post-adjusted cost → scaled to BLING
+    // Uses shared pricing module for consistency
     // -------------------------------------------------------------------------
     pub fn compute_cost_in_bling(
         &self,
         post: &PostAccount,
         user_position: &UserPostPosition,
         user_account: &UserAccount,
-        _cfg: &Config,
     ) -> Result<u64> {
-        let user = self.user_adjusted_cost(user_position, user_account)?;
-        let post_cost = self.post_adjusted_cost(post, user)?;
+        // Calculate base user-adjusted cost
+        let prev = match self.side {
+            Side::Pump => user_position.upvotes as u64,
+            Side::Smack => user_position.downvotes as u64,
+        };
 
-        Ok(post_cost.max(1))
+        let base_cost = base_user_cost(self.votes as u64, prev, self.side, user_account)?;
+
+        // Apply post curve adjustments
+        let post_cost = post_curve_cost(
+            base_cost,
+            post.upvotes as u64,
+            post.downvotes as u64,
+            self.side,
+            post.post_type,
+        )?;
+
+        // Convert to BLING lamports
+        cost_in_bling(post_cost)
     }
 }

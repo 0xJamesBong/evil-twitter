@@ -7,6 +7,7 @@ use anchor_spl::{
     associated_token::spl_associated_token_account::{self},
     token::spl_token,
 };
+
 use solana_client::nonblocking::rpc_client::RpcClient;
 use solana_sdk::{
     instruction::Instruction,
@@ -16,7 +17,7 @@ use solana_sdk::{
     signature::{Keypair, Signature},
     signers::Signers,
     transaction::VersionedTransaction,
-}; // Add this import
+};
 use solana_sdk::{pubkey::Pubkey, signer::Signer};
 
 /// Generate a unique post_id_hash for creating posts.
@@ -31,6 +32,30 @@ pub async fn current_chain_timestamp(rpc: &RpcClient) -> i64 {
 pub async fn wait_for_seconds(seconds: u64) {
     println!("⏳ Waiting {} seconds…", seconds);
     tokio::time::sleep(tokio::time::Duration::from_secs(seconds)).await;
+}
+
+pub fn sign_message_for_session_registration(
+    user: &Keypair,
+    session_key: &Pubkey,
+) -> (String, Vec<u8>, [u8; 64]) {
+    // Format message
+    let message = format!("SESSION:{}", session_key);
+    let message_bytes = message.as_bytes().to_vec();
+    let signature = user.sign_message(&message_bytes).as_array().clone();
+    (message, message_bytes, signature)
+}
+
+pub fn create_ed25519_instruction_for_session(user: &Keypair, session_key: &Pubkey) -> Instruction {
+    // Get the signature and message (reuse existing function)
+    let (message, message_bytes, signature_bytes) =
+        sign_message_for_session_registration(user, session_key);
+
+    // Use the function that accepts signature bytes directly
+    solana_sdk::ed25519_instruction::new_ed25519_instruction_with_signature(
+        &message_bytes,
+        &signature_bytes,
+        &user.pubkey().to_bytes(),
+    )
 }
 
 pub async fn wait_for_post_to_expire(
@@ -61,6 +86,7 @@ pub async fn setup_token_mint(
     mint_authority: &Keypair,
     program: &Program<&Keypair>,
     token_mint: &Keypair,
+    decimals: u8,
 ) -> Pubkey {
     let space = spl_token::state::Mint::LEN;
     let rent = rpc
@@ -83,7 +109,7 @@ pub async fn setup_token_mint(
         &token_mint.pubkey(),
         &mint_authority.pubkey(),
         None,
-        9,
+        decimals,
     )
     .unwrap();
     println!(
@@ -167,7 +193,7 @@ pub async fn setup_token_mint_ata_and_mint_to(
         &user_token_ata,
         &mint_authority.pubkey(),
         &[&mint_authority.pubkey()],
-        1_000_000_000 * LAMPORTS_PER_SOL,
+        amount,
     )
     .unwrap();
 
@@ -186,7 +212,7 @@ pub async fn setup_token_mint_ata_and_mint_to(
         .await
         .unwrap();
     if !ata_already_exists {
-        assert_eq!(user_token_balance.amount, 1_000_000_000 * LAMPORTS_PER_SOL);
+        assert_eq!(user_token_balance.amount, amount);
     }
     println!(
         "🌟 User {} balance after mint: {}",

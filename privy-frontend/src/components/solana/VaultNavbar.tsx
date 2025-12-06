@@ -15,6 +15,8 @@ import {
   Typography,
   Stack,
   CircularProgress,
+  ToggleButton,
+  ToggleButtonGroup,
 } from "@mui/material";
 import {
   AccountBalanceWallet as WalletIcon,
@@ -26,15 +28,25 @@ import {
 import { useSnackbar } from "notistack";
 import { useDeposit } from "../../hooks/useDeposit";
 import { useWithdraw } from "../../hooks/useWithdraw";
-import { useCreateUser } from "../../hooks/useCreateUser";
+import { useOnboardUser } from "../../hooks/useOnboardUser";
 import { useBackendUserStore } from "../../lib/stores/backendUserStore";
 import { useSolanaStore } from "../../lib/stores/solanaStore";
+import { useWalletTokenBalances } from "../../hooks/useWalletTokenBalances";
 import { NetworkSwitcher } from "./NetworkSwitcher";
+import { AmountInputWithSlider } from "./AmountInputWithSlider";
 
 import { formatTokenBalance } from "../../lib/utils/formatting";
+import { TokenDisplay, TokenLogo } from "../tokens";
+import { getTokenConfig } from "../../lib/utils/tokens";
 
-// Default BLING mint - should match backend
-const BLING_MINT = new PublicKey("bbb9w3ZidNJJGm4TKbhkCXqB9XSnzsjTedmJ5F2THX8");
+// Token mints - should match backend
+const BLING_MINT_STR = process.env.NEXT_PUBLIC_BLING_MINT || "bbb9w3ZidNJJGm4TKbhkCXqB9XSnzsjTedmJ5F2THX8";
+const USDC_MINT_STR = process.env.NEXT_PUBLIC_USDC_MINT || "";
+const STABLECOIN_MINT_STR = process.env.NEXT_PUBLIC_STABLECOIN_MINT || "";
+
+const BLING_MINT = new PublicKey(BLING_MINT_STR);
+const USDC_MINT = USDC_MINT_STR ? new PublicKey(USDC_MINT_STR) : null;
+const STABLECOIN_MINT = STABLECOIN_MINT_STR ? new PublicKey(STABLECOIN_MINT_STR) : null;
 
 export function VaultNavbar() {
   const { authenticated, login } = usePrivy();
@@ -49,7 +61,7 @@ export function VaultNavbar() {
 
   const { deposit, loading: depositLoading, error: depositError } = useDeposit();
   const { withdraw, loading: withdrawLoading, error: withdrawError } = useWithdraw();
-  const { createUser, loading: createUserLoading, error: createUserError } = useCreateUser();
+  const { onboardUser, loading: onboardUserLoading, error: onboardUserError } = useOnboardUser();
   const { enqueueSnackbar } = useSnackbar();
 
   // Use Zustand stores for data
@@ -62,6 +74,20 @@ export function VaultNavbar() {
     loadingVaultBalance,
     loadingOnchainAccount,
   } = useSolanaStore();
+
+  // Get all available token mints
+  const availableTokenMints = [
+    BLING_MINT_STR,
+    ...(USDC_MINT_STR ? [USDC_MINT_STR] : []),
+    ...(STABLECOIN_MINT_STR ? [STABLECOIN_MINT_STR] : []),
+  ].filter(Boolean);
+
+  // Get wallet token balances for all tokens
+  const { balances: walletBalances, loading: loadingWalletBalances } = useWalletTokenBalances(
+    availableTokenMints,
+    USDC_MINT_STR,
+    STABLECOIN_MINT_STR
+  );
 
   // Fetch user data on mount and set up polling (only if authenticated)
   useEffect(() => {
@@ -87,38 +113,130 @@ export function VaultNavbar() {
     console.log("VaultNavbar - Authenticated:", authenticated);
   }, [wallets, solanaWallet, authenticated]);
 
-  // Fetch on-chain account status and vault balance when wallet is available
+  // Fetch on-chain account status and vault balances for all tokens when wallet is available
   useEffect(() => {
     if (authenticated && solanaWallet?.address) {
       const userPubkey = new PublicKey(solanaWallet.address);
       fetchOnchainAccountStatus(userPubkey);
+      // Fetch balances for all available tokens
       fetchVaultBalance(userPubkey, BLING_MINT);
+      if (USDC_MINT) {
+        fetchVaultBalance(userPubkey, USDC_MINT);
+      }
+      if (STABLECOIN_MINT) {
+        fetchVaultBalance(userPubkey, STABLECOIN_MINT);
+      }
     }
   }, [authenticated, solanaWallet?.address, fetchOnchainAccountStatus, fetchVaultBalance]);
 
   const [dialogOpen, setDialogOpen] = useState(false);
-  const [dialogMode, setDialogMode] = useState<"deposit" | "withdraw" | "create">("deposit");
+  const [dialogMode, setDialogMode] = useState<"deposit" | "withdraw" | "onboard">("deposit");
   const [amount, setAmount] = useState<string>("");
+  const [handle, setHandle] = useState<string>("");
+  const [displayName, setDisplayName] = useState<string>("");
+  const [selectedTokenMint, setSelectedTokenMint] = useState<string>(BLING_MINT_STR);
 
-  // Use GraphQL balance if available, otherwise use chain balance from solanaStore
-  const graphqlVaultBalance = user?.vaultBalance ?? null;
-  const chainVaultBalance = vaultBalances[BLING_MINT.toBase58()] ?? null;
-  const displayBalance = graphqlVaultBalance !== null ? graphqlVaultBalance : chainVaultBalance;
+  // Get selected token config
+  const selectedTokenConfig = getTokenConfig(
+    selectedTokenMint,
+    BLING_MINT_STR,
+    USDC_MINT_STR,
+    STABLECOIN_MINT_STR
+  );
+  const selectedTokenDecimals = selectedTokenConfig?.metadata.decimals ?? 9;
+  const selectedTokenMintPubkey = new PublicKey(selectedTokenMint);
 
-  // BLING uses 9 decimals - convert raw balance to human-readable for display
+  // Get token configs for all tokens to get their decimals
+  const blingTokenConfig = getTokenConfig(
+    BLING_MINT_STR,
+    BLING_MINT_STR,
+    USDC_MINT_STR,
+    STABLECOIN_MINT_STR
+  );
+  const usdcTokenConfig = USDC_MINT_STR
+    ? getTokenConfig(USDC_MINT_STR, BLING_MINT_STR, USDC_MINT_STR, STABLECOIN_MINT_STR)
+    : null;
+  const stablecoinTokenConfig = STABLECOIN_MINT_STR
+    ? getTokenConfig(STABLECOIN_MINT_STR, BLING_MINT_STR, USDC_MINT_STR, STABLECOIN_MINT_STR)
+    : null;
+
+  // Get decimals from token configs (centralized)
+  const blingDecimals = blingTokenConfig?.metadata.decimals ?? 9;
+  const usdcDecimals = usdcTokenConfig?.metadata.decimals ?? 6;
+  const stablecoinDecimals = stablecoinTokenConfig?.metadata.decimals ?? 6;
+
+  // Get default payment token (defaults to BLING if not set)
+  const defaultPaymentTokenMint = user?.defaultPaymentToken || BLING_MINT_STR;
+  const defaultPaymentTokenConfig = getTokenConfig(
+    defaultPaymentTokenMint,
+    BLING_MINT_STR,
+    USDC_MINT_STR,
+    STABLECOIN_MINT_STR
+  );
+
+  // Get vault balances from GraphQL (preferred) or fallback to chain balances
+  const getVaultBalance = (mint: string): number | null => {
+    // Try GraphQL vaultBalances first
+    if (user?.vaultBalances) {
+      if (mint === BLING_MINT_STR) return user.vaultBalances.bling;
+      if (mint === USDC_MINT_STR && user.vaultBalances.usdc !== null) return user.vaultBalances.usdc;
+      if (mint === STABLECOIN_MINT_STR && user.vaultBalances.stablecoin !== null) return user.vaultBalances.stablecoin;
+    }
+    // Fallback to legacy vaultBalance (BLING only) or chain balance
+    if (mint === BLING_MINT_STR && user?.vaultBalance !== null && user?.vaultBalance !== undefined) {
+      return user.vaultBalance;
+    }
+    // Fallback to chain balance
+    return vaultBalances[mint] ?? null;
+  };
+
+  const displayBalance = getVaultBalance(selectedTokenMint);
+
+  // Get wallet balance for deposits
+  const walletBalanceRaw = walletBalances[selectedTokenMint]?.balance ?? null;
+  const walletBalanceDecimals = walletBalances[selectedTokenMint]?.decimals ?? selectedTokenDecimals;
+
+  // Convert raw balance to human-readable for display
   const displayBalanceFormatted = displayBalance !== null
-    ? formatTokenBalance(displayBalance, 9)
+    ? formatTokenBalance(displayBalance, selectedTokenDecimals)
+    : "N/A";
+
+  const walletBalanceFormatted = walletBalanceRaw !== null
+    ? formatTokenBalance(walletBalanceRaw, walletBalanceDecimals)
     : "N/A";
 
   // Convert human-readable balance to raw units for comparison
   const displayBalanceInRawUnits = displayBalance !== null ? displayBalance : 0;
+  const walletBalanceInRawUnits = walletBalanceRaw !== null ? walletBalanceRaw : 0;
+
+  // Get max available amount based on mode
+  const maxAmount = dialogMode === "deposit"
+    ? walletBalanceInRawUnits / Math.pow(10, walletBalanceDecimals)
+    : displayBalanceInRawUnits / Math.pow(10, selectedTokenDecimals);
 
   // Determine if user has on-chain account (prefer GraphQL, fallback to solanaStore)
   const hasOnchainAccountFromGraphQL = user?.hasOnchainAccount ?? null;
   const hasOnchainAccountFinal =
     hasOnchainAccountFromGraphQL !== null ? hasOnchainAccountFromGraphQL : hasOnchainAccount;
 
-  const handleOpenCreateAccount = () => {
+  // Generate a random handle
+  const generateRandomHandle = (): string => {
+    const adjectives = [
+      "swift", "bold", "clever", "bright", "calm", "cool", "daring", "eager",
+      "fierce", "gentle", "happy", "jolly", "keen", "lively", "mighty", "noble",
+      "proud", "quick", "radiant", "sharp", "tough", "vivid", "witty", "zesty"
+    ];
+    const nouns = [
+      "tiger", "eagle", "wolf", "lion", "bear", "hawk", "fox", "raven",
+      "panther", "falcon", "shark", "dragon", "phoenix", "jaguar", "cobra", "lynx"
+    ];
+    const randomAdjective = adjectives[Math.floor(Math.random() * adjectives.length)];
+    const randomNoun = nouns[Math.floor(Math.random() * nouns.length)];
+    const randomNum = Math.floor(Math.random() * 10000);
+    return `${randomAdjective}_${randomNoun}_${randomNum}`;
+  };
+
+  const handleOpenOnboardAccount = () => {
     if (!authenticated) {
       enqueueSnackbar("Please log in first", { variant: "error" });
       return;
@@ -130,8 +248,11 @@ export function VaultNavbar() {
       );
       return;
     }
-    setDialogMode("create");
+    setDialogMode("onboard");
     setDialogOpen(true);
+    // Generate random handle and set default display name
+    setHandle(generateRandomHandle());
+    setDisplayName("User");
   };
 
   const handleOpenDialog = (mode: "deposit" | "withdraw") => {
@@ -147,13 +268,15 @@ export function VaultNavbar() {
       return;
     }
 
-    // If no on-chain account, redirect to create account dialog
+    // If no on-chain account, redirect to onboard account dialog
     if (!hasOnchainAccountFinal && !loadingOnchainAccount) {
-      handleOpenCreateAccount();
+      handleOpenOnboardAccount();
       return;
     }
 
     setDialogMode(mode);
+    setAmount("");
+    setSelectedTokenMint(BLING_MINT_STR); // Reset to BLING when opening dialog
     setDialogOpen(true);
   };
 
@@ -162,7 +285,12 @@ export function VaultNavbar() {
     setAmount("");
   };
 
-  const handleCreateUser = async () => {
+  // Handle amount change from AmountInputWithSlider
+  const handleAmountChange = (value: string) => {
+    setAmount(value);
+  };
+
+  const handleOnboardUser = async () => {
     if (!authenticated) {
       enqueueSnackbar("Please log in first", { variant: "error" });
       return;
@@ -175,11 +303,23 @@ export function VaultNavbar() {
       return;
     }
 
+    // Validate handle and displayName
+    if (!handle.trim()) {
+      enqueueSnackbar("Please enter a handle", { variant: "error" });
+      return;
+    }
+    if (!displayName.trim()) {
+      enqueueSnackbar("Please enter a display name", { variant: "error" });
+      return;
+    }
+
     try {
-      const signature = await createUser();
-      enqueueSnackbar(`User account created! Transaction: ${signature.slice(0, 8)}...`, {
-        variant: "success",
-      });
+      // This will immediately prompt the user to sign the message
+      const result = await onboardUser(handle.trim(), displayName.trim());
+      enqueueSnackbar(
+        `Account onboarded successfully! Session registered for 30 days.`,
+        { variant: "success" }
+      );
       handleCloseDialog();
 
       // Refresh data after successful creation
@@ -195,7 +335,7 @@ export function VaultNavbar() {
       }
     } catch (error) {
       const errorMessage =
-        error instanceof Error ? error.message : "Failed to create user account";
+        error instanceof Error ? error.message : "Failed to onboard account";
       enqueueSnackbar(errorMessage, { variant: "error" });
     }
   };
@@ -220,7 +360,7 @@ export function VaultNavbar() {
     }
 
     try {
-      const signature = await deposit(amountNum, BLING_MINT);
+      const signature = await deposit(amountNum, selectedTokenMintPubkey, walletBalanceDecimals);
       enqueueSnackbar(`Deposit successful! Transaction: ${signature.slice(0, 8)}...`, {
         variant: "success",
       });
@@ -232,7 +372,7 @@ export function VaultNavbar() {
           refreshMe(identityToken);
           if (solanaWallet.address) {
             const userPubkey = new PublicKey(solanaWallet.address);
-            fetchVaultBalance(userPubkey, BLING_MINT);
+            fetchVaultBalance(userPubkey, selectedTokenMintPubkey);
           }
         }, 2000);
       }
@@ -262,14 +402,14 @@ export function VaultNavbar() {
     }
 
     // Convert user input (human-readable) to raw units for comparison
-    const amountInRawUnits = Math.floor(amountNum * Math.pow(10, 9));
+    const amountInRawUnits = Math.floor(amountNum * Math.pow(10, selectedTokenDecimals));
     if (displayBalance !== null && amountInRawUnits > displayBalance) {
       enqueueSnackbar("Insufficient vault balance", { variant: "error" });
       return;
     }
 
     try {
-      const signature = await withdraw(amountNum, BLING_MINT);
+      const signature = await withdraw(amountNum, selectedTokenMintPubkey, selectedTokenDecimals);
       enqueueSnackbar(`Withdraw successful! Transaction: ${signature.slice(0, 8)}...`, {
         variant: "success",
       });
@@ -281,7 +421,7 @@ export function VaultNavbar() {
           refreshMe(identityToken);
           if (solanaWallet.address) {
             const userPubkey = new PublicKey(solanaWallet.address);
-            fetchVaultBalance(userPubkey, BLING_MINT);
+            fetchVaultBalance(userPubkey, selectedTokenMintPubkey);
           }
         }, 2000);
       }
@@ -291,7 +431,7 @@ export function VaultNavbar() {
     }
   };
 
-  const isLoading = depositLoading || withdrawLoading || createUserLoading || loadingOnchainAccount;
+  const isLoading = depositLoading || withdrawLoading || onboardUserLoading || loadingOnchainAccount;
 
   // Handle login button click
   const handleLogin = () => {
@@ -319,16 +459,13 @@ export function VaultNavbar() {
           </>
         ) : (
           <>
-            {/* Vault Balance Display - only show if authenticated */}
+            {/* Vault Balances Display - show all tokens */}
             <Box
               sx={{
                 display: "flex",
                 alignItems: "center",
                 gap: 1,
-                px: 2,
-                py: 0.5,
-                borderRadius: 1,
-                backgroundColor: "action.hover",
+                flexWrap: "wrap",
               }}
             >
               <WalletIcon sx={{ fontSize: 18, color: "text.secondary" }} />
@@ -338,24 +475,116 @@ export function VaultNavbar() {
               {loadingVaultBalance || queryLoading ? (
                 <CircularProgress size={14} />
               ) : (
-                <Typography variant="body2" sx={{ fontWeight: 600, color: "text.primary" }}>
-                  {displayBalance !== null ? formatTokenBalance
-                    (displayBalance, 9) : "N/A"}
-                </Typography>
+                <Box sx={{ display: "flex", alignItems: "center", gap: 1.5, flexWrap: "wrap" }}>
+                  {/* BLING Balance */}
+                  <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
+                    <Typography variant="body2" sx={{ fontWeight: 600, color: "text.primary" }}>
+                      {getVaultBalance(BLING_MINT_STR) !== null
+                        ? formatTokenBalance(getVaultBalance(BLING_MINT_STR)!, blingDecimals)
+                        : "N/A"}
+                    </Typography>
+                    <TokenDisplay
+                      mint={BLING_MINT_STR}
+                      blingMint={BLING_MINT_STR}
+                      usdcMint={USDC_MINT_STR}
+                      stablecoinMint={STABLECOIN_MINT_STR}
+                      size="small"
+                      showSymbol
+                    />
+                    {defaultPaymentTokenMint === BLING_MINT_STR && (
+                      <Typography
+                        variant="caption"
+                        sx={{
+                          color: "primary.main",
+                          fontWeight: 600,
+                          fontSize: "0.65rem",
+                          ml: 0.25,
+                        }}
+                        title="Default payment token"
+                      >
+                        (Default)
+                      </Typography>
+                    )}
+                  </Box>
+                  {/* USDC Balance */}
+                  {USDC_MINT_STR && (
+                    <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
+                      <Typography variant="body2" sx={{ fontWeight: 600, color: "text.primary" }}>
+                        {getVaultBalance(USDC_MINT_STR) !== null
+                          ? formatTokenBalance(getVaultBalance(USDC_MINT_STR)!, usdcDecimals)
+                          : "N/A"}
+                      </Typography>
+                      <TokenDisplay
+                        mint={USDC_MINT_STR}
+                        blingMint={BLING_MINT_STR}
+                        usdcMint={USDC_MINT_STR}
+                        stablecoinMint={STABLECOIN_MINT_STR}
+                        size="small"
+                        showSymbol
+                      />
+                      {defaultPaymentTokenMint === USDC_MINT_STR && (
+                        <Typography
+                          variant="caption"
+                          sx={{
+                            color: "primary.main",
+                            fontWeight: 600,
+                            fontSize: "0.65rem",
+                            ml: 0.25,
+                          }}
+                          title="Default payment token"
+                        >
+                          (Default)
+                        </Typography>
+                      )}
+                    </Box>
+                  )}
+                  {/* Stablecoin Balance */}
+                  {STABLECOIN_MINT_STR && (
+                    <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
+                      <Typography variant="body2" sx={{ fontWeight: 600, color: "text.primary" }}>
+                        {getVaultBalance(STABLECOIN_MINT_STR) !== null
+                          ? formatTokenBalance(getVaultBalance(STABLECOIN_MINT_STR)!, stablecoinDecimals)
+                          : "N/A"}
+                      </Typography>
+                      <TokenDisplay
+                        mint={STABLECOIN_MINT_STR}
+                        blingMint={BLING_MINT_STR}
+                        usdcMint={USDC_MINT_STR}
+                        stablecoinMint={STABLECOIN_MINT_STR}
+                        size="small"
+                        showSymbol
+                      />
+                      {defaultPaymentTokenMint === STABLECOIN_MINT_STR && (
+                        <Typography
+                          variant="caption"
+                          sx={{
+                            color: "primary.main",
+                            fontWeight: 600,
+                            fontSize: "0.65rem",
+                            ml: 0.25,
+                          }}
+                          title="Default payment token"
+                        >
+                          (Default)
+                        </Typography>
+                      )}
+                    </Box>
+                  )}
+                </Box>
               )}
             </Box>
 
-            {/* Show Create Account button if no on-chain account, otherwise show Deposit/Withdraw */}
+            {/* Show Onboard Account button if no on-chain account, otherwise show Deposit/Withdraw */}
             {!hasOnchainAccountFinal && !queryLoading && !loadingOnchainAccount ? (
               <Button
                 variant="contained"
                 color="primary"
                 size="small"
                 startIcon={<AccountCircleIcon />}
-                onClick={handleOpenCreateAccount}
+                onClick={handleOpenOnboardAccount}
                 sx={{ minWidth: 140 }}
               >
-                Create Account
+                Onboard Account
               </Button>
             ) : (
               <>
@@ -408,8 +637,8 @@ export function VaultNavbar() {
       >
         <DialogTitle>
           <Typography variant="h6">
-            {dialogMode === "create"
-              ? "Create On-Chain User Account"
+            {dialogMode === "onboard"
+              ? "Onboard Account"
               : dialogMode === "deposit"
                 ? "Deposit to Vault"
                 : "Withdraw from Vault"}
@@ -417,59 +646,161 @@ export function VaultNavbar() {
         </DialogTitle>
         <DialogContent>
           <Stack spacing={3} sx={{ mt: 1 }}>
-            {dialogMode === "create" ? (
+            {dialogMode === "onboard" ? (
               <>
-                <Typography variant="body2" color="text.secondary">
-                  You need to create an on-chain user account before you can deposit or withdraw
-                  tokens. This is a one-time setup that will create your vault account on the
-                  Solana blockchain.
+                <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+                  Onboard your account and register a session key. You'll be prompted to sign a message
+                  to verify your wallet ownership. This is a one-time setup.
                 </Typography>
-                {createUserError && (
+
+                {/* Handle Input */}
+                <TextField
+                  label="Handle"
+                  value={handle}
+                  onChange={(e) => setHandle(e.target.value)}
+                  placeholder="Enter your handle"
+                  fullWidth
+                  disabled={isLoading}
+                  required
+                  helperText="Your unique username (e.g., @username)"
+                />
+
+                {/* Display Name Input */}
+                <TextField
+                  label="Display Name"
+                  value={displayName}
+                  onChange={(e) => setDisplayName(e.target.value)}
+                  placeholder="Enter your display name"
+                  fullWidth
+                  disabled={isLoading}
+                  required
+                  helperText="Your public display name"
+                />
+
+                {onboardUserError && (
                   <Typography variant="body2" color="error">
-                    Error: {createUserError}
+                    Error: {onboardUserError}
                   </Typography>
                 )}
               </>
             ) : (
               <>
-                {/* Current Balance */}
-                <Box
-                  sx={{
-                    p: 2,
-                    borderRadius: 1,
-                    backgroundColor: "action.hover",
-                  }}
-                >
-                  <Typography variant="body2" color="text.secondary" gutterBottom>
-                    Current Vault Balance
+                {/* Token Selection */}
+                <Box>
+                  <Typography variant="body2" color="text.secondary" gutterBottom sx={{ mb: 1 }}>
+                    Select Token:
                   </Typography>
-                  <Typography variant="h6" sx={{ fontWeight: 600 }}>
-                    {loadingVaultBalance || queryLoading ? (
-                      <CircularProgress size={20} />
-                    ) : (
-                      displayBalanceFormatted
+                  <ToggleButtonGroup
+                    value={selectedTokenMint}
+                    exclusive
+                    onChange={(_, value) => {
+                      if (value !== null) {
+                        setSelectedTokenMint(value);
+                        setAmount(""); // Reset amount when changing token
+                      }
+                    }}
+                    disabled={isLoading}
+                    fullWidth
+                    sx={{
+                      display: "flex",
+                      gap: 1,
+                      "& .MuiToggleButtonGroup-grouped": {
+                        border: "1px solid",
+                        borderColor: "divider",
+                        flex: 1,
+                        "&:not(:first-of-type)": {
+                          borderLeft: "1px solid",
+                          borderColor: "divider",
+                          marginLeft: 0,
+                        },
+                        "&.Mui-selected": {
+                          backgroundColor: "primary.main",
+                          color: "primary.contrastText",
+                          "&:hover": {
+                            backgroundColor: "primary.dark",
+                          },
+                        },
+                        "&:hover": {
+                          backgroundColor: "action.hover",
+                        },
+                      },
+                    }}
+                  >
+                    <ToggleButton value={BLING_MINT_STR} aria-label="BLING">
+                      <Box sx={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 0.5, py: 1 }}>
+                        <TokenLogo
+                          mint={BLING_MINT_STR}
+                          blingMint={BLING_MINT_STR}
+                          usdcMint={USDC_MINT_STR}
+                          stablecoinMint={STABLECOIN_MINT_STR}
+                          size={24}
+                        />
+                        <Typography variant="caption" sx={{ fontWeight: 500 }}>
+                          BLING
+                        </Typography>
+                      </Box>
+                    </ToggleButton>
+                    {USDC_MINT_STR && (
+                      <ToggleButton value={USDC_MINT_STR} aria-label="USDC">
+                        <Box sx={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 0.5, py: 1 }}>
+                          <TokenLogo
+                            mint={USDC_MINT_STR}
+                            blingMint={BLING_MINT_STR}
+                            usdcMint={USDC_MINT_STR}
+                            stablecoinMint={STABLECOIN_MINT_STR}
+                            size={24}
+                          />
+                          <Typography variant="caption" sx={{ fontWeight: 500 }}>
+                            USDC
+                          </Typography>
+                        </Box>
+                      </ToggleButton>
                     )}
-                  </Typography>
+                    {STABLECOIN_MINT_STR && (
+                      <ToggleButton value={STABLECOIN_MINT_STR} aria-label="Stablecoin">
+                        <Box sx={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 0.5, py: 1 }}>
+                          <TokenLogo
+                            mint={STABLECOIN_MINT_STR}
+                            blingMint={BLING_MINT_STR}
+                            usdcMint={USDC_MINT_STR}
+                            stablecoinMint={STABLECOIN_MINT_STR}
+                            size={24}
+                          />
+                          <Typography variant="caption" sx={{ fontWeight: 500 }}>
+                            Stablecoin
+                          </Typography>
+                        </Box>
+                      </ToggleButton>
+                    )}
+                  </ToggleButtonGroup>
                 </Box>
 
-                {/* Amount Input */}
-                <TextField
-                  label="Amount"
-                  type="number"
-                  value={amount}
-                  onChange={(e) => setAmount(e.target.value)}
-                  placeholder="Enter amount"
-                  fullWidth
-                  disabled={isLoading}
-                  inputProps={{
-                    min: 0,
-                    step: 0.000000001,
-                  }}
-                  helperText={
-                    dialogMode === "withdraw" && displayBalance !== null
-                      ? `Maximum: ${displayBalanceFormatted} BLING`
-                      : undefined
+                <AmountInputWithSlider
+                  amount={amount}
+                  onAmountChange={handleAmountChange}
+                  maxAmount={maxAmount}
+                  balanceLabel={dialogMode === "deposit" ? "Wallet Balance" : "Vault Balance"}
+                  balanceFormatted={
+                    dialogMode === "deposit" ? walletBalanceFormatted : displayBalanceFormatted
                   }
+                  balanceLoading={
+                    dialogMode === "deposit"
+                      ? loadingWalletBalances
+                      : loadingVaultBalance || queryLoading
+                  }
+                  balanceAvailableText={
+                    dialogMode === "deposit"
+                      ? walletBalanceRaw !== null
+                        ? "Available to deposit"
+                        : ""
+                      : displayBalance !== null
+                        ? "Available to withdraw"
+                        : ""
+                  }
+                  mode={dialogMode}
+                  disabled={isLoading}
+                  decimals={dialogMode === "deposit" ? walletBalanceDecimals : selectedTokenDecimals}
+                  tokenSymbol={selectedTokenConfig?.metadata.symbol || "BLING"}
                 />
 
                 {/* Error Messages */}
@@ -491,15 +822,15 @@ export function VaultNavbar() {
           <Button onClick={handleCloseDialog} disabled={isLoading}>
             Cancel
           </Button>
-          {dialogMode === "create" ? (
+          {dialogMode === "onboard" ? (
             <Button
-              onClick={handleCreateUser}
+              onClick={handleOnboardUser}
               variant="contained"
               color="primary"
-              disabled={isLoading}
+              disabled={isLoading || !handle.trim() || !displayName.trim()}
               startIcon={isLoading ? <CircularProgress size={16} /> : null}
             >
-              {isLoading ? "Creating..." : "Create Account"}
+              {isLoading ? "Onboarding..." : "Onboard Account"}
             </Button>
           ) : (
             <Button
@@ -523,3 +854,4 @@ export function VaultNavbar() {
     </>
   );
 }
+

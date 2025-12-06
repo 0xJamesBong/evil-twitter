@@ -351,10 +351,11 @@ function ContractsContent() {
                                                         color="text.secondary"
                                                     >
                                                         Price:{" "}
-                                                        {formatTokenBalance(
+                                                        {payment.priceInBling}{" "}
+                                                        {/* {formatTokenBalance(
                                                             payment.priceInBling,
                                                             9
-                                                        )}{" "}
+                                                        )}{" "} */}
                                                         BLING per token
                                                     </Typography>
                                                     {index <

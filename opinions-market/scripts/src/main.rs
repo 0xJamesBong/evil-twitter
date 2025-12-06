@@ -12,6 +12,7 @@ use anchor_spl::associated_token::get_associated_token_address;
 use solana_sdk::native_token::LAMPORTS_PER_SOL;
 use std::collections::HashMap;
 
+use opinions_market::constants::USDC_LAMPORTS_PER_USDC;
 use opinions_market::pda_seeds::*;
 use opinions_market::ID;
 
@@ -78,13 +79,13 @@ async fn main() {
     // --- CREATE MINTS ---
     // // If mint already exists, skip creation
     if rpc.get_account(&bling_mint.pubkey()).await.is_err() {
-        setup_token_mint(&rpc, &payer, &payer, &opinions_market, &bling_mint).await;
+        setup_token_mint(&rpc, &payer, &payer, &opinions_market, &bling_mint, 9).await;
     }
     if rpc.get_account(&usdc_mint.pubkey()).await.is_err() {
-        setup_token_mint(&rpc, &payer, &payer, &opinions_market, &usdc_mint).await;
+        setup_token_mint(&rpc, &payer, &payer, &opinions_market, &usdc_mint, 6).await;
     }
     if rpc.get_account(&stablecoin_mint.pubkey()).await.is_err() {
-        setup_token_mint(&rpc, &payer, &payer, &opinions_market, &stablecoin_mint).await;
+        setup_token_mint(&rpc, &payer, &payer, &opinions_market, &stablecoin_mint, 6).await;
     }
     // --- CONFIG PDA ---
     let config_pda = Pubkey::find_program_address(&[CONFIG_SEED], &program_id).0;
@@ -102,9 +103,9 @@ async fn main() {
     )
     .0;
 
-    let base_duration_secs = 24 * 3600; // 1 day
-    let max_duration_secs = 7 * 24 * 3600; // 7 days
-    let extension_per_vote_secs = 60; // 1min
+    let base_duration_secs = 60 * 5; // 5 minutes
+    let max_duration_secs = 24 * 3600; // 1 day
+    let extension_per_vote_secs = 10; // 10 seconds
 
     // --- INITIALIZE PROGRAM ---
     let initialize_ix = opinions_market
@@ -151,7 +152,7 @@ async fn main() {
         &stablecoin_mint,
     )
     .await;
-    // MINT USDC TO EVERYONE
+    // MINT USDC TO EVERYONE (6 decimals: 1_000_000_000 tokens = 1_000_000_000 * USDC_LAMPORTS_PER_USDC lamports)
     setup_token_mint_ata_and_mint_to_many_users(
         &rpc,
         &payer,
@@ -159,14 +160,14 @@ async fn main() {
         &everyone.keys().cloned().collect::<Vec<Pubkey>>(),
         &opinions_market,
         &usdc_mint,
-        1_000_000_000 * LAMPORTS_PER_SOL,
+        1_000 * USDC_LAMPORTS_PER_USDC, // 1 thousand USDC with 6 decimals
         &bling_mint,
         &usdc_mint,
         &stablecoin_mint,
     )
     .await;
 
-    // MINT STABLECOIN TO EVERYONE
+    // MINT STABLECOIN TO EVERYONE (6 decimals: 1_000_000_000 tokens = 1_000_000_000 * USDC_LAMPORTS_PER_USDC lamports)
     setup_token_mint_ata_and_mint_to_many_users(
         &rpc,
         &payer,
@@ -174,12 +175,100 @@ async fn main() {
         &everyone.keys().cloned().collect::<Vec<Pubkey>>(),
         &opinions_market,
         &stablecoin_mint,
-        1_000_000_000 * LAMPORTS_PER_SOL,
+        7_000 * USDC_LAMPORTS_PER_USDC, // 7 thousand Stablecoin with 6 decimals
         &bling_mint,
         &usdc_mint,
         &stablecoin_mint,
     )
     .await;
+
+    // register USDC and STABLECOIN TO VALID PAYMENTS
+    // Register USDC
+    let usdc_valid_payment_pda = Pubkey::find_program_address(
+        &[VALID_PAYMENT_SEED, usdc_mint.pubkey().as_ref()],
+        &program_id,
+    )
+    .0;
+    let usdc_treasury_pda = Pubkey::find_program_address(
+        &[
+            PROTOCOL_TREASURY_TOKEN_ACCOUNT_SEED,
+            usdc_mint.pubkey().as_ref(),
+        ],
+        &program_id,
+    )
+    .0;
+    let usdc_valid_payment_ix = opinions_market
+        .request()
+        .accounts(opinions_market::accounts::RegisterValidPayment {
+            config: config_pda,
+            admin: admin_pubkey,
+            token_mint: usdc_mint.pubkey(),
+            valid_payment: usdc_valid_payment_pda,
+            protocol_token_treasury_token_account: usdc_treasury_pda,
+            system_program: anchor_lang::solana_program::system_program::ID,
+            token_program: anchor_spl::token::spl_token::ID,
+        })
+        .args(opinions_market::instruction::RegisterValidPayment {
+            price_in_bling: 10_000, // 1 USDC = 10,000 BLING
+        })
+        .instructions()
+        .unwrap();
+    let usdc_valid_payment_tx = send_tx(
+        &rpc,
+        usdc_valid_payment_ix,
+        &payer.pubkey(),
+        &[&payer, &admin],
+    )
+    .await
+    .unwrap();
+    println!(
+        "USDC registered to valid payments: {:?}",
+        usdc_valid_payment_tx
+    );
+
+    // Register STABLECOIN
+    let stablecoin_valid_payment_pda = Pubkey::find_program_address(
+        &[VALID_PAYMENT_SEED, stablecoin_mint.pubkey().as_ref()],
+        &program_id,
+    )
+    .0;
+    let stablecoin_treasury_pda = Pubkey::find_program_address(
+        &[
+            PROTOCOL_TREASURY_TOKEN_ACCOUNT_SEED,
+            stablecoin_mint.pubkey().as_ref(),
+        ],
+        &program_id,
+    )
+    .0;
+    let stablecoin_valid_payment_ix = opinions_market
+        .request()
+        .accounts(opinions_market::accounts::RegisterValidPayment {
+            config: config_pda,
+            admin: admin_pubkey,
+            token_mint: stablecoin_mint.pubkey(),
+            valid_payment: stablecoin_valid_payment_pda,
+            protocol_token_treasury_token_account: stablecoin_treasury_pda,
+            system_program: anchor_lang::solana_program::system_program::ID,
+            token_program: anchor_spl::token::spl_token::ID,
+        })
+        .args(opinions_market::instruction::RegisterValidPayment {
+            price_in_bling: 11_000, // 1 STABLECOIN = 10,000 BLING
+        })
+        .instructions()
+        .unwrap();
+    let stablecoin_valid_payment_tx = send_tx(
+        &rpc,
+        stablecoin_valid_payment_ix,
+        &payer.pubkey(),
+        &[&payer, &admin],
+    )
+    .await
+    .unwrap();
+    println!(
+        "STABLECOIN registered to valid payments: {:?}",
+        stablecoin_valid_payment_tx
+    );
+
     println!("BLING_MINT: {}", bling_mint.pubkey());
     println!("USDC_MINT: {}", usdc_mint.pubkey());
     println!("STABLECOIN_MINT: {}", stablecoin_mint.pubkey());

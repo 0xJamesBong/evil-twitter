@@ -1,100 +1,96 @@
 import { createTheme } from "@mui/material/styles";
+// Import type declarations - must be imported before createTheme
+import "./types";
 
-// Custom Teal color palette
-const teal = {
-  900: "#002E3D",
-  800: "#004054",
-  700: "#00566B",
-  600: "#007994",
-  500: "#00A2C7", // Primary logo color
-  400: "#3EC7E3", // Primary logo color
-  300: "#7CE8FE", // Primary logo color
-  200: "#B3F2FF",
-  100: "#D6F8FF",
-  50: "#EBFBFF",
-};
-
-// Custom Grey color palette
-const grey = {
-  900: "#14121E",
-  800: "#262334",
-  700: "#444054",
-  600: "#615F6D",
-  500: "#7B7986",
-  400: "#A8A7AE",
-  300: "#D7D6DB",
-  200: "#EFEFF0",
-  100: "#F7F7F8",
-  50: "#FFFFFF",
-};
-
-// Create MUI theme
+// Create Evil Twitter Neon Dark Theme
 export const theme = createTheme({
   palette: {
+    mode: "dark",
+
+    // Custom background surfaces
+    bg: {
+      base: "#0B0E11",
+      surface1: "#111418",
+      surface2: "#181C20",
+      elevated: "#1F242A",
+    },
+
+    // Custom neon accent colors
+    accent: {
+      green: "#2BE38B",
+      red: "#FF476C",
+      blue: "#3FA9F5",
+      yellow: "#FFC847",
+      purple: "#8A4FFF",
+      teal: "#28E7D5",
+    },
+
+    // Map standard MUI colors to neon palette
     primary: {
-      main: teal[500], // #00A2C7
-      light: teal[300], // #7CE8FE
-      dark: teal[700], // #00566B
-      contrastText: grey[50], // #FFFFFF
-      50: teal[50],
-      100: teal[100],
-      200: teal[200],
-      300: teal[300],
-      400: teal[400],
-      500: teal[500],
-      600: teal[600],
-      700: teal[700],
-      800: teal[800],
-      900: teal[900],
-    },
-    secondary: {
-      main: teal[400], // #3EC7E3
-      light: teal[200], // #B3F2FF
-      dark: teal[600], // #007994
-      contrastText: grey[900], // #14121E
-    },
-    background: {
-      default: grey[50], // #FFFFFF
-      paper: grey[50], // #FFFFFF
-    },
-    text: {
-      primary: grey[900], // #14121E
-      secondary: grey[700], // #444054
-      disabled: grey[400], // #A8A7AE
-    },
-    grey: {
-      50: grey[50],
-      100: grey[100],
-      200: grey[200],
-      300: grey[300],
-      400: grey[400],
-      500: grey[500],
-      600: grey[600],
-      700: grey[700],
-      800: grey[800],
-      900: grey[900],
-    },
-    error: {
-      main: "#D32F2F",
-      light: "#EF5350",
-      dark: "#C62828",
-    },
-    warning: {
-      main: "#ED6C02",
-      light: "#FF9800",
-      dark: "#E65100",
-    },
-    info: {
-      main: teal[500],
-      light: teal[300],
-      dark: teal[700],
+      main: "#3FA9F5",
+      light: "#6BC4FF",
+      dark: "#2B7AB3",
+      contrastText: "#000000",
     },
     success: {
-      main: "#2E7D32",
-      light: "#4CAF50",
-      dark: "#1B5E20",
+      main: "#2BE38B",
+      light: "#5FE9A8",
+      dark: "#1FA06A",
+      contrastText: "#000000",
+    },
+    error: {
+      main: "#FF476C",
+      light: "#FF6B8A",
+      dark: "#CC2F4F",
+      contrastText: "#000000",
+    },
+    warning: {
+      main: "#FFC847",
+      light: "#FFD66B",
+      dark: "#CC9F38",
+      contrastText: "#000000",
+    },
+    secondary: {
+      main: "#8A4FFF",
+      light: "#A872FF",
+      dark: "#6D3FCC",
+      contrastText: "#FFFFFF",
+    },
+    info: {
+      main: "#28E7D5",
+      light: "#4FEDDF",
+      dark: "#1FB8AA",
+      contrastText: "#000000",
+    },
+
+    // Text colors for dark mode
+    text: {
+      primary: "#FFFFFF",
+      secondary: "#9BA3AF",
+      disabled: "#6A717D",
+    },
+
+    // Background colors
+    background: {
+      default: "#0B0E11",
+      paper: "#111418",
+    },
+
+    // Grey scale for dark mode
+    grey: {
+      50: "#FFFFFF",
+      100: "#F7F7F8",
+      200: "#EFEFF0",
+      300: "#D7D6DB",
+      400: "#A8A7AE",
+      500: "#7B7986",
+      600: "#615F6D",
+      700: "#444054",
+      800: "#262334",
+      900: "#14121E",
     },
   },
+
   typography: {
     fontFamily: [
       "Inter",
@@ -106,6 +102,9 @@ export const theme = createTheme({
       "Arial",
       "sans-serif",
     ].join(","),
+    fontWeightRegular: 500,
+    fontWeightMedium: 600,
+    fontWeightBold: 700,
     h1: {
       fontWeight: 700,
       fontSize: "2.5rem",
@@ -145,47 +144,172 @@ export const theme = createTheme({
       lineHeight: 1.5,
     },
     button: {
-      textTransform: "none", // Disable uppercase transformation
-      fontWeight: 500,
+      textTransform: "none",
+      fontWeight: 600,
     },
   },
+
   shape: {
     borderRadius: 8,
   },
+
   components: {
+    // Button overrides with custom variants
     MuiButton: {
       styleOverrides: {
         root: {
-          borderRadius: 8,
-          padding: "8px 16px",
-          fontWeight: 500,
-        },
-        contained: {
-          boxShadow: "none",
+          textTransform: "none",
+          fontWeight: 600,
+          borderRadius: 6,
+          transition: "all 150ms ease",
           "&:hover": {
-            boxShadow: "none",
+            filter: "brightness(1.12)",
+          },
+        },
+      },
+      variants: [
+        {
+          props: { variant: "pump" },
+          style: {
+            backgroundColor: "#2BE38B",
+            color: "#000",
+            "&:hover": {
+              backgroundColor: "#2BE38B",
+              boxShadow: "0 0 8px rgba(43,227,139,0.5)",
+            },
+          },
+        },
+        {
+          props: { variant: "smack" },
+          style: {
+            backgroundColor: "#FF476C",
+            color: "#000",
+            "&:hover": {
+              backgroundColor: "#FF476C",
+              boxShadow: "0 0 8px rgba(255,71,108,0.5)",
+            },
+          },
+        },
+      ],
+    },
+
+    // Card styling (NFT/Tweet/Post surfaces)
+    MuiCard: {
+      styleOverrides: {
+        root: {
+          background: "#111418",
+          border: "1px solid rgba(255,255,255,0.06)",
+          transition: "all 150ms ease",
+          "&:hover": {
+            borderColor: "rgba(255,255,255,0.12)",
+            boxShadow: "0 0 10px rgba(0,0,0,0.4)",
           },
         },
       },
     },
-    MuiCard: {
-      styleOverrides: {
-        root: {
-          borderRadius: 12,
-          boxShadow: "0 1px 3px rgba(0, 0, 0, 0.1)",
-        },
-      },
-    },
+
+    // Paper surfaces (menus, dropdowns, drawers)
     MuiPaper: {
       styleOverrides: {
         root: {
-          borderRadius: 12,
+          background: "#181C20",
+          border: "1px solid rgba(255,255,255,0.06)",
+        },
+      },
+    },
+
+    // TextField/Input styling (trading terminal style)
+    MuiOutlinedInput: {
+      styleOverrides: {
+        root: {
+          background: "#181C20",
+          borderRadius: 6,
+          "& fieldset": {
+            borderColor: "rgba(255,255,255,0.10)",
+          },
+          "&:hover fieldset": {
+            borderColor: "rgba(255,255,255,0.16)",
+          },
+          "&.Mui-focused fieldset": {
+            borderColor: "#3FA9F5",
+            boxShadow: "0 0 6px rgba(63,169,245,0.4)",
+          },
+        },
+      },
+    },
+
+    // Table styling (FTX-style orderbooks)
+    MuiTableRow: {
+      styleOverrides: {
+        root: {
+          background: "#111418",
+          "&:nth-of-type(odd)": {
+            background: "#181C20",
+          },
+          "&:hover": {
+            backgroundColor: "#1F242A",
+          },
+        },
+      },
+    },
+
+    MuiTableCell: {
+      styleOverrides: {
+        root: {
+          borderBottom: "1px solid rgba(255,255,255,0.06)",
+          fontFamily: "Inter, sans-serif",
+          fontFeatureSettings: '"tnum" 1',
+        },
+      },
+    },
+
+    // Chip styling (rarity badges, voting badges)
+    MuiChip: {
+      styleOverrides: {
+        root: {
+          fontWeight: 600,
+          borderRadius: 6,
+        },
+      },
+      variants: [
+        {
+          props: { color: "success" },
+          style: {
+            backgroundColor: "#2BE38B22",
+            color: "#2BE38B",
+            border: "1px solid #2BE38B55",
+          },
+        },
+        {
+          props: { color: "error" },
+          style: {
+            backgroundColor: "#FF476C22",
+            color: "#FF476C",
+            border: "1px solid #FF476C55",
+          },
+        },
+      ],
+    },
+
+    // IconButton styling
+    MuiIconButton: {
+      styleOverrides: {
+        root: {
+          transition: "all 150ms ease",
+          "&:hover": {
+            filter: "brightness(1.2)",
+          },
+        },
+      },
+    },
+
+    // CssBaseline for global dark mode defaults
+    MuiCssBaseline: {
+      styleOverrides: {
+        body: {
+          backgroundColor: "#0B0E11",
         },
       },
     },
   },
 });
-
-// Export color constants for direct use if needed
-export { teal, grey };
-

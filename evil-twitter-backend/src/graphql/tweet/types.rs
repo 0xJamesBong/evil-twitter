@@ -1,13 +1,13 @@
 use async_graphql::{Context, Enum, ID, Object, Result, SimpleObject};
+use hex;
+use mongodb::bson::{DateTime, doc};
 use std::str::FromStr;
 use std::sync::Arc;
-use mongodb::bson::{doc, DateTime};
-use hex;
 
 use crate::app_state::AppState;
 use crate::graphql::user::types::ProfileNode;
-use crate::models::tweet::{TweetMetrics, TweetType, TweetView};
 use crate::models::post_state::PostState;
+use crate::models::tweet::{TweetMetrics, TweetType, TweetView};
 use crate::solana::get_post_pda;
 use crate::utils::tweet::TweetThreadResponse;
 
@@ -147,7 +147,7 @@ impl TweetNode {
     /// Get post state from on-chain data (cached in MongoDB, falls back to on-chain fetch)
     async fn post_state(&self, ctx: &Context<'_>) -> Result<Option<PostStateNode>> {
         let app_state = ctx.data::<Arc<AppState>>()?;
-        
+
         // Only fetch post state if tweet has a post_id_hash
         let post_id_hash = match &self.view.tweet.post_id_hash {
             Some(hash) => hash,
@@ -155,15 +155,32 @@ impl TweetNode {
         };
 
         // First, try to fetch from MongoDB post_states collection (cached)
-        let post_states_collection: mongodb::Collection<PostState> = 
-            app_state.mongo_service.db().collection(PostState::COLLECTION_NAME);
-        
+        let post_states_collection: mongodb::Collection<PostState> = app_state
+            .mongo_service
+            .db()
+            .collection(PostState::COLLECTION_NAME);
+
         let mut post_state = post_states_collection
             .find_one(doc! { "post_id_hash": post_id_hash })
             .await
             .map_err(|e| async_graphql::Error::new(format!("Failed to fetch post state: {}", e)))?;
 
-        // If not found in MongoDB, fetch from on-chain
+        // Check if cached state is stale (older than 5 seconds) and force refresh
+        if let Some(ref cached_state) = post_state {
+            let now = DateTime::now();
+            let cache_age_ms =
+                now.timestamp_millis() - cached_state.last_synced_at.timestamp_millis();
+            if cache_age_ms > 5000 {
+                // Cache is stale (older than 5 seconds), force refresh from on-chain
+                eprintln!(
+                    "🔄 Cache stale for post {} (age: {}ms), refreshing from on-chain",
+                    post_id_hash, cache_age_ms
+                );
+                post_state = None; // Force refresh
+            }
+        }
+
+        // If not found in MongoDB or cache is stale, fetch from on-chain
         if post_state.is_none() {
             // Parse post_id_hash from hex to [u8; 32]
             let post_id_hash_bytes = hex::decode(post_id_hash)
@@ -182,7 +199,10 @@ impl TweetNode {
             let (post_pda, _) = get_post_pda(&program_id, &post_id_hash_array);
 
             // Fetch post account from on-chain
-            match program.account::<opinions_market::state::PostAccount>(post_pda).await {
+            match program
+                .account::<opinions_market::state::PostAccount>(post_pda)
+                .await
+            {
                 Ok(post_account) => {
                     // Convert PostAccount to PostState
                     let state_str = match post_account.state {
@@ -209,21 +229,190 @@ impl TweetNode {
                     };
 
                     // Save to MongoDB for future queries
-                    let _ = post_states_collection
-                        .insert_one(&post_state_doc)
-                        .await; // Don't fail if insert fails, just log
+                    let _ = post_states_collection.insert_one(&post_state_doc).await; // Don't fail if insert fails, just log
 
                     post_state = Some(post_state_doc);
                 }
                 Err(e) => {
                     // Post doesn't exist on-chain yet, return None
-                    eprintln!("⚠️ Post not found on-chain for post_id_hash {}: {}", post_id_hash, e);
+                    eprintln!(
+                        "⚠️ Post not found on-chain for post_id_hash {}: {}",
+                        post_id_hash, e
+                    );
                     return Ok(None);
                 }
             }
         }
 
-        Ok(post_state.map(PostStateNode::from))
+        // Fetch pot balances for the post
+        let pot_balances = if post_state.is_some() {
+            // Parse post_id_hash from hex to [u8; 32]
+            if let Ok(post_id_hash_bytes) = hex::decode(post_id_hash) {
+                if post_id_hash_bytes.len() == 32 {
+                    let mut post_id_hash_array = [0u8; 32];
+                    post_id_hash_array.copy_from_slice(&post_id_hash_bytes);
+
+                    // Get BLING mint
+                    let bling_mint = *app_state.solana_service.get_bling_mint();
+
+                    // Get BLING pot balance
+                    let bling_balance = app_state
+                        .solana_service
+                        .get_post_pot_balance(&post_id_hash_array, &bling_mint)
+                        .await
+                        .unwrap_or(0);
+
+                    // Get USDC and Stablecoin mints from environment
+                    let usdc_mint_str = std::env::var("USDC_MINT").ok();
+                    let stablecoin_mint_str = std::env::var("STABLECOIN_MINT").ok();
+
+                    // Get USDC pot balance if available
+                    let usdc_balance = if let Some(ref usdc_mint_str) = usdc_mint_str {
+                        if let Ok(usdc_mint) = solana_sdk::pubkey::Pubkey::from_str(usdc_mint_str) {
+                            app_state
+                                .solana_service
+                                .get_post_pot_balance(&post_id_hash_array, &usdc_mint)
+                                .await
+                                .ok()
+                        } else {
+                            None
+                        }
+                    } else {
+                        None
+                    };
+
+                    // Get Stablecoin pot balance if available
+                    let stablecoin_balance =
+                        if let Some(ref stablecoin_mint_str) = stablecoin_mint_str {
+                            if let Ok(stablecoin_mint) =
+                                solana_sdk::pubkey::Pubkey::from_str(stablecoin_mint_str)
+                            {
+                                app_state
+                                    .solana_service
+                                    .get_post_pot_balance(&post_id_hash_array, &stablecoin_mint)
+                                    .await
+                                    .ok()
+                            } else {
+                                None
+                            }
+                        } else {
+                            None
+                        };
+
+                    Some(PostPotBalances {
+                        bling: bling_balance,
+                        usdc: usdc_balance,
+                        stablecoin: stablecoin_balance,
+                    })
+                } else {
+                    None
+                }
+            } else {
+                None
+            }
+        } else {
+            None
+        };
+
+        // Fetch user position if authenticated (optional - don't fail if not authenticated)
+        let user_votes = if post_state.is_some() {
+            // Try to get authenticated user (optional - don't fail if not authenticated)
+            if let Ok(headers) = ctx.data::<axum::http::HeaderMap>() {
+                if let Ok(user) = crate::utils::auth::get_authenticated_user(
+                    &app_state.mongo_service,
+                    &app_state.privy_service,
+                    headers,
+                )
+                .await
+                {
+                    // Parse user wallet
+                    if let Ok(user_wallet) = solana_sdk::pubkey::Pubkey::from_str(&user.wallet) {
+                        // Parse post_id_hash
+                        if let Ok(post_id_hash_bytes) = hex::decode(post_id_hash) {
+                            if post_id_hash_bytes.len() == 32 {
+                                let mut post_id_hash_array = [0u8; 32];
+                                post_id_hash_array.copy_from_slice(&post_id_hash_bytes);
+
+                                // Fetch user position from on-chain
+                                if let Ok(Some(position)) = app_state
+                                    .solana_service
+                                    .get_user_position(&user_wallet, &post_id_hash_array)
+                                    .await
+                                {
+                                    Some(UserVotes {
+                                        upvotes: position.upvotes,
+                                        downvotes: position.downvotes,
+                                    })
+                                } else {
+                                    None
+                                }
+                            } else {
+                                None
+                            }
+                        } else {
+                            None
+                        }
+                    } else {
+                        None
+                    }
+                } else {
+                    None
+                }
+            } else {
+                None
+            }
+        } else {
+            None
+        };
+
+        // Fetch payout info if post is settled
+        let payout_info = if let Some(ref state) = post_state {
+            if state.state == "Settled" {
+                // Parse post_id_hash
+                if let Ok(post_id_hash_bytes) = hex::decode(post_id_hash) {
+                    if post_id_hash_bytes.len() == 32 {
+                        let mut post_id_hash_array = [0u8; 32];
+                        post_id_hash_array.copy_from_slice(&post_id_hash_bytes);
+
+                        // Get BLING mint (default token for payout info)
+                        let bling_mint = *app_state.solana_service.get_bling_mint();
+
+                        // Fetch payout account
+                        if let Ok(Some(payout)) = app_state
+                            .solana_service
+                            .get_post_mint_payout(&post_id_hash_array, &bling_mint)
+                            .await
+                        {
+                            Some(PostMintPayoutNode {
+                                frozen: payout.frozen,
+                                creator_fee: payout.creator_fee.to_string(),
+                                protocol_fee: payout.protocol_fee.to_string(),
+                                mother_fee: payout.mother_fee.to_string(),
+                                total_payout: payout.total_payout.to_string(),
+                            })
+                        } else {
+                            None
+                        }
+                    } else {
+                        None
+                    }
+                } else {
+                    None
+                }
+            } else {
+                None
+            }
+        } else {
+            None
+        };
+
+        Ok(post_state.map(|state| {
+            let mut node = PostStateNode::from(state);
+            node.pot_balances = pot_balances;
+            node.user_votes = user_votes;
+            node.payout_info = payout_info;
+            node
+        }))
     }
 
     /// Get post ID hash
@@ -260,12 +449,33 @@ impl From<TweetType> for TweetTypeOutput {
 // ============================================================================
 
 #[derive(SimpleObject, Clone)]
+pub struct PostPotBalances {
+    /// Pot balance in BLING lamports
+    pub bling: u64,
+    /// Pot balance in USDC lamports (None if USDC is not registered as valid payment or no votes)
+    pub usdc: Option<u64>,
+    /// Pot balance in Stablecoin lamports (None if Stablecoin is not registered as valid payment or no votes)
+    pub stablecoin: Option<u64>,
+}
+
+#[derive(SimpleObject, Clone)]
 pub struct PostStateNode {
     pub state: String,
     pub upvotes: u64,
     pub downvotes: u64,
     pub winning_side: Option<String>,
     pub end_time: i64,
+    pub pot_balances: Option<PostPotBalances>,
+    /// User's vote counts for this post (None if not authenticated or hasn't voted)
+    pub user_votes: Option<UserVotes>,
+    /// Payout information if post is settled
+    pub payout_info: Option<PostMintPayoutNode>,
+}
+
+#[derive(SimpleObject, Clone)]
+pub struct UserVotes {
+    pub upvotes: u64,
+    pub downvotes: u64,
 }
 
 impl From<PostState> for PostStateNode {
@@ -276,8 +486,24 @@ impl From<PostState> for PostStateNode {
             downvotes: state.downvotes,
             winning_side: state.winning_side,
             end_time: state.end_time,
+            pot_balances: None, // Will be populated by resolver
+            user_votes: None,   // Will be populated by resolver if user is authenticated
+            payout_info: None,  // Will be populated by resolver if post is settled
         }
     }
+}
+
+// ============================================================================
+// Post Mint Payout Node
+// ============================================================================
+
+#[derive(SimpleObject, Clone)]
+pub struct PostMintPayoutNode {
+    pub frozen: bool,
+    pub creator_fee: String,
+    pub protocol_fee: String,
+    pub mother_fee: String,
+    pub total_payout: String,
 }
 
 // ============================================================================
@@ -370,4 +596,17 @@ impl TweetThreadNode {
     async fn replies(&self) -> &Vec<TweetNode> {
         &self.replies
     }
+}
+
+// ============================================================================
+// Claimable Reward Node
+// ============================================================================
+
+#[derive(SimpleObject, Clone)]
+pub struct ClaimableRewardNode {
+    pub tweet_id: ID,
+    pub post_id_hash: String,
+    pub token_mint: String,
+    pub amount: String,      // Amount as string (in token units)
+    pub reward_type: String, // "creator" or "voter"
 }

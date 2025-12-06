@@ -31,12 +31,34 @@ export interface TweetEnergyState {
   heightInitial: number;
 }
 
+export interface PostPotBalances {
+  bling: number;
+  usdc?: number | null;
+  stablecoin?: number | null;
+}
+
+export interface UserVotes {
+  upvotes: number;
+  downvotes: number;
+}
+
+export interface PostMintPayoutNode {
+  frozen: boolean;
+  creatorFee: string;
+  protocolFee: string;
+  motherFee: string;
+  totalPayout: string;
+}
+
 export interface PostStateNode {
   state: string;
   upvotes: number;
   downvotes: number;
   winningSide?: string;
   endTime: number;
+  potBalances?: PostPotBalances | null;
+  userVotes?: UserVotes | null;
+  payoutInfo?: PostMintPayoutNode | null;
 }
 
 export interface TweetNode {
@@ -58,4 +80,3 @@ export interface TweetNode {
   postIdHash?: string;
   postState?: PostStateNode;
 }
-

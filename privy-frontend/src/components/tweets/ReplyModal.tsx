@@ -67,7 +67,7 @@ export function ReplyModal({
             <DialogContent>
                 <Stack spacing={2}>
                     {/* Original Tweet */}
-                    <Box sx={{ display: "flex", gap: 2, pb: 2, borderBottom: 1, borderColor: "grey.200" }}>
+                    <Box sx={{ display: "flex", gap: 2, pb: 2, borderBottom: 1, borderColor: "rgba(255,255,255,0.06)" }}>
                         <Avatar
                             src={author?.avatarUrl || undefined}
                             sx={{ width: 40, height: 40, bgcolor: "primary.main" }}

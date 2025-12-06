@@ -1,6 +1,10 @@
-use std::sync::Arc;
+use std::collections::HashMap;
+use std::hash::{Hash, Hasher};
+use std::sync::{Arc, Mutex};
 
 use mongodb::{Client, Database};
+use opinions_market::state::Side;
+use solana_sdk::pubkey::Pubkey;
 
 use crate::services::{
     PrivyService,
@@ -14,6 +18,34 @@ use crate::solana::{
     program::{parse_pubkey, read_keypair_from_file},
 };
 use solana_sdk::signer::Signer;
+
+/// Key for vote buffer: uniquely identifies a pending vote batch
+#[derive(Clone, PartialEq, Eq)]
+pub struct VoteBufferKey {
+    pub user: Pubkey,
+    pub post_id_hash: [u8; 32],
+    pub side: Side,
+    pub token_mint: Pubkey,
+}
+
+impl Hash for VoteBufferKey {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        self.user.hash(state);
+        self.post_id_hash.hash(state);
+        // Hash Side as u8 (Pump = 0, Smack = 1)
+        match self.side {
+            Side::Pump => 0u8.hash(state),
+            Side::Smack => 1u8.hash(state),
+        }
+        self.token_mint.hash(state);
+    }
+}
+
+/// Value for vote buffer: accumulated votes and metadata
+pub struct VoteBufferValue {
+    pub accumulated_votes: u64,
+    pub last_click_ts: i64,
+}
 
 /// Application state shared across all handlers
 ///
@@ -29,6 +61,8 @@ pub struct AppState {
     pub privy_service: Arc<PrivyService>,
     /// Solana service for on-chain operations
     pub solana_service: Arc<SolanaService>,
+    /// Vote buffer: accumulates clicks before batching into Solana transactions
+    pub vote_buffer: Arc<Mutex<HashMap<VoteBufferKey, VoteBufferValue>>>,
     // Post sync service for syncing on-chain post state to MongoDB
     // pub post_sync_service: Arc<PostSyncService>,
     // pub cache: Arc<RedisClient>,
@@ -127,8 +161,15 @@ impl AppState {
         let rpc_client = Arc::new(solana_client::nonblocking::rpc_client::RpcClient::new(
             solana_rpc_url,
         ));
+        // For now, session_key is the same as payer (in production they'll be different)
+        // Clone the inner Keypair from Arc<Keypair> by serializing and deserializing
+        let payer_keypair_ref = solana_program.get_payer();
+        let session_key =
+            solana_sdk::signature::Keypair::try_from(&payer_keypair_ref.to_bytes()[..])
+                .expect("Failed to clone keypair for session_key");
         let solana_service = Arc::new(SolanaService::new(
             rpc_client,
+            session_key,
             solana_program.get_payer().clone(),
             bling_mint,
         ));
@@ -139,6 +180,7 @@ impl AppState {
             mongo_service: Arc::new(MongoService::new(client.clone(), db.clone())),
             privy_service: Arc::new(PrivyService::new(app_id, app_secret)),
             solana_service,
+            vote_buffer: Arc::new(Mutex::new(HashMap::new())),
             // post_sync_service,
         }
     }

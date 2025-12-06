@@ -1,8 +1,21 @@
 @import "tailwindcss";
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --background: #0B0E11;
+  --foreground: #FFFFFF;
+  
+  /* Evil Twitter Neon Colors */
+  --et-green: #2BE38B;
+  --et-red: #FF476C;
+  --et-blue: #3FA9F5;
+  --et-yellow: #FFC847;
+  --et-purple: #8A4FFF;
+  --et-teal: #28E7D5;
+  
+  /* Evil Twitter Surfaces */
+  --et-surface1: #111418;
+  --et-surface2: #181C20;
+  --et-elevated: #1F242A;
 }
 
 @theme inline {
@@ -13,8 +26,8 @@
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
+  background: #0B0E11;
+  color: #FFFFFF;
   font-family: var(--font-inter), Arial, Helvetica, sans-serif;
 }
 
@@ -78,5 +91,19 @@ body {
   }
   to {
     opacity: 1;
+  }
+}
+
+@keyframes bling {
+  0% {
+    transform: translate(-50%, -50%) scale(0);
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.8;
+  }
+  100% {
+    transform: translate(-50%, -50%) scale(2);
+    opacity: 0;
   }
 }
