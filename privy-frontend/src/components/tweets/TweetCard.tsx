@@ -22,6 +22,8 @@ import { formatDistanceToNow } from "date-fns";
 import { useRouter } from "next/navigation";
 import { TweetNode } from "@/lib/graphql/tweets/types";
 import { VoteButtons } from "./VoteButtons";
+import { RewardCollection } from "./RewardCollection";
+import { useUser } from "@privy-io/react-auth";
 
 interface TweetCardProps {
     tweet: TweetNode;
@@ -41,9 +43,11 @@ export function TweetCard({
     clickable = true,
 }: TweetCardProps) {
     const router = useRouter();
+    const { user } = useUser();
     const timeAgo = formatDistanceToNow(new Date(tweet.createdAt), { addSuffix: true });
     const author = tweet.author;
     const [timeLeft, setTimeLeft] = useState<string>("");
+    const currentUserId = user?.id;
 
     // Calculate and update time left for open posts
     useEffect(() => {
@@ -258,6 +262,20 @@ export function TweetCard({
                                 }}
                             >
                                 <VoteButtons tweet={tweet} />
+                            </Box>
+                        )}
+
+                        {/* Reward Collection for Settled Posts */}
+                        {tweet.postIdHash && (
+                            <Box
+                                onClick={(e) => {
+                                    e.stopPropagation();
+                                }}
+                                onMouseDown={(e) => {
+                                    e.stopPropagation();
+                                }}
+                            >
+                                <RewardCollection tweet={tweet} currentUserId={currentUserId} />
                             </Box>
                         )}
 

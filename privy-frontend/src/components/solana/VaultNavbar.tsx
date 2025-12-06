@@ -28,7 +28,6 @@ import {
 import { useSnackbar } from "notistack";
 import { useDeposit } from "../../hooks/useDeposit";
 import { useWithdraw } from "../../hooks/useWithdraw";
-import { useCreateUser } from "../../hooks/useCreateUser";
 import { useOnboardUser } from "../../hooks/useOnboardUser";
 import { useBackendUserStore } from "../../lib/stores/backendUserStore";
 import { useSolanaStore } from "../../lib/stores/solanaStore";
@@ -62,7 +61,6 @@ export function VaultNavbar() {
 
   const { deposit, loading: depositLoading, error: depositError } = useDeposit();
   const { withdraw, loading: withdrawLoading, error: withdrawError } = useWithdraw();
-  const { createUser, loading: createUserLoading, error: createUserError } = useCreateUser();
   const { onboardUser, loading: onboardUserLoading, error: onboardUserError } = useOnboardUser();
   const { enqueueSnackbar } = useSnackbar();
 
@@ -132,7 +130,7 @@ export function VaultNavbar() {
   }, [authenticated, solanaWallet?.address, fetchOnchainAccountStatus, fetchVaultBalance]);
 
   const [dialogOpen, setDialogOpen] = useState(false);
-  const [dialogMode, setDialogMode] = useState<"deposit" | "withdraw" | "create">("deposit");
+  const [dialogMode, setDialogMode] = useState<"deposit" | "withdraw" | "onboard">("deposit");
   const [amount, setAmount] = useState<string>("");
   const [handle, setHandle] = useState<string>("");
   const [displayName, setDisplayName] = useState<string>("");
@@ -221,7 +219,24 @@ export function VaultNavbar() {
   const hasOnchainAccountFinal =
     hasOnchainAccountFromGraphQL !== null ? hasOnchainAccountFromGraphQL : hasOnchainAccount;
 
-  const handleOpenCreateAccount = () => {
+  // Generate a random handle
+  const generateRandomHandle = (): string => {
+    const adjectives = [
+      "swift", "bold", "clever", "bright", "calm", "cool", "daring", "eager",
+      "fierce", "gentle", "happy", "jolly", "keen", "lively", "mighty", "noble",
+      "proud", "quick", "radiant", "sharp", "tough", "vivid", "witty", "zesty"
+    ];
+    const nouns = [
+      "tiger", "eagle", "wolf", "lion", "bear", "hawk", "fox", "raven",
+      "panther", "falcon", "shark", "dragon", "phoenix", "jaguar", "cobra", "lynx"
+    ];
+    const randomAdjective = adjectives[Math.floor(Math.random() * adjectives.length)];
+    const randomNoun = nouns[Math.floor(Math.random() * nouns.length)];
+    const randomNum = Math.floor(Math.random() * 10000);
+    return `${randomAdjective}_${randomNoun}_${randomNum}`;
+  };
+
+  const handleOpenOnboardAccount = () => {
     if (!authenticated) {
       enqueueSnackbar("Please log in first", { variant: "error" });
       return;
@@ -233,17 +248,11 @@ export function VaultNavbar() {
       );
       return;
     }
-    setDialogMode("create");
+    setDialogMode("onboard");
     setDialogOpen(true);
-    // Pre-fill handle and displayName from wallet address if available
-    if (solanaWallet?.address) {
-      const addr = solanaWallet.address;
-      setHandle(`user_${addr.slice(0, 8)}`);
-      setDisplayName("User");
-    } else {
-      setHandle("");
-      setDisplayName("");
-    }
+    // Generate random handle and set default display name
+    setHandle(generateRandomHandle());
+    setDisplayName("User");
   };
 
   const handleOpenDialog = (mode: "deposit" | "withdraw") => {
@@ -259,9 +268,9 @@ export function VaultNavbar() {
       return;
     }
 
-    // If no on-chain account, redirect to create account dialog
+    // If no on-chain account, redirect to onboard account dialog
     if (!hasOnchainAccountFinal && !loadingOnchainAccount) {
-      handleOpenCreateAccount();
+      handleOpenOnboardAccount();
       return;
     }
 
@@ -281,7 +290,7 @@ export function VaultNavbar() {
     setAmount(value);
   };
 
-  const handleCreateUser = async () => {
+  const handleOnboardUser = async () => {
     if (!authenticated) {
       enqueueSnackbar("Please log in first", { variant: "error" });
       return;
@@ -308,7 +317,7 @@ export function VaultNavbar() {
       // This will immediately prompt the user to sign the message
       const result = await onboardUser(handle.trim(), displayName.trim());
       enqueueSnackbar(
-        `Account created successfully! Session registered for 30 days.`,
+        `Account onboarded successfully! Session registered for 30 days.`,
         { variant: "success" }
       );
       handleCloseDialog();
@@ -326,7 +335,7 @@ export function VaultNavbar() {
       }
     } catch (error) {
       const errorMessage =
-        error instanceof Error ? error.message : "Failed to create account";
+        error instanceof Error ? error.message : "Failed to onboard account";
       enqueueSnackbar(errorMessage, { variant: "error" });
     }
   };
@@ -422,7 +431,7 @@ export function VaultNavbar() {
     }
   };
 
-  const isLoading = depositLoading || withdrawLoading || createUserLoading || onboardUserLoading || loadingOnchainAccount;
+  const isLoading = depositLoading || withdrawLoading || onboardUserLoading || loadingOnchainAccount;
 
   // Handle login button click
   const handleLogin = () => {
@@ -565,17 +574,17 @@ export function VaultNavbar() {
               )}
             </Box>
 
-            {/* Show Create Account button if no on-chain account, otherwise show Deposit/Withdraw */}
+            {/* Show Onboard Account button if no on-chain account, otherwise show Deposit/Withdraw */}
             {!hasOnchainAccountFinal && !queryLoading && !loadingOnchainAccount ? (
               <Button
                 variant="contained"
                 color="primary"
                 size="small"
                 startIcon={<AccountCircleIcon />}
-                onClick={handleOpenCreateAccount}
+                onClick={handleOpenOnboardAccount}
                 sx={{ minWidth: 140 }}
               >
-                Create Account
+                Onboard Account
               </Button>
             ) : (
               <>
@@ -628,7 +637,7 @@ export function VaultNavbar() {
       >
         <DialogTitle>
           <Typography variant="h6">
-            {dialogMode === "create"
+            {dialogMode === "onboard"
               ? "Onboard Account"
               : dialogMode === "deposit"
                 ? "Deposit to Vault"
@@ -637,10 +646,10 @@ export function VaultNavbar() {
         </DialogTitle>
         <DialogContent>
           <Stack spacing={3} sx={{ mt: 1 }}>
-            {dialogMode === "create" ? (
+            {dialogMode === "onboard" ? (
               <>
                 <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-                  Create your account and register a session key. You'll be prompted to sign a message
+                  Onboard your account and register a session key. You'll be prompted to sign a message
                   to verify your wallet ownership. This is a one-time setup.
                 </Typography>
 
@@ -668,9 +677,9 @@ export function VaultNavbar() {
                   helperText="Your public display name"
                 />
 
-                {(createUserError || onboardUserError) && (
+                {onboardUserError && (
                   <Typography variant="body2" color="error">
-                    Error: {onboardUserError || createUserError}
+                    Error: {onboardUserError}
                   </Typography>
                 )}
               </>
@@ -813,15 +822,15 @@ export function VaultNavbar() {
           <Button onClick={handleCloseDialog} disabled={isLoading}>
             Cancel
           </Button>
-          {dialogMode === "create" ? (
+          {dialogMode === "onboard" ? (
             <Button
-              onClick={handleCreateUser}
+              onClick={handleOnboardUser}
               variant="contained"
               color="primary"
-              disabled={isLoading}
+              disabled={isLoading || !handle.trim() || !displayName.trim()}
               startIcon={isLoading ? <CircularProgress size={16} /> : null}
             >
-              {isLoading ? "Onboarding..." : "Onboard & Create Account"}
+              {isLoading ? "Onboarding..." : "Onboard Account"}
             </Button>
           ) : (
             <Button

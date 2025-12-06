@@ -60,9 +60,9 @@ export interface OnboardUserResult {
   };
 }
 
-export const REGISTER_SESSION_MUTATION = `
-  mutation RegisterSession($input: RegisterSessionInput!) {
-    registerSession(input: $input) {
+export const RENEW_SESSION_MUTATION = `
+  mutation RenewSession($input: RenewSessionInput!) {
+    renewSession(input: $input) {
       session {
         sessionAuthorityPda
         sessionKey
@@ -73,8 +73,8 @@ export const REGISTER_SESSION_MUTATION = `
   }
 `;
 
-export interface RegisterSessionResult {
-  registerSession: {
+export interface RenewSessionResult {
+  renewSession: {
     session: {
       sessionAuthorityPda: string;
       sessionKey: string;

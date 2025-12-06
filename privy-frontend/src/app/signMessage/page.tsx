@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useWallets } from "@privy-io/react-auth/solana";
 import { usePrivy } from "@privy-io/react-auth";
 import {
@@ -21,19 +21,39 @@ import { ArrowBack as ArrowLeftIcon, CheckCircle as CheckCircleIcon } from "@mui
 import { FullScreenLoader } from "@/components/ui/fullscreen-loader";
 import { LoginPrompt } from "@/components/auth/LoginPrompt";
 import { useBackendUserStore } from "@/lib/stores/backendUserStore";
-import { useRegisterSession, SessionData } from "@/hooks/useRegisterSession";
+import { useRenewSession, SessionData } from "@/hooks/useRenewSession";
 
 function SignMessageContent() {
     const { ready, authenticated, logout } = usePrivy();
     const { wallets } = useWallets();
-    const { registerSession, loading, error } = useRegisterSession();
-    const { setSession } = useBackendUserStore();
-    const [sessionData, setSessionData] = useState<SessionData | null>(null);
+    const { renewSession, loading, error } = useRenewSession();
+    const { setSession, sessionAuthorityPda, sessionKey, sessionExpiresAt, sessionUserWallet } = useBackendUserStore();
+    const [newlyRegisteredSession, setNewlyRegisteredSession] = useState<SessionData | null>(null);
+
+    // Get existing session from store or newly registered session
+    const sessionData = useMemo<SessionData | null>(() => {
+        // If we just registered a new session, use that
+        if (newlyRegisteredSession) {
+            return newlyRegisteredSession;
+        }
+
+        // Otherwise, check if we have an existing session in the store
+        if (sessionAuthorityPda && sessionKey && sessionExpiresAt && sessionUserWallet) {
+            return {
+                sessionAuthorityPda,
+                sessionKey,
+                expiresAt: sessionExpiresAt,
+                userWallet: sessionUserWallet,
+            };
+        }
+
+        return null;
+    }, [newlyRegisteredSession, sessionAuthorityPda, sessionKey, sessionExpiresAt, sessionUserWallet]);
 
     const handleRegister = async () => {
         try {
-            const data = await registerSession();
-            
+            const data = await renewSession();
+
             // Store session in Zustand
             setSession(
                 data.sessionAuthorityPda,
@@ -41,8 +61,9 @@ function SignMessageContent() {
                 data.expiresAt,
                 data.userWallet
             );
-            
-            setSessionData(data);
+
+            // Set newly registered session to trigger display
+            setNewlyRegisteredSession(data);
         } catch (err) {
             // Error is already handled by the hook
             console.error("Failed to register session:", err);
@@ -90,8 +111,8 @@ function SignMessageContent() {
                                 Register Session Key
                             </Typography>
                             <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
-                                Sign a message with your Solana wallet to register a session key. 
-                                This allows the backend to sign transactions on your behalf for 30 days. 
+                                Sign a message with your Solana wallet to register a session key.
+                                This allows the backend to sign transactions on your behalf for 30 days.
                                 You only need to do this once.
                             </Typography>
 
@@ -131,7 +152,7 @@ function SignMessageContent() {
                                 <Box sx={{ display: "flex", alignItems: "center", mb: 2 }}>
                                     <CheckCircleIcon sx={{ color: "success.main", mr: 1 }} />
                                     <Typography variant="h6">
-                                        Session Registered Successfully
+                                        {newlyRegisteredSession ? "Session Registered Successfully" : "Current Session"}
                                     </Typography>
                                 </Box>
 

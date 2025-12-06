@@ -957,6 +957,30 @@ pub async fn test_phenomena_settle_post(
             opinions_market::state::PostType::Original => None,
         };
 
+        // Derive parent post pot accounts if this is a child post
+        let (parent_post_pot_token_account_pda, parent_post_pot_authority_pda) = if let Some(parent_pda) = parent_post_pda {
+            let parent_pot_token_account = Pubkey::find_program_address(
+                &[
+                    POST_POT_TOKEN_ACCOUNT_SEED,
+                    parent_pda.as_ref(),
+                    token_mint.as_ref(),
+                ],
+                &opinions_market.id(),
+            )
+            .0;
+
+            let parent_pot_authority = Pubkey::find_program_address(
+                &[POST_POT_AUTHORITY_SEED, parent_pda.as_ref()],
+                &opinions_market.id(),
+            )
+            .0;
+
+            (Some(parent_pot_token_account), parent_pot_authority)
+        } else {
+            // Use post_pot_authority as fallback when there's no parent (struct requires non-optional)
+            (None, post_pot_authority_pda)
+        };
+
         let settle_ix = opinions_market
             .request()
             .accounts(opinions_market::accounts::SettlePost {
@@ -966,6 +990,8 @@ pub async fn test_phenomena_settle_post(
                 post_mint_payout: post_mint_payout_pda,
                 protocol_token_treasury_token_account: protocol_treasury_token_account_pda,
                 parent_post: parent_post_pda,
+                parent_post_pot_token_account: parent_post_pot_token_account_pda,
+                parent_post_pot_authority: parent_post_pot_authority_pda,
                 config: *config_pda,
                 token_mint: *token_mint,
                 payer: payer.pubkey(),
@@ -994,6 +1020,7 @@ pub async fn test_phenomena_settle_post(
             opinions_market::state::PostState::Settled
         );
         println!("✅ Post state is Settled");
+        
         // Verify post_mint_payout was created and has payout info
         let payout_account = opinions_market
             .account::<opinions_market::state::PostMintPayout>(post_mint_payout_pda)
@@ -1002,6 +1029,7 @@ pub async fn test_phenomena_settle_post(
 
         assert_eq!(payout_account.post, *post_pda);
         assert_eq!(payout_account.token_mint, *token_mint);
+        assert!(payout_account.frozen, "Payout should be frozen after settlement");
 
         // Check if payout was stored in the payout account
         if settled_post.upvotes > settled_post.downvotes
@@ -1018,6 +1046,140 @@ pub async fn test_phenomena_settle_post(
             opinions_market::state::Side::Smack => "Smack",
         };
         println!("✅ Post settled successfully, {} won", winning_side);
+        println!("  Creator fee: {}", payout_account.creator_fee);
+        println!("  Protocol fee: {}", payout_account.protocol_fee);
+        println!("  Mother fee: {}", payout_account.mother_fee);
+        println!("  Total payout for voters: {}", payout_account.total_payout);
+
+        // Now chain the distribution instructions
+        let mut distribution_ixs = Vec::new();
+
+        // 1. Distribute creator reward (if creator fee > 0)
+        if payout_account.creator_fee > 0 {
+            let vault_authority_pda = Pubkey::find_program_address(
+                &[VAULT_AUTHORITY_SEED],
+                &opinions_market.id(),
+            )
+            .0;
+
+            let creator_vault_token_account_pda = Pubkey::find_program_address(
+                &[
+                    USER_VAULT_TOKEN_ACCOUNT_SEED,
+                    settled_post.creator_user.as_ref(),
+                    token_mint.as_ref(),
+                ],
+                &opinions_market.id(),
+            )
+            .0;
+
+            let distribute_creator_ix = opinions_market
+                .request()
+                .accounts(opinions_market::accounts::DistributeCreatorReward {
+                    payer: payer.pubkey(),
+                    post: *post_pda,
+                    post_pot_token_account: post_pot_token_account_pda,
+                    post_pot_authority: post_pot_authority_pda,
+                    post_mint_payout: post_mint_payout_pda,
+                    creator_vault_token_account: creator_vault_token_account_pda,
+                    vault_authority: vault_authority_pda,
+                    token_mint: *token_mint,
+                    token_program: spl_token::ID,
+                })
+                .args(opinions_market::instruction::DistributeCreatorReward {
+                    post_id_hash: post_id_hash,
+                })
+                .instructions()
+                .unwrap();
+
+            distribution_ixs.push(distribute_creator_ix);
+            println!("  Added distribute_creator_reward instruction");
+        }
+
+        // 2. Distribute protocol fee (if protocol fee > 0)
+        if payout_account.protocol_fee > 0 {
+            let distribute_protocol_ix = opinions_market
+                .request()
+                .accounts(opinions_market::accounts::DistributeProtocolFee {
+                    payer: payer.pubkey(),
+                    post: *post_pda,
+                    post_pot_token_account: post_pot_token_account_pda,
+                    post_pot_authority: post_pot_authority_pda,
+                    post_mint_payout: post_mint_payout_pda,
+                    protocol_token_treasury_token_account: protocol_treasury_token_account_pda,
+                    config: *config_pda,
+                    token_mint: *token_mint,
+                    token_program: spl_token::ID,
+                })
+                .args(opinions_market::instruction::DistributeProtocolFee {
+                    post_id_hash: post_id_hash,
+                })
+                .instructions()
+                .unwrap();
+
+            distribution_ixs.push(distribute_protocol_ix);
+            println!("  Added distribute_protocol_fee instruction");
+        }
+
+        // 3. Distribute parent post share (if mother fee > 0 and it's a child post)
+        if payout_account.mother_fee > 0 && parent_post_pda.is_some() {
+            let parent_post_pda_unwrapped = parent_post_pda.unwrap();
+            
+            let parent_post_pot_token_account_pda = Pubkey::find_program_address(
+                &[
+                    POST_POT_TOKEN_ACCOUNT_SEED,
+                    parent_post_pda_unwrapped.as_ref(),
+                    token_mint.as_ref(),
+                ],
+                &opinions_market.id(),
+            )
+            .0;
+
+            let parent_post_pot_authority_pda = Pubkey::find_program_address(
+                &[POST_POT_AUTHORITY_SEED, parent_post_pda_unwrapped.as_ref()],
+                &opinions_market.id(),
+            )
+            .0;
+
+            let distribute_parent_ix = opinions_market
+                .request()
+                .accounts(opinions_market::accounts::DistributeParentPostShare {
+                    payer: payer.pubkey(),
+                    post: *post_pda,
+                    post_pot_token_account: post_pot_token_account_pda,
+                    post_pot_authority: post_pot_authority_pda,
+                    post_mint_payout: post_mint_payout_pda,
+                    parent_post: parent_post_pda,
+                    parent_post_pot_token_account: Some(parent_post_pot_token_account_pda),
+                    parent_post_pot_authority: Some(parent_post_pot_authority_pda),
+                    token_mint: *token_mint,
+                    token_program: spl_token::ID,
+                })
+                .args(opinions_market::instruction::DistributeParentPostShare {
+                    post_id_hash: post_id_hash,
+                })
+                .instructions()
+                .unwrap();
+
+            distribution_ixs.push(distribute_parent_ix);
+            println!("  Added distribute_parent_post_share instruction");
+        }
+
+        // Send all distribution instructions in one transaction
+        if !distribution_ixs.is_empty() {
+            // Combine all instructions into a single transaction
+            let mut combined_ixs = Vec::new();
+            for mut ix_vec in distribution_ixs {
+                combined_ixs.append(&mut ix_vec);
+            }
+
+            let distribute_tx = send_tx(&rpc, combined_ixs, &payer.pubkey(), &[&payer])
+                .await
+                .unwrap();
+            println!("✅ Distribution transactions sent: {:?}", distribute_tx);
+            println!("✅ All fees distributed successfully");
+        } else {
+            println!("⚠️  No fees to distribute (all fees are 0)");
+        }
     }
 }
 
