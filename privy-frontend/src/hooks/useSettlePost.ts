@@ -9,7 +9,6 @@ import {
 } from "@/lib/graphql/tweets/mutations";
 import { graphqlRequest } from "@/lib/graphql/client";
 import { useSnackbar } from "notistack";
-import { PostPotBalances } from "@/lib/graphql/tweets/types";
 
 /**
  * Hook to settle a post for all available tokens
@@ -24,7 +23,7 @@ export function useSettlePost() {
 
   const settlePost = async (
     tweetId: string,
-    potBalances?: PostPotBalances | null
+    onSuccess?: () => void | Promise<void>
   ): Promise<string> => {
     if (!identityToken) {
       throw new Error("No identity token available. Please log in.");
@@ -55,6 +54,12 @@ export function useSettlePost() {
         enqueueSnackbar("Post settled successfully for all tokens!", {
           variant: "success",
         });
+
+        // Call onSuccess callback if provided (e.g., to refresh data)
+        if (onSuccess) {
+          await onSuccess();
+        }
+
         return result.settlePost.signature;
       } else {
         throw new Error("No signature returned from settlement");

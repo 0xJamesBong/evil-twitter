@@ -23,10 +23,11 @@ import { useRouter } from "next/navigation";
 import { TweetNode } from "@/lib/graphql/tweets/types";
 import { VoteButtons } from "./VoteButtons";
 import { RewardCollection } from "./RewardCollection";
-import { useUser } from "@privy-io/react-auth";
+import { useUser, useIdentityToken } from "@privy-io/react-auth";
 import { useSettlePost } from "@/hooks/useSettlePost";
 import { Button, CircularProgress } from "@mui/material";
 import { AccountBalance as SettleIcon } from "@mui/icons-material";
+import { useTweetStore } from "@/lib/stores/tweetStore";
 
 interface TweetCardProps {
     tweet: TweetNode;
@@ -47,18 +48,24 @@ export function TweetCard({
 }: TweetCardProps) {
     const router = useRouter();
     const { user } = useUser();
+    const { identityToken } = useIdentityToken();
     const timeAgo = formatDistanceToNow(new Date(tweet.createdAt), { addSuffix: true });
     const author = tweet.author;
     const [timeLeft, setTimeLeft] = useState<string>("");
     const currentUserId = user?.id;
     const { settlePost, loading: settleLoading } = useSettlePost();
+    const { fetchTimeline } = useTweetStore();
 
     const handleSettlePost = async (e: React.MouseEvent) => {
         e.stopPropagation();
         if (!tweet.id) return;
 
         try {
-            await settlePost(tweet.id, tweet.postState?.potBalances);
+            // Settle the post and refresh the timeline after success
+            await settlePost(tweet.id, async () => {
+                // Refresh the timeline to show updated post state
+                await fetchTimeline(identityToken || undefined);
+            });
         } catch (error) {
             // Error is already handled in the hook
             console.error("Failed to settle post:", error);
