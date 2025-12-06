@@ -128,11 +128,28 @@ impl UserAccount {
         cost_in_bling(post_cost)
     }
 }
+use anchor_lang::prelude::*;
 
-#[derive(AnchorSerialize, AnchorDeserialize, Clone, Copy, PartialEq, Eq, InitSpace, Debug)]
-pub enum PostType {
-    Original,
-    Child { parent: Pubkey },
+#[derive(AnchorSerialize, AnchorDeserialize, Clone, Copy, PartialEq, Eq)]
+pub enum PostFunction {
+    Normal,
+    Question,
+    Answer,
+}
+
+#[derive(AnchorSerialize, AnchorDeserialize, Clone, PartialEq, Eq)]
+pub enum PostRelation {
+    Root,
+    Reply { parent: Pubkey },
+    Quote { quoted: Pubkey },
+    AnswerTo { question: Pubkey },
+}
+
+/// Forced settlement outcome for Answers
+#[derive(AnchorSerialize, AnchorDeserialize, Clone, Copy, PartialEq, Eq)]
+pub enum ForcedOutcome {
+    Pump,
+    Smack,
 }
 
 #[derive(InitSpace, AnchorSerialize, AnchorDeserialize, Clone, Copy)]
@@ -142,38 +159,57 @@ pub struct PotPayout {
 }
 
 #[account]
-#[derive(InitSpace, Copy, PartialEq, Eq, Debug)]
 pub struct PostAccount {
-    pub creator_user: Pubkey, // wallet key
+    pub function: PostFunction, // Normal / Question / Answer
+    pub relation: PostRelation, // Root / Reply / Quote / AnswerTo
+
+    // Forced settlement override (only for Answers)
+    pub forced_outcome: Option<ForcedOutcome>,
+
+    pub creator_user: Pubkey,
     pub post_id_hash: [u8; 32],
-    pub post_type: PostType, // <-- NEW
+
     pub start_time: i64,
     pub end_time: i64,
-    pub state: PostState,
+
+    pub state: PostState, // Open / Settled
+    pub winning_side: Option<Side>,
+
     pub upvotes: u64,
     pub downvotes: u64,
-    pub winning_side: Option<Side>,
+
+    pub bump: u8,
+
+    /// padding to prevent future breakage
+    pub reserved: [u8; 32],
 }
 
 impl PostAccount {
     pub fn new(
         creator_user: Pubkey,
         post_id_hash: [u8; 32],
-        post_type: PostType,
+        function: PostFunction,
+        relation: PostRelation,
+
         now: i64,
         config: &Config,
+        bump: u8,
     ) -> Self {
         let end_time = now + config.base_duration_secs as i64;
         Self {
             creator_user,
             post_id_hash,
-            post_type,
+            function,
+            relation,
+            forced_outcome: None,
             start_time: now,
             end_time,
             state: PostState::Open,
             upvotes: 0,
             downvotes: 0,
             winning_side: None,
+            bump,
+            reserved: [0; 32],
         }
     }
 
