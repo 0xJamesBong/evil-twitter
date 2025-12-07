@@ -5,7 +5,7 @@ use std::str::FromStr;
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use hex;
-use opinions_market::state::Side;
+use opinions_market::states::Side;
 use solana_sdk::pubkey::Pubkey;
 use std::sync::Arc;
 

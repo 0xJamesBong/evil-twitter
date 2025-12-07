@@ -260,8 +260,8 @@ pub async fn canonical_vote_cost_resolver(ctx: &Context<'_>, side: String) -> Re
 
     // Parse side
     let vote_side = match side.as_str() {
-        "Pump" => opinions_market::state::Side::Pump,
-        "Smack" => opinions_market::state::Side::Smack,
+        "Pump" => opinions_market::states::Side::Pump,
+        "Smack" => opinions_market::states::Side::Smack,
         _ => {
             return Err(async_graphql::Error::new(
                 "Invalid side: must be 'Pump' or 'Smack'",
@@ -330,8 +330,8 @@ pub async fn canonical_vote_costs_resolver(
 
     // Parse side
     let vote_side = match side.as_str() {
-        "Pump" => opinions_market::state::Side::Pump,
-        "Smack" => opinions_market::state::Side::Smack,
+        "Pump" => opinions_market::states::Side::Pump,
+        "Smack" => opinions_market::states::Side::Smack,
         _ => {
             return Err(async_graphql::Error::new(
                 "Invalid side: must be 'Pump' or 'Smack'",

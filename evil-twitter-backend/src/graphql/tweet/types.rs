@@ -200,25 +200,25 @@ impl TweetNode {
 
             // Fetch post account from on-chain
             match program
-                .account::<opinions_market::state::PostAccount>(post_pda)
+                .account::<opinions_market::states::PostAccount>(post_pda)
                 .await
             {
                 Ok(post_account) => {
                     // Convert PostAccount to PostState
                     let state_str = match post_account.state {
-                        opinions_market::state::PostState::Open => "Open".to_string(),
-                        opinions_market::state::PostState::Settled => "Settled".to_string(),
+                        opinions_market::states::PostState::Open => "Open".to_string(),
+                        opinions_market::states::PostState::Settled => "Settled".to_string(),
                     };
 
                     let winning_side = post_account.winning_side.map(|side| match side {
-                        opinions_market::state::Side::Pump => "Pump".to_string(),
-                        opinions_market::state::Side::Smack => "Smack".to_string(),
+                        opinions_market::states::Side::Pump => "Pump".to_string(),
+                        opinions_market::states::Side::Smack => "Smack".to_string(),
                     });
 
                     let function = Some(match post_account.function {
-                        opinions_market::state::PostFunction::Normal => "Normal".to_string(),
-                        opinions_market::state::PostFunction::Question => "Question".to_string(),
-                        opinions_market::state::PostFunction::Answer => "Answer".to_string(),
+                        opinions_market::states::PostFunction::Normal => "Normal".to_string(),
+                        opinions_market::states::PostFunction::Question => "Question".to_string(),
+                        opinions_market::states::PostFunction::Answer => "Answer".to_string(),
                     });
 
                     let post_state_doc = PostState {

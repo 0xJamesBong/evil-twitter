@@ -6,7 +6,6 @@ use std::sync::Arc;
 
 use crate::app_state::AppState;
 use crate::graphql::tweet::types::{TweetConnection, TweetEdge, TweetNode, TweetThreadNode};
-use crate::models::user::User;
 
 // Helper functions
 fn parse_object_id(id: &ID) -> Result<ObjectId> {
@@ -128,7 +127,10 @@ pub async fn claimable_rewards_resolver(
     ctx: &Context<'_>,
 ) -> Result<Vec<crate::graphql::tweet::types::ClaimableRewardNode>> {
     use crate::graphql::tweet::types::ClaimableRewardNode;
+    use crate::models::post_state::PostState;
     use axum::http::HeaderMap;
+    use futures::TryStreamExt;
+    use mongodb::bson::doc;
 
     let app_state = ctx.data::<Arc<AppState>>()?;
     let headers = ctx
@@ -150,16 +152,93 @@ pub async fn claimable_rewards_resolver(
         async_graphql::Error::new(format!("{} (status {})", error_msg, status))
     })?;
 
-    let _user_wallet = Pubkey::from_str(&user.wallet)
+    let user_wallet = Pubkey::from_str(&user.wallet)
         .map_err(|e| async_graphql::Error::new(format!("Invalid user wallet: {}", e)))?;
 
-    // For now, return empty vector - this would require scanning all posts
-    // In a production system, you'd want to:
-    // 1. Get all posts user has voted on
-    // 2. Filter to settled posts
-    // 3. Check claimable rewards for each
-    // This is expensive, so we'll implement a simpler version that checks specific posts
-    // when requested from the frontend
+    // Get all settled posts from MongoDB (limit to recent 200 to avoid performance issues)
+    let post_states_collection = app_state
+        .mongo_service
+        .db()
+        .collection::<PostState>(PostState::COLLECTION_NAME);
 
-    Ok(vec![])
+    let mut settled_posts = post_states_collection
+        .find(doc! {
+            "state": "Settled"
+        })
+        .await
+        .map_err(|e| async_graphql::Error::new(format!("Failed to query settled posts: {}", e)))?
+        .try_collect::<Vec<_>>()
+        .await
+        .map_err(|e| {
+            async_graphql::Error::new(format!("Failed to collect settled posts: {}", e))
+        })?;
+
+    // Sort by end_time descending (most recent first) and limit to 200
+    settled_posts.sort_by(|a, b| b.end_time.cmp(&a.end_time));
+    settled_posts.truncate(200);
+
+    // Get token mints to check (BLING and USDC)
+    let bling_mint = *app_state.solana_service.get_bling_mint();
+    let mut token_mints = vec![bling_mint];
+
+    // Add USDC if configured
+    if let Ok(usdc_mint_str) = std::env::var("USDC_MINT") {
+        if let Ok(usdc_mint) = Pubkey::from_str(&usdc_mint_str) {
+            token_mints.push(usdc_mint);
+        }
+    }
+
+    let mut claimable_rewards = Vec::new();
+
+    // For each settled post, check if user has claimable rewards
+    for post_state in settled_posts {
+        // Parse post_id_hash
+        let post_id_hash_bytes = match hex::decode(&post_state.post_id_hash) {
+            Ok(bytes) if bytes.len() == 32 => {
+                let mut arr = [0u8; 32];
+                arr.copy_from_slice(&bytes);
+                arr
+            }
+            _ => continue, // Skip invalid post_id_hash
+        };
+
+        // Get associated tweet
+        let tweet_collection = app_state.mongo_service.tweet_collection();
+        let tweet = match tweet_collection
+            .find_one(doc! { "post_id_hash": &post_state.post_id_hash })
+            .await
+        {
+            Ok(Some(tweet)) => tweet,
+            Ok(None) => continue, // No tweet found for this post
+            Err(_) => continue,   // Skip on error
+        };
+
+        let tweet_id = tweet
+            .id
+            .map(|id| id.to_hex())
+            .unwrap_or_else(|| "unknown".to_string());
+
+        // Check claimable rewards for each token mint
+        for token_mint in &token_mints {
+            match app_state
+                .solana_service
+                .get_claimable_reward(&user_wallet, &post_id_hash_bytes, token_mint)
+                .await
+            {
+                Ok(Some(amount)) if amount > 0 => {
+                    claimable_rewards.push(ClaimableRewardNode {
+                        tweet_id: async_graphql::ID::from(tweet_id.clone()),
+                        post_id_hash: post_state.post_id_hash.clone(),
+                        token_mint: token_mint.to_string(),
+                        amount: amount.to_string(),
+                        reward_type: "voter".to_string(), // For now, only voter rewards
+                    });
+                }
+                Ok(_) => {}  // No claimable reward or already claimed
+                Err(_) => {} // Skip on error
+            }
+        }
+    }
+
+    Ok(claimable_rewards)
 }

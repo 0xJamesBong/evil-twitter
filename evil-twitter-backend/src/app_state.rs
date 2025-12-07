@@ -3,7 +3,7 @@ use std::hash::{Hash, Hasher};
 use std::sync::{Arc, Mutex};
 
 use mongodb::{Client, Database};
-use opinions_market::state::Side;
+use opinions_market::states::Side;
 use solana_sdk::pubkey::Pubkey;
 
 use crate::services::{

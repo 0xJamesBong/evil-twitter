@@ -20,6 +20,7 @@ import {
     Logout as LogoutIcon,
     Message as MessageIcon,
     Code as CodeIcon,
+    AccountBalanceWallet as RewardsIcon,
 } from "@mui/icons-material";
 
 export function LeftSidebar() {
@@ -30,6 +31,7 @@ export function LeftSidebar() {
     const navItems = [
         { label: "Home", path: "/", icon: <HomeIcon /> },
         { label: "Profile", path: "/profile", icon: <PersonIcon /> },
+        { label: "Rewards", path: "/rewards", icon: <RewardsIcon /> },
         { label: "Test", path: "/test", icon: <TestIcon /> },
         { label: "Sign Message", path: "/signMessage", icon: <MessageIcon /> },
         { label: "Contracts", path: "/contracts", icon: <CodeIcon /> },
