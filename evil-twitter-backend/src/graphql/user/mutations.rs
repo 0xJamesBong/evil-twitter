@@ -539,8 +539,9 @@ pub async fn renew_session_resolver(
     let wallet_pubkey = Pubkey::from_str(&user.wallet)
         .map_err(|e| async_graphql::Error::new(format!("Invalid wallet pubkey: {}", e)))?;
 
-    // Backend generates session key (payer pubkey)
-    let session_key = app_state.solana_service.payer_pubkey();
+    // Backend generates session key
+    // The session key is the backend's session key (consistent with onboard_user_resolver)
+    let session_key = app_state.solana_service.session_key_pubkey();
 
     // Construct the message that should have been signed: SESSION:{session_key}
     let message = format!("SESSION:{}", session_key);
