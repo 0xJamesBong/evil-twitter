@@ -367,3 +367,27 @@ export interface TweetThreadQueryResult {
     replies: TweetNode[];
   };
 }
+
+export const CLAIMABLE_REWARDS_QUERY = `
+  query ClaimableRewards {
+    claimableRewards {
+      tweetId
+      postIdHash
+      tokenMint
+      amount
+      rewardType
+    }
+  }
+`;
+
+export interface ClaimableRewardNode {
+  tweetId: string;
+  postIdHash: string;
+  tokenMint: string;
+  amount: string;
+  rewardType: string;
+}
+
+export interface ClaimableRewardsQueryResult {
+  claimableRewards: ClaimableRewardNode[];
+}

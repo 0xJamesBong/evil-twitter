@@ -1,5 +1,5 @@
 use crate::pda_seeds::*;
-use crate::state::*;
+use crate::states::*;
 use anchor_lang::prelude::*;
 use anchor_lang::solana_program::sysvar::instructions;
 use anchor_spl::token::{Mint, Token, TokenAccount};
@@ -138,7 +138,7 @@ pub struct CreateUser<'info> {
         payer = payer,
         seeds = [USER_ACCOUNT_SEED, user.key().as_ref()],
         bump,
-        space = 8 + 64,
+        space = 8 + UserAccount::INIT_SPACE,
     )]
     pub user_account: Account<'info, UserAccount>,
     

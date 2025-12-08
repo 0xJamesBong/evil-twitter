@@ -89,3 +89,23 @@ export interface CanonicalVoteCostsResult {
     stablecoin: number | null;
   };
 }
+
+export const CURRENT_SESSION_QUERY = `
+  query CurrentSession {
+    currentSession {
+      sessionAuthorityPda
+      sessionKey
+      expiresAt
+      userWallet
+    }
+  }
+`;
+
+export interface CurrentSessionResult {
+  currentSession: {
+    sessionAuthorityPda: string;
+    sessionKey: string;
+    expiresAt: number;
+    userWallet: string;
+  } | null;
+}

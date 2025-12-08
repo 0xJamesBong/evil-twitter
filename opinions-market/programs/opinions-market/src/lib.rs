@@ -6,10 +6,10 @@ pub mod instructions;
 pub mod math;
 pub mod middleware;
 pub mod pda_seeds;
-pub mod state;
+pub mod states;
 use constants::*;
 use instructions::*;
-use state::*;
+use states::*;
 
 declare_id!("4z5rjroGdWmgGX13SdFsh4wRM4jJkMUrcvYrNpV3gezm");
 
@@ -150,6 +150,7 @@ pub mod opinions_market {
 
         user_account.user = new_user_account.user;
         user_account.social_score = new_user_account.social_score;
+        user_account.attack_surface = new_user_account.attack_surface;
         user_account.bump = new_user_account.bump;
 
         Ok(())

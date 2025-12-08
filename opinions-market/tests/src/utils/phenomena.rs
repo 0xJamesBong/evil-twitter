@@ -38,7 +38,7 @@ pub async fn test_phenomena_add_valid_payment(
 
     // BEFORE: Verify USDC is NOT an valid payment mint (account doesn't exist)
     let account_before = opinions_market
-        .account::<opinions_market::state::ValidPayment>(valid_payment_pda)
+        .account::<opinions_market::states::ValidPayment>(valid_payment_pda)
         .await;
     assert!(
         account_before.is_err(),
@@ -82,7 +82,7 @@ pub async fn test_phenomena_add_valid_payment(
 
     // AFTER: Verify USDC IS an valid payment mint (account exists and is enabled)
     let account_after = opinions_market
-        .account::<opinions_market::state::ValidPayment>(valid_payment_pda)
+        .account::<opinions_market::states::ValidPayment>(valid_payment_pda)
         .await
         .unwrap();
     assert_eq!(
@@ -135,7 +135,7 @@ pub async fn test_phenomena_create_user(
 
     // Verify user account was created
     let user_account = opinions_market
-        .account::<opinions_market::state::UserAccount>(user_account_pda)
+        .account::<opinions_market::states::UserAccount>(user_account_pda)
         .await
         .unwrap();
 
@@ -199,7 +199,7 @@ pub async fn test_phenomena_create_user(
 
     // verify session was registered
     let session_authority = opinions_market
-        .account::<opinions_market::state::SessionAuthority>(session_authority_pda)
+        .account::<opinions_market::states::SessionAuthority>(session_authority_pda)
         .await
         .unwrap();
 
@@ -216,7 +216,7 @@ pub async fn test_phenomena_deposit(
     token_mint: &Pubkey,
     tokens: &HashMap<Pubkey, String>,
     token_atas: &HashMap<Pubkey, Pubkey>,
-    config_pda: &Pubkey,
+    _config_pda: &Pubkey,
 ) {
     let token_name = tokens.get(token_mint).unwrap();
     println!("depositing {:} {:} to their vault", amount, token_name);
@@ -432,7 +432,7 @@ pub async fn test_phenomena_create_post(
 
     // Verify post was created and all fields are correct
     let post_account = opinions_market
-        .account::<opinions_market::state::PostAccount>(post_pda)
+        .account::<opinions_market::states::PostAccount>(post_pda)
         .await
         .unwrap();
 
@@ -450,7 +450,7 @@ pub async fn test_phenomena_create_post(
     );
 
     // Verify state is Open
-    assert_eq!(post_account.state, opinions_market::state::PostState::Open);
+    assert_eq!(post_account.state, opinions_market::states::PostState::Open);
     println!("✅ Post state is Open");
 
     // Verify initial vote counts
@@ -494,10 +494,10 @@ pub async fn test_phenomena_create_post(
             // Child posts should be Normal function with Reply relation
             assert_eq!(
                 post_account.function,
-                opinions_market::state::PostFunction::Normal,
+                opinions_market::states::PostFunction::Normal,
                 "Child post should have Normal function"
             );
-            if let opinions_market::state::PostRelation::Reply {
+            if let opinions_market::states::PostRelation::Reply {
                 parent: stored_parent,
             } = &post_account.relation
             {
@@ -517,12 +517,12 @@ pub async fn test_phenomena_create_post(
             // Root posts should be Normal function with Root relation
             assert_eq!(
                 post_account.function,
-                opinions_market::state::PostFunction::Normal,
+                opinions_market::states::PostFunction::Normal,
                 "Root post should have Normal function"
             );
             assert_eq!(
                 post_account.relation,
-                opinions_market::state::PostRelation::Root,
+                opinions_market::states::PostRelation::Root,
                 "Post relation should be Root when no parent is provided"
             );
             println!("✅ Post relation is Root");
@@ -602,7 +602,7 @@ pub async fn test_phenomena_create_question(
 
     // Verify question was created and all fields are correct
     let post_account = opinions_market
-        .account::<opinions_market::state::PostAccount>(post_pda)
+        .account::<opinions_market::states::PostAccount>(post_pda)
         .await
         .unwrap();
 
@@ -620,7 +620,7 @@ pub async fn test_phenomena_create_question(
     );
 
     // Verify state is Open
-    assert_eq!(post_account.state, opinions_market::state::PostState::Open);
+    assert_eq!(post_account.state, opinions_market::states::PostState::Open);
     println!("✅ Question state is Open");
 
     // Verify initial vote counts
@@ -661,12 +661,12 @@ pub async fn test_phenomena_create_question(
     // Verify question function and relation
     assert_eq!(
         post_account.function,
-        opinions_market::state::PostFunction::Question,
+        opinions_market::states::PostFunction::Question,
         "Post should have Question function"
     );
     assert_eq!(
         post_account.relation,
-        opinions_market::state::PostRelation::Root,
+        opinions_market::states::PostRelation::Root,
         "Question relation should be Root"
     );
     println!("✅ Question function and relation verified");
@@ -762,7 +762,7 @@ pub async fn test_phenomena_create_answer(
 
     // Verify answer was created and all fields are correct
     let post_account = opinions_market
-        .account::<opinions_market::state::PostAccount>(answer_pda)
+        .account::<opinions_market::states::PostAccount>(answer_pda)
         .await
         .unwrap();
 
@@ -780,7 +780,7 @@ pub async fn test_phenomena_create_answer(
     );
 
     // Verify state is Open
-    assert_eq!(post_account.state, opinions_market::state::PostState::Open);
+    assert_eq!(post_account.state, opinions_market::states::PostState::Open);
     println!("✅ Answer state is Open");
 
     // Verify initial vote counts
@@ -818,10 +818,10 @@ pub async fn test_phenomena_create_answer(
     // Verify answer function and relation
     assert_eq!(
         post_account.function,
-        opinions_market::state::PostFunction::Answer,
+        opinions_market::states::PostFunction::Answer,
         "Post should have Answer function"
     );
-    if let opinions_market::state::PostRelation::AnswerTo {
+    if let opinions_market::states::PostRelation::AnswerTo {
         question: stored_question,
     } = &post_account.relation
     {
@@ -867,15 +867,15 @@ pub async fn test_phenomena_vote_on_post(
     voter: &Keypair,
     session_key: &Keypair,
     post_pda: &Pubkey,
-    side: opinions_market::state::Side,
+    side: opinions_market::states::Side,
     votes: u64,
     token_mint: &Pubkey,
     token_atas: &HashMap<Pubkey, Pubkey>,
     config_pda: &Pubkey,
 ) {
     let side_str = match side {
-        opinions_market::state::Side::Pump => "upvote",
-        opinions_market::state::Side::Smack => "downvote",
+        opinions_market::states::Side::Pump => "upvote",
+        opinions_market::states::Side::Smack => "downvote",
     };
     println!(
         "{:} {}ing post {:} with {} votes",
@@ -887,7 +887,7 @@ pub async fn test_phenomena_vote_on_post(
 
     // Get post account BEFORE vote to capture initial state
     let post_account_before = opinions_market
-        .account::<opinions_market::state::PostAccount>(*post_pda)
+        .account::<opinions_market::states::PostAccount>(*post_pda)
         .await
         .unwrap();
 
@@ -904,7 +904,7 @@ pub async fn test_phenomena_vote_on_post(
 
     assert_eq!(
         post_account_before.state,
-        opinions_market::state::PostState::Open,
+        opinions_market::states::PostState::Open,
         "Post should be in Open state before voting"
     );
     println!("✅ Post state is Open");
@@ -970,7 +970,7 @@ pub async fn test_phenomena_vote_on_post(
 
     // Try to get position BEFORE vote (may not exist)
     let position_before = opinions_market
-        .account::<opinions_market::state::UserPostPosition>(position_pda)
+        .account::<opinions_market::states::UserPostPosition>(position_pda)
         .await;
 
     let initial_position_upvotes = match &position_before {
@@ -1079,7 +1079,7 @@ pub async fn test_phenomena_vote_on_post(
 
     // Verify position was updated AFTER vote
     let position_after = opinions_market
-        .account::<opinions_market::state::UserPostPosition>(position_pda)
+        .account::<opinions_market::states::UserPostPosition>(position_pda)
         .await
         .unwrap();
 
@@ -1090,7 +1090,7 @@ pub async fn test_phenomena_vote_on_post(
     );
 
     match side {
-        opinions_market::state::Side::Pump => {
+        opinions_market::states::Side::Pump => {
             assert_eq!(
                 position_after.upvotes,
                 initial_position_upvotes + votes,
@@ -1100,7 +1100,7 @@ pub async fn test_phenomena_vote_on_post(
                 position_after.upvotes
             );
         }
-        opinions_market::state::Side::Smack => {
+        opinions_market::states::Side::Smack => {
             assert_eq!(
                 position_after.downvotes,
                 initial_position_downvotes + votes,
@@ -1114,7 +1114,7 @@ pub async fn test_phenomena_vote_on_post(
 
     // Verify post counters were updated AFTER vote
     let post_account_after = opinions_market
-        .account::<opinions_market::state::PostAccount>(*post_pda)
+        .account::<opinions_market::states::PostAccount>(*post_pda)
         .await
         .unwrap();
 
@@ -1169,7 +1169,7 @@ pub async fn test_phenomena_vote_on_post(
 
     // Verify vote counts increased correctly
     match side {
-        opinions_market::state::Side::Pump => {
+        opinions_market::states::Side::Pump => {
             assert!(
                 post_account_after.upvotes >= initial_upvotes + votes as u64,
                 "Post upvotes should increase by at least {} (was {}, now {})",
@@ -1178,7 +1178,7 @@ pub async fn test_phenomena_vote_on_post(
                 post_account_after.upvotes
             );
         }
-        opinions_market::state::Side::Smack => {
+        opinions_market::states::Side::Smack => {
             assert!(
                 post_account_after.downvotes >= initial_downvotes + votes as u64,
                 "Post downvotes should increase by at least {} (was {}, now {})",
@@ -1214,7 +1214,7 @@ pub async fn test_phenomena_settle_post(
 
         // Get post account to check if it's a child post
         let post_account = opinions_market
-            .account::<opinions_market::state::PostAccount>(*post_pda)
+            .account::<opinions_market::states::PostAccount>(*post_pda)
             .await
             .unwrap();
         let post_id_hash = post_account.post_id_hash.clone();
@@ -1278,10 +1278,10 @@ pub async fn test_phenomena_settle_post(
 
         // Handle parent post if this is a child post
         let parent_post_pda = match &post_account.relation {
-            opinions_market::state::PostRelation::Reply { parent } => Some(*parent),
-            opinions_market::state::PostRelation::Quote { quoted: parent } => Some(*parent),
-            opinions_market::state::PostRelation::AnswerTo { question: parent } => Some(*parent),
-            opinions_market::state::PostRelation::Root => None,
+            opinions_market::states::PostRelation::Reply { parent } => Some(*parent),
+            opinions_market::states::PostRelation::Quote { quoted: parent } => Some(*parent),
+            opinions_market::states::PostRelation::AnswerTo { question: parent } => Some(*parent),
+            opinions_market::states::PostRelation::Root => None,
         };
 
         // Derive parent post pot accounts if this is a child post
@@ -1339,19 +1339,19 @@ pub async fn test_phenomena_settle_post(
 
         // Verify post was settled
         let settled_post = opinions_market
-            .account::<opinions_market::state::PostAccount>(*post_pda)
+            .account::<opinions_market::states::PostAccount>(*post_pda)
             .await
             .unwrap();
 
         assert_eq!(
             settled_post.state,
-            opinions_market::state::PostState::Settled
+            opinions_market::states::PostState::Settled
         );
         println!("✅ Post state is Settled");
 
         // Verify post_mint_payout was created and has payout info
         let payout_account = opinions_market
-            .account::<opinions_market::state::PostMintPayout>(post_mint_payout_pda)
+            .account::<opinions_market::states::PostMintPayout>(post_mint_payout_pda)
             .await
             .unwrap();
 
@@ -1373,8 +1373,8 @@ pub async fn test_phenomena_settle_post(
         }
 
         let winning_side = match settled_post.winning_side.unwrap() {
-            opinions_market::state::Side::Pump => "Pump",
-            opinions_market::state::Side::Smack => "Smack",
+            opinions_market::states::Side::Pump => "Pump",
+            opinions_market::states::Side::Smack => "Smack",
         };
         println!("✅ Post settled successfully, {} won", winning_side);
         println!("  Creator fee: {}", payout_account.creator_fee);
@@ -1532,7 +1532,7 @@ pub async fn test_phenomena_claim_post_reward(
 
     // Get post account to extract post_id_hash
     let post_account = opinions_market
-        .account::<opinions_market::state::PostAccount>(*post_pda)
+        .account::<opinions_market::states::PostAccount>(*post_pda)
         .await
         .unwrap();
     let post_id_hash = post_account.post_id_hash.clone();
@@ -1540,7 +1540,7 @@ pub async fn test_phenomena_claim_post_reward(
     // Verify post is settled
     assert_eq!(
         post_account.state,
-        opinions_market::state::PostState::Settled,
+        opinions_market::states::PostState::Settled,
         "Post must be settled before claiming rewards"
     );
 
@@ -1616,7 +1616,7 @@ pub async fn test_phenomena_claim_post_reward(
     // Get initial balances and state
     // Check if position exists (user must have voted on this post)
     let position_result = opinions_market
-        .account::<opinions_market::state::UserPostPosition>(position_pda)
+        .account::<opinions_market::states::UserPostPosition>(position_pda)
         .await;
 
     let position = match position_result {
@@ -1628,7 +1628,7 @@ pub async fn test_phenomena_claim_post_reward(
     };
 
     let post_mint_payout = opinions_market
-        .account::<opinions_market::state::PostMintPayout>(post_mint_payout_pda)
+        .account::<opinions_market::states::PostMintPayout>(post_mint_payout_pda)
         .await
         .unwrap();
 
@@ -1644,7 +1644,7 @@ pub async fn test_phenomena_claim_post_reward(
 
     // Check if already claimed
     let claim_before = opinions_market
-        .account::<opinions_market::state::UserPostMintClaim>(user_post_mint_claim_pda)
+        .account::<opinions_market::states::UserPostMintClaim>(user_post_mint_claim_pda)
         .await;
 
     if let Ok(claim) = claim_before {
@@ -1657,8 +1657,8 @@ pub async fn test_phenomena_claim_post_reward(
     // Determine expected reward
     let winning_side = post_account.winning_side.unwrap();
     let user_votes = match winning_side {
-        opinions_market::state::Side::Pump => position.upvotes as u64,
-        opinions_market::state::Side::Smack => position.downvotes as u64,
+        opinions_market::states::Side::Pump => position.upvotes as u64,
+        opinions_market::states::Side::Smack => position.downvotes as u64,
     };
 
     let expected_reward = if user_votes == 0 {
@@ -1714,7 +1714,7 @@ pub async fn test_phenomena_claim_post_reward(
 
     // Verify claim was successful
     let user_post_mint_claim = opinions_market
-        .account::<opinions_market::state::UserPostMintClaim>(user_post_mint_claim_pda)
+        .account::<opinions_market::states::UserPostMintClaim>(user_post_mint_claim_pda)
         .await
         .unwrap();
 

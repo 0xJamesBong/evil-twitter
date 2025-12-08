@@ -8,7 +8,7 @@ use anchor_spl::{
     associated_token::spl_associated_token_account::{self},
     token::spl_token,
 };
-use opinions_market::state::Side;
+use opinions_market::states::Side;
 use solana_client::nonblocking::rpc_client::RpcClient;
 use solana_sdk::{
     ed25519_instruction,
@@ -233,16 +233,35 @@ impl SolanaService {
     pub async fn get_user_account(
         &self,
         user_wallet: &Pubkey,
-    ) -> anyhow::Result<Option<opinions_market::state::UserAccount>> {
+    ) -> anyhow::Result<Option<opinions_market::states::UserAccount>> {
         let opinions_market = self.opinions_market_program();
         let (user_account_pda, _) = get_user_account_pda(&self.program_id, user_wallet);
 
         match opinions_market
-            .account::<opinions_market::state::UserAccount>(user_account_pda)
+            .account::<opinions_market::states::UserAccount>(user_account_pda)
             .await
         {
             Ok(user_account) => Ok(Some(user_account)),
             Err(_) => Ok(None), // Account doesn't exist
+        }
+    }
+
+    /// Get the session authority account for a user with the current session key
+    pub async fn get_session_authority(
+        &self,
+        user_wallet: &Pubkey,
+    ) -> anyhow::Result<Option<opinions_market::states::SessionAuthority>> {
+        let opinions_market = self.opinions_market_program();
+        let session_key = self.session_key.pubkey();
+        let (session_authority_pda, _) =
+            get_session_authority_pda(&self.program_id, user_wallet, &session_key);
+
+        match opinions_market
+            .account::<opinions_market::states::SessionAuthority>(session_authority_pda)
+            .await
+        {
+            Ok(session_authority) => Ok(Some(session_authority)),
+            Err(_) => Ok(None), // Session doesn't exist
         }
     }
 
@@ -307,14 +326,14 @@ impl SolanaService {
         &self,
         user_wallet: &Pubkey,
         post_id_hash: &[u8; 32],
-    ) -> anyhow::Result<Option<opinions_market::state::UserPostPosition>> {
+    ) -> anyhow::Result<Option<opinions_market::states::UserPostPosition>> {
         let program = self.opinions_market_program();
         let program_id = program.id();
         let (post_pda, _) = get_post_pda(&program_id, post_id_hash);
         let (position_pda, _) = get_position_pda(&program_id, &post_pda, user_wallet);
 
         match program
-            .account::<opinions_market::state::UserPostPosition>(position_pda)
+            .account::<opinions_market::states::UserPostPosition>(position_pda)
             .await
         {
             Ok(position) => Ok(Some(position)),
@@ -1210,7 +1229,7 @@ impl SolanaService {
 
         // Fetch post account to get creator_user
         let post_account = program
-            .account::<opinions_market::state::PostAccount>(post_pda)
+            .account::<opinions_market::states::PostAccount>(post_pda)
             .await
             .map_err(|e| {
                 eprintln!(
@@ -1369,7 +1388,7 @@ impl SolanaService {
         let (user_account_pda, _) = get_user_account_pda(&program_id, user_wallet);
 
         // Fetch UserAccount
-        let user_account: opinions_market::state::UserAccount =
+        let user_account: opinions_market::states::UserAccount =
             program.account(user_account_pda).await.map_err(|e| {
                 anyhow::anyhow!(
                     "Failed to fetch UserAccount PDA {}: {}",
@@ -1419,7 +1438,7 @@ impl SolanaService {
         let (valid_payment_pda, _) = get_valid_payment_pda(&program_id, target_token_mint);
 
         // Fetch ValidPayment account
-        let valid_payment: opinions_market::state::ValidPayment =
+        let valid_payment: opinions_market::states::ValidPayment =
             program.account(valid_payment_pda).await.map_err(|e| {
                 anyhow::anyhow!(
                     "Failed to fetch ValidPayment PDA {}: {}",
@@ -1522,7 +1541,7 @@ impl SolanaService {
 
         // Fetch post account to check if it's a child post
         let post_account = program
-            .account::<opinions_market::state::PostAccount>(post_pda)
+            .account::<opinions_market::states::PostAccount>(post_pda)
             .await
             .map_err(|e| anyhow::anyhow!("Failed to fetch post account: {}", e))?;
 
@@ -1533,9 +1552,9 @@ impl SolanaService {
         // to satisfy the seed constraint checks.
         let (parent_post_pda, parent_post_pot_token_account_pda, parent_post_pot_authority_pda) =
             match &post_account.relation {
-                opinions_market::state::PostRelation::Reply { parent }
-                | opinions_market::state::PostRelation::Quote { quoted: parent }
-                | opinions_market::state::PostRelation::AnswerTo { question: parent } => {
+                opinions_market::states::PostRelation::Reply { parent }
+                | opinions_market::states::PostRelation::Quote { quoted: parent }
+                | opinions_market::states::PostRelation::AnswerTo { question: parent } => {
                     // BUG WORKAROUND: Derive from current post (post_pda) not parent
                     // The program's seeds use post.key() so we must match that
                     let parent_pot_token_account =
@@ -1547,7 +1566,7 @@ impl SolanaService {
                         parent_pot_authority.0,           // And derive authority from current post
                     )
                 }
-                opinions_market::state::PostRelation::Root => {
+                opinions_market::states::PostRelation::Root => {
                     // For root posts, pass current post's accounts to satisfy constraint
                     // The program won't use them since it checks relation == Root first
                     (
@@ -1638,7 +1657,7 @@ impl SolanaService {
 
         // Fetch post account to get creator_user
         let post_account = program
-            .account::<opinions_market::state::PostAccount>(post_pda)
+            .account::<opinions_market::states::PostAccount>(post_pda)
             .await
             .map_err(|e| anyhow::anyhow!("Failed to fetch post account: {}", e))?;
 
@@ -1755,15 +1774,15 @@ impl SolanaService {
 
         // Fetch post account to check if it's a child post
         let post_account = program
-            .account::<opinions_market::state::PostAccount>(post_pda)
+            .account::<opinions_market::states::PostAccount>(post_pda)
             .await
             .map_err(|e| anyhow::anyhow!("Failed to fetch post account: {}", e))?;
 
         let (parent_post_pda, parent_post_pot_token_account_pda, parent_post_pot_authority_pda) =
             match &post_account.relation {
-                opinions_market::state::PostRelation::Reply { parent }
-                | opinions_market::state::PostRelation::Quote { quoted: parent }
-                | opinions_market::state::PostRelation::AnswerTo { question: parent } => {
+                opinions_market::states::PostRelation::Reply { parent }
+                | opinions_market::states::PostRelation::Quote { quoted: parent }
+                | opinions_market::states::PostRelation::AnswerTo { question: parent } => {
                     let parent_pot_token_account =
                         get_post_pot_token_account_pda(&program_id, parent, token_mint);
                     let parent_pot_authority = get_post_pot_authority_pda(&program_id, parent);
@@ -1773,7 +1792,7 @@ impl SolanaService {
                         Some(parent_pot_authority.0),
                     )
                 }
-                opinions_market::state::PostRelation::Root => {
+                opinions_market::states::PostRelation::Root => {
                     return Err(anyhow::anyhow!(
                         "Post is not a child post, cannot distribute to parent"
                     ));
@@ -1835,7 +1854,7 @@ impl SolanaService {
 
         // Fetch post account to check if it's a child post
         let post_account = program
-            .account::<opinions_market::state::PostAccount>(post_pda)
+            .account::<opinions_market::states::PostAccount>(post_pda)
             .await
             .map_err(|e| anyhow::anyhow!("Failed to fetch post account: {}", e))?;
 
@@ -1846,9 +1865,9 @@ impl SolanaService {
         // to satisfy the seed constraint checks.
         let (parent_post_pda, parent_post_pot_token_account_pda, parent_post_pot_authority_pda) =
             match &post_account.relation {
-                opinions_market::state::PostRelation::Reply { parent }
-                | opinions_market::state::PostRelation::Quote { quoted: parent }
-                | opinions_market::state::PostRelation::AnswerTo { question: parent } => {
+                opinions_market::states::PostRelation::Reply { parent }
+                | opinions_market::states::PostRelation::Quote { quoted: parent }
+                | opinions_market::states::PostRelation::AnswerTo { question: parent } => {
                     // BUG WORKAROUND: Derive from current post (post_pda) not parent
                     // The program's seeds use post.key() so we must match that
                     let parent_pot_token_account =
@@ -1860,7 +1879,7 @@ impl SolanaService {
                         parent_pot_authority.0,           // And derive authority from current post
                     )
                 }
-                opinions_market::state::PostRelation::Root => {
+                opinions_market::states::PostRelation::Root => {
                     // For root posts, pass current post's accounts to satisfy constraint
                     // The program won't use them since it checks relation == Root first
                     (
@@ -1914,7 +1933,7 @@ impl SolanaService {
 
         // Fetch post account to get creator_user
         let post_account = program
-            .account::<opinions_market::state::PostAccount>(post_pda)
+            .account::<opinions_market::states::PostAccount>(post_pda)
             .await
             .map_err(|e| anyhow::anyhow!("Failed to fetch post account: {}", e))?;
 
@@ -2005,15 +2024,15 @@ impl SolanaService {
 
         // Fetch post account to check if it's a child post
         let post_account = program
-            .account::<opinions_market::state::PostAccount>(post_pda)
+            .account::<opinions_market::states::PostAccount>(post_pda)
             .await
             .map_err(|e| anyhow::anyhow!("Failed to fetch post account: {}", e))?;
 
         let (parent_post_pda, parent_post_pot_token_account_pda, parent_post_pot_authority_pda) =
             match &post_account.relation {
-                opinions_market::state::PostRelation::Reply { parent }
-                | opinions_market::state::PostRelation::Quote { quoted: parent }
-                | opinions_market::state::PostRelation::AnswerTo { question: parent } => {
+                opinions_market::states::PostRelation::Reply { parent }
+                | opinions_market::states::PostRelation::Quote { quoted: parent }
+                | opinions_market::states::PostRelation::AnswerTo { question: parent } => {
                     let parent_pot_token_account =
                         get_post_pot_token_account_pda(&program_id, parent, token_mint);
                     let parent_pot_authority = get_post_pot_authority_pda(&program_id, parent);
@@ -2023,7 +2042,7 @@ impl SolanaService {
                         Some(parent_pot_authority.0),
                     )
                 }
-                opinions_market::state::PostRelation::Root => {
+                opinions_market::states::PostRelation::Root => {
                     // Not a child post, return None
                     return Ok(None);
                 }
@@ -2060,7 +2079,7 @@ impl SolanaService {
         &self,
         post_id_hash: &[u8; 32],
         token_mint: &Pubkey,
-    ) -> anyhow::Result<Option<opinions_market::state::PostMintPayout>> {
+    ) -> anyhow::Result<Option<opinions_market::states::PostMintPayout>> {
         let program = self.opinions_market_program();
         let program_id = program.id();
         let (post_pda, _) = get_post_pda(&program_id, post_id_hash);
@@ -2068,7 +2087,7 @@ impl SolanaService {
             get_post_mint_payout_pda(&program_id, &post_pda, token_mint);
 
         match program
-            .account::<opinions_market::state::PostMintPayout>(post_mint_payout_pda)
+            .account::<opinions_market::states::PostMintPayout>(post_mint_payout_pda)
             .await
         {
             Ok(payout) => Ok(Some(payout)),
@@ -2089,14 +2108,14 @@ impl SolanaService {
 
         // Check if post is settled
         let post_account = match program
-            .account::<opinions_market::state::PostAccount>(post_pda)
+            .account::<opinions_market::states::PostAccount>(post_pda)
             .await
         {
             Ok(account) => account,
             Err(_) => return Ok(None), // Post doesn't exist
         };
 
-        if post_account.state != opinions_market::state::PostState::Settled {
+        if post_account.state != opinions_market::states::PostState::Settled {
             return Ok(None); // Post not settled yet
         }
 
@@ -2110,7 +2129,7 @@ impl SolanaService {
         let (user_post_mint_claim_pda, _) =
             get_user_post_mint_claim_pda(&program_id, &post_pda, token_mint, user_wallet);
         if let Ok(claim_account) = program
-            .account::<opinions_market::state::UserPostMintClaim>(user_post_mint_claim_pda)
+            .account::<opinions_market::states::UserPostMintClaim>(user_post_mint_claim_pda)
             .await
         {
             // Check if already claimed
@@ -2134,8 +2153,8 @@ impl SolanaService {
 
         // Calculate user's winning votes
         let user_votes = match winning_side {
-            opinions_market::state::Side::Pump => position.upvotes as u64,
-            opinions_market::state::Side::Smack => position.downvotes as u64,
+            opinions_market::states::Side::Pump => position.upvotes as u64,
+            opinions_market::states::Side::Smack => position.downvotes as u64,
         };
 
         if user_votes == 0 {

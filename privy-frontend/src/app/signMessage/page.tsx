@@ -23,13 +23,18 @@ import { FullScreenLoader } from "@/components/ui/fullscreen-loader";
 import { LoginPrompt } from "@/components/auth/LoginPrompt";
 import { useBackendUserStore } from "@/lib/stores/backendUserStore";
 import { useRenewSession, SessionData } from "@/hooks/useRenewSession";
+import { useIdentityToken } from "@privy-io/react-auth";
+import { CURRENT_SESSION_QUERY, CurrentSessionResult } from "@/lib/graphql/users/queries";
+import { graphqlRequest } from "@/lib/graphql/client";
 
 function SignMessageContent() {
     const { ready, authenticated, logout } = usePrivy();
     const { wallets } = useWallets();
     const { renewSession, loading, error } = useRenewSession();
     const { setSession, sessionAuthorityPda, sessionKey, sessionExpiresAt, sessionUserWallet } = useBackendUserStore();
+    const { identityToken } = useIdentityToken();
     const [newlyRegisteredSession, setNewlyRegisteredSession] = useState<SessionData | null>(null);
+    const [fetchingSession, setFetchingSession] = useState(false);
 
     // Get existing session from store or newly registered session
     const sessionData = useMemo<SessionData | null>(() => {
@@ -50,6 +55,43 @@ function SignMessageContent() {
 
         return null;
     }, [newlyRegisteredSession, sessionAuthorityPda, sessionKey, sessionExpiresAt, sessionUserWallet]);
+
+    // Fetch session from backend on mount if not in store
+    useEffect(() => {
+        const fetchSession = async () => {
+            // Only fetch if we don't have session data in store and we're authenticated
+            const hasSessionInStore = sessionAuthorityPda && sessionKey && sessionExpiresAt && sessionUserWallet;
+            if (!hasSessionInStore && !newlyRegisteredSession && authenticated && identityToken && !fetchingSession) {
+                setFetchingSession(true);
+                try {
+                    const data = await graphqlRequest<CurrentSessionResult>(
+                        CURRENT_SESSION_QUERY,
+                        undefined,
+                        identityToken
+                    );
+                    if (data.currentSession) {
+                        // Store session in Zustand
+                        setSession(
+                            data.currentSession.sessionAuthorityPda,
+                            data.currentSession.sessionKey,
+                            data.currentSession.expiresAt,
+                            data.currentSession.userWallet
+                        );
+                    }
+                } catch (err) {
+                    // Silently fail - session might not exist
+                    console.log("No session found on-chain:", err);
+                } finally {
+                    setFetchingSession(false);
+                }
+            }
+        };
+
+        if (ready && authenticated) {
+            fetchSession();
+        }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [ready, authenticated, identityToken]);
 
     const handleRegister = async () => {
         try {
