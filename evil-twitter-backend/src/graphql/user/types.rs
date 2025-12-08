@@ -1,4 +1,5 @@
 use async_graphql::{Context, Enum, ID, InputObject, Object, Result};
+use axum::http::HeaderMap;
 use futures::TryStreamExt;
 use mongodb::{Collection, bson::doc};
 use std::str::FromStr;
@@ -9,6 +10,7 @@ use crate::app_state::AppState;
 use crate::graphql::tweet::types::{TweetConnection, TweetEdge, TweetNode};
 use crate::graphql::user::queries::{VaultBalances, vault_balances_resolver};
 use crate::models::{follow::Follow, profile::Profile, tweet::Tweet, user::User};
+use crate::utils::auth;
 use crate::utils::tweet::enrich_tweets_with_references;
 
 // ============================================================================
@@ -192,6 +194,85 @@ impl UserNode {
             .find_one(doc! {"follower_id": viewer_object_id, "following_id": user_id})
             .await
             .map_err(|e| async_graphql::Error::new(e.to_string()))?;
+
+        Ok(exists.is_some())
+    }
+
+    /// Get the number of followers for this user
+    async fn followers_count(&self, ctx: &Context<'_>) -> Result<i32> {
+        let user_id = self
+            .inner
+            .id
+            .ok_or_else(|| async_graphql::Error::new("User missing identifier"))?;
+
+        let app_state = ctx.data::<Arc<AppState>>()?;
+        let collection: Collection<Follow> = app_state.mongo_service.follow_collection();
+
+        let count = collection
+            .count_documents(doc! {"following_id": user_id})
+            .await
+            .map_err(|e| async_graphql::Error::new(format!("Failed to count followers: {}", e)))?;
+
+        Ok(count as i32)
+    }
+
+    /// Get the number of users this user is following
+    async fn following_count(&self, ctx: &Context<'_>) -> Result<i32> {
+        let user_id = self
+            .inner
+            .id
+            .ok_or_else(|| async_graphql::Error::new("User missing identifier"))?;
+
+        let app_state = ctx.data::<Arc<AppState>>()?;
+        let collection: Collection<Follow> = app_state.mongo_service.follow_collection();
+
+        let count = collection
+            .count_documents(doc! {"follower_id": user_id})
+            .await
+            .map_err(|e| async_graphql::Error::new(format!("Failed to count following: {}", e)))?;
+
+        Ok(count as i32)
+    }
+
+    /// Check if the current authenticated user follows this user
+    async fn is_followed_by_viewer(&self, ctx: &Context<'_>) -> Result<bool> {
+        let app_state = ctx.data::<Arc<AppState>>()?;
+        let headers = ctx
+            .data::<HeaderMap>()
+            .map_err(|_| async_graphql::Error::new("Failed to get headers from context"))?;
+
+        // Try to get authenticated user, but don't fail if not authenticated
+        let viewer_privy_id = match auth::get_privy_id_from_header(&app_state.privy_service, headers).await {
+            Ok(id) => id,
+            Err(_) => return Ok(false), // Not authenticated, so not following
+        };
+
+        // Get viewer's user ID
+        let viewer_user = app_state
+            .mongo_service
+            .users
+            .get_user_by_privy_id(&viewer_privy_id)
+            .await?;
+
+        let Some(viewer_user) = viewer_user else {
+            return Ok(false);
+        };
+
+        let viewer_id = viewer_user
+            .id
+            .ok_or_else(|| async_graphql::Error::new("Viewer user missing identifier"))?;
+
+        let user_id = self
+            .inner
+            .id
+            .ok_or_else(|| async_graphql::Error::new("User missing identifier"))?;
+
+        let collection: Collection<Follow> = app_state.mongo_service.follow_collection();
+
+        let exists = collection
+            .find_one(doc! {"follower_id": viewer_id, "following_id": user_id})
+            .await
+            .map_err(|e| async_graphql::Error::new(format!("Failed to check follow status: {}", e)))?;
 
         Ok(exists.is_some())
     }

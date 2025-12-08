@@ -1,5 +1,7 @@
-use async_graphql::{Context, InputObject, Object, Result, SimpleObject};
+use async_graphql::{Context, ID, InputObject, Object, Result, SimpleObject};
 use axum::http::HeaderMap;
+use mongodb::{Collection, bson::doc};
+use chrono::Utc;
 
 use std::str::FromStr;
 use std::sync::Arc;
@@ -7,6 +9,7 @@ use std::sync::Arc;
 use base64::{Engine as _, engine::general_purpose};
 use solana_sdk::pubkey::Pubkey;
 
+use crate::models::follow::Follow;
 use crate::solana::get_session_authority_pda;
 use crate::{app_state::AppState, graphql::user::types::UserNode, utils::auth};
 
@@ -70,6 +73,24 @@ impl UserMutation {
     ) -> Result<UserNode> {
         update_default_payment_token_resolver(ctx, input).await
     }
+
+    /// Follow a user
+    async fn follow_user(
+        &self,
+        ctx: &Context<'_>,
+        input: FollowUserInput,
+    ) -> Result<FollowUserPayload> {
+        follow_user_resolver(ctx, input).await
+    }
+
+    /// Unfollow a user
+    async fn unfollow_user(
+        &self,
+        ctx: &Context<'_>,
+        input: UnfollowUserInput,
+    ) -> Result<UnfollowUserPayload> {
+        unfollow_user_resolver(ctx, input).await
+    }
 }
 
 // ============================================================================
@@ -97,6 +118,30 @@ pub struct UpdateProfileInput {
 pub struct UpdateDefaultPaymentTokenInput {
     /// Token mint pubkey as string, or null to reset to BLING (default)
     pub token_mint: Option<String>,
+}
+
+#[derive(InputObject)]
+pub struct FollowUserInput {
+    /// ID of the user to follow
+    pub user_id: ID,
+}
+
+#[derive(InputObject)]
+pub struct UnfollowUserInput {
+    /// ID of the user to unfollow
+    pub user_id: ID,
+}
+
+#[derive(SimpleObject)]
+pub struct FollowUserPayload {
+    pub success: bool,
+    pub is_following: bool,
+}
+
+#[derive(SimpleObject)]
+pub struct UnfollowUserPayload {
+    pub success: bool,
+    pub is_following: bool,
 }
 
 // ============================================================================
@@ -687,6 +732,131 @@ pub async fn update_profile_resolver(
         .ok_or_else(|| async_graphql::Error::new("User not found after profile update"))?;
 
     Ok(UserNode::from(updated_user))
+}
+
+/// Follow a user
+pub async fn follow_user_resolver(
+    ctx: &Context<'_>,
+    input: FollowUserInput,
+) -> Result<FollowUserPayload> {
+    let app_state = ctx.data::<Arc<AppState>>()?;
+    let headers = ctx
+        .data::<HeaderMap>()
+        .map_err(|_| async_graphql::Error::new("Failed to get headers from context"))?;
+
+    // Verify Privy token and get Privy ID
+    let privy_id = auth::get_privy_id_from_header(&app_state.privy_service, headers)
+        .await
+        .map_err(|(status, json)| {
+            let error_msg = json
+                .get("error")
+                .and_then(|v| v.as_str())
+                .unwrap_or("Authentication failed");
+            async_graphql::Error::new(format!("{} (status {})", error_msg, status))
+        })?;
+
+    // Get follower user
+    let follower_user = app_state
+        .mongo_service
+        .users
+        .get_user_by_privy_id(&privy_id)
+        .await?
+        .ok_or_else(|| async_graphql::Error::new("User not found"))?;
+
+    let follower_id = follower_user
+        .id
+        .ok_or_else(|| async_graphql::Error::new("Follower user missing identifier"))?;
+
+    // Parse following user ID
+    let following_id = mongodb::bson::oid::ObjectId::parse_str(input.user_id.as_str())
+        .map_err(|_| async_graphql::Error::new("Invalid user ID"))?;
+
+    // Check if already following
+    let collection: Collection<Follow> = app_state.mongo_service.follow_collection();
+    let existing = collection
+        .find_one(doc! {"follower_id": follower_id, "following_id": following_id})
+        .await
+        .map_err(|e| async_graphql::Error::new(format!("Failed to check follow status: {}", e)))?;
+
+    if existing.is_some() {
+        return Ok(FollowUserPayload {
+            success: true,
+            is_following: true,
+        });
+    }
+
+    // Prevent self-follow
+    if follower_id == following_id {
+        return Err(async_graphql::Error::new("Cannot follow yourself"));
+    }
+
+    // Create follow relationship
+    let follow = Follow {
+        id: None,
+        follower_id,
+        following_id,
+        created_at: Utc::now(),
+    };
+
+    collection
+        .insert_one(&follow)
+        .await
+        .map_err(|e| async_graphql::Error::new(format!("Failed to follow user: {}", e)))?;
+
+    Ok(FollowUserPayload {
+        success: true,
+        is_following: true,
+    })
+}
+
+/// Unfollow a user
+pub async fn unfollow_user_resolver(
+    ctx: &Context<'_>,
+    input: UnfollowUserInput,
+) -> Result<UnfollowUserPayload> {
+    let app_state = ctx.data::<Arc<AppState>>()?;
+    let headers = ctx
+        .data::<HeaderMap>()
+        .map_err(|_| async_graphql::Error::new("Failed to get headers from context"))?;
+
+    // Verify Privy token and get Privy ID
+    let privy_id = auth::get_privy_id_from_header(&app_state.privy_service, headers)
+        .await
+        .map_err(|(status, json)| {
+            let error_msg = json
+                .get("error")
+                .and_then(|v| v.as_str())
+                .unwrap_or("Authentication failed");
+            async_graphql::Error::new(format!("{} (status {})", error_msg, status))
+        })?;
+
+    // Get follower user
+    let follower_user = app_state
+        .mongo_service
+        .users
+        .get_user_by_privy_id(&privy_id)
+        .await?
+        .ok_or_else(|| async_graphql::Error::new("User not found"))?;
+
+    let follower_id = follower_user
+        .id
+        .ok_or_else(|| async_graphql::Error::new("Follower user missing identifier"))?;
+
+    // Parse following user ID
+    let following_id = mongodb::bson::oid::ObjectId::parse_str(input.user_id.as_str())
+        .map_err(|_| async_graphql::Error::new("Invalid user ID"))?;
+
+    // Remove follow relationship
+    let collection: Collection<Follow> = app_state.mongo_service.follow_collection();
+    let result = collection
+        .delete_one(doc! {"follower_id": follower_id, "following_id": following_id})
+        .await
+        .map_err(|e| async_graphql::Error::new(format!("Failed to unfollow user: {}", e)))?;
+
+    Ok(UnfollowUserPayload {
+        success: true,
+        is_following: result.deleted_count == 0, // If nothing was deleted, we weren't following
+    })
 }
 
 /// Update user's default payment token
