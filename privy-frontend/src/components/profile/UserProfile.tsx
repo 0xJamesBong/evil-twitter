@@ -165,44 +165,90 @@ export function UserProfile({
     };
 
     return (
-        <Box sx={{ p: 3, maxWidth: 1200, mx: "auto" }}>
-            <Box sx={{ display: "flex", flexWrap: "wrap", gap: 3 }}>
-                {/* Profile Header */}
-                <Box sx={{ width: { xs: "100%", md: "calc(50% - 12px)" } }}>
-                    <Card>
-                        <CardContent>
-                            <Stack spacing={3}>
-                                <Box sx={{ display: "flex", alignItems: "center", gap: 2 }}>
-                                    <Avatar
-                                        src={user.profile?.avatarUrl || undefined}
-                                        sx={{
-                                            width: 100,
-                                            height: 100,
-                                            bgcolor: "primary.main",
-                                            fontSize: "2.5rem",
-                                        }}
-                                    >
-                                        {user.profile?.displayName
-                                            ?.charAt(0)
-                                            .toUpperCase() || "U"}
-                                    </Avatar>
-                                    <Box sx={{ flex: 1 }}>
-                                        <Typography variant="h4" sx={{ fontWeight: 700, mb: 0.5 }}>
-                                            {user.profile?.displayName || "User"}
+        <Box sx={{ maxWidth: 1200, mx: "auto" }}>
+            {/* Banner Section */}
+            <Box
+                sx={{
+                    position: "relative",
+                    width: "100%",
+                    height: 200,
+                    bgcolor: "background.paper",
+                    backgroundImage: "linear-gradient(135deg, #667eea 0%, #764ba2 100%)",
+                    backgroundSize: "cover",
+                    backgroundPosition: "center",
+                    borderBottom: 1,
+                    borderColor: "rgba(255,255,255,0.06)",
+                }}
+            >
+                {/* Profile Picture Overlaid on Banner */}
+                <Box
+                    sx={{
+                        position: "absolute",
+                        bottom: -60,
+                        left: 20,
+                    }}
+                >
+                    <Avatar
+                        src={user.profile?.avatarUrl || undefined}
+                        sx={{
+                            width: 120,
+                            height: 120,
+                            bgcolor: "primary.main",
+                            fontSize: "3rem",
+                            border: 4,
+                            borderColor: "background.default",
+                        }}
+                    >
+                        {user.profile?.displayName?.charAt(0).toUpperCase() || "U"}
+                    </Avatar>
+                </Box>
+            </Box>
+
+            {/* Profile Content Section */}
+            <Box sx={{ pt: 8, px: 3 }}>
+                <Card>
+                    <CardContent>
+                        <Stack spacing={3}>
+                            {/* Name, Handle, and Action Buttons */}
+                            <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", flexWrap: "wrap", gap: 2 }}>
+                                <Box sx={{ flex: 1, minWidth: 200 }}>
+                                    <Typography variant="h4" sx={{ fontWeight: 700, mb: 0.5 }}>
+                                        {user.profile?.displayName || "User"}
+                                    </Typography>
+                                    <Typography variant="body1" color="text.secondary" sx={{ mb: 2 }}>
+                                        @{user.profile?.handle || "unknown"}
+                                    </Typography>
+
+                                    {/* Bio Section */}
+                                    {user.profile?.bio && (
+                                        <Typography variant="body1" color="text.primary" sx={{ mb: 2, whiteSpace: "pre-wrap" }}>
+                                            {user.profile.bio}
                                         </Typography>
-                                        <Typography variant="body1" color="text.secondary" sx={{ mb: 1 }}>
-                                            @{user.profile?.handle || "unknown"}
+                                    )}
+
+                                    {/* Follower/Following Stats */}
+                                    <Box sx={{ display: "flex", gap: 3, mb: 2 }}>
+                                        <Typography
+                                            variant="body2"
+                                            color="text.secondary"
+                                            sx={{ cursor: "pointer", "&:hover": { textDecoration: "underline" } }}
+                                        >
+                                            <strong style={{ color: "inherit" }}>{user.followingCount || 0}</strong>{" "}
+                                            Following
                                         </Typography>
-                                        {user.profile?.bio && (
-                                            <Typography variant="body2" color="text.secondary">
-                                                {user.profile.bio}
-                                            </Typography>
-                                        )}
+                                        <Typography
+                                            variant="body2"
+                                            color="text.secondary"
+                                            sx={{ cursor: "pointer", "&:hover": { textDecoration: "underline" } }}
+                                        >
+                                            <strong style={{ color: "inherit" }}>{user.followersCount || 0}</strong>{" "}
+                                            Followers
+                                        </Typography>
                                     </Box>
                                 </Box>
 
-                                {/* Follow/Edit Button */}
-                                <Box sx={{ display: "flex", gap: 2, alignItems: "center" }}>
+                                {/* Action Buttons */}
+                                <Box sx={{ display: "flex", gap: 2, flexWrap: "wrap" }}>
                                     {isOwnProfile ? (
                                         <Button
                                             variant="contained"
@@ -228,239 +274,135 @@ export function UserProfile({
                                         </Button>
                                     )}
 
-                                    {/* Follower/Following Stats */}
-                                    <Box sx={{ display: "flex", gap: 2, ml: "auto" }}>
-                                        <Typography
-                                            variant="body2"
-                                            color="text.secondary"
-                                            sx={{ cursor: "pointer", "&:hover": { textDecoration: "underline" } }}
+                                    {/* Placeholder for Attack/Apply Weapon/Tool Buttons */}
+                                    {!isOwnProfile && (
+                                        <Button
+                                            variant="outlined"
+                                            color="secondary"
+                                            disabled
+                                            sx={{ opacity: 0.6 }}
                                         >
-                                            <strong>{user.followersCount || 0}</strong> Followers
-                                        </Typography>
-                                        <Typography
-                                            variant="body2"
-                                            color="text.secondary"
-                                            sx={{ cursor: "pointer", "&:hover": { textDecoration: "underline" } }}
+                                            Attack
+                                        </Button>
+                                    )}
+                                    {!isOwnProfile && (
+                                        <Button
+                                            variant="outlined"
+                                            color="secondary"
+                                            disabled
+                                            sx={{ opacity: 0.6 }}
                                         >
-                                            <strong>{user.followingCount || 0}</strong> Following
-                                        </Typography>
-                                    </Box>
-                                </Box>
-                            </Stack>
-                        </CardContent>
-                    </Card>
-                </Box>
-
-                {/* On-Chain Stats */}
-                <Box sx={{ width: { xs: "100%", md: "calc(50% - 12px)" } }}>
-                    <Card>
-                        <CardContent>
-                            <Typography variant="h6" gutterBottom sx={{ mb: 2, display: "flex", alignItems: "center", gap: 1 }}>
-                                <TrendingUp sx={{ fontSize: 20 }} />
-                                On-Chain Stats
-                            </Typography>
-                            <Stack spacing={2}>
-                                <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                                    <Typography variant="body2" color="text.secondary">
-                                        Account Status:
-                                    </Typography>
-                                    {user.hasOnchainAccount ? (
-                                        <Chip
-                                            icon={<CheckCircle />}
-                                            label="Active"
-                                            color="success"
-                                            size="small"
-                                        />
-                                    ) : (
-                                        <Chip
-                                            icon={<Cancel />}
-                                            label="Not Created"
-                                            color="default"
-                                            size="small"
-                                        />
+                                            Apply Tool
+                                        </Button>
                                     )}
                                 </Box>
+                            </Box>
 
-                                <Divider />
+                            <Divider />
 
-                                <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                                    <Typography variant="body2" color="text.secondary">
-                                        Social Score:
-                                    </Typography>
-                                    <Typography variant="h6" sx={{ fontWeight: 600 }}>
-                                        {formatSocialScore(user.socialScore)}
-                                    </Typography>
-                                </Box>
+                            {/* Social Score Display */}
+                            <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                                <Typography variant="body2" color="text.secondary">
+                                    Social Score:
+                                </Typography>
+                                <Typography variant="h5" sx={{ fontWeight: 700, color: "primary.main" }}>
+                                    {formatSocialScore(user.socialScore)}
+                                </Typography>
+                            </Box>
 
-                                {/* Vault Balances - Only show for own profile */}
-                                {isOwnProfile && (
-                                    <>
-                                        <Divider />
-                                        <Box>
-                                            <Typography variant="body2" color="text.secondary" gutterBottom>
-                                                Vault Balances:
-                                            </Typography>
-                                            <Stack spacing={1} sx={{ mt: 1 }}>
+                            {/* Account Status */}
+                            <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                                <Typography variant="body2" color="text.secondary">
+                                    Account Status:
+                                </Typography>
+                                {user.hasOnchainAccount ? (
+                                    <Chip
+                                        icon={<CheckCircle />}
+                                        label="Active"
+                                        color="success"
+                                        size="small"
+                                    />
+                                ) : (
+                                    <Chip
+                                        icon={<Cancel />}
+                                        label="Not Created"
+                                        color="default"
+                                        size="small"
+                                    />
+                                )}
+                            </Box>
+
+                            {/* Vault Balances - Only show for own profile */}
+                            {isOwnProfile && (
+                                <>
+                                    <Divider />
+                                    <Box>
+                                        <Typography variant="body2" color="text.secondary" gutterBottom sx={{ mb: 1 }}>
+                                            Vault Balances:
+                                        </Typography>
+                                        <Stack spacing={1}>
+                                            <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                                                <TokenDisplay
+                                                    mint={BLING_MINT}
+                                                    blingMint={BLING_MINT}
+                                                    usdcMint={USDC_MINT}
+                                                    stablecoinMint={STABLECOIN_MINT}
+                                                    size="small"
+                                                />
+                                                <Typography variant="body1" sx={{ fontWeight: 600 }}>
+                                                    {user.vaultBalances?.bling !== null && user.vaultBalances?.bling !== undefined
+                                                        ? formatTokenBalance(user.vaultBalances.bling, blingDecimals)
+                                                        : user.vaultBalance !== null
+                                                            ? formatTokenBalance(user.vaultBalance, blingDecimals)
+                                                            : "N/A"}
+                                                </Typography>
+                                            </Box>
+                                            {USDC_MINT && user.vaultBalances?.usdc !== null && (
                                                 <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                                                     <TokenDisplay
-                                                        mint={BLING_MINT}
+                                                        mint={USDC_MINT}
                                                         blingMint={BLING_MINT}
                                                         usdcMint={USDC_MINT}
                                                         stablecoinMint={STABLECOIN_MINT}
                                                         size="small"
                                                     />
                                                     <Typography variant="body1" sx={{ fontWeight: 600 }}>
-                                                        {user.vaultBalances?.bling !== null && user.vaultBalances?.bling !== undefined
-                                                            ? formatTokenBalance(user.vaultBalances.bling, blingDecimals)
-                                                            : user.vaultBalance !== null
-                                                                ? formatTokenBalance(user.vaultBalance, blingDecimals)
-                                                                : "N/A"}
+                                                        {formatTokenBalance(user.vaultBalances.usdc, usdcDecimals)}
                                                     </Typography>
                                                 </Box>
-                                                {USDC_MINT && user.vaultBalances?.usdc !== null && (
-                                                    <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                                                        <TokenDisplay
-                                                            mint={USDC_MINT}
-                                                            blingMint={BLING_MINT}
-                                                            usdcMint={USDC_MINT}
-                                                            stablecoinMint={STABLECOIN_MINT}
-                                                            size="small"
-                                                        />
-                                                        <Typography variant="body1" sx={{ fontWeight: 600 }}>
-                                                            {formatTokenBalance(user.vaultBalances.usdc, usdcDecimals)}
-                                                        </Typography>
-                                                    </Box>
-                                                )}
-                                                {STABLECOIN_MINT && user.vaultBalances?.stablecoin !== null && (
-                                                    <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                                                        <TokenDisplay
-                                                            mint={STABLECOIN_MINT}
-                                                            blingMint={BLING_MINT}
-                                                            usdcMint={USDC_MINT}
-                                                            stablecoinMint={STABLECOIN_MINT}
-                                                            size="small"
-                                                        />
-                                                        <Typography variant="body1" sx={{ fontWeight: 600 }}>
-                                                            {formatTokenBalance(user.vaultBalances.stablecoin, stablecoinDecimals)}
-                                                        </Typography>
-                                                    </Box>
-                                                )}
-                                            </Stack>
-                                        </Box>
-                                    </>
-                                )}
-                            </Stack>
-                        </CardContent>
-                    </Card>
-                </Box>
-
-                {/* Wallet Info - Only show for own profile */}
-                {isOwnProfile && (
-                    <>
-                        <Box sx={{ width: { xs: "100%", md: "calc(50% - 12px)" } }}>
-                            <Card>
-                                <CardContent>
-                                    <Typography variant="h6" gutterBottom sx={{ mb: 2, display: "flex", alignItems: "center", gap: 1 }}>
-                                        <AccountBalance sx={{ fontSize: 20 }} />
-                                        Wallet
-                                    </Typography>
-                                    <Stack spacing={2}>
-                                        <Box>
-                                            <Typography variant="body2" color="text.secondary" gutterBottom>
-                                                Address:
-                                            </Typography>
-                                            <Typography
-                                                variant="body2"
-                                                sx={{
-                                                    fontFamily: "monospace",
-                                                    wordBreak: "break-all",
-                                                    bgcolor: "background.paper",
-                                                    p: 1,
-                                                    borderRadius: 1,
-                                                }}
-                                            >
-                                                {user.wallet}
-                                            </Typography>
-                                        </Box>
-                                    </Stack>
-                                </CardContent>
-                            </Card>
-                        </Box>
-
-                        {/* Wallet Token Balances */}
-                        <Box sx={{ width: { xs: "100%", md: "calc(50% - 12px)" } }}>
-                            <Card>
-                                <CardContent>
-                                    <Typography variant="h6" gutterBottom sx={{ mb: 2, display: "flex", alignItems: "center", gap: 1 }}>
-                                        <WalletIcon sx={{ fontSize: 20 }} />
-                                        Wallet Token Balances
-                                    </Typography>
-                                    {loadingBalances ? (
-                                        <Box sx={{ display: "flex", justifyContent: "center", p: 2 }}>
-                                            <CircularProgress size={24} />
-                                        </Box>
-                                    ) : (
-                                        <Stack spacing={2}>
-                                            {mintAddresses.map((mint) => {
-                                                const balance = balances[mint];
-                                                const tokenName = getTokenName(
-                                                    mint,
-                                                    BLING_MINT,
-                                                    USDC_MINT,
-                                                    STABLECOIN_MINT
-                                                );
-
-                                                if (!balance) return null;
-
-                                                return (
-                                                    <Box key={mint}>
-                                                        <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                                                            <TokenDisplay
-                                                                mint={mint}
-                                                                blingMint={BLING_MINT}
-                                                                usdcMint={USDC_MINT}
-                                                                stablecoinMint={STABLECOIN_MINT}
-                                                                size="small"
-                                                            />
-                                                            <Typography variant="h6" sx={{ fontWeight: 600 }}>
-                                                                {balance.loading ? (
-                                                                    <CircularProgress size={16} />
-                                                                ) : balance.error ? (
-                                                                    <Typography variant="body2" color="error">
-                                                                        Error
-                                                                    </Typography>
-                                                                ) : (
-                                                                    formatTokenBalance(balance.balance, balance.decimals)
-                                                                )}
-                                                            </Typography>
-                                                        </Box>
-                                                        {balance.error && (
-                                                            <Typography variant="caption" color="error" sx={{ mt: 0.5, display: "block" }}>
-                                                                {balance.error}
-                                                            </Typography>
-                                                        )}
-                                                        {mintAddresses.indexOf(mint) < mintAddresses.length - 1 && <Divider sx={{ mt: 1 }} />}
-                                                    </Box>
-                                                );
-                                            })}
+                                            )}
+                                            {STABLECOIN_MINT && user.vaultBalances?.stablecoin !== null && (
+                                                <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                                                    <TokenDisplay
+                                                        mint={STABLECOIN_MINT}
+                                                        blingMint={BLING_MINT}
+                                                        usdcMint={USDC_MINT}
+                                                        stablecoinMint={STABLECOIN_MINT}
+                                                        size="small"
+                                                    />
+                                                    <Typography variant="body1" sx={{ fontWeight: 600 }}>
+                                                        {formatTokenBalance(user.vaultBalances.stablecoin, stablecoinDecimals)}
+                                                    </Typography>
+                                                </Box>
+                                            )}
                                         </Stack>
-                                    )}
-                                </CardContent>
-                            </Card>
-                        </Box>
-                    </>
-                )}
+                                    </Box>
+                                </>
+                            )}
+                        </Stack>
+                    </CardContent>
+                </Card>
             </Box>
 
             {/* Tweets Timeline */}
-            <Box sx={{ mt: 3 }}>
+            <Box sx={{ mt: 3, px: 3, pb: 3 }}>
                 <Card>
                     <CardContent>
                         <Typography variant="h6" gutterBottom sx={{ mb: 2 }}>
                             Tweets
                         </Typography>
                         {user.tweets && user.tweets.edges && user.tweets.edges.length > 0 ? (
-                            <Stack spacing={2}>
+                            <Stack spacing={0}>
                                 {user.tweets.edges.map((edge) => (
                                     <TweetCard
                                         key={edge.node.id}
