@@ -17,6 +17,7 @@ import {
   CircularProgress,
   ToggleButton,
   ToggleButtonGroup,
+  Avatar,
 } from "@mui/material";
 import {
   AccountBalanceWallet as WalletIcon,
@@ -25,6 +26,8 @@ import {
   AccountCircle as AccountCircleIcon,
   Login as LoginIcon,
 } from "@mui/icons-material";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useSnackbar } from "notistack";
 import { useDeposit } from "../../hooks/useDeposit";
 import { useWithdraw } from "../../hooks/useWithdraw";
@@ -52,6 +55,7 @@ export function VaultNavbar() {
   const { authenticated, login } = usePrivy();
   const { wallets } = useWallets();
   const { identityToken } = useIdentityToken();
+  const router = useRouter();
 
   // Try to find Privy embedded wallet first, then fall back to any Solana wallet
   // Note: useWallets() from @privy-io/react-auth/solana already returns only Solana wallets
@@ -618,6 +622,79 @@ export function VaultNavbar() {
 
             {/* Network Switcher - always visible */}
             <NetworkSwitcher />
+
+            {/* Profile Section */}
+            {user?.profile && (
+              <Link
+                href={
+                  user.profile.handle
+                    ? `/@${user.profile.handle.replace(/^@+/, "")}`
+                    : user.id
+                      ? `/user/${user.id}`
+                      : "#"
+                }
+                style={{ textDecoration: "none", color: "inherit" }}
+                onClick={(e) => {
+                  e.preventDefault();
+                  if (user.profile?.handle) {
+                    router.push(`/@${user.profile.handle.replace(/^@+/, "")}`);
+                  } else if (user.id) {
+                    router.push(`/user/${user.id}`);
+                  }
+                }}
+              >
+                <Box
+                  sx={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 1,
+                    px: 1.5,
+                    py: 0.5,
+                    borderRadius: 2,
+                    cursor: "pointer",
+                    "&:hover": {
+                      bgcolor: "rgba(255,255,255,0.05)",
+                    },
+                    transition: "background-color 0.2s",
+                  }}
+                >
+                  <Avatar
+                    src={user.profile.avatarUrl || undefined}
+                    sx={{
+                      width: 32,
+                      height: 32,
+                      bgcolor: "primary.main",
+                      fontSize: "0.875rem",
+                    }}
+                  >
+                    {user.profile.displayName?.charAt(0).toUpperCase() || "U"}
+                  </Avatar>
+                  <Box sx={{ display: "flex", flexDirection: "column", alignItems: "flex-start" }}>
+                    <Typography
+                      variant="body2"
+                      sx={{
+                        fontWeight: 600,
+                        color: "text.primary",
+                        lineHeight: 1.2,
+                        fontSize: "0.813rem",
+                      }}
+                    >
+                      {user.profile.displayName || "User"}
+                    </Typography>
+                    <Typography
+                      variant="caption"
+                      sx={{
+                        color: "text.secondary",
+                        lineHeight: 1.2,
+                        fontSize: "0.75rem",
+                      }}
+                    >
+                      @{user.profile.handle || "unknown"}
+                    </Typography>
+                  </Box>
+                </Box>
+              </Link>
+            )}
 
           </>
         )}
