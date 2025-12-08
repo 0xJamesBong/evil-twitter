@@ -7,8 +7,10 @@ use std::str::FromStr;
 use std::sync::Arc;
 
 use crate::app_state::AppState;
+use crate::graphql::user::mutations::SessionInfo;
 use crate::graphql::user::types::UserNode;
 use crate::models::user::User;
+use crate::solana::get_session_authority_pda;
 use crate::utils::auth;
 
 // Helper functions
@@ -94,6 +96,12 @@ impl UserQuery {
         side: String,
     ) -> Result<CanonicalVoteCosts> {
         canonical_vote_costs_resolver(ctx, side).await
+    }
+
+    /// Get the current session for the authenticated user
+    /// Returns session information if a valid session exists on-chain
+    async fn current_session(&self, ctx: &Context<'_>) -> Result<Option<SessionInfo>> {
+        current_session_resolver(ctx).await
     }
 }
 
@@ -402,6 +410,63 @@ pub async fn canonical_vote_costs_resolver(
         usdc: usdc_cost,
         stablecoin: stablecoin_cost,
     })
+}
+
+/// Get the current session for the authenticated user
+pub async fn current_session_resolver(ctx: &Context<'_>) -> Result<Option<SessionInfo>> {
+    let app_state = ctx.data::<Arc<AppState>>()?;
+    let headers = ctx
+        .data::<HeaderMap>()
+        .map_err(|_| async_graphql::Error::new("Failed to get headers from context"))?;
+
+    // Get authenticated user
+    let privy_id = auth::get_privy_id_from_header(&app_state.privy_service, headers)
+        .await
+        .map_err(|(status, json)| {
+            let error_msg = json
+                .get("error")
+                .and_then(|v| v.as_str())
+                .unwrap_or("Authentication failed");
+            async_graphql::Error::new(format!("{} (status {})", error_msg, status))
+        })?;
+
+    let user = app_state
+        .mongo_service
+        .users
+        .get_user_by_privy_id(&privy_id)
+        .await?
+        .ok_or_else(|| async_graphql::Error::new("User not found"))?;
+
+    // Parse wallet pubkey
+    let wallet_pubkey = solana_sdk::pubkey::Pubkey::from_str(&user.wallet)
+        .map_err(|e| async_graphql::Error::new(format!("Invalid wallet pubkey: {}", e)))?;
+
+    // Get session authority from blockchain
+    let session_authority = app_state
+        .solana_service
+        .get_session_authority(&wallet_pubkey)
+        .await
+        .map_err(|e| {
+            async_graphql::Error::new(format!("Failed to get session authority: {}", e))
+        })?;
+
+    match session_authority {
+        Some(session) => {
+            // Derive session authority PDA to return
+            let program_id = app_state.solana_service.opinions_market_program().id();
+            let session_key = app_state.solana_service.session_key_pubkey();
+            let (session_authority_pda, _) =
+                get_session_authority_pda(&program_id, &wallet_pubkey, &session_key);
+
+            Ok(Some(SessionInfo {
+                session_authority_pda: session_authority_pda.to_string(),
+                session_key: session_key.to_string(),
+                expires_at: session.expires_at,
+                user_wallet: user.wallet,
+            }))
+        }
+        None => Ok(None),
+    }
 }
 
 // ============================================================================

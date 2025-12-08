@@ -246,6 +246,25 @@ impl SolanaService {
         }
     }
 
+    /// Get the session authority account for a user with the current session key
+    pub async fn get_session_authority(
+        &self,
+        user_wallet: &Pubkey,
+    ) -> anyhow::Result<Option<opinions_market::states::SessionAuthority>> {
+        let opinions_market = self.opinions_market_program();
+        let session_key = self.session_key.pubkey();
+        let (session_authority_pda, _) =
+            get_session_authority_pda(&self.program_id, user_wallet, &session_key);
+
+        match opinions_market
+            .account::<opinions_market::states::SessionAuthority>(session_authority_pda)
+            .await
+        {
+            Ok(session_authority) => Ok(Some(session_authority)),
+            Err(_) => Ok(None), // Session doesn't exist
+        }
+    }
+
     pub async fn get_user_vault_balance(
         &self,
         user_wallet: &Pubkey,
