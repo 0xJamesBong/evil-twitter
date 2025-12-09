@@ -44,7 +44,8 @@ use crate::solana::get_config_pda;
 use crate::solana::{
     get_position_pda, get_post_mint_payout_pda, get_post_pda, get_post_pot_authority_pda,
     get_post_pot_token_account_pda, get_protocol_treasury_token_account_pda,
-    get_session_authority_pda, get_user_account_pda, get_user_post_mint_claim_pda,
+    get_session_authority_pda, get_tip_vault_authority_pda, get_tip_vault_pda,
+    get_tip_vault_token_account_pda, get_user_account_pda, get_user_post_mint_claim_pda,
     get_user_vault_token_account_pda, get_valid_payment_pda, get_vault_authority_pda,
 };
 
@@ -2265,6 +2266,249 @@ impl SolanaService {
 
         println!(
             "  ✅ SolanaService::claim_post_reward: Transaction confirmed! Signature: {}",
+            signature
+        );
+        Ok(signature)
+    }
+
+    /// Tip a user or post creator
+    /// recipient_wallet: The wallet of the user receiving the tip (can be a user or post creator)
+    pub async fn tip(
+        &self,
+        sender_wallet: &Pubkey,
+        recipient_wallet: &Pubkey,
+        amount: u64,
+        token_mint: &Pubkey,
+    ) -> anyhow::Result<Signature> {
+        println!(
+            "  🔧 SolanaService::tip: Starting for sender {}, recipient {}, amount {}, mint {}",
+            sender_wallet, recipient_wallet, amount, token_mint
+        );
+
+        let program = self.opinions_market_program();
+        let program_id = program.id();
+
+        // Derive PDAs
+        let (sender_user_account_pda, _) = get_user_account_pda(&program_id, sender_wallet);
+        let (sender_vault_token_account_pda, _) =
+            get_user_vault_token_account_pda(&program_id, sender_wallet, token_mint);
+        let (tip_vault_pda, _) = get_tip_vault_pda(&program_id, recipient_wallet, token_mint);
+        let (tip_vault_authority_pda, _) =
+            get_tip_vault_authority_pda(&program_id, recipient_wallet, token_mint);
+        let (tip_vault_token_account_pda, _) =
+            get_tip_vault_token_account_pda(&program_id, recipient_wallet, token_mint);
+        let (vault_authority_pda, _) = get_vault_authority_pda(&program_id);
+        let (valid_payment_pda, _) = get_valid_payment_pda(&program_id, token_mint);
+        let (session_authority_pda, _) =
+            get_session_authority_pda(&program_id, sender_wallet, &self.session_key.pubkey());
+
+        println!("  🔨 SolanaService::tip: Building Tip instruction...");
+
+        let ixs = program
+            .request()
+            .accounts(opinions_market::accounts::Tip {
+                sender: *sender_wallet,
+                payer: self.payer.pubkey(),
+                recipient: *recipient_wallet,
+                session_key: self.session_key.pubkey(),
+                session_authority: session_authority_pda,
+                sender_user_account: sender_user_account_pda,
+                token_mint: *token_mint,
+                valid_payment: valid_payment_pda,
+                sender_user_vault_token_account: sender_vault_token_account_pda,
+                vault_authority: vault_authority_pda,
+                tip_vault: tip_vault_pda,
+                tip_vault_authority: tip_vault_authority_pda,
+                tip_vault_token_account: tip_vault_token_account_pda,
+                token_program: spl_token::ID,
+                system_program: solana_sdk::system_program::ID,
+            })
+            .args(opinions_market::instruction::Tip { amount })
+            .instructions()
+            .map_err(|e| {
+                eprintln!(
+                    "  ❌ SolanaService::tip: Failed to build instruction: {}",
+                    e
+                );
+                anyhow::anyhow!("Failed to build Tip instruction: {}", e)
+            })?;
+
+        println!("  ✅ SolanaService::tip: Instruction built successfully");
+
+        let tx = self.build_partial_signed_tx(ixs).await.map_err(|e| {
+            eprintln!("  ❌ SolanaService::tip: Failed to build transaction: {}", e);
+            e
+        })?;
+
+        let signature = self.send_signed_tx(&tx).await.map_err(|e| {
+            eprintln!("  ❌ SolanaService::tip: Failed to send transaction: {}", e);
+            e
+        })?;
+
+        println!(
+            "  ✅ SolanaService::tip: Transaction confirmed! Signature: {}",
+            signature
+        );
+        Ok(signature)
+    }
+
+    /// Claim tips from tip vault to user's main vault
+    pub async fn claim_tips(
+        &self,
+        owner_wallet: &Pubkey,
+        token_mint: &Pubkey,
+    ) -> anyhow::Result<Signature> {
+        println!(
+            "  🔧 SolanaService::claim_tips: Starting for owner {}, mint {}",
+            owner_wallet, token_mint
+        );
+
+        let program = self.opinions_market_program();
+        let program_id = program.id();
+
+        // Derive PDAs
+        let (user_account_pda, _) = get_user_account_pda(&program_id, owner_wallet);
+        let (tip_vault_pda, _) = get_tip_vault_pda(&program_id, owner_wallet, token_mint);
+        let (tip_vault_authority_pda, _) =
+            get_tip_vault_authority_pda(&program_id, owner_wallet, token_mint);
+        let (tip_vault_token_account_pda, _) =
+            get_tip_vault_token_account_pda(&program_id, owner_wallet, token_mint);
+        let (owner_vault_token_account_pda, _) =
+            get_user_vault_token_account_pda(&program_id, owner_wallet, token_mint);
+        let (vault_authority_pda, _) = get_vault_authority_pda(&program_id);
+        let (session_authority_pda, _) =
+            get_session_authority_pda(&program_id, owner_wallet, &self.session_key.pubkey());
+
+        println!("  🔨 SolanaService::claim_tips: Building ClaimTips instruction...");
+
+        let ixs = program
+            .request()
+            .accounts(opinions_market::accounts::ClaimTips {
+                owner: *owner_wallet,
+                payer: self.payer.pubkey(),
+                session_key: self.session_key.pubkey(),
+                session_authority: session_authority_pda,
+                user_account: user_account_pda,
+                token_mint: *token_mint,
+                tip_vault: tip_vault_pda,
+                tip_vault_authority: tip_vault_authority_pda,
+                tip_vault_token_account: tip_vault_token_account_pda,
+                vault_authority: vault_authority_pda,
+                owner_user_vault_token_account: owner_vault_token_account_pda,
+                token_program: spl_token::ID,
+                system_program: solana_sdk::system_program::ID,
+            })
+            .args(opinions_market::instruction::ClaimTips {})
+            .instructions()
+            .map_err(|e| {
+                eprintln!(
+                    "  ❌ SolanaService::claim_tips: Failed to build instruction: {}",
+                    e
+                );
+                anyhow::anyhow!("Failed to build ClaimTips instruction: {}", e)
+            })?;
+
+        println!("  ✅ SolanaService::claim_tips: Instruction built successfully");
+
+        let tx = self.build_partial_signed_tx(ixs).await.map_err(|e| {
+            eprintln!(
+                "  ❌ SolanaService::claim_tips: Failed to build transaction: {}",
+                e
+            );
+            e
+        })?;
+
+        let signature = self.send_signed_tx(&tx).await.map_err(|e| {
+            eprintln!(
+                "  ❌ SolanaService::claim_tips: Failed to send transaction: {}",
+                e
+            );
+            e
+        })?;
+
+        println!(
+            "  ✅ SolanaService::claim_tips: Transaction confirmed! Signature: {}",
+            signature
+        );
+        Ok(signature)
+    }
+
+    /// Send tokens from sender's vault to recipient's vault
+    pub async fn send_token(
+        &self,
+        sender_wallet: &Pubkey,
+        recipient_wallet: &Pubkey,
+        amount: u64,
+        token_mint: &Pubkey,
+    ) -> anyhow::Result<Signature> {
+        println!(
+            "  🔧 SolanaService::send_token: Starting for sender {}, recipient {}, amount {}, mint {}",
+            sender_wallet, recipient_wallet, amount, token_mint
+        );
+
+        let program = self.opinions_market_program();
+        let program_id = program.id();
+
+        // Derive PDAs
+        let (sender_user_account_pda, _) = get_user_account_pda(&program_id, sender_wallet);
+        let (sender_vault_token_account_pda, _) =
+            get_user_vault_token_account_pda(&program_id, sender_wallet, token_mint);
+        let (recipient_vault_token_account_pda, _) =
+            get_user_vault_token_account_pda(&program_id, recipient_wallet, token_mint);
+        let (vault_authority_pda, _) = get_vault_authority_pda(&program_id);
+        let (valid_payment_pda, _) = get_valid_payment_pda(&program_id, token_mint);
+        let (session_authority_pda, _) =
+            get_session_authority_pda(&program_id, sender_wallet, &self.session_key.pubkey());
+
+        println!("  🔨 SolanaService::send_token: Building SendToken instruction...");
+
+        let ixs = program
+            .request()
+            .accounts(opinions_market::accounts::SendToken {
+                sender: *sender_wallet,
+                payer: self.payer.pubkey(),
+                recipient: *recipient_wallet,
+                session_key: self.session_key.pubkey(),
+                session_authority: session_authority_pda,
+                sender_user_account: sender_user_account_pda,
+                token_mint: *token_mint,
+                valid_payment: valid_payment_pda,
+                sender_user_vault_token_account: sender_vault_token_account_pda,
+                vault_authority: vault_authority_pda,
+                recipient_user_vault_token_account: recipient_vault_token_account_pda,
+                token_program: spl_token::ID,
+                system_program: solana_sdk::system_program::ID,
+            })
+            .args(opinions_market::instruction::SendToken { amount })
+            .instructions()
+            .map_err(|e| {
+                eprintln!(
+                    "  ❌ SolanaService::send_token: Failed to build instruction: {}",
+                    e
+                );
+                anyhow::anyhow!("Failed to build SendToken instruction: {}", e)
+            })?;
+
+        println!("  ✅ SolanaService::send_token: Instruction built successfully");
+
+        let tx = self.build_partial_signed_tx(ixs).await.map_err(|e| {
+            eprintln!(
+                "  ❌ SolanaService::send_token: Failed to build transaction: {}",
+                e
+            );
+            e
+        })?;
+
+        let signature = self.send_signed_tx(&tx).await.map_err(|e| {
+            eprintln!(
+                "  ❌ SolanaService::send_token: Failed to send transaction: {}",
+                e
+            );
+            e
+        })?;
+
+        println!(
+            "  ✅ SolanaService::send_token: Transaction confirmed! Signature: {}",
             signature
         );
         Ok(signature)

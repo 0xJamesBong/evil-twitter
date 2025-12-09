@@ -91,6 +91,36 @@ impl UserMutation {
     ) -> Result<UnfollowUserPayload> {
         unfollow_user_resolver(ctx, input).await
     }
+
+    /// Tip a user or post creator
+    /// recipient_user_id: ID of the user receiving the tip (required)
+    /// post_id: Optional ID of the post being tipped (if provided, tip goes to post creator)
+    async fn tip(
+        &self,
+        ctx: &Context<'_>,
+        input: TipInput,
+    ) -> Result<TipPayload> {
+        tip_resolver(ctx, input).await
+    }
+
+    /// Claim tips from tip vault to user's main vault
+    async fn claim_tips(
+        &self,
+        ctx: &Context<'_>,
+        input: ClaimTipsInput,
+    ) -> Result<ClaimTipsPayload> {
+        claim_tips_resolver(ctx, input).await
+    }
+
+    /// Send tokens from sender's vault to recipient's vault (direct transfer)
+    /// recipient_user_id: ID of the user receiving the tokens (required, users only)
+    async fn send_token(
+        &self,
+        ctx: &Context<'_>,
+        input: SendTokenInput,
+    ) -> Result<SendTokenPayload> {
+        send_token_resolver(ctx, input).await
+    }
 }
 
 // ============================================================================
@@ -132,6 +162,34 @@ pub struct UnfollowUserInput {
     pub user_id: ID,
 }
 
+#[derive(InputObject)]
+pub struct TipInput {
+    /// ID of the user receiving the tip
+    pub recipient_user_id: ID,
+    /// Optional ID of the post being tipped (if provided, tip goes to post creator)
+    pub post_id: Option<ID>,
+    /// Amount to tip (in token units, will be converted to lamports)
+    pub amount: f64,
+    /// Token mint pubkey as string (defaults to BLING if not provided)
+    pub token_mint: Option<String>,
+}
+
+#[derive(InputObject)]
+pub struct ClaimTipsInput {
+    /// Token mint pubkey as string (defaults to BLING if not provided)
+    pub token_mint: Option<String>,
+}
+
+#[derive(InputObject)]
+pub struct SendTokenInput {
+    /// ID of the user receiving the tokens
+    pub recipient_user_id: ID,
+    /// Amount to send (in token units, will be converted to lamports)
+    pub amount: f64,
+    /// Token mint pubkey as string (defaults to BLING if not provided)
+    pub token_mint: Option<String>,
+}
+
 #[derive(SimpleObject)]
 pub struct FollowUserPayload {
     pub success: bool,
@@ -142,6 +200,28 @@ pub struct FollowUserPayload {
 pub struct UnfollowUserPayload {
     pub success: bool,
     pub is_following: bool,
+}
+
+#[derive(SimpleObject)]
+pub struct TipPayload {
+    pub success: bool,
+    pub signature: String,
+    pub recipient_user_id: ID,
+    pub post_id: Option<ID>,
+}
+
+#[derive(SimpleObject)]
+pub struct ClaimTipsPayload {
+    pub success: bool,
+    pub signature: String,
+    pub amount_claimed: u64,
+}
+
+#[derive(SimpleObject)]
+pub struct SendTokenPayload {
+    pub success: bool,
+    pub signature: String,
+    pub recipient_user_id: ID,
 }
 
 // ============================================================================
@@ -907,4 +987,283 @@ pub async fn update_default_payment_token_resolver(
     );
 
     Ok(UserNode::from(user))
+}
+
+/// Tip a user or post creator
+pub async fn tip_resolver(
+    ctx: &Context<'_>,
+    input: TipInput,
+) -> Result<TipPayload> {
+    let app_state = ctx.data::<Arc<AppState>>()?;
+    let headers = ctx
+        .data::<HeaderMap>()
+        .map_err(|_| async_graphql::Error::new("Failed to get headers from context"))?;
+
+    // Verify Privy token and get Privy ID
+    let privy_id = auth::get_privy_id_from_header(&app_state.privy_service, headers)
+        .await
+        .map_err(|(status, json)| {
+            let error_msg = json
+                .get("error")
+                .and_then(|v| v.as_str())
+                .unwrap_or("Authentication failed");
+            async_graphql::Error::new(format!("{} (status {})", error_msg, status))
+        })?;
+
+    // Get sender user
+    let sender_user = app_state
+        .mongo_service
+        .users
+        .get_user_by_privy_id(&privy_id)
+        .await?
+        .ok_or_else(|| async_graphql::Error::new("User not found"))?;
+
+    let sender_wallet = Pubkey::from_str(&sender_user.wallet)
+        .map_err(|e| async_graphql::Error::new(format!("Invalid sender wallet: {}", e)))?;
+
+    // Get recipient user
+    let recipient_user_id = mongodb::bson::oid::ObjectId::parse_str(input.recipient_user_id.as_str())
+        .map_err(|_| async_graphql::Error::new("Invalid recipient user ID"))?;
+
+    let recipient_user = app_state
+        .mongo_service
+        .users
+        .get_user_by_id(recipient_user_id)
+        .await?
+        .ok_or_else(|| async_graphql::Error::new("Recipient user not found"))?;
+
+    let recipient_wallet = Pubkey::from_str(&recipient_user.wallet)
+        .map_err(|e| async_graphql::Error::new(format!("Invalid recipient wallet: {}", e)))?;
+
+    // If post_id is provided, get the post and use its creator as recipient
+    let final_recipient_wallet = if let Some(post_id_str) = input.post_id.as_ref() {
+        let post_id = mongodb::bson::oid::ObjectId::parse_str(post_id_str.as_str())
+            .map_err(|_| async_graphql::Error::new("Invalid post ID"))?;
+
+        let post = app_state
+            .mongo_service
+            .tweets
+            .get_tweet_by_id(post_id)
+            .await?
+            .ok_or_else(|| async_graphql::Error::new("Post not found"))?;
+
+        // Get post creator's wallet
+        let creator_user = app_state
+            .mongo_service
+            .users
+            .get_user_by_id(post.owner_id)
+            .await?
+            .ok_or_else(|| async_graphql::Error::new("Post creator not found"))?;
+
+        Pubkey::from_str(&creator_user.wallet)
+            .map_err(|e| async_graphql::Error::new(format!("Invalid creator wallet: {}", e)))?
+    } else {
+        recipient_wallet
+    };
+
+    // Determine token mint (default to BLING)
+    let token_mint = if let Some(token_mint_str) = input.token_mint {
+        Pubkey::from_str(&token_mint_str)
+            .map_err(|e| async_graphql::Error::new(format!("Invalid token_mint: {}", e)))?
+    } else {
+        // Get BLING mint from config
+        let program_id = app_state.solana_service.opinions_market_program().id();
+        let (config_pda, _) = crate::solana::get_config_pda(&program_id);
+        let config_account = app_state
+            .solana_service
+            .opinions_market_program()
+            .account::<opinions_market::states::Config>(config_pda)
+            .await
+            .map_err(|e| async_graphql::Error::new(format!("Failed to get config: {}", e)))?;
+        config_account.bling_mint
+    };
+
+    // Convert amount to lamports using token decimals
+    let token_decimals = if token_mint == *app_state.solana_service.get_bling_mint() {
+        9
+    } else {
+        6 // Default for USDC and stablecoin
+    };
+    let amount_lamports = (input.amount * 10_f64.powi(token_decimals)) as u64;
+
+    // Call Solana service to tip
+    let signature = app_state
+        .solana_service
+        .tip(&sender_wallet, &final_recipient_wallet, amount_lamports, &token_mint)
+        .await
+        .map_err(|e| async_graphql::Error::new(format!("Failed to tip: {}", e)))?;
+
+    Ok(TipPayload {
+        success: true,
+        signature: signature.to_string(),
+        recipient_user_id: input.recipient_user_id,
+        post_id: input.post_id,
+    })
+}
+
+/// Claim tips from tip vault
+pub async fn claim_tips_resolver(
+    ctx: &Context<'_>,
+    input: ClaimTipsInput,
+) -> Result<ClaimTipsPayload> {
+    let app_state = ctx.data::<Arc<AppState>>()?;
+    let headers = ctx
+        .data::<HeaderMap>()
+        .map_err(|_| async_graphql::Error::new("Failed to get headers from context"))?;
+
+    // Verify Privy token and get Privy ID
+    let privy_id = auth::get_privy_id_from_header(&app_state.privy_service, headers)
+        .await
+        .map_err(|(status, json)| {
+            let error_msg = json
+                .get("error")
+                .and_then(|v| v.as_str())
+                .unwrap_or("Authentication failed");
+            async_graphql::Error::new(format!("{} (status {})", error_msg, status))
+        })?;
+
+    // Get user
+    let user = app_state
+        .mongo_service
+        .users
+        .get_user_by_privy_id(&privy_id)
+        .await?
+        .ok_or_else(|| async_graphql::Error::new("User not found"))?;
+
+    let owner_wallet = Pubkey::from_str(&user.wallet)
+        .map_err(|e| async_graphql::Error::new(format!("Invalid wallet: {}", e)))?;
+
+    // Determine token mint (default to BLING)
+    let token_mint = if let Some(token_mint_str) = input.token_mint {
+        Pubkey::from_str(&token_mint_str)
+            .map_err(|e| async_graphql::Error::new(format!("Invalid token_mint: {}", e)))?
+    } else {
+        // Get BLING mint from config
+        let program_id = app_state.solana_service.opinions_market_program().id();
+        let (config_pda, _) = crate::solana::get_config_pda(&program_id);
+        let config_account = app_state
+            .solana_service
+            .opinions_market_program()
+            .account::<opinions_market::states::Config>(config_pda)
+            .await
+            .map_err(|e| async_graphql::Error::new(format!("Failed to get config: {}", e)))?;
+        config_account.bling_mint
+    };
+
+    // Get tip vault balance before claiming
+    let program_id = app_state.solana_service.opinions_market_program().id();
+    let (tip_vault_token_account_pda, _) = crate::solana::get_tip_vault_token_account_pda(
+        &program_id,
+        &owner_wallet,
+        &token_mint,
+    );
+
+    let tip_vault_before = app_state
+        .solana_service
+        .opinions_market_program()
+        .account::<anchor_spl::token::TokenAccount>(tip_vault_token_account_pda)
+        .await
+        .ok();
+
+    let amount_claimed = tip_vault_before
+        .map(|account| account.amount)
+        .unwrap_or(0);
+
+    // Call Solana service to claim tips
+    let signature = app_state
+        .solana_service
+        .claim_tips(&owner_wallet, &token_mint)
+        .await
+        .map_err(|e| async_graphql::Error::new(format!("Failed to claim tips: {}", e)))?;
+
+    Ok(ClaimTipsPayload {
+        success: true,
+        signature: signature.to_string(),
+        amount_claimed,
+    })
+}
+
+/// Send tokens from sender's vault to recipient's vault
+pub async fn send_token_resolver(
+    ctx: &Context<'_>,
+    input: SendTokenInput,
+) -> Result<SendTokenPayload> {
+    let app_state = ctx.data::<Arc<AppState>>()?;
+    let headers = ctx
+        .data::<HeaderMap>()
+        .map_err(|_| async_graphql::Error::new("Failed to get headers from context"))?;
+
+    // Verify Privy token and get Privy ID
+    let privy_id = auth::get_privy_id_from_header(&app_state.privy_service, headers)
+        .await
+        .map_err(|(status, json)| {
+            let error_msg = json
+                .get("error")
+                .and_then(|v| v.as_str())
+                .unwrap_or("Authentication failed");
+            async_graphql::Error::new(format!("{} (status {})", error_msg, status))
+        })?;
+
+    // Get sender user
+    let sender_user = app_state
+        .mongo_service
+        .users
+        .get_user_by_privy_id(&privy_id)
+        .await?
+        .ok_or_else(|| async_graphql::Error::new("User not found"))?;
+
+    let sender_wallet = Pubkey::from_str(&sender_user.wallet)
+        .map_err(|e| async_graphql::Error::new(format!("Invalid sender wallet: {}", e)))?;
+
+    // Get recipient user
+    let recipient_user_id = mongodb::bson::oid::ObjectId::parse_str(input.recipient_user_id.as_str())
+        .map_err(|_| async_graphql::Error::new("Invalid recipient user ID"))?;
+
+    let recipient_user = app_state
+        .mongo_service
+        .users
+        .get_user_by_id(recipient_user_id)
+        .await?
+        .ok_or_else(|| async_graphql::Error::new("Recipient user not found"))?;
+
+    let recipient_wallet = Pubkey::from_str(&recipient_user.wallet)
+        .map_err(|e| async_graphql::Error::new(format!("Invalid recipient wallet: {}", e)))?;
+
+    // Determine token mint (default to BLING)
+    let token_mint = if let Some(token_mint_str) = input.token_mint {
+        Pubkey::from_str(&token_mint_str)
+            .map_err(|e| async_graphql::Error::new(format!("Invalid token_mint: {}", e)))?
+    } else {
+        // Get BLING mint from config
+        let program_id = app_state.solana_service.opinions_market_program().id();
+        let (config_pda, _) = crate::solana::get_config_pda(&program_id);
+        let config_account = app_state
+            .solana_service
+            .opinions_market_program()
+            .account::<opinions_market::states::Config>(config_pda)
+            .await
+            .map_err(|e| async_graphql::Error::new(format!("Failed to get config: {}", e)))?;
+        config_account.bling_mint
+    };
+
+    // Convert amount to lamports using token decimals
+    let token_decimals = if token_mint == *app_state.solana_service.get_bling_mint() {
+        9
+    } else {
+        6 // Default for USDC and stablecoin
+    };
+    let amount_lamports = (input.amount * 10_f64.powi(token_decimals)) as u64;
+
+    // Call Solana service to send tokens
+    let signature = app_state
+        .solana_service
+        .send_token(&sender_wallet, &recipient_wallet, amount_lamports, &token_mint)
+        .await
+        .map_err(|e| async_graphql::Error::new(format!("Failed to send tokens: {}", e)))?;
+
+    Ok(SendTokenPayload {
+        success: true,
+        signature: signature.to_string(),
+        recipient_user_id: input.recipient_user_id,
+    })
 }
