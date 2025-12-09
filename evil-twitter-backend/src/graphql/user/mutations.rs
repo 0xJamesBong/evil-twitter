@@ -11,7 +11,11 @@ use solana_sdk::pubkey::Pubkey;
 
 use crate::models::follow::Follow;
 use crate::solana::get_session_authority_pda;
-use crate::{app_state::AppState, graphql::user::types::UserNode, utils::auth};
+use crate::{
+    app_state::{AppState, TipBufferKey, TipBufferValue},
+    graphql::user::types::UserNode,
+    utils::auth,
+};
 
 // ============================================================================
 // UserMutation Object
@@ -164,9 +168,9 @@ pub struct UnfollowUserInput {
 
 #[derive(InputObject)]
 pub struct TipInput {
-    /// ID of the user receiving the tip
-    pub recipient_user_id: ID,
-    /// Optional ID of the post being tipped (if provided, tip goes to post creator)
+    /// ID of the user receiving the tip (required only when post_id is not provided)
+    pub recipient_user_id: Option<ID>,
+    /// Optional ID of the post being tipped (if provided, tip goes to post creator, recipient_user_id is ignored)
     pub post_id: Option<ID>,
     /// Amount to tip (in token units, will be converted to lamports)
     pub amount: f64,
@@ -1021,22 +1025,9 @@ pub async fn tip_resolver(
     let sender_wallet = Pubkey::from_str(&sender_user.wallet)
         .map_err(|e| async_graphql::Error::new(format!("Invalid sender wallet: {}", e)))?;
 
-    // Get recipient user
-    let recipient_user_id = mongodb::bson::oid::ObjectId::parse_str(input.recipient_user_id.as_str())
-        .map_err(|_| async_graphql::Error::new("Invalid recipient user ID"))?;
-
-    let recipient_user = app_state
-        .mongo_service
-        .users
-        .get_user_by_id(recipient_user_id)
-        .await?
-        .ok_or_else(|| async_graphql::Error::new("Recipient user not found"))?;
-
-    let recipient_wallet = Pubkey::from_str(&recipient_user.wallet)
-        .map_err(|e| async_graphql::Error::new(format!("Invalid recipient wallet: {}", e)))?;
-
-    // If post_id is provided, get the post and use its creator as recipient
+    // Determine recipient: if post_id is provided, get post creator; otherwise use recipient_user_id
     let final_recipient_wallet = if let Some(post_id_str) = input.post_id.as_ref() {
+        // Tip to post: fetch post and get creator
         let post_id = mongodb::bson::oid::ObjectId::parse_str(post_id_str.as_str())
             .map_err(|_| async_graphql::Error::new("Invalid post ID"))?;
 
@@ -1047,7 +1038,7 @@ pub async fn tip_resolver(
             .await?
             .ok_or_else(|| async_graphql::Error::new("Post not found"))?;
 
-        // Get post creator's wallet
+        // Get post creator's wallet (this is the recipient)
         let creator_user = app_state
             .mongo_service
             .users
@@ -1058,7 +1049,23 @@ pub async fn tip_resolver(
         Pubkey::from_str(&creator_user.wallet)
             .map_err(|e| async_graphql::Error::new(format!("Invalid creator wallet: {}", e)))?
     } else {
-        recipient_wallet
+        // Direct tip to user: recipient_user_id is required
+        let recipient_user_id = input.recipient_user_id
+            .as_ref()
+            .ok_or_else(|| async_graphql::Error::new("recipient_user_id is required when post_id is not provided"))?;
+        
+        let recipient_user_id_oid = mongodb::bson::oid::ObjectId::parse_str(recipient_user_id.as_str())
+            .map_err(|_| async_graphql::Error::new("Invalid recipient user ID"))?;
+
+        let recipient_user = app_state
+            .mongo_service
+            .users
+            .get_user_by_id(recipient_user_id_oid)
+            .await?
+            .ok_or_else(|| async_graphql::Error::new("Recipient user not found"))?;
+
+        Pubkey::from_str(&recipient_user.wallet)
+            .map_err(|e| async_graphql::Error::new(format!("Invalid recipient wallet: {}", e)))?
     };
 
     // Determine token mint (default to BLING)
@@ -1086,17 +1093,51 @@ pub async fn tip_resolver(
     };
     let amount_lamports = (input.amount * 10_f64.powi(token_decimals)) as u64;
 
-    // Call Solana service to tip
-    let signature = app_state
-        .solana_service
-        .tip(&sender_wallet, &final_recipient_wallet, amount_lamports, &token_mint)
-        .await
-        .map_err(|e| async_graphql::Error::new(format!("Failed to tip: {}", e)))?;
+    // Write tip to buffer (will be batched and sent by background flush task)
+    use std::time::{SystemTime, UNIX_EPOCH};
+    let now = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map_err(|e| async_graphql::Error::new(format!("Failed to get timestamp: {}", e)))?
+        .as_secs() as i64;
+
+    let buffer_key = TipBufferKey {
+        sender: sender_wallet,
+        recipient: final_recipient_wallet,
+        post_id: input.post_id.as_ref().map(|id| id.to_string()),
+        token_mint,
+    };
+
+    // Increment accumulated tip amount in buffer
+    let mut buffer = app_state
+        .tip_buffer
+        .lock()
+        .map_err(|e| async_graphql::Error::new(format!("Failed to lock tip buffer: {}", e)))?;
+
+    buffer
+        .entry(buffer_key)
+        .and_modify(|v| {
+            v.accumulated_amount += amount_lamports;
+            v.last_click_ts = now;
+        })
+        .or_insert_with(|| TipBufferValue {
+            accumulated_amount: amount_lamports,
+            last_click_ts: now,
+        });
+
+    // Tip is queued, return immediate success
+    // The background flush task will handle the actual Solana transaction
+
+    // Determine recipient_user_id for response
+    // For post tips, we don't have recipient_user_id in input (backend determined it from post)
+    // For direct user tips, use the provided recipient_user_id
+    let response_recipient_user_id = input.recipient_user_id
+        .clone()
+        .unwrap_or_else(|| ID::from(""));
 
     Ok(TipPayload {
         success: true,
-        signature: signature.to_string(),
-        recipient_user_id: input.recipient_user_id,
+        signature: "queued".to_string(), // Placeholder - actual signature will be in flush task
+        recipient_user_id: response_recipient_user_id,
         post_id: input.post_id,
     })
 }

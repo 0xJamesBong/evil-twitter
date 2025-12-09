@@ -32,6 +32,7 @@ import { useSettlePost } from "@/hooks/useSettlePost";
 import { Button, CircularProgress } from "@mui/material";
 import { AccountBalance as SettleIcon } from "@mui/icons-material";
 import { useTweetStore } from "@/lib/stores/tweetStore";
+import { TipButton } from "@/components/tips/TipButton";
 
 interface TweetCardProps {
     tweet: TweetNode;
@@ -809,6 +810,28 @@ export function TweetCard({
                                     >
                                         <AnswerIcon fontSize="small" />
                                     </IconButton>
+                                </Box>
+                            )}
+
+                            {/* Tip - Show for all tweets with postId */}
+                            {tweet.id && (
+                                <Box
+                                    sx={{
+                                        display: "flex",
+                                        alignItems: "center",
+                                        gap: 0.5,
+                                        cursor: "pointer",
+                                        "&:hover": {
+                                            "& .tip-icon": { color: "warning.main" },
+                                        },
+                                    }}
+                                    onClick={(e) => e.stopPropagation()}
+                                >
+                                    <TipButton
+                                        postId={tweet.id}
+                                        size="small"
+                                        variant="icon"
+                                    />
                                 </Box>
                             )}
                         </Stack>

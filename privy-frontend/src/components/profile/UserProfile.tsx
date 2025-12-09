@@ -53,6 +53,7 @@ import { TweetCard } from "@/components/tweets/TweetCard";
 import { UserByHandleResult, UserByIdResult } from "@/lib/graphql/users/queries";
 import { TweetNode } from "@/lib/graphql/tweets/types";
 import { FollowList } from "./FollowList";
+import { TipButton } from "@/components/tips/TipButton";
 
 // Token mint addresses
 const BLING_MINT = process.env.NEXT_PUBLIC_BLING_MINT || "";
@@ -274,20 +275,30 @@ export function UserProfile({
                                             Edit Profile
                                         </Button>
                                     ) : (
-                                        <Button
-                                            variant={isFollowing ? "outlined" : "contained"}
-                                            startIcon={isFollowing ? <PersonRemoveIcon /> : <PersonAddIcon />}
-                                            onClick={isFollowing ? handleUnfollow : handleFollow}
-                                            disabled={followLoading}
-                                        >
-                                            {followLoading ? (
-                                                <CircularProgress size={16} />
-                                            ) : isFollowing ? (
-                                                "Unfollow"
-                                            ) : (
-                                                "Follow"
+                                        <>
+                                            <Button
+                                                variant={isFollowing ? "outlined" : "contained"}
+                                                startIcon={isFollowing ? <PersonRemoveIcon /> : <PersonAddIcon />}
+                                                onClick={isFollowing ? handleUnfollow : handleFollow}
+                                                disabled={followLoading}
+                                            >
+                                                {followLoading ? (
+                                                    <CircularProgress size={16} />
+                                                ) : isFollowing ? (
+                                                    "Unfollow"
+                                                ) : (
+                                                    "Follow"
+                                                )}
+                                            </Button>
+                                            {/* Tip Button */}
+                                            {user?.id && (
+                                                <TipButton
+                                                    recipientUserId={user.id}
+                                                    size="medium"
+                                                    variant="button"
+                                                />
                                             )}
-                                        </Button>
+                                        </>
                                     )}
 
                                     {/* Placeholder for Attack/Apply Weapon/Tool Buttons */}

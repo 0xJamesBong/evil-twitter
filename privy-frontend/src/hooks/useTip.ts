@@ -13,7 +13,7 @@ export function useTip() {
   const [error, setError] = useState<string | null>(null);
 
   const tip = async (
-    recipientUserId: string,
+    recipientUserId: string | null, // null when postId is provided
     amount: number,
     tokenMint?: string | null,
     postId?: string | null
@@ -31,7 +31,7 @@ export function useTip() {
         TIP_MUTATION,
         {
           input: {
-            recipientUserId,
+            recipientUserId: recipientUserId || undefined, // Don't send null, send undefined
             postId: postId || null,
             amount,
             tokenMint: tokenMint || null,

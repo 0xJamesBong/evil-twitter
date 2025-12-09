@@ -8,7 +8,7 @@ use tokio::time::sleep;
 
 use evil_twitter::{
     app,
-    app_state::{AppState, VoteBufferKey},
+    app_state::{AppState, TipBufferKey, VoteBufferKey},
     models::post_state::PostState,
 };
 
@@ -36,11 +36,18 @@ async fn main() -> anyhow::Result<()> {
     println!("Database indexes ready");
 
     // Spawn background task to flush vote buffer
-    let app_state_for_flush = app_state.clone();
+    let app_state_for_vote_flush = app_state.clone();
     tokio::spawn(async move {
-        vote_flush_loop(app_state_for_flush).await;
+        vote_flush_loop(app_state_for_vote_flush).await;
     });
     println!("✅ Vote flush task started");
+
+    // Spawn background task to flush tip buffer
+    let app_state_for_tip_flush = app_state.clone();
+    tokio::spawn(async move {
+        tip_flush_loop(app_state_for_tip_flush).await;
+    });
+    println!("✅ Tip flush task started");
 
     let app = app(app_state.clone()).await;
 
@@ -157,6 +164,91 @@ async fn vote_flush_loop(app_state: Arc<AppState>) {
                         e
                     );
                     // Votes are lost - user can retry by clicking again
+                }
+            }
+        }
+    }
+}
+
+/// Background task that periodically flushes accumulated tips to Solana
+async fn tip_flush_loop(app_state: Arc<AppState>) {
+    // Get batch interval from env var, default to 200ms
+    let interval_ms = std::env::var("TIP_BATCH_INTERVAL_MS")
+        .ok()
+        .and_then(|s| s.parse::<u64>().ok())
+        .unwrap_or(200);
+
+    println!(
+        "🔄 Tip flush loop started with interval: {}ms",
+        interval_ms
+    );
+
+    loop {
+        sleep(Duration::from_millis(interval_ms)).await;
+
+        // Collect entries to flush (to avoid holding lock during async operations)
+        let entries_to_flush: Vec<(TipBufferKey, u64)> = {
+            let mut buffer = match app_state.tip_buffer.lock() {
+                Ok(b) => b,
+                Err(e) => {
+                    eprintln!("❌ Failed to lock tip buffer: {}", e);
+                    continue;
+                }
+            };
+
+            // Collect all entries with amount > 0 and remove them from buffer
+            let mut entries = Vec::new();
+            let keys: Vec<TipBufferKey> = buffer
+                .iter()
+                .filter_map(|(key, value)| {
+                    if value.accumulated_amount > 0 {
+                        Some(key.clone())
+                    } else {
+                        None
+                    }
+                })
+                .collect();
+
+            for key in keys {
+                if let Some(value) = buffer.remove(&key) {
+                    entries.push((key, value.accumulated_amount));
+                }
+            }
+
+            entries
+        };
+
+        // Flush each entry
+        for (key, amount) in entries_to_flush {
+            let result = app_state
+                .solana_service
+                .tip(
+                    &key.sender,
+                    &key.recipient,
+                    amount,
+                    &key.token_mint,
+                )
+                .await;
+
+            match result {
+                Ok(signature) => {
+                    eprintln!(
+                        "✅ Flushed tip of {} lamports from {} to {}: {}",
+                        amount,
+                        key.sender,
+                        key.recipient,
+                        signature
+                    );
+                }
+                Err(e) => {
+                    eprintln!(
+                        "❌ Failed to flush tip of {} lamports from {} to {}: {}",
+                        amount,
+                        key.sender,
+                        key.recipient,
+                        e
+                    );
+                    // Tips are lost - user can retry by clicking again
                 }
             }
         }
