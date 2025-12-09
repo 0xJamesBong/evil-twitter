@@ -152,9 +152,13 @@ export function TweetCard({
                     {/* Avatar */}
                     {author?.handle ? (
                         <Link
-                            href={`/@${author.handle.replace(/^@+/, "")}`}
+                            href={`/${author.handle.replace(/^@+/, "")}`}
                             style={{ textDecoration: "none" }}
-                            onClick={(e) => e.stopPropagation()}
+                            onClick={(e) => {
+                                e.stopPropagation();
+                                e.preventDefault();
+                                router.push(`/${author.handle.replace(/^@+/, "")}`);
+                            }}
                         >
                             <Avatar
                                 src={author?.avatarUrl || undefined}
@@ -175,7 +179,11 @@ export function TweetCard({
                         <Link
                             href={`/user/${author.userId}`}
                             style={{ textDecoration: "none" }}
-                            onClick={(e) => e.stopPropagation()}
+                            onClick={(e) => {
+                                e.stopPropagation();
+                                e.preventDefault();
+                                router.push(`/user/${author.userId}`);
+                            }}
                         >
                             <Avatar
                                 src={author?.avatarUrl || undefined}
@@ -211,9 +219,13 @@ export function TweetCard({
                         <Stack direction="row" spacing={1} alignItems="center" sx={{ mb: 0.5 }}>
                             {author?.handle ? (
                                 <Link
-                                    href={`/@${author.handle.replace(/^@+/, "")}`}
+                                    href={`/${author.handle.replace(/^@+/, "")}`}
                                     style={{ textDecoration: "none", color: "inherit" }}
-                                    onClick={(e) => e.stopPropagation()}
+                                    onClick={(e) => {
+                                        e.stopPropagation();
+                                        e.preventDefault();
+                                        router.push(`/${author.handle.replace(/^@+/, "")}`);
+                                    }}
                                 >
                                     <Typography
                                         variant="subtitle2"
@@ -229,7 +241,11 @@ export function TweetCard({
                                 <Link
                                     href={`/user/${author.userId}`}
                                     style={{ textDecoration: "none", color: "inherit" }}
-                                    onClick={(e) => e.stopPropagation()}
+                                    onClick={(e) => {
+                                        e.stopPropagation();
+                                        e.preventDefault();
+                                        router.push(`/user/${author.userId}`);
+                                    }}
                                 >
                                     <Typography
                                         variant="subtitle2"
@@ -248,9 +264,13 @@ export function TweetCard({
                             )}
                             {author?.handle ? (
                                 <Link
-                                    href={`/@${author.handle.replace(/^@+/, "")}`}
+                                    href={`/${author.handle.replace(/^@+/, "")}`}
                                     style={{ textDecoration: "none", color: "inherit" }}
-                                    onClick={(e) => e.stopPropagation()}
+                                    onClick={(e) => {
+                                        e.stopPropagation();
+                                        e.preventDefault();
+                                        router.push(`/${author.handle.replace(/^@+/, "")}`);
+                                    }}
                                 >
                                     <Typography
                                         variant="body2"
@@ -266,7 +286,11 @@ export function TweetCard({
                                 <Link
                                     href={`/user/${author.userId}`}
                                     style={{ textDecoration: "none", color: "inherit" }}
-                                    onClick={(e) => e.stopPropagation()}
+                                    onClick={(e) => {
+                                        e.stopPropagation();
+                                        e.preventDefault();
+                                        router.push(`/user/${author.userId}`);
+                                    }}
                                 >
                                     <Typography
                                         variant="body2"
@@ -373,9 +397,13 @@ export function TweetCard({
                                 <Stack direction="row" spacing={1} alignItems="center" sx={{ mb: 1 }}>
                                     {tweet.quotedTweet.author?.handle ? (
                                         <Link
-                                            href={`/@${tweet.quotedTweet.author.handle.replace(/^@+/, "")}`}
+                                            href={`/${tweet.quotedTweet.author.handle.replace(/^@+/, "")}`}
                                             style={{ textDecoration: "none" }}
-                                            onClick={(e) => e.stopPropagation()}
+                                            onClick={(e) => {
+                                                e.stopPropagation();
+                                                e.preventDefault();
+                                                router.push(`/${tweet.quotedTweet.author.handle.replace(/^@+/, "")}`);
+                                            }}
                                         >
                                             <Avatar
                                                 src={tweet.quotedTweet.author?.avatarUrl || undefined}
@@ -396,7 +424,11 @@ export function TweetCard({
                                         <Link
                                             href={`/user/${tweet.quotedTweet.author.userId}`}
                                             style={{ textDecoration: "none" }}
-                                            onClick={(e) => e.stopPropagation()}
+                                            onClick={(e) => {
+                                                e.stopPropagation();
+                                                e.preventDefault();
+                                                router.push(`/user/${tweet.quotedTweet.author.userId}`);
+                                            }}
                                         >
                                             <Avatar
                                                 src={tweet.quotedTweet.author?.avatarUrl || undefined}
@@ -423,9 +455,13 @@ export function TweetCard({
                                     )}
                                     {tweet.quotedTweet.author?.handle ? (
                                         <Link
-                                            href={`/@${tweet.quotedTweet.author.handle.replace(/^@+/, "")}`}
+                                            href={`/${tweet.quotedTweet.author.handle.replace(/^@+/, "")}`}
                                             style={{ textDecoration: "none", color: "inherit" }}
-                                            onClick={(e) => e.stopPropagation()}
+                                            onClick={(e) => {
+                                                e.stopPropagation();
+                                                e.preventDefault();
+                                                router.push(`/${tweet.quotedTweet.author.handle.replace(/^@+/, "")}`);
+                                            }}
                                         >
                                             <Typography
                                                 variant="caption"
@@ -444,9 +480,13 @@ export function TweetCard({
                                     )}
                                     {tweet.quotedTweet.author?.handle ? (
                                         <Link
-                                            href={`/@${tweet.quotedTweet.author.handle.replace(/^@+/, "")}`}
+                                            href={`/${tweet.quotedTweet.author.handle.replace(/^@+/, "")}`}
                                             style={{ textDecoration: "none", color: "inherit" }}
-                                            onClick={(e) => e.stopPropagation()}
+                                            onClick={(e) => {
+                                                e.stopPropagation();
+                                                e.preventDefault();
+                                                router.push(`/${tweet.quotedTweet.author.handle.replace(/^@+/, "")}`);
+                                            }}
                                         >
                                             <Typography
                                                 variant="caption"
