@@ -96,6 +96,32 @@ export interface CanonicalVoteCostsResult {
   };
 }
 
+export const TIP_VAULT_BALANCES_QUERY = `
+  query TipVaultBalances {
+    me {
+      id
+      wallet
+      tipVaultBalances {
+        bling
+        usdc
+        stablecoin
+      }
+    }
+  }
+`;
+
+export interface TipVaultBalancesResult {
+  me: {
+    id: string;
+    wallet: string;
+    tipVaultBalances: {
+      bling: number;
+      usdc: number | null;
+      stablecoin: number | null;
+    };
+  } | null;
+}
+
 export const CURRENT_SESSION_QUERY = `
   query CurrentSession {
     currentSession {

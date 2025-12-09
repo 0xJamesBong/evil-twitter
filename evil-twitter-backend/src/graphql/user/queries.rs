@@ -592,3 +592,83 @@ pub async fn vault_balances_resolver(ctx: &Context<'_>, wallet: &str) -> Result<
         stablecoin: stablecoin_balance,
     })
 }
+
+#[derive(SimpleObject)]
+pub struct TipVaultBalances {
+    pub bling: u64,
+    pub usdc: Option<u64>,
+    pub stablecoin: Option<u64>,
+}
+
+/// Get tip vault balances for all valid payment tokens
+pub async fn tip_vault_balances_resolver(ctx: &Context<'_>, wallet: &str) -> Result<TipVaultBalances> {
+    let app_state = ctx.data::<Arc<AppState>>()?;
+
+    // Parse user's Solana wallet
+    let user_wallet = solana_sdk::pubkey::Pubkey::from_str(wallet)
+        .map_err(|e| async_graphql::Error::new(format!("Invalid user wallet: {}", e)))?;
+
+    // Get BLING mint
+    let bling_mint = *app_state.solana_service.get_bling_mint();
+
+    // Get BLING tip vault balance
+    let bling_balance = app_state
+        .solana_service
+        .get_tip_vault_balance(&user_wallet, &bling_mint)
+        .await
+        .map_err(|e| {
+            async_graphql::Error::new(format!("Failed to get BLING tip vault balance: {}", e))
+        })?;
+
+    // Get USDC and Stablecoin mints from environment
+    let usdc_mint_str = std::env::var("USDC_MINT").ok();
+    let stablecoin_mint_str = std::env::var("STABLECOIN_MINT").ok();
+
+    // Get USDC tip vault balance if available
+    let usdc_balance = if let Some(ref usdc_mint_str) = usdc_mint_str {
+        if let Ok(usdc_mint) = solana_sdk::pubkey::Pubkey::from_str(usdc_mint_str) {
+            match app_state
+                .solana_service
+                .get_tip_vault_balance(&user_wallet, &usdc_mint)
+                .await
+            {
+                Ok(balance) => Some(balance),
+                Err(e) => {
+                    eprintln!("Failed to get USDC tip vault balance: {}", e);
+                    None
+                }
+            }
+        } else {
+            None
+        }
+    } else {
+        None
+    };
+
+    // Get Stablecoin tip vault balance if available
+    let stablecoin_balance = if let Some(ref stablecoin_mint_str) = stablecoin_mint_str {
+        if let Ok(stablecoin_mint) = solana_sdk::pubkey::Pubkey::from_str(stablecoin_mint_str) {
+            match app_state
+                .solana_service
+                .get_tip_vault_balance(&user_wallet, &stablecoin_mint)
+                .await
+            {
+                Ok(balance) => Some(balance),
+                Err(e) => {
+                    eprintln!("Failed to get Stablecoin tip vault balance: {}", e);
+                    None
+                }
+            }
+        } else {
+            None
+        }
+    } else {
+        None
+    };
+
+    Ok(TipVaultBalances {
+        bling: bling_balance,
+        usdc: usdc_balance,
+        stablecoin: stablecoin_balance,
+    })
+}

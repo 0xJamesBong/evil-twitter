@@ -292,6 +292,33 @@ impl SolanaService {
         Ok(token_account.amount)
     }
 
+    /// Get tip vault balance for a user and token mint
+    pub async fn get_tip_vault_balance(
+        &self,
+        user_wallet: &Pubkey,
+        token_mint: &Pubkey,
+    ) -> anyhow::Result<u64> {
+        let (tip_vault_token_account_pda, _) =
+            get_tip_vault_token_account_pda(&self.program_id, user_wallet, token_mint);
+
+        let account = match self.rpc.get_account(&tip_vault_token_account_pda).await {
+            Ok(account) => account,
+            Err(e) => {
+                let msg = e.to_string();
+                if msg.contains("AccountNotFound") || msg.contains("not found") {
+                    return Ok(0);
+                }
+                return Err(anyhow::anyhow!("Failed to get tip vault account: {}", e));
+            }
+        };
+
+        // SPL Token decoding
+        let token_account = spl_token::state::Account::unpack_from_slice(&account.data)
+            .map_err(|_| anyhow::anyhow!("Invalid token account data"))?;
+
+        Ok(token_account.amount)
+    }
+
     /// Get post pot balance for a specific token mint
     pub async fn get_post_pot_balance(
         &self,

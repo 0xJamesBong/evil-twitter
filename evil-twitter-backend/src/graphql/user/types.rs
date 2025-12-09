@@ -467,6 +467,11 @@ impl UserNode {
         vault_balances_resolver(ctx, &self.inner.wallet).await
     }
 
+    /// Get user's tip vault balances for all valid payment tokens (BLING, USDC, Stablecoin)
+    async fn tip_vault_balances(&self, ctx: &Context<'_>) -> Result<crate::graphql::user::queries::TipVaultBalances> {
+        crate::graphql::user::queries::tip_vault_balances_resolver(ctx, &self.inner.wallet).await
+    }
+
     /// Check if the user account exists on-chain
     async fn has_onchain_account(&self, ctx: &Context<'_>) -> Result<bool> {
         let app_state = ctx.data::<Arc<AppState>>()?;

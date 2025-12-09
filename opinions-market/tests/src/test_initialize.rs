@@ -16,7 +16,7 @@ use crate::utils::phenomena::{
     test_phenomena_add_valid_payment, test_phenomena_claim_post_reward,
     test_phenomena_create_answer, test_phenomena_create_post, test_phenomena_create_question,
     test_phenomena_create_user, test_phenomena_deposit, test_phenomena_settle_post,
-    test_phenomena_vote_on_post, test_phenomena_withdraw,
+    test_phenomena_tip, test_phenomena_vote_on_post, test_phenomena_withdraw,
 };
 use crate::utils::utils::{
     airdrop_sol_to_users, send_tx, setup_token_mint, setup_token_mint_ata_and_mint_to_many_users,
@@ -619,7 +619,21 @@ async fn test_setup() {
         //     )
         //     .await;
         // }
+        {
+            println!("user 1 tipping user 2 100 bling");
+            test_phenomena_tip(
+                &rpc,
+                &opinions_market,
+                &payer,
+                &user_1,
+                &session_key,
+                &user_2,
+                100 * LAMPORTS_PER_SOL,
+                &bling_pubkey,
+                &tokens,
+            ).await;
 
+        }
         {
             println!("\n\n");
             println!(" 🟪🟪🟪🟪🟪🟪🟪🟪🟪🟪🟪🟪🟪🟪🟪🟪🟪");
