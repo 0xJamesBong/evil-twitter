@@ -19,6 +19,11 @@ import {
     Button,
     ToggleButton,
     ToggleButtonGroup,
+    Dialog,
+    DialogTitle,
+    DialogContent,
+    Tabs,
+    Tab,
 } from "@mui/material";
 import {
     TrendingUp,
@@ -47,6 +52,7 @@ import { getTokenConfig } from "@/lib/utils/tokens";
 import { TweetCard } from "@/components/tweets/TweetCard";
 import { UserByHandleResult, UserByIdResult } from "@/lib/graphql/users/queries";
 import { TweetNode } from "@/lib/graphql/tweets/types";
+import { FollowList } from "./FollowList";
 
 // Token mint addresses
 const BLING_MINT = process.env.NEXT_PUBLIC_BLING_MINT || "";
@@ -81,6 +87,8 @@ export function UserProfile({
     const router = useRouter();
     const { followUser, unfollowUser, loading: followLoading } = useFollowUser();
     const [isFollowing, setIsFollowing] = useState(false);
+    const [followDialogOpen, setFollowDialogOpen] = useState(false);
+    const [followTab, setFollowTab] = useState<"followers" | "following">("followers");
 
     // Get wallet token balances (only for own profile)
     const mintAddresses = [BLING_MINT, USDC_MINT, STABLECOIN_MINT].filter(Boolean);
@@ -232,6 +240,10 @@ export function UserProfile({
                                             variant="body2"
                                             color="text.secondary"
                                             sx={{ cursor: "pointer", "&:hover": { textDecoration: "underline" } }}
+                                            onClick={() => {
+                                                setFollowTab("following");
+                                                setFollowDialogOpen(true);
+                                            }}
                                         >
                                             <strong style={{ color: "inherit" }}>{user.followingCount || 0}</strong>{" "}
                                             Following
@@ -240,6 +252,10 @@ export function UserProfile({
                                             variant="body2"
                                             color="text.secondary"
                                             sx={{ cursor: "pointer", "&:hover": { textDecoration: "underline" } }}
+                                            onClick={() => {
+                                                setFollowTab("followers");
+                                                setFollowDialogOpen(true);
+                                            }}
                                         >
                                             <strong style={{ color: "inherit" }}>{user.followersCount || 0}</strong>{" "}
                                             Followers
@@ -419,6 +435,61 @@ export function UserProfile({
                     </CardContent>
                 </Card>
             </Box>
+
+            {/* Followers/Following Dialog */}
+            <Dialog
+                open={followDialogOpen}
+                onClose={() => setFollowDialogOpen(false)}
+                maxWidth="sm"
+                fullWidth
+                PaperProps={{
+                    sx: {
+                        bgcolor: "background.paper",
+                        height: "600px",
+                        maxHeight: "600px",
+                        display: "flex",
+                        flexDirection: "column",
+                    },
+                }}
+            >
+                <DialogTitle sx={{ flexShrink: 0, pb: 0, px: 2, pt: 2 }}>
+                    <Tabs
+                        value={followTab}
+                        onChange={(_, newValue) => setFollowTab(newValue)}
+                        sx={{ borderBottom: 1, borderColor: "divider", minHeight: 48 }}
+                    >
+                        <Tab label={`Followers (${user.followersCount || 0})`} value="followers" />
+                        <Tab label={`Following (${user.followingCount || 0})`} value="following" />
+                    </Tabs>
+                </DialogTitle>
+                <DialogContent
+                    sx={{
+                        p: 0,
+                        flex: 1,
+                        overflow: "hidden",
+                        display: "flex",
+                        flexDirection: "column",
+                        minHeight: 0,
+                    }}
+                >
+                    <Box
+                        sx={{
+                            flex: 1,
+                            overflowY: "auto",
+                            overflowX: "hidden",
+                            minHeight: 0,
+                        }}
+                    >
+                        {user.id && (
+                            <FollowList
+                                userId={user.id}
+                                type={followTab}
+                                title={followTab === "followers" ? "Followers" : "Following"}
+                            />
+                        )}
+                    </Box>
+                </DialogContent>
+            </Dialog>
         </Box>
     );
 }

@@ -451,3 +451,147 @@ export interface UserByIdResult {
     };
   } | null;
 }
+
+export const USER_FOLLOWERS_QUERY = `
+  query UserFollowers($userId: ID!, $first: Int) {
+    user(id: $userId) {
+      id
+      followers(first: $first) {
+        edges {
+          cursor
+          node {
+            id
+            privyId
+            wallet
+            loginType
+            email
+            status
+            createdAt
+            socialScore
+            followersCount
+            followingCount
+            isFollowedByViewer
+            profile {
+              id
+              userId
+              handle
+              displayName
+              avatarUrl
+              bio
+              status
+              createdAt
+            }
+          }
+        }
+        totalCount
+      }
+    }
+  }
+`;
+
+export interface UserFollowersResult {
+  user: {
+    id: string;
+    followers: {
+      edges: Array<{
+        cursor: string;
+        node: {
+          id: string;
+          privyId: string;
+          wallet: string;
+          loginType: string;
+          email: string | null;
+          status: string;
+          createdAt: string;
+          socialScore: number | null;
+          followersCount: number;
+          followingCount: number;
+          isFollowedByViewer: boolean;
+          profile: {
+            id: string;
+            userId: string;
+            handle: string;
+            displayName: string;
+            avatarUrl: string | null;
+            bio: string | null;
+            status: string;
+            createdAt: string;
+          } | null;
+        };
+      }>;
+      totalCount: number;
+    };
+  } | null;
+}
+
+export const USER_FOLLOWING_QUERY = `
+  query UserFollowing($userId: ID!, $first: Int) {
+    user(id: $userId) {
+      id
+      following(first: $first) {
+        edges {
+          cursor
+          node {
+            id
+            privyId
+            wallet
+            loginType
+            email
+            status
+            createdAt
+            socialScore
+            followersCount
+            followingCount
+            isFollowedByViewer
+            profile {
+              id
+              userId
+              handle
+              displayName
+              avatarUrl
+              bio
+              status
+              createdAt
+            }
+          }
+        }
+        totalCount
+      }
+    }
+  }
+`;
+
+export interface UserFollowingResult {
+  user: {
+    id: string;
+    following: {
+      edges: Array<{
+        cursor: string;
+        node: {
+          id: string;
+          privyId: string;
+          wallet: string;
+          loginType: string;
+          email: string | null;
+          status: string;
+          createdAt: string;
+          socialScore: number | null;
+          followersCount: number;
+          followingCount: number;
+          isFollowedByViewer: boolean;
+          profile: {
+            id: string;
+            userId: string;
+            handle: string;
+            displayName: string;
+            avatarUrl: string | null;
+            bio: string | null;
+            status: string;
+            createdAt: string;
+          } | null;
+        };
+      }>;
+      totalCount: number;
+    };
+  } | null;
+}
