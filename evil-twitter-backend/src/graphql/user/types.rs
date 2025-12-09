@@ -1,4 +1,5 @@
 use async_graphql::{Context, Enum, ID, InputObject, Object, Result};
+use axum::http::HeaderMap;
 use futures::TryStreamExt;
 use mongodb::{Collection, bson::doc};
 use std::str::FromStr;
@@ -9,7 +10,9 @@ use crate::app_state::AppState;
 use crate::graphql::tweet::types::{TweetConnection, TweetEdge, TweetNode};
 use crate::graphql::user::queries::{VaultBalances, vault_balances_resolver};
 use crate::models::{follow::Follow, profile::Profile, tweet::Tweet, user::User};
+use crate::utils::auth;
 use crate::utils::tweet::enrich_tweets_with_references;
+use async_graphql::SimpleObject;
 
 // ============================================================================
 // Input Types
@@ -41,6 +44,22 @@ impl DiscoverSort {
             DiscoverSort::DollarRate => "dollar_conversion_rate",
         }
     }
+}
+
+// ============================================================================
+// Connection Types
+// ============================================================================
+
+#[derive(SimpleObject, Clone)]
+pub struct UserConnection {
+    pub edges: Vec<UserEdge>,
+    pub total_count: i64,
+}
+
+#[derive(SimpleObject, Clone)]
+pub struct UserEdge {
+    pub cursor: ID,
+    pub node: UserNode,
 }
 
 // ============================================================================
@@ -194,6 +213,219 @@ impl UserNode {
             .map_err(|e| async_graphql::Error::new(e.to_string()))?;
 
         Ok(exists.is_some())
+    }
+
+    /// Get the number of followers for this user
+    async fn followers_count(&self, ctx: &Context<'_>) -> Result<i32> {
+        let user_id = self
+            .inner
+            .id
+            .ok_or_else(|| async_graphql::Error::new("User missing identifier"))?;
+
+        let app_state = ctx.data::<Arc<AppState>>()?;
+        let collection: Collection<Follow> = app_state.mongo_service.follow_collection();
+
+        let count = collection
+            .count_documents(doc! {"following_id": user_id})
+            .await
+            .map_err(|e| async_graphql::Error::new(format!("Failed to count followers: {}", e)))?;
+
+        Ok(count as i32)
+    }
+
+    /// Get the number of users this user is following
+    async fn following_count(&self, ctx: &Context<'_>) -> Result<i32> {
+        let user_id = self
+            .inner
+            .id
+            .ok_or_else(|| async_graphql::Error::new("User missing identifier"))?;
+
+        let app_state = ctx.data::<Arc<AppState>>()?;
+        let collection: Collection<Follow> = app_state.mongo_service.follow_collection();
+
+        let count = collection
+            .count_documents(doc! {"follower_id": user_id})
+            .await
+            .map_err(|e| async_graphql::Error::new(format!("Failed to count following: {}", e)))?;
+
+        Ok(count as i32)
+    }
+
+    /// Check if the current authenticated user follows this user
+    async fn is_followed_by_viewer(&self, ctx: &Context<'_>) -> Result<bool> {
+        let app_state = ctx.data::<Arc<AppState>>()?;
+        let headers = ctx
+            .data::<HeaderMap>()
+            .map_err(|_| async_graphql::Error::new("Failed to get headers from context"))?;
+
+        // Try to get authenticated user, but don't fail if not authenticated
+        let viewer_privy_id = match auth::get_privy_id_from_header(&app_state.privy_service, headers).await {
+            Ok(id) => id,
+            Err(_) => return Ok(false), // Not authenticated, so not following
+        };
+
+        // Get viewer's user ID
+        let viewer_user = app_state
+            .mongo_service
+            .users
+            .get_user_by_privy_id(&viewer_privy_id)
+            .await?;
+
+        let Some(viewer_user) = viewer_user else {
+            return Ok(false);
+        };
+
+        let viewer_id = viewer_user
+            .id
+            .ok_or_else(|| async_graphql::Error::new("Viewer user missing identifier"))?;
+
+        let user_id = self
+            .inner
+            .id
+            .ok_or_else(|| async_graphql::Error::new("User missing identifier"))?;
+
+        let collection: Collection<Follow> = app_state.mongo_service.follow_collection();
+
+        let exists = collection
+            .find_one(doc! {"follower_id": viewer_id, "following_id": user_id})
+            .await
+            .map_err(|e| async_graphql::Error::new(format!("Failed to check follow status: {}", e)))?;
+
+        Ok(exists.is_some())
+    }
+
+    /// Get list of users following this user
+    async fn followers(
+        &self,
+        ctx: &Context<'_>,
+        #[graphql(default = 20)] first: i32,
+    ) -> Result<UserConnection> {
+        let app_state = ctx.data::<Arc<AppState>>()?;
+        let user_id = self
+            .inner
+            .id
+            .ok_or_else(|| async_graphql::Error::new("User missing identifier"))?;
+
+        let limit = first.clamp(1, 100);
+        let follow_collection: Collection<Follow> = app_state.mongo_service.follow_collection();
+        let user_collection: Collection<User> = app_state.mongo_service.user_collection();
+
+        // Get all follows where this user is being followed
+        let mut cursor = follow_collection
+            .find(doc! {"following_id": user_id})
+            .sort(doc! {"created_at": -1})
+            .limit(i64::from(limit))
+            .await
+            .map_err(|e| async_graphql::Error::new(format!("Failed to fetch followers: {}", e)))?;
+
+        let mut follower_ids = Vec::new();
+        while let Some(follow) = cursor
+            .try_next()
+            .await
+            .map_err(|e| async_graphql::Error::new(format!("Failed to fetch followers: {}", e)))?
+        {
+            follower_ids.push(follow.follower_id);
+        }
+
+        // Get total count
+        let total_count = follow_collection
+            .count_documents(doc! {"following_id": user_id})
+            .await
+            .map_err(|e| async_graphql::Error::new(format!("Failed to count followers: {}", e)))?;
+
+        // Fetch user documents
+        let mut users = Vec::new();
+        for follower_id in follower_ids {
+            if let Some(user) = user_collection
+                .find_one(doc! {"_id": follower_id})
+                .await
+                .map_err(|e| async_graphql::Error::new(format!("Failed to fetch user: {}", e)))?
+            {
+                users.push(user);
+            }
+        }
+
+        let edges = users
+            .into_iter()
+            .filter_map(|user| {
+                user.id.map(|id| UserEdge {
+                    cursor: ID::from(id.to_hex()),
+                    node: UserNode::from(user),
+                })
+            })
+            .collect::<Vec<_>>();
+
+        Ok(UserConnection {
+            edges,
+            total_count: total_count as i64,
+        })
+    }
+
+    /// Get list of users this user is following
+    async fn following(
+        &self,
+        ctx: &Context<'_>,
+        #[graphql(default = 20)] first: i32,
+    ) -> Result<UserConnection> {
+        let app_state = ctx.data::<Arc<AppState>>()?;
+        let user_id = self
+            .inner
+            .id
+            .ok_or_else(|| async_graphql::Error::new("User missing identifier"))?;
+
+        let limit = first.clamp(1, 100);
+        let follow_collection: Collection<Follow> = app_state.mongo_service.follow_collection();
+        let user_collection: Collection<User> = app_state.mongo_service.user_collection();
+
+        // Get all follows where this user is the follower
+        let mut cursor = follow_collection
+            .find(doc! {"follower_id": user_id})
+            .sort(doc! {"created_at": -1})
+            .limit(i64::from(limit))
+            .await
+            .map_err(|e| async_graphql::Error::new(format!("Failed to fetch following: {}", e)))?;
+
+        let mut following_ids = Vec::new();
+        while let Some(follow) = cursor
+            .try_next()
+            .await
+            .map_err(|e| async_graphql::Error::new(format!("Failed to fetch following: {}", e)))?
+        {
+            following_ids.push(follow.following_id);
+        }
+
+        // Get total count
+        let total_count = follow_collection
+            .count_documents(doc! {"follower_id": user_id})
+            .await
+            .map_err(|e| async_graphql::Error::new(format!("Failed to count following: {}", e)))?;
+
+        // Fetch user documents
+        let mut users = Vec::new();
+        for following_id in following_ids {
+            if let Some(user) = user_collection
+                .find_one(doc! {"_id": following_id})
+                .await
+                .map_err(|e| async_graphql::Error::new(format!("Failed to fetch user: {}", e)))?
+            {
+                users.push(user);
+            }
+        }
+
+        let edges = users
+            .into_iter()
+            .filter_map(|user| {
+                user.id.map(|id| UserEdge {
+                    cursor: ID::from(id.to_hex()),
+                    node: UserNode::from(user),
+                })
+            })
+            .collect::<Vec<_>>();
+
+        Ok(UserConnection {
+            edges,
+            total_count: total_count as i64,
+        })
     }
 
     /// Get user's vault balance for a specific token mint

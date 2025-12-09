@@ -13,6 +13,7 @@ import {
     Paper,
 } from "@mui/material";
 import { Close as CloseIcon, Repeat as RetweetIcon } from "@mui/icons-material";
+import Link from "next/link";
 import { TweetNode } from "@/lib/graphql/tweets/types";
 
 interface RetweetModalProps {
@@ -67,20 +68,108 @@ export function RetweetModal({ open, onClose, tweet }: RetweetModalProps) {
                         }}
                     >
                         <Box sx={{ display: "flex", gap: 2 }}>
-                            <Avatar
-                                src={author?.avatarUrl || undefined}
-                                sx={{ width: 40, height: 40, bgcolor: "primary.main" }}
-                            >
-                                {author?.displayName?.charAt(0).toUpperCase() || "?"}
-                            </Avatar>
+                            {author?.handle ? (
+                                <Link href={`/@${author.handle.replace(/^@+/, "")}`} style={{ textDecoration: "none" }}>
+                                    <Avatar
+                                        src={author?.avatarUrl || undefined}
+                                        sx={{
+                                            width: 40,
+                                            height: 40,
+                                            bgcolor: "primary.main",
+                                            cursor: "pointer",
+                                            "&:hover": {
+                                                opacity: 0.8,
+                                            },
+                                        }}
+                                    >
+                                        {author?.displayName?.charAt(0).toUpperCase() || "?"}
+                                    </Avatar>
+                                </Link>
+                            ) : author?.userId ? (
+                                <Link href={`/user/${author.userId}`} style={{ textDecoration: "none" }}>
+                                    <Avatar
+                                        src={author?.avatarUrl || undefined}
+                                        sx={{
+                                            width: 40,
+                                            height: 40,
+                                            bgcolor: "primary.main",
+                                            cursor: "pointer",
+                                            "&:hover": {
+                                                opacity: 0.8,
+                                            },
+                                        }}
+                                    >
+                                        {author?.displayName?.charAt(0).toUpperCase() || "?"}
+                                    </Avatar>
+                                </Link>
+                            ) : (
+                                <Avatar
+                                    src={author?.avatarUrl || undefined}
+                                    sx={{ width: 40, height: 40, bgcolor: "primary.main" }}
+                                >
+                                    {author?.displayName?.charAt(0).toUpperCase() || "?"}
+                                </Avatar>
+                            )}
                             <Box sx={{ flexGrow: 1 }}>
                                 <Stack direction="row" spacing={1} alignItems="center" sx={{ mb: 0.5 }}>
-                                    <Typography variant="subtitle2" sx={{ fontWeight: 700 }}>
-                                        {author?.displayName || "Unknown"}
-                                    </Typography>
-                                    <Typography variant="body2" color="text.secondary">
-                                        @{author?.handle || "unknown"}
-                                    </Typography>
+                                    {author?.handle ? (
+                                        <Link href={`/@${author.handle.replace(/^@+/, "")}`} style={{ textDecoration: "none", color: "inherit" }}>
+                                            <Typography
+                                                variant="subtitle2"
+                                                sx={{
+                                                    fontWeight: 700,
+                                                    "&:hover": { textDecoration: "underline", cursor: "pointer" },
+                                                }}
+                                            >
+                                                {author?.displayName || "Unknown"}
+                                            </Typography>
+                                        </Link>
+                                    ) : author?.userId ? (
+                                        <Link href={`/user/${author.userId}`} style={{ textDecoration: "none", color: "inherit" }}>
+                                            <Typography
+                                                variant="subtitle2"
+                                                sx={{
+                                                    fontWeight: 700,
+                                                    "&:hover": { textDecoration: "underline", cursor: "pointer" },
+                                                }}
+                                            >
+                                                {author?.displayName || "Unknown"}
+                                            </Typography>
+                                        </Link>
+                                    ) : (
+                                        <Typography variant="subtitle2" sx={{ fontWeight: 700 }}>
+                                            {author?.displayName || "Unknown"}
+                                        </Typography>
+                                    )}
+                                    {author?.handle ? (
+                                        <Link href={`/@${author.handle.replace(/^@+/, "")}`} style={{ textDecoration: "none", color: "inherit" }}>
+                                            <Typography
+                                                variant="body2"
+                                                color="text.secondary"
+                                                sx={{
+                                                    "&:hover": { textDecoration: "underline", cursor: "pointer" },
+                                                }}
+                                            >
+                                                @{author.handle.replace(/^@+/, "")}
+                                            </Typography>
+                                        </Link>
+                                    ) : author?.userId ? (
+                                        <Link href={`/user/${author.userId}`} style={{ textDecoration: "none", color: "inherit" }}>
+                                            <Typography
+                                                variant="body2"
+                                                color="text.secondary"
+                                                sx={{
+                                                    "&:hover": { textDecoration: "underline", cursor: "pointer" },
+                                                }}
+                                            >
+                                                @{author?.handle || "unknown"}
+                                            </Typography>
+                                        </Link>
+                                    ) : (
+                                        <Typography variant="body2" color="text.secondary">
+                                            @{author?.handle || "unknown"}
+                                        </Typography>
+                                    )}
                                 </Stack>
                                 <Typography variant="body2">{tweet.content}</Typography>
                             </Box>

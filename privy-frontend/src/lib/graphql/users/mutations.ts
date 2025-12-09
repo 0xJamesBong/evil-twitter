@@ -155,3 +155,35 @@ export interface UpdateDefaultPaymentTokenResult {
     defaultPaymentToken: string | null;
   };
 }
+
+export const FOLLOW_USER_MUTATION = `
+  mutation FollowUser($input: FollowUserInput!) {
+    followUser(input: $input) {
+      success
+      isFollowing
+    }
+  }
+`;
+
+export interface FollowUserResult {
+  followUser: {
+    success: boolean;
+    isFollowing: boolean;
+  };
+}
+
+export const UNFOLLOW_USER_MUTATION = `
+  mutation UnfollowUser($input: UnfollowUserInput!) {
+    unfollowUser(input: $input) {
+      success
+      isFollowing
+    }
+  }
+`;
+
+export interface UnfollowUserResult {
+  unfollowUser: {
+    success: boolean;
+    isFollowing: boolean;
+  };
+}

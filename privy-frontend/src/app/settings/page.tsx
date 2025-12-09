@@ -48,7 +48,7 @@ const BLING_MINT = process.env.NEXT_PUBLIC_BLING_MINT || "";
 const USDC_MINT = process.env.NEXT_PUBLIC_USDC_MINT || "";
 const STABLECOIN_MINT = process.env.NEXT_PUBLIC_STABLECOIN_MINT || "";
 
-function ProfileContent() {
+function SettingsContent() {
     const { ready, authenticated } = usePrivy();
     const { user: backendUser, isLoading, error, refreshMe } = useBackendUserStore();
     const { identityToken } = useIdentityToken();
@@ -602,7 +602,7 @@ function ProfileContent() {
     );
 }
 
-export default function Profile() {
-    return <ProfileContent />;
+export default function Settings() {
+    return <SettingsContent />;
 }
 

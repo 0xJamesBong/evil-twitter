@@ -23,6 +23,7 @@ import {
 } from "@mui/icons-material";
 import { formatDistanceToNow } from "date-fns";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { TweetNode } from "@/lib/graphql/tweets/types";
 import { VoteButtons } from "./VoteButtons";
 import { RewardCollection } from "./RewardCollection";
@@ -149,27 +150,163 @@ export function TweetCard({
             <CardContent sx={{ p: 2, "&:last-child": { pb: 2 } }}>
                 <Stack direction="row" spacing={2}>
                     {/* Avatar */}
-                    <Avatar
-                        src={author?.avatarUrl || undefined}
-                        sx={{
-                            width: 48,
-                            height: 48,
-                            bgcolor: "primary.main",
-                        }}
-                    >
-                        {author?.displayName?.charAt(0).toUpperCase() || "?"}
-                    </Avatar>
+                    {author?.handle ? (
+                        <Link
+                            href={`/${author.handle.replace(/^@+/, "")}`}
+                            style={{ textDecoration: "none" }}
+                            onClick={(e) => {
+                                e.stopPropagation();
+                                e.preventDefault();
+                                router.push(`/${author.handle.replace(/^@+/, "")}`);
+                            }}
+                        >
+                            <Avatar
+                                src={author?.avatarUrl || undefined}
+                                sx={{
+                                    width: 48,
+                                    height: 48,
+                                    bgcolor: "primary.main",
+                                    cursor: "pointer",
+                                    "&:hover": {
+                                        opacity: 0.8,
+                                    },
+                                }}
+                            >
+                                {author?.displayName?.charAt(0).toUpperCase() || "?"}
+                            </Avatar>
+                        </Link>
+                    ) : author?.userId ? (
+                        <Link
+                            href={`/user/${author.userId}`}
+                            style={{ textDecoration: "none" }}
+                            onClick={(e) => {
+                                e.stopPropagation();
+                                e.preventDefault();
+                                router.push(`/user/${author.userId}`);
+                            }}
+                        >
+                            <Avatar
+                                src={author?.avatarUrl || undefined}
+                                sx={{
+                                    width: 48,
+                                    height: 48,
+                                    bgcolor: "primary.main",
+                                    cursor: "pointer",
+                                    "&:hover": {
+                                        opacity: 0.8,
+                                    },
+                                }}
+                            >
+                                {author?.displayName?.charAt(0).toUpperCase() || "?"}
+                            </Avatar>
+                        </Link>
+                    ) : (
+                        <Avatar
+                            src={author?.avatarUrl || undefined}
+                            sx={{
+                                width: 48,
+                                height: 48,
+                                bgcolor: "primary.main",
+                            }}
+                        >
+                            {author?.displayName?.charAt(0).toUpperCase() || "?"}
+                        </Avatar>
+                    )}
 
                     {/* Content */}
                     <Box sx={{ flexGrow: 1, minWidth: 0 }}>
                         {/* Header */}
                         <Stack direction="row" spacing={1} alignItems="center" sx={{ mb: 0.5 }}>
-                            <Typography variant="subtitle2" sx={{ fontWeight: 700 }}>
-                                {author?.displayName || "Unknown"}
-                            </Typography>
-                            <Typography variant="body2" color="text.secondary">
-                                @{author?.handle || "unknown"}
-                            </Typography>
+                            {author?.handle ? (
+                                <Link
+                                    href={`/${author.handle.replace(/^@+/, "")}`}
+                                    style={{ textDecoration: "none", color: "inherit" }}
+                                    onClick={(e) => {
+                                        e.stopPropagation();
+                                        e.preventDefault();
+                                        router.push(`/${author.handle.replace(/^@+/, "")}`);
+                                    }}
+                                >
+                                    <Typography
+                                        variant="subtitle2"
+                                        sx={{
+                                            fontWeight: 700,
+                                            "&:hover": { textDecoration: "underline", cursor: "pointer" },
+                                        }}
+                                    >
+                                        {author?.displayName || "Unknown"}
+                                    </Typography>
+                                </Link>
+                            ) : author?.userId ? (
+                                <Link
+                                    href={`/user/${author.userId}`}
+                                    style={{ textDecoration: "none", color: "inherit" }}
+                                    onClick={(e) => {
+                                        e.stopPropagation();
+                                        e.preventDefault();
+                                        router.push(`/user/${author.userId}`);
+                                    }}
+                                >
+                                    <Typography
+                                        variant="subtitle2"
+                                        sx={{
+                                            fontWeight: 700,
+                                            "&:hover": { textDecoration: "underline", cursor: "pointer" },
+                                        }}
+                                    >
+                                        {author?.displayName || "Unknown"}
+                                    </Typography>
+                                </Link>
+                            ) : (
+                                <Typography variant="subtitle2" sx={{ fontWeight: 700 }}>
+                                    {author?.displayName || "Unknown"}
+                                </Typography>
+                            )}
+                            {author?.handle ? (
+                                <Link
+                                    href={`/${author.handle.replace(/^@+/, "")}`}
+                                    style={{ textDecoration: "none", color: "inherit" }}
+                                    onClick={(e) => {
+                                        e.stopPropagation();
+                                        e.preventDefault();
+                                        router.push(`/${author.handle.replace(/^@+/, "")}`);
+                                    }}
+                                >
+                                    <Typography
+                                        variant="body2"
+                                        color="text.secondary"
+                                        sx={{
+                                            "&:hover": { textDecoration: "underline", cursor: "pointer" },
+                                        }}
+                                    >
+                                        @{author.handle.replace(/^@+/, "")}
+                                    </Typography>
+                                </Link>
+                            ) : author?.userId ? (
+                                <Link
+                                    href={`/user/${author.userId}`}
+                                    style={{ textDecoration: "none", color: "inherit" }}
+                                    onClick={(e) => {
+                                        e.stopPropagation();
+                                        e.preventDefault();
+                                        router.push(`/user/${author.userId}`);
+                                    }}
+                                >
+                                    <Typography
+                                        variant="body2"
+                                        color="text.secondary"
+                                        sx={{
+                                            "&:hover": { textDecoration: "underline", cursor: "pointer" },
+                                        }}
+                                    >
+                                        @{author?.handle || "unknown"}
+                                    </Typography>
+                                </Link>
+                            ) : (
+                                <Typography variant="body2" color="text.secondary">
+                                    @{author?.handle || "unknown"}
+                                </Typography>
+                            )}
                             <Typography variant="body2" color="text.secondary">
                                 ·
                             </Typography>
@@ -258,18 +395,114 @@ export function TweetCard({
                                 }}
                             >
                                 <Stack direction="row" spacing={1} alignItems="center" sx={{ mb: 1 }}>
-                                    <Avatar
-                                        src={tweet.quotedTweet.author?.avatarUrl || undefined}
-                                        sx={{ width: 20, height: 20, bgcolor: "primary.main" }}
-                                    >
-                                        {tweet.quotedTweet.author?.displayName?.charAt(0).toUpperCase() || "?"}
-                                    </Avatar>
-                                    <Typography variant="caption" sx={{ fontWeight: 600 }}>
-                                        {tweet.quotedTweet.author?.displayName || "Unknown"}
-                                    </Typography>
-                                    <Typography variant="caption" color="text.secondary">
-                                        @{tweet.quotedTweet.author?.handle || "unknown"}
-                                    </Typography>
+                                    {tweet.quotedTweet.author?.handle ? (
+                                        <Link
+                                            href={`/${tweet.quotedTweet.author.handle.replace(/^@+/, "")}`}
+                                            style={{ textDecoration: "none" }}
+                                            onClick={(e) => {
+                                                e.stopPropagation();
+                                                e.preventDefault();
+                                                router.push(`/${tweet.quotedTweet.author.handle.replace(/^@+/, "")}`);
+                                            }}
+                                        >
+                                            <Avatar
+                                                src={tweet.quotedTweet.author?.avatarUrl || undefined}
+                                                sx={{
+                                                    width: 20,
+                                                    height: 20,
+                                                    bgcolor: "primary.main",
+                                                    cursor: "pointer",
+                                                    "&:hover": {
+                                                        opacity: 0.8,
+                                                    },
+                                                }}
+                                            >
+                                                {tweet.quotedTweet.author?.displayName?.charAt(0).toUpperCase() || "?"}
+                                            </Avatar>
+                                        </Link>
+                                    ) : tweet.quotedTweet.author?.userId ? (
+                                        <Link
+                                            href={`/user/${tweet.quotedTweet.author.userId}`}
+                                            style={{ textDecoration: "none" }}
+                                            onClick={(e) => {
+                                                e.stopPropagation();
+                                                e.preventDefault();
+                                                router.push(`/user/${tweet.quotedTweet.author.userId}`);
+                                            }}
+                                        >
+                                            <Avatar
+                                                src={tweet.quotedTweet.author?.avatarUrl || undefined}
+                                                sx={{
+                                                    width: 20,
+                                                    height: 20,
+                                                    bgcolor: "primary.main",
+                                                    cursor: "pointer",
+                                                    "&:hover": {
+                                                        opacity: 0.8,
+                                                    },
+                                                }}
+                                            >
+                                                {tweet.quotedTweet.author?.displayName?.charAt(0).toUpperCase() || "?"}
+                                            </Avatar>
+                                        </Link>
+                                    ) : (
+                                        <Avatar
+                                            src={tweet.quotedTweet.author?.avatarUrl || undefined}
+                                            sx={{ width: 20, height: 20, bgcolor: "primary.main" }}
+                                        >
+                                            {tweet.quotedTweet.author?.displayName?.charAt(0).toUpperCase() || "?"}
+                                        </Avatar>
+                                    )}
+                                    {tweet.quotedTweet.author?.handle ? (
+                                        <Link
+                                            href={`/${tweet.quotedTweet.author.handle.replace(/^@+/, "")}`}
+                                            style={{ textDecoration: "none", color: "inherit" }}
+                                            onClick={(e) => {
+                                                e.stopPropagation();
+                                                e.preventDefault();
+                                                router.push(`/${tweet.quotedTweet.author.handle.replace(/^@+/, "")}`);
+                                            }}
+                                        >
+                                            <Typography
+                                                variant="caption"
+                                                sx={{
+                                                    fontWeight: 600,
+                                                    "&:hover": { textDecoration: "underline", cursor: "pointer" },
+                                                }}
+                                            >
+                                                {tweet.quotedTweet.author?.displayName || "Unknown"}
+                                            </Typography>
+                                        </Link>
+                                    ) : (
+                                        <Typography variant="caption" sx={{ fontWeight: 600 }}>
+                                            {tweet.quotedTweet.author?.displayName || "Unknown"}
+                                        </Typography>
+                                    )}
+                                    {tweet.quotedTweet.author?.handle ? (
+                                        <Link
+                                            href={`/${tweet.quotedTweet.author.handle.replace(/^@+/, "")}`}
+                                            style={{ textDecoration: "none", color: "inherit" }}
+                                            onClick={(e) => {
+                                                e.stopPropagation();
+                                                e.preventDefault();
+                                                router.push(`/${tweet.quotedTweet.author.handle.replace(/^@+/, "")}`);
+                                            }}
+                                        >
+                                            <Typography
+                                                variant="caption"
+                                                color="text.secondary"
+                                                sx={{
+                                                    "&:hover": { textDecoration: "underline", cursor: "pointer" },
+                                                }}
+                                            >
+                                                @{tweet.quotedTweet.author.handle.replace(/^@+/, "")}
+                                            </Typography>
+                                        </Link>
+                                    ) : (
+                                        <Typography variant="caption" color="text.secondary">
+                                            @{tweet.quotedTweet.author?.handle?.replace(/^@+/, "") || "unknown"}
+                                        </Typography>
+                                    )}
                                 </Stack>
                                 <Typography variant="body2">{tweet.quotedTweet.content}</Typography>
                             </Box>

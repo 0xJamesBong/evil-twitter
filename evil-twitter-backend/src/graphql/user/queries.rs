@@ -49,6 +49,15 @@ impl UserQuery {
         user_by_privy_id_resolver(ctx, privy_id).await
     }
 
+    /// Find user by handle (username)
+    async fn user_by_handle(
+        &self,
+        ctx: &Context<'_>,
+        handle: String,
+    ) -> Result<Option<UserNode>> {
+        user_by_handle_resolver(ctx, handle).await
+    }
+
     /// Flexible user search for discovery surfaces.
     async fn search_users(
         &self,
@@ -157,6 +166,34 @@ pub async fn user_by_privy_id_resolver(
         .mongo_service
         .users
         .get_user_by_privy_id(&privy_id)
+        .await?;
+
+    Ok(user.map(UserNode::from))
+}
+
+/// Find user by handle (username)
+pub async fn user_by_handle_resolver(
+    ctx: &Context<'_>,
+    handle: String,
+) -> Result<Option<UserNode>> {
+    let app_state = ctx.data::<Arc<AppState>>()?;
+
+    // Get profile by handle
+    let profile = app_state
+        .mongo_service
+        .profiles
+        .get_profile_by_handle(&handle)
+        .await?;
+
+    let Some(profile) = profile else {
+        return Ok(None);
+    };
+
+    // Get user by user_id from profile
+    let user = app_state
+        .mongo_service
+        .users
+        .get_user_by_privy_id(&profile.user_id)
         .await?;
 
     Ok(user.map(UserNode::from))

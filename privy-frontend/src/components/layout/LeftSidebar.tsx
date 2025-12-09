@@ -16,26 +16,51 @@ import {
 import {
     Home as HomeIcon,
     Person as PersonIcon,
+    Settings as SettingsIcon,
     Science as TestIcon,
     Logout as LogoutIcon,
     Message as MessageIcon,
     Code as CodeIcon,
     AccountBalanceWallet as RewardsIcon,
 } from "@mui/icons-material";
+import { useBackendUserStore } from "@/lib/stores/backendUserStore";
+import { useMemo } from "react";
 
 export function LeftSidebar() {
     const router = useRouter();
     const pathname = usePathname();
     const { authenticated, logout } = usePrivy();
+    const { user: backendUser } = useBackendUserStore();
 
-    const navItems = [
-        { label: "Home", path: "/", icon: <HomeIcon /> },
-        { label: "Profile", path: "/profile", icon: <PersonIcon /> },
-        { label: "Rewards", path: "/rewards", icon: <RewardsIcon /> },
-        { label: "Test", path: "/test", icon: <TestIcon /> },
-        { label: "Sign Message", path: "/signMessage", icon: <MessageIcon /> },
-        { label: "Contracts", path: "/contracts", icon: <CodeIcon /> },
-    ];
+    // Get profile path for current user
+    const profilePath = useMemo(() => {
+        if (!backendUser) return null;
+        if (backendUser.profile?.handle) {
+            return `/@${backendUser.profile.handle.replace(/^@+/, "")}`;
+        }
+        if (backendUser.id) {
+            return `/user/${backendUser.id}`;
+        }
+        return null;
+    }, [backendUser]);
+
+    const navItems = useMemo(() => {
+        const items = [
+            { label: "Home", path: "/", icon: <HomeIcon /> },
+            { label: "Settings", path: "/settings", icon: <SettingsIcon /> },
+            { label: "Rewards", path: "/rewards", icon: <RewardsIcon /> },
+            { label: "Test", path: "/test", icon: <TestIcon /> },
+            { label: "Sign Message", path: "/signMessage", icon: <MessageIcon /> },
+            { label: "Contracts", path: "/contracts", icon: <CodeIcon /> },
+        ];
+
+        // Insert Profile link after Home if user has a profile
+        if (profilePath) {
+            items.splice(1, 0, { label: "Profile", path: profilePath, icon: <PersonIcon /> });
+        }
+
+        return items;
+    }, [profilePath]);
 
     return (
         <Paper
