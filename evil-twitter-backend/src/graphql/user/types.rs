@@ -18,6 +18,8 @@ use async_graphql::SimpleObject;
 // Input Types
 // ============================================================================
 
+
+// Need to prepare for tips, bounty questions, and send tokens to user 
 #[derive(InputObject, Default)]
 pub struct DiscoverFilters {
     #[graphql(name = "minFollowers")]
