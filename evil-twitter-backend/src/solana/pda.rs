@@ -15,7 +15,6 @@ const POST_MINT_PAYOUT_SEED: &[u8] = b"post_mint_payout";
 const USER_POST_MINT_CLAIM_SEED: &[u8] = b"user_post_mint_claim";
 const SESSION_AUTHORITY_SEED: &[u8] = b"session_authority";
 const TIP_VAULT_SEED: &[u8] = b"tip_vault";
-const TIP_VAULT_AUTH_SEED: &[u8] = b"tip_vault_auth";
 const TIP_VAULT_TOKEN_ACCOUNT_SEED: &[u8] = b"tip_vault_token_account";
 
 /// Derive the Config PDA
@@ -161,18 +160,6 @@ pub fn get_tip_vault_pda(
 ) -> (Pubkey, u8) {
     Pubkey::find_program_address(
         &[TIP_VAULT_SEED, owner.as_ref(), token_mint.as_ref()],
-        program_id,
-    )
-}
-
-/// Derive the Tip Vault Authority PDA
-pub fn get_tip_vault_authority_pda(
-    program_id: &Pubkey,
-    owner: &Pubkey,
-    token_mint: &Pubkey,
-) -> (Pubkey, u8) {
-    Pubkey::find_program_address(
-        &[TIP_VAULT_AUTH_SEED, owner.as_ref(), token_mint.as_ref()],
         program_id,
     )
 }

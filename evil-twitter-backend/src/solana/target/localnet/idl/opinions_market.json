@@ -435,40 +435,6 @@
           }
         },
         {
-          "name": "tip_vault_authority",
-          "pda": {
-            "seeds": [
-              {
-                "kind": "const",
-                "value": [
-                  116,
-                  105,
-                  112,
-                  95,
-                  118,
-                  97,
-                  117,
-                  108,
-                  116,
-                  95,
-                  97,
-                  117,
-                  116,
-                  104
-                ]
-              },
-              {
-                "kind": "account",
-                "path": "owner"
-              },
-              {
-                "kind": "account",
-                "path": "token_mint"
-              }
-            ]
-          }
-        },
-        {
           "name": "tip_vault_token_account",
           "writable": true,
           "pda": {
@@ -3025,7 +2991,8 @@
           "signer": true
         },
         {
-          "name": "recipient"
+          "name": "recipient",
+          "writable": true
         },
         {
           "name": "session_key",
@@ -3219,40 +3186,6 @@
                   117,
                   108,
                   116
-                ]
-              },
-              {
-                "kind": "account",
-                "path": "recipient"
-              },
-              {
-                "kind": "account",
-                "path": "token_mint"
-              }
-            ]
-          }
-        },
-        {
-          "name": "tip_vault_authority",
-          "pda": {
-            "seeds": [
-              {
-                "kind": "const",
-                "value": [
-                  116,
-                  105,
-                  112,
-                  95,
-                  118,
-                  97,
-                  117,
-                  108,
-                  116,
-                  95,
-                  97,
-                  117,
-                  116,
-                  104
                 ]
               },
               {
@@ -4101,28 +4034,128 @@
   "errors": [
     {
       "code": 6000,
-      "name": "InvalidSessionKey",
-      "msg": "Invalid session key"
+      "name": "PostNotOpen",
+      "msg": "Post is not open"
     },
     {
       "code": 6001,
-      "name": "InvalidSessionOwner",
-      "msg": "Invalid session owner"
+      "name": "PostExpired",
+      "msg": "Post is expired"
     },
     {
       "code": 6002,
-      "name": "SessionExpired",
-      "msg": "Session expired"
+      "name": "PostAlreadySettled",
+      "msg": "Post already settled"
     },
     {
       "code": 6003,
+      "name": "PostNotExpired",
+      "msg": "Post not yet expired"
+    },
+    {
+      "code": 6004,
+      "name": "PostNotSettled",
+      "msg": "Post not settled"
+    },
+    {
+      "code": 6005,
+      "name": "NoWinner",
+      "msg": "No winner for this post"
+    },
+    {
+      "code": 6006,
+      "name": "AlreadyClaimed",
+      "msg": "Reward already claimed"
+    },
+    {
+      "code": 6007,
+      "name": "MathOverflow",
+      "msg": "Math overflow"
+    },
+    {
+      "code": 6008,
+      "name": "ZeroVotes",
+      "msg": "Zero votes not allowed"
+    },
+    {
+      "code": 6009,
+      "name": "MintNotEnabled",
+      "msg": "Mint is not enabled"
+    },
+    {
+      "code": 6010,
+      "name": "BlingCannotBeAlternativePayment",
+      "msg": "BLING cannot be registered as an alternative payment"
+    },
+    {
+      "code": 6011,
+      "name": "AlternativePaymentAlreadyRegistered",
+      "msg": "Alternative payment already registered for this mint"
+    },
+    {
+      "code": 6012,
+      "name": "Unauthorized",
+      "msg": "Unauthorized: user account does not belong to the payer"
+    },
+    {
+      "code": 6013,
+      "name": "InvalidParentPost",
+      "msg": "Invalid parent post"
+    },
+    {
+      "code": 6014,
       "name": "InvalidSignatureInstruction",
       "msg": "Invalid or missing Ed25519 signature verification instruction"
     },
     {
-      "code": 6004,
+      "code": 6015,
+      "name": "SessionExpired",
+      "msg": "Session expired or invalid timestamp"
+    },
+    {
+      "code": 6016,
       "name": "UnauthorizedSigner",
       "msg": "Unauthorized signer"
+    },
+    {
+      "code": 6017,
+      "name": "InvalidRelation",
+      "msg": "Invalid post relation"
+    },
+    {
+      "code": 6018,
+      "name": "AnswerMustTargetQuestion",
+      "msg": "Answer must target a Question post"
+    },
+    {
+      "code": 6019,
+      "name": "AnswerTargetNotRoot",
+      "msg": "Answer target must be a Root post"
+    },
+    {
+      "code": 6020,
+      "name": "ZeroTipAmount",
+      "msg": "Zero tip amount not allowed"
+    },
+    {
+      "code": 6021,
+      "name": "CannotTipSelf",
+      "msg": "Cannot tip yourself"
+    },
+    {
+      "code": 6022,
+      "name": "NoTipsToClaim",
+      "msg": "No tips to claim"
+    },
+    {
+      "code": 6023,
+      "name": "ZeroAmount",
+      "msg": "Zero amount not allowed"
+    },
+    {
+      "code": 6024,
+      "name": "CannotSendToSelf",
+      "msg": "Cannot send tokens to yourself"
     }
   ],
   "types": [

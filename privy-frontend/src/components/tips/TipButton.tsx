@@ -1,11 +1,12 @@
 "use client";
 
-import { useState, useCallback } from "react";
-import { IconButton, CircularProgress, Tooltip } from "@mui/material";
+import { useState } from "react";
+import { IconButton, Tooltip } from "@mui/material";
 import { AttachMoney as TipIcon } from "@mui/icons-material";
-import { useTip } from "@/hooks/useTip";
+import { useTweetStore } from "@/lib/stores/tweetStore";
 import { useBackendUserStore } from "@/lib/stores/backendUserStore";
 import { useIdentityToken } from "@privy-io/react-auth";
+import { useSnackbar } from "notistack";
 
 const BLING_MINT = process.env.NEXT_PUBLIC_BLING_MINT || "";
 
@@ -17,94 +18,88 @@ interface TipButtonProps {
 }
 
 export function TipButton({ recipientUserId, postId, size = "small", variant = "icon" }: TipButtonProps) {
-    const { tip, loading } = useTip();
+    const { tipOnTweet } = useTweetStore();
     const { user } = useBackendUserStore();
     const { identityToken } = useIdentityToken();
-    const [isPending, setIsPending] = useState(false);
+    const { enqueueSnackbar } = useSnackbar();
+    const [tipAnimation, setTipAnimation] = useState(false);
 
     // Get default payment token (defaults to BLING)
     const defaultTokenMint = user?.defaultPaymentToken || BLING_MINT;
     const defaultAmount = 1; // Default tip amount is 1
+    const tokenName = defaultTokenMint === BLING_MINT ? "BLING" : "tokens";
 
-    const handleTip = useCallback(async (e: React.MouseEvent) => {
+    const handleTip = (e: React.MouseEvent) => {
         e.stopPropagation();
 
         if (!identityToken) {
+            enqueueSnackbar("Please log in to tip", { variant: "error" });
             return;
         }
 
-        setIsPending(true);
-
-        try {
-            // Call tip mutation - backend will handle batching/flushing
-            // If postId is provided, don't pass recipientUserId (backend will use post creator)
-            // If postId is not provided, recipientUserId is required
-            if (!postId && !recipientUserId) {
-                throw new Error("recipientUserId is required when postId is not provided");
-            }
-
-            await tip(
-                postId ? null : recipientUserId!,
-                defaultAmount,
-                defaultTokenMint || null,
-                postId || null
-            );
-        } catch (error) {
-            console.error("Failed to tip:", error);
-        } finally {
-            // Clear pending state after a short delay
-            setTimeout(() => setIsPending(false), 300);
+        if (!postId && !recipientUserId) {
+            enqueueSnackbar("Cannot tip: missing recipient or post", { variant: "error" });
+            return;
         }
-    }, [recipientUserId, postId, defaultTokenMint, tip, identityToken]);
 
-    const isLoading = loading || isPending;
+        // Trigger animation immediately (visual feedback only)
+        setTipAnimation(true);
+        setTimeout(() => setTipAnimation(false), 600);
 
-    if (variant === "button") {
-        return (
-            <Tooltip title={`Tip ${defaultAmount} ${defaultTokenMint === BLING_MINT ? 'BLING' : 'token'}`}>
-                <IconButton
-                    size={size}
-                    onClick={handleTip}
-                    disabled={isLoading || !identityToken}
-                    sx={{
-                        color: "text.secondary",
-                        "&:hover": {
-                            bgcolor: "rgba(255,193,7,0.15)",
-                            color: "warning.main"
-                        },
-                    }}
-                >
-                    {isLoading ? (
-                        <CircularProgress size={size === "small" ? 16 : 20} />
-                    ) : (
-                        <TipIcon fontSize={size} />
-                    )}
-                </IconButton>
-            </Tooltip>
-        );
-    }
+        // Show toast notification
+        enqueueSnackbar(`Tipped ${defaultAmount} ${tokenName}!`, {
+            variant: "success",
+            autoHideDuration: 2000,
+        });
+
+        // Fire-and-forget: send tip to backend (no await, no error handling)
+        // Backend will batch and process tips, and frontend will refresh from on-chain
+        if (postId) {
+            tipOnTweet(identityToken, postId, defaultAmount, defaultTokenMint || undefined).catch((error) => {
+                // Silently log errors - backend handles retries and state sync
+                console.error("Tip submission error (will be retried by backend):", error);
+            });
+        } else {
+            // For non-post tips, we'd need a different function or keep useTip
+            // For now, only support post tips
+            console.warn("Direct user tips not yet supported via tweet store");
+        }
+    };
+
+    const button = (
+        <IconButton
+            size={size}
+            onClick={handleTip}
+            disabled={!identityToken || !postId}
+            className="tip-icon"
+            sx={{
+                color: "text.secondary",
+                transform: tipAnimation ? "scale(1.1)" : "scale(1)",
+                transition: "all 0.3s cubic-bezier(0.4, 0, 0.2, 1)",
+                boxShadow: tipAnimation
+                    ? "0 0 20px rgba(255,193,7,0.6), 0 4px 8px rgba(0, 0, 0, 0.2)"
+                    : undefined,
+                "&:hover": {
+                    bgcolor: "rgba(255,193,7,0.15)",
+                    color: "warning.main",
+                    transform: "scale(1.05)",
+                },
+                "&:active": {
+                    transform: "scale(0.95)",
+                },
+                "&:disabled": {
+                    opacity: 0.5,
+                    cursor: "not-allowed",
+                },
+            }}
+        >
+            <TipIcon fontSize={size} />
+        </IconButton>
+    );
 
     return (
-        <Tooltip title={`Tip ${defaultAmount} ${defaultTokenMint === BLING_MINT ? 'BLING' : 'token'}`}>
-            <IconButton
-                size={size}
-                onClick={handleTip}
-                disabled={isLoading || !identityToken}
-                className="tip-icon"
-                sx={{
-                    color: "text.secondary",
-                    "&:hover": {
-                        bgcolor: "rgba(255,193,7,0.15)",
-                        color: "warning.main"
-                    },
-                }}
-            >
-                {isLoading ? (
-                    <CircularProgress size={size === "small" ? 16 : 20} />
-                ) : (
-                    <TipIcon fontSize={size} />
-                )}
-            </IconButton>
+        <Tooltip title={`Tip ${defaultAmount} ${tokenName}`}>
+            {button}
         </Tooltip>
     );
 }

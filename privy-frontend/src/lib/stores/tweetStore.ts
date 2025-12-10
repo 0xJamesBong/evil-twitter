@@ -25,6 +25,11 @@ import {
   TweetAnswerResult,
 } from "../graphql/tweets/mutations";
 import {
+  TIP_MUTATION,
+  TipInput,
+  TipResult,
+} from "../graphql/users/mutations";
+import {
   TIMELINE_QUERY,
   TWEET_QUERY,
   TWEET_THREAD_QUERY,
@@ -133,6 +138,12 @@ type TweetStoreActions = {
     identityToken: string,
     tweetId: string,
     side: "pump" | "smack",
+    tokenMint?: string
+  ) => Promise<void>;
+  tipOnTweet: (
+    identityToken: string,
+    postId: string,
+    amount: number,
     tokenMint?: string
   ) => Promise<void>;
 
@@ -597,6 +608,33 @@ export const useTweetStore = create<TweetStoreState & TweetStoreActions>(
           error instanceof Error ? error.message : "Failed to vote on tweet";
         set({ error: errorMessage });
         throw error;
+      }
+    },
+
+    tipOnTweet: async (
+      identityToken: string,
+      postId: string,
+      amount: number,
+      tokenMint?: string
+    ) => {
+      try {
+        const input: TipInput = {
+          postId: postId,
+          amount,
+          tokenMint: tokenMint || null,
+        };
+
+        await graphqlRequest<TipResult>(
+          TIP_MUTATION,
+          { input },
+          identityToken
+        );
+
+        // No optimistic update - backend handles batching and flushing
+        // Frontend will refresh from on-chain after tips are flushed
+      } catch (error) {
+        // Silently log errors - backend handles retries and state sync
+        console.error("Tip submission error (will be retried by backend):", error);
       }
     },
 
