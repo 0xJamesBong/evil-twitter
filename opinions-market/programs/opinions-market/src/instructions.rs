@@ -812,7 +812,8 @@ pub struct Tip<'info> {
     #[account(mut)]
     pub payer: Signer<'info>,
 
-    /// CHECK: Recipient of the tip
+    /// CHECK: Recipient of the tip (validated in instruction logic)
+    #[account(mut)]
     pub recipient: UncheckedAccount<'info>,
 
     /// CHECK: ephemeral delegated session key (can be same as sender for wallet signing)
@@ -850,6 +851,7 @@ pub struct Tip<'info> {
     )]
     pub sender_user_vault_token_account: Account<'info, TokenAccount>,
 
+    
     /// CHECK: Global vault authority PDA
     #[account(
         seeds = [VAULT_AUTHORITY_SEED],
@@ -866,20 +868,14 @@ pub struct Tip<'info> {
     )]
     pub tip_vault: Account<'info, TipVault>,
 
-    /// CHECK: Tip vault authority PDA
-    #[account(
-        seeds = [TIP_VAULT_AUTH_SEED, recipient.key().as_ref(), token_mint.key().as_ref()],
-        bump,
-    )]
-    pub tip_vault_authority: UncheckedAccount<'info>,
-
+    
     #[account(
         init_if_needed,
         payer = payer,
         seeds = [TIP_VAULT_TOKEN_ACCOUNT_SEED, recipient.key().as_ref(), token_mint.key().as_ref()],
         bump,
         token::mint = token_mint,
-        token::authority = tip_vault_authority,
+        token::authority = vault_authority,
     )]
     pub tip_vault_token_account: Account<'info, TokenAccount>,
 
@@ -923,19 +919,14 @@ pub struct ClaimTips<'info> {
     )]
     pub tip_vault: Account<'info, TipVault>,
 
-    /// CHECK: Tip vault authority PDA
-    #[account(
-        seeds = [TIP_VAULT_AUTH_SEED, owner.key().as_ref(), token_mint.key().as_ref()],
-        bump,
-    )]
-    pub tip_vault_authority: UncheckedAccount<'info>,
+  
 
     #[account(
         mut,
         seeds = [TIP_VAULT_TOKEN_ACCOUNT_SEED, owner.key().as_ref(), token_mint.key().as_ref()],
         bump,
         token::mint = token_mint,
-        token::authority = tip_vault_authority,
+        token::authority = vault_authority,
     )]
     pub tip_vault_token_account: Account<'info, TokenAccount>,
 

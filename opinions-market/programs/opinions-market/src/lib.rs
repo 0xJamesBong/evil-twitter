@@ -1154,24 +1154,18 @@ pub mod opinions_market {
         require!(claim_amount > 0, ErrorCode::NoTipsToClaim);
 
         // Transfer from tip vault to owner's main vault
-        let tip_vault_auth_bump = ctx.bumps.tip_vault_authority;
-        let token_mint_key = ctx.accounts.token_mint.key();
-        let tip_vault_auth_seeds: &[&[&[u8]]] = &[&[
-            TIP_VAULT_AUTH_SEED,
-            ctx.accounts.user_account.user.as_ref(),
-            token_mint_key.as_ref(),
-            &[tip_vault_auth_bump],
-        ]];
+        let vault_bump = ctx.bumps.vault_authority;
+        let vault_authority_seeds: &[&[&[u8]]] = &[&[VAULT_AUTHORITY_SEED, &[vault_bump]]];
 
         let cpi_accounts = anchor_spl::token::Transfer {
             from: ctx.accounts.tip_vault_token_account.to_account_info(),
             to: ctx.accounts.owner_user_vault_token_account.to_account_info(),
-            authority: ctx.accounts.tip_vault_authority.to_account_info(),
+            authority: ctx.accounts.vault_authority.to_account_info(),
         };
         let cpi_ctx = CpiContext::new_with_signer(
             ctx.accounts.token_program.to_account_info(),
             cpi_accounts,
-            tip_vault_auth_seeds,
+            vault_authority_seeds,
         );
         anchor_spl::token::transfer(cpi_ctx, claim_amount)?;
 

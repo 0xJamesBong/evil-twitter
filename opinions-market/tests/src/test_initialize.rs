@@ -280,7 +280,7 @@ async fn test_setup() {
             )
             .await;
         }
-
+    
         {
             println!("user 2 depositing 1_000 usdc to their vault");
             test_phenomena_deposit(
@@ -372,7 +372,7 @@ async fn test_setup() {
             )
             .await;
         }
-
+    
         //// ===== CREATING POSTS =====
         let (post_p1_pda, post_p1_id_hash) = {
             println!("user 1 creating an original post P1");
@@ -606,19 +606,6 @@ async fn test_setup() {
             .await;
         };
 
-        // {
-        //     println!("user 3 trying to make a post");
-        //     // This would Cause an error because user 3 is not a user in the system
-        //     test_phenomena_create_post(
-        //         &rpc,
-        //         &opinions_market,
-        //         &payer,
-        //         &user_3,
-        //         &bling_pubkey,
-        //         &config_pda,
-        //     )
-        //     .await;
-        // }
         {
             println!("user 1 tipping user 2 100 bling");
             test_phenomena_tip(
@@ -641,5 +628,21 @@ async fn test_setup() {
             println!(" 🟪🟪🟪🟪🟪🟪🟪🟪🟪🟪🟪🟪🟪🟪🟪🟪🟪");
             panic!();
         }
+
+
+        // {
+        //     println!("user 3 trying to make a post");
+        //     // This would Cause an error because user 3 is not a user in the system
+        //     test_phenomena_create_post(
+        //         &rpc,
+        //         &opinions_market,
+        //         &payer,
+        //         &user_3,
+        //         &bling_pubkey,
+        //         &config_pda,
+        //     )
+        //     .await;
+        // }
+      
     }
 }

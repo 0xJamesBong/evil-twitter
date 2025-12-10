@@ -1805,16 +1805,6 @@ pub async fn test_phenomena_tip(
     )
     .0;
 
-    let tip_vault_authority_pda = Pubkey::find_program_address(
-        &[
-            TIP_VAULT_AUTH_SEED,
-            recipient.pubkey().as_ref(),
-            token_mint.as_ref(),
-        ],
-        &opinions_market.id(),
-    )
-    .0;
-
     let tip_vault_token_account_pda = Pubkey::find_program_address(
         &[
             TIP_VAULT_TOKEN_ACCOUNT_SEED,
@@ -1889,7 +1879,6 @@ pub async fn test_phenomena_tip(
             sender_user_vault_token_account: sender_vault_token_account_pda,
             vault_authority: vault_authority_pda,
             tip_vault: tip_vault_pda,
-            tip_vault_authority: tip_vault_authority_pda,
             tip_vault_token_account: tip_vault_token_account_pda,
             token_program: spl_token::ID,
             system_program: system_program::ID,
@@ -1989,16 +1978,6 @@ pub async fn test_phenomena_claim_tips(
     )
     .0;
 
-    let tip_vault_authority_pda = Pubkey::find_program_address(
-        &[
-            TIP_VAULT_AUTH_SEED,
-            owner.pubkey().as_ref(),
-            token_mint.as_ref(),
-        ],
-        &opinions_market.id(),
-    )
-    .0;
-
     let tip_vault_token_account_pda = Pubkey::find_program_address(
         &[
             TIP_VAULT_TOKEN_ACCOUNT_SEED,
@@ -2076,7 +2055,6 @@ pub async fn test_phenomena_claim_tips(
             user_account: user_account_pda,
             token_mint: *token_mint,
             tip_vault: tip_vault_pda,
-            tip_vault_authority: tip_vault_authority_pda,
             tip_vault_token_account: tip_vault_token_account_pda,
             vault_authority: vault_authority_pda,
             owner_user_vault_token_account: owner_vault_token_account_pda,

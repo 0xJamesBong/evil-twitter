@@ -441,40 +441,6 @@ export type OpinionsMarket = {
           }
         },
         {
-          "name": "tipVaultAuthority",
-          "pda": {
-            "seeds": [
-              {
-                "kind": "const",
-                "value": [
-                  116,
-                  105,
-                  112,
-                  95,
-                  118,
-                  97,
-                  117,
-                  108,
-                  116,
-                  95,
-                  97,
-                  117,
-                  116,
-                  104
-                ]
-              },
-              {
-                "kind": "account",
-                "path": "owner"
-              },
-              {
-                "kind": "account",
-                "path": "tokenMint"
-              }
-            ]
-          }
-        },
-        {
           "name": "tipVaultTokenAccount",
           "writable": true,
           "pda": {
@@ -3031,7 +2997,8 @@ export type OpinionsMarket = {
           "signer": true
         },
         {
-          "name": "recipient"
+          "name": "recipient",
+          "writable": true
         },
         {
           "name": "sessionKey",
@@ -3225,40 +3192,6 @@ export type OpinionsMarket = {
                   117,
                   108,
                   116
-                ]
-              },
-              {
-                "kind": "account",
-                "path": "recipient"
-              },
-              {
-                "kind": "account",
-                "path": "tokenMint"
-              }
-            ]
-          }
-        },
-        {
-          "name": "tipVaultAuthority",
-          "pda": {
-            "seeds": [
-              {
-                "kind": "const",
-                "value": [
-                  116,
-                  105,
-                  112,
-                  95,
-                  118,
-                  97,
-                  117,
-                  108,
-                  116,
-                  95,
-                  97,
-                  117,
-                  116,
-                  104
                 ]
               },
               {

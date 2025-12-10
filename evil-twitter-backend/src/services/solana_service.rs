@@ -44,7 +44,7 @@ use crate::solana::get_config_pda;
 use crate::solana::{
     get_position_pda, get_post_mint_payout_pda, get_post_pda, get_post_pot_authority_pda,
     get_post_pot_token_account_pda, get_protocol_treasury_token_account_pda,
-    get_session_authority_pda, get_tip_vault_authority_pda, get_tip_vault_pda,
+    get_session_authority_pda, get_tip_vault_pda,
     get_tip_vault_token_account_pda, get_user_account_pda, get_user_post_mint_claim_pda,
     get_user_vault_token_account_pda, get_valid_payment_pda, get_vault_authority_pda,
 };
@@ -2320,8 +2320,6 @@ impl SolanaService {
         let (sender_vault_token_account_pda, _) =
             get_user_vault_token_account_pda(&program_id, sender_wallet, token_mint);
         let (tip_vault_pda, _) = get_tip_vault_pda(&program_id, recipient_wallet, token_mint);
-        let (tip_vault_authority_pda, _) =
-            get_tip_vault_authority_pda(&program_id, recipient_wallet, token_mint);
         let (tip_vault_token_account_pda, _) =
             get_tip_vault_token_account_pda(&program_id, recipient_wallet, token_mint);
         let (vault_authority_pda, _) = get_vault_authority_pda(&program_id);
@@ -2345,7 +2343,6 @@ impl SolanaService {
                 sender_user_vault_token_account: sender_vault_token_account_pda,
                 vault_authority: vault_authority_pda,
                 tip_vault: tip_vault_pda,
-                tip_vault_authority: tip_vault_authority_pda,
                 tip_vault_token_account: tip_vault_token_account_pda,
                 token_program: spl_token::ID,
                 system_program: solana_sdk::system_program::ID,
@@ -2396,8 +2393,6 @@ impl SolanaService {
         // Derive PDAs
         let (user_account_pda, _) = get_user_account_pda(&program_id, owner_wallet);
         let (tip_vault_pda, _) = get_tip_vault_pda(&program_id, owner_wallet, token_mint);
-        let (tip_vault_authority_pda, _) =
-            get_tip_vault_authority_pda(&program_id, owner_wallet, token_mint);
         let (tip_vault_token_account_pda, _) =
             get_tip_vault_token_account_pda(&program_id, owner_wallet, token_mint);
         let (owner_vault_token_account_pda, _) =
@@ -2418,7 +2413,6 @@ impl SolanaService {
                 user_account: user_account_pda,
                 token_mint: *token_mint,
                 tip_vault: tip_vault_pda,
-                tip_vault_authority: tip_vault_authority_pda,
                 tip_vault_token_account: tip_vault_token_account_pda,
                 vault_authority: vault_authority_pda,
                 owner_user_vault_token_account: owner_vault_token_account_pda,
