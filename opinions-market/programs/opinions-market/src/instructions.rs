@@ -545,22 +545,6 @@ pub struct SettlePost<'info> {
     // Optional parent post (if child)
     pub parent_post: Option<Account<'info, PostAccount>>,
 
-    #[account(
-        mut,
-        seeds = [POST_POT_TOKEN_ACCOUNT_SEED, post.key().as_ref(), token_mint.key().as_ref()],
-        bump,
-        constraint = post_pot_token_account.mint == token_mint.key(),
-        constraint = post_pot_token_account.owner == parent_post_pot_authority.key(),
-    )]
-    pub parent_post_pot_token_account: Option<Account<'info, TokenAccount>>,
-
-    /// CHECK: Post pot authority PDA derived from seeds
-    #[account(
-            seeds = [POST_POT_AUTHORITY_SEED, post.key().as_ref()],
-            bump,
-        )]
-    pub parent_post_pot_authority: UncheckedAccount<'info>,
-
     pub config: Account<'info, Config>,
     pub token_mint: Account<'info, Mint>,
 
@@ -673,6 +657,7 @@ pub struct DistributeProtocolFee<'info> {
     pub token_program: Program<'info, Token>,
 }
 
+// This function is called only if the post is a child post
 #[derive(Accounts)]
 #[instruction(post_id_hash: [u8; 32])]
 pub struct DistributeParentPostShare<'info> {
@@ -708,14 +693,24 @@ pub struct DistributeParentPostShare<'info> {
     )]
     pub post_mint_payout: Account<'info, PostMintPayout>,
 
-    // Optional parent post (must be provided if this is a child post)
-    pub parent_post: Option<Account<'info, PostAccount>>,
+    // Required parent post (must be provided if this is a child post)
+    pub parent_post: Account<'info, PostAccount>,
 
-    /// CHECK: Parent post pot token account (optional, only needed if parent_post is Some)
-    pub parent_post_pot_token_account: Option<Account<'info, TokenAccount>>,
+    #[account(
+        mut,
+        seeds = [POST_POT_TOKEN_ACCOUNT_SEED, parent_post.key().as_ref(), token_mint.key().as_ref()],
+        bump,
+        constraint = parent_post_pot_token_account.mint == token_mint.key(),
+        constraint = parent_post_pot_token_account.owner == parent_post_pot_authority.key(),
+    )]
+    pub parent_post_pot_token_account: Account<'info, TokenAccount>,
 
-    /// CHECK: Parent post pot authority PDA (optional, only needed if parent_post is Some)
-    pub parent_post_pot_authority: Option<UncheckedAccount<'info>>,
+    /// CHECK: Parent post pot authority PDA
+    #[account(
+        seeds = [POST_POT_AUTHORITY_SEED, parent_post.key().as_ref()],
+        bump,
+    )]
+    pub parent_post_pot_authority: UncheckedAccount<'info>,
 
     pub token_mint: Account<'info, Mint>,
     pub token_program: Program<'info, Token>,

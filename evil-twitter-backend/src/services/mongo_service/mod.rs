@@ -1,6 +1,6 @@
 use mongodb::{Client, Collection, Database};
 
-use crate::models::{follow::Follow, like::Like, profile::Profile, tweet::Tweet, user::User};
+use crate::models::{follow::Follow, like::Like, profile::Profile, tip::TipRecord, tweet::Tweet, user::User};
 
 // MongoDB service modules
 pub mod profiles;
@@ -70,5 +70,10 @@ impl MongoService {
     /// Get the profiles collection
     pub fn profile_collection(&self) -> Collection<Profile> {
         self.db.collection(Profile::COLLECTION_NAME)
+    }
+
+    /// Get the tip records collection
+    pub fn tip_collection(&self) -> Collection<TipRecord> {
+        self.db.collection(TipRecord::COLLECTION_NAME)
     }
 }

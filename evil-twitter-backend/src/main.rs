@@ -239,6 +239,26 @@ async fn tip_flush_loop(app_state: Arc<AppState>) {
                         key.recipient,
                         signature
                     );
+                    
+                    // Store tip record in MongoDB for tracking by post
+                    use evil_twitter::models::tip::TipRecord;
+                    let tip_record = TipRecord::new(
+                        key.recipient,
+                        key.sender,
+                        key.post_id.clone(),
+                        key.token_mint,
+                        amount,
+                        Some(signature.to_string()),
+                    );
+                    
+                    if let Err(e) = app_state
+                        .mongo_service
+                        .tip_collection()
+                        .insert_one(&tip_record)
+                        .await
+                    {
+                        eprintln!("⚠️  Failed to store tip record in MongoDB: {}", e);
+                    }
                 }
                 Err(e) => {
                     eprintln!(

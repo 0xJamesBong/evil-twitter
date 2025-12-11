@@ -1284,31 +1284,7 @@ pub async fn test_phenomena_settle_post(
             opinions_market::states::PostRelation::Root => None,
         };
 
-        // Derive parent post pot accounts if this is a child post
-        let (parent_post_pot_token_account_pda, parent_post_pot_authority_pda) =
-            if let Some(parent_pda) = parent_post_pda {
-                let parent_pot_token_account = Pubkey::find_program_address(
-                    &[
-                        POST_POT_TOKEN_ACCOUNT_SEED,
-                        parent_pda.as_ref(),
-                        token_mint.as_ref(),
-                    ],
-                    &opinions_market.id(),
-                )
-                .0;
-
-                let parent_pot_authority = Pubkey::find_program_address(
-                    &[POST_POT_AUTHORITY_SEED, parent_pda.as_ref()],
-                    &opinions_market.id(),
-                )
-                .0;
-
-                (Some(parent_pot_token_account), parent_pot_authority)
-            } else {
-                // Use post_pot_authority as fallback when there's no parent (struct requires non-optional)
-                (None, post_pot_authority_pda)
-            };
-
+        // SettlePost only needs parent_post for reading (optional), no parent pot accounts
         let settle_ix = opinions_market
             .request()
             .accounts(opinions_market::accounts::SettlePost {
@@ -1317,9 +1293,7 @@ pub async fn test_phenomena_settle_post(
                 post_pot_authority: post_pot_authority_pda,
                 post_mint_payout: post_mint_payout_pda,
                 protocol_token_treasury_token_account: protocol_treasury_token_account_pda,
-                parent_post: parent_post_pda,
-                parent_post_pot_token_account: parent_post_pot_token_account_pda,
-                parent_post_pot_authority: parent_post_pot_authority_pda,
+                parent_post: parent_post_pda, // Optional - only for reading parent state
                 config: *config_pda,
                 token_mint: *token_mint,
                 payer: payer.pubkey(),
@@ -1449,6 +1423,7 @@ pub async fn test_phenomena_settle_post(
         }
 
         // 3. Distribute parent post share (if mother fee > 0 and it's a child post)
+        // DistributeParentPostShare requires parent accounts (no Option)
         if payout_account.mother_fee > 0 && parent_post_pda.is_some() {
             let parent_post_pda_unwrapped = parent_post_pda.unwrap();
 
@@ -1476,9 +1451,9 @@ pub async fn test_phenomena_settle_post(
                     post_pot_token_account: post_pot_token_account_pda,
                     post_pot_authority: post_pot_authority_pda,
                     post_mint_payout: post_mint_payout_pda,
-                    parent_post: parent_post_pda,
-                    parent_post_pot_token_account: Some(parent_post_pot_token_account_pda),
-                    parent_post_pot_authority: Some(parent_post_pot_authority_pda),
+                    parent_post: parent_post_pda_unwrapped, // Required, not Option
+                    parent_post_pot_token_account: parent_post_pot_token_account_pda, // Required, not Option
+                    parent_post_pot_authority: parent_post_pot_authority_pda, // Required, not Option
                     token_mint: *token_mint,
                     token_program: spl_token::ID,
                 })

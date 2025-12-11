@@ -3,6 +3,7 @@ use axum::http::HeaderMap;
 use base64::{Engine as _, engine::general_purpose::STANDARD};
 use futures::TryStreamExt;
 use mongodb::{Collection, bson::doc};
+use solana_sdk::pubkey::Pubkey;
 use std::str::FromStr;
 use std::sync::Arc;
 
@@ -111,6 +112,11 @@ impl UserQuery {
     /// Returns session information if a valid session exists on-chain
     async fn current_session(&self, ctx: &Context<'_>) -> Result<Option<SessionInfo>> {
         current_session_resolver(ctx).await
+    }
+
+    /// Get tips broken down by post for the authenticated user
+    async fn tips_by_post(&self, ctx: &Context<'_>) -> Result<Vec<TipsByPostNode>> {
+        tips_by_post_resolver(ctx).await
     }
 }
 
@@ -671,4 +677,102 @@ pub async fn tip_vault_balances_resolver(ctx: &Context<'_>, wallet: &str) -> Res
         usdc: usdc_balance,
         stablecoin: stablecoin_balance,
     })
+}
+
+#[derive(SimpleObject)]
+pub struct TipsByPostNode {
+    pub post_id: Option<ID>,
+    pub post_id_hash: Option<String>,
+    pub token_mint: String,
+    pub total_amount: u64,
+    pub claimed: bool,
+}
+
+/// Get tips broken down by post for authenticated user
+pub async fn tips_by_post_resolver(ctx: &Context<'_>) -> Result<Vec<TipsByPostNode>> {
+    let app_state = ctx.data::<Arc<AppState>>()?;
+    let headers = ctx
+        .data::<HeaderMap>()
+        .map_err(|_| async_graphql::Error::new("Failed to get headers from context"))?;
+
+    // Verify Privy token and get Privy ID
+    let privy_id = auth::get_privy_id_from_header(&app_state.privy_service, headers)
+        .await
+        .map_err(|(status, json)| {
+            let error_msg = json
+                .get("error")
+                .and_then(|v| v.as_str())
+                .unwrap_or("Authentication failed");
+            async_graphql::Error::new(format!("{} (status {})", error_msg, status))
+        })?;
+
+    // Get user
+    let user = app_state
+        .mongo_service
+        .users
+        .get_user_by_privy_id(&privy_id)
+        .await?
+        .ok_or_else(|| async_graphql::Error::new("User not found"))?;
+
+    let wallet = Pubkey::from_str(&user.wallet)
+        .map_err(|e| async_graphql::Error::new(format!("Invalid wallet: {}", e)))?;
+
+    // Query tip records from MongoDB
+    let collection = app_state.mongo_service.tip_collection();
+    let filter = doc! {
+        "recipient_wallet": wallet.to_string(),
+        "claimed": false,
+    };
+
+    let mut cursor = collection
+        .find(filter)
+        .await
+        .map_err(|e| async_graphql::Error::new(format!("Failed to query tip records: {}", e)))?;
+
+    // Group tips by post_id and token_mint
+    use std::collections::HashMap;
+    let mut grouped: HashMap<(Option<String>, String), (u64, bool)> = HashMap::new();
+
+    while let Some(record) = cursor
+        .try_next()
+        .await
+        .map_err(|e| async_graphql::Error::new(format!("Failed to iterate tip records: {}", e)))?
+    {
+        let key = (record.post_id.clone(), record.token_mint.clone());
+        let entry = grouped.entry(key).or_insert((0, record.claimed));
+        entry.0 += record.amount;
+        entry.1 = entry.1 || record.claimed;
+    }
+
+    // Convert to response format
+    let mut result = Vec::new();
+    for ((post_id, token_mint), (total_amount, claimed)) in grouped {
+        // Get post_id_hash if post_id exists
+        let post_id_hash = if let Some(ref post_id_str) = post_id {
+            if let Ok(post_oid) = mongodb::bson::oid::ObjectId::parse_str(post_id_str) {
+                app_state
+                    .mongo_service
+                    .tweets
+                    .get_tweet_by_id(post_oid)
+                    .await
+                    .ok()
+                    .flatten()
+                    .and_then(|tweet| tweet.post_id_hash)
+            } else {
+                None
+            }
+        } else {
+            None
+        };
+
+        result.push(TipsByPostNode {
+            post_id: post_id.map(|id| ID::from(id)),
+            post_id_hash,
+            token_mint,
+            total_amount,
+            claimed,
+        });
+    }
+
+    Ok(result)
 }

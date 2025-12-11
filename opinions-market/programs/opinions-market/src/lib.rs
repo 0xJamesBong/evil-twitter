@@ -700,8 +700,8 @@ pub mod opinions_market {
         // Calculate mother post fee (10% for child posts, only if parent is still open)
         let mother_fee = match (&post.function, &post.relation) {
             // Replies and quotes feed parent pot (if parent still open)
-            (PostFunction::Normal, PostRelation::Reply { parent })
-            | (PostFunction::Normal, PostRelation::Quote { quoted: parent }) => {
+            (PostFunction::Normal, PostRelation::Reply { .. })
+            | (PostFunction::Normal, PostRelation::Quote { .. }) => {
                 let parent_post = ctx
                     .accounts
                     .parent_post
@@ -918,16 +918,7 @@ pub mod opinions_market {
             return Ok(());
         }
 
-        let parent_post = ctx
-            .accounts
-            .parent_post
-            .as_ref()
-            .ok_or(ErrorCode::InvalidParentPost)?;
-        let parent_post_pot = ctx
-            .accounts
-            .parent_post_pot_token_account
-            .as_ref()
-            .ok_or(ErrorCode::InvalidParentPost)?;
+        let parent_post = &ctx.accounts.parent_post;
         msg!(
             "Distributing mother post fee: {} to parent post: {}",
             mother_fee,
@@ -949,7 +940,7 @@ pub mod opinions_market {
             ctx.accounts.token_program.to_account_info(),
             anchor_spl::token::Transfer {
                 from: ctx.accounts.post_pot_token_account.to_account_info(),
-                to: parent_post_pot.to_account_info(),
+                to: ctx.accounts.parent_post_pot_token_account.to_account_info(),
                 authority: ctx.accounts.post_pot_authority.to_account_info(),
             },
             seeds,

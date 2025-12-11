@@ -116,6 +116,16 @@ impl UserMutation {
         claim_tips_resolver(ctx, input).await
     }
 
+    /// Claim all tips from a specific post
+    /// Note: On-chain this claims all tips, but marks this post's tips as claimed in the database
+    async fn claim_tips_by_post(
+        &self,
+        ctx: &Context<'_>,
+        input: ClaimTipsByPostInput,
+    ) -> Result<ClaimTipsPayload> {
+        claim_tips_by_post_resolver(ctx, input).await
+    }
+
     /// Send tokens from sender's vault to recipient's vault (direct transfer)
     /// recipient_user_id: ID of the user receiving the tokens (required, users only)
     async fn send_token(
@@ -180,6 +190,14 @@ pub struct TipInput {
 
 #[derive(InputObject)]
 pub struct ClaimTipsInput {
+    /// Token mint pubkey as string (defaults to BLING if not provided)
+    pub token_mint: Option<String>,
+}
+
+#[derive(InputObject)]
+pub struct ClaimTipsByPostInput {
+    /// Post ID to claim tips from
+    pub post_id: ID,
     /// Token mint pubkey as string (defaults to BLING if not provided)
     pub token_mint: Option<String>,
 }
@@ -1216,6 +1234,109 @@ pub async fn claim_tips_resolver(
         .claim_tips(&owner_wallet, &token_mint)
         .await
         .map_err(|e| async_graphql::Error::new(format!("Failed to claim tips: {}", e)))?;
+
+    Ok(ClaimTipsPayload {
+        success: true,
+        signature: signature.to_string(),
+        amount_claimed,
+    })
+}
+
+/// Claim tips from a specific post
+/// Note: On-chain this claims all tips from the vault, but we mark this post's tips as claimed in MongoDB
+pub async fn claim_tips_by_post_resolver(
+    ctx: &Context<'_>,
+    input: ClaimTipsByPostInput,
+) -> Result<ClaimTipsPayload> {
+    let app_state = ctx.data::<Arc<AppState>>()?;
+    let headers = ctx
+        .data::<HeaderMap>()
+        .map_err(|_| async_graphql::Error::new("Failed to get headers from context"))?;
+
+    // Verify Privy token and get Privy ID
+    let privy_id = auth::get_privy_id_from_header(&app_state.privy_service, headers)
+        .await
+        .map_err(|(status, json)| {
+            let error_msg = json
+                .get("error")
+                .and_then(|v| v.as_str())
+                .unwrap_or("Authentication failed");
+            async_graphql::Error::new(format!("{} (status {})", error_msg, status))
+        })?;
+
+    // Get user
+    let user = app_state
+        .mongo_service
+        .users
+        .get_user_by_privy_id(&privy_id)
+        .await?
+        .ok_or_else(|| async_graphql::Error::new("User not found"))?;
+
+    let owner_wallet = Pubkey::from_str(&user.wallet)
+        .map_err(|e| async_graphql::Error::new(format!("Invalid wallet: {}", e)))?;
+
+    // Determine token mint (default to BLING)
+    let token_mint = if let Some(token_mint_str) = input.token_mint {
+        Pubkey::from_str(&token_mint_str)
+            .map_err(|e| async_graphql::Error::new(format!("Invalid token_mint: {}", e)))?
+    } else {
+        // Get BLING mint from config
+        let program_id = app_state.solana_service.opinions_market_program().id();
+        let (config_pda, _) = crate::solana::get_config_pda(&program_id);
+        let config_account = app_state
+            .solana_service
+            .opinions_market_program()
+            .account::<opinions_market::states::Config>(config_pda)
+            .await
+            .map_err(|e| async_graphql::Error::new(format!("Failed to get config: {}", e)))?;
+        config_account.bling_mint
+    };
+
+    // Get tip vault balance before claiming
+    let program_id = app_state.solana_service.opinions_market_program().id();
+    let (tip_vault_token_account_pda, _) = crate::solana::get_tip_vault_token_account_pda(
+        &program_id,
+        &owner_wallet,
+        &token_mint,
+    );
+
+    let tip_vault_before = app_state
+        .solana_service
+        .opinions_market_program()
+        .account::<anchor_spl::token::TokenAccount>(tip_vault_token_account_pda)
+        .await
+        .ok();
+
+    let amount_claimed = tip_vault_before
+        .map(|account| account.amount)
+        .unwrap_or(0);
+
+    // Call Solana service to claim tips (claims all tips on-chain)
+    let signature = app_state
+        .solana_service
+        .claim_tips(&owner_wallet, &token_mint)
+        .await
+        .map_err(|e| async_graphql::Error::new(format!("Failed to claim tips: {}", e)))?;
+
+    // Mark this post's tips as claimed in MongoDB
+    let collection = app_state.mongo_service.tip_collection();
+    let filter = doc! {
+        "recipient_wallet": owner_wallet.to_string(),
+        "post_id": input.post_id.to_string(),
+        "token_mint": token_mint.to_string(),
+        "claimed": false,
+    };
+    let update = doc! {
+        "$set": {
+            "claimed": true,
+            "claimed_at": mongodb::bson::DateTime::now(),
+        }
+    };
+
+    collection
+        .update_many(filter, update)
+        .await
+        .map_err(|e| async_graphql::Error::new(format!("Failed to mark tips as claimed: {}", e)))?;
 
     Ok(ClaimTipsPayload {
         success: true,

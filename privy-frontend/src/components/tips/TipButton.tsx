@@ -37,7 +37,7 @@ export function TipButton({ recipientUserId, postId, size = "small", variant = "
             return;
         }
 
-        if (!postId && !recipientUserId) {
+            if (!postId && !recipientUserId) {
             enqueueSnackbar("Cannot tip: missing recipient or post", { variant: "error" });
             return;
         }
@@ -67,20 +67,20 @@ export function TipButton({ recipientUserId, postId, size = "small", variant = "
     };
 
     const button = (
-        <IconButton
-            size={size}
-            onClick={handleTip}
+                <IconButton
+                    size={size}
+                    onClick={handleTip}
             disabled={!identityToken || !postId}
             className="tip-icon"
-            sx={{
-                color: "text.secondary",
+                    sx={{
+                        color: "text.secondary",
                 transform: tipAnimation ? "scale(1.1)" : "scale(1)",
                 transition: "all 0.3s cubic-bezier(0.4, 0, 0.2, 1)",
                 boxShadow: tipAnimation
                     ? "0 0 20px rgba(255,193,7,0.6), 0 4px 8px rgba(0, 0, 0, 0.2)"
                     : undefined,
-                "&:hover": {
-                    bgcolor: "rgba(255,193,7,0.15)",
+                        "&:hover": {
+                            bgcolor: "rgba(255,193,7,0.15)",
                     color: "warning.main",
                     transform: "scale(1.05)",
                 },
@@ -90,12 +90,12 @@ export function TipButton({ recipientUserId, postId, size = "small", variant = "
                 "&:disabled": {
                     opacity: 0.5,
                     cursor: "not-allowed",
-                },
-            }}
-        >
-            <TipIcon fontSize={size} />
-        </IconButton>
-    );
+                        },
+                    }}
+                >
+                        <TipIcon fontSize={size} />
+                </IconButton>
+        );
 
     return (
         <Tooltip title={`Tip ${defaultAmount} ${tokenName}`}>

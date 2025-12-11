@@ -83,6 +83,7 @@ export default function TweetDetailPage() {
 
     const [tweet, setTweet] = useState<TweetNode | null>(null);
     const [loading, setLoading] = useState(true);
+    const [showAllReplies, setShowAllReplies] = useState(false);
 
     const thread = tweetId ? threads[tweetId] : undefined;
     const parents = thread?.parents ?? [];
@@ -97,10 +98,29 @@ export default function TweetDetailPage() {
     const anchorId = anchorTweet?.id ?? tweetId;
 
     const renderReplies = (
-        parentId: string,
+        parentId: string | undefined,
         depth: number = 0
     ): React.ReactNode => {
-        const children = repliesByParent.get(parentId);
+        if (!parentId) {
+            return null;
+        }
+
+        // Try to find children by parentId
+        let children = repliesByParent.get(parentId);
+
+        // If not found, try finding by matching the ID in different formats
+        if (!children || children.length === 0) {
+            // Try to find replies that match this parent by checking all replies
+            children = replies.filter(reply => {
+                const replyParentId = reply.repliedToTweetId;
+                if (!replyParentId) return false;
+                // Try exact match and string comparison
+                return replyParentId === parentId ||
+                    String(replyParentId) === String(parentId) ||
+                    replyParentId.toString() === parentId.toString();
+            });
+        }
+
         if (!children || children.length === 0) {
             return null;
         }
@@ -160,20 +180,54 @@ export default function TweetDetailPage() {
             }
         };
 
+        // For top-level replies (depth 0), implement show/hide logic
+        const isTopLevel = depth === 0;
+        let displayedReplies: TweetNode[];
+        let hasMoreReplies = false;
+
+        if (isTopLevel) {
+            // Top-level: show all if <= 2, otherwise show first 2 with "Show All" button
+            if (children.length <= 2) {
+                displayedReplies = children;
+            } else if (showAllReplies) {
+                displayedReplies = children;
+            } else {
+                displayedReplies = children.slice(0, 2);
+                hasMoreReplies = true;
+            }
+        } else {
+            // Nested replies: always show all
+            displayedReplies = children;
+        }
+
         return (
             <Box sx={{ pl: depth > 0 ? 4 : 0 }}>
-                {children.map((child) => (
+                {displayedReplies.map((child) => (
                     <Box key={child.id} sx={{ mb: 2 }}>
-                        <TweetCard
-                            tweet={child}
-                            onReply={handleReply}
-                            onQuote={handleQuote}
-                            onRetweet={handleRetweet}
-                            onLike={handleLike}
-                        />
+                        <Box sx={{ borderBottom: depth === 0 ? 1 : 0, borderColor: "grey.200" }}>
+                            <TweetCard
+                                tweet={child}
+                                onReply={handleReply}
+                                onQuote={handleQuote}
+                                onRetweet={handleRetweet}
+                                onLike={handleLike}
+                                clickable={true}
+                            />
+                        </Box>
                         {renderReplies(child.id || "", depth + 1)}
                     </Box>
                 ))}
+                {hasMoreReplies && (
+                    <Box sx={{ mt: 2, mb: 2, px: 2 }}>
+                        <Button
+                            variant="outlined"
+                            onClick={() => setShowAllReplies(true)}
+                            sx={{ textTransform: "none", width: "100%" }}
+                        >
+                            Show All {children.length} Replies
+                        </Button>
+                    </Box>
+                )}
             </Box>
         );
     };
@@ -198,6 +252,8 @@ export default function TweetDetailPage() {
     useEffect(() => {
         if (tweetId) {
             loadTweet();
+            // Reset showAllReplies when tweet changes
+            setShowAllReplies(false);
         }
     }, [tweetId, identityToken]);
 
@@ -313,100 +369,107 @@ export default function TweetDetailPage() {
 
             {/* Anchor Tweet */}
             {anchorTweet && (
-                <Box sx={{ borderBottom: 1, borderColor: "grey.200" }}>
-                    <TweetCard
-                        tweet={anchorTweet}
-                        onReply={(tweet) => {
-                            if (!identityToken) {
-                                enqueueSnackbar("Please log in to reply", { variant: "error" });
-                                return;
-                            }
-                            openReplyModal(tweet.id || "");
-                        }}
-                        onQuote={(tweet) => {
-                            if (!identityToken) {
-                                enqueueSnackbar("Please log in to quote", { variant: "error" });
-                                return;
-                            }
-                            openQuoteModal(tweet.id || "");
-                        }}
-                        onRetweet={async (tweet) => {
-                            if (!identityToken || !tweet.id) return;
-                            try {
-                                await retweetTweet(identityToken, tweet.id);
-                                enqueueSnackbar("Retweeted!", { variant: "success" });
-                                if (tweetId) await fetchThread(identityToken, tweetId);
-                            } catch (e) {
-                                enqueueSnackbar(
-                                    e instanceof Error ? e.message : "Failed to retweet",
-                                    { variant: "error" }
-                                );
-                            }
-                        }}
-                        onLike={async (tweet) => {
-                            if (!identityToken || !tweet.id) return;
-                            try {
-                                await likeTweet(identityToken, tweet.id);
-                            } catch (e) {
-                                enqueueSnackbar(
-                                    e instanceof Error ? e.message : "Failed to like",
-                                    { variant: "error" }
-                                );
-                            }
-                        }}
-                        clickable={true}
-                    />
-                </Box>
+                <>
+                    <Box sx={{ borderBottom: 1, borderColor: "grey.200" }}>
+                        <TweetCard
+                            tweet={anchorTweet}
+                            onReply={(tweet) => {
+                                if (!identityToken) {
+                                    enqueueSnackbar("Please log in to reply", { variant: "error" });
+                                    return;
+                                }
+                                openReplyModal(tweet.id || "");
+                            }}
+                            onQuote={(tweet) => {
+                                if (!identityToken) {
+                                    enqueueSnackbar("Please log in to quote", { variant: "error" });
+                                    return;
+                                }
+                                openQuoteModal(tweet.id || "");
+                            }}
+                            onRetweet={async (tweet) => {
+                                if (!identityToken || !tweet.id) return;
+                                try {
+                                    await retweetTweet(identityToken, tweet.id);
+                                    enqueueSnackbar("Retweeted!", { variant: "success" });
+                                    if (tweetId) await fetchThread(identityToken, tweetId);
+                                } catch (e) {
+                                    enqueueSnackbar(
+                                        e instanceof Error ? e.message : "Failed to retweet",
+                                        { variant: "error" }
+                                    );
+                                }
+                            }}
+                            onLike={async (tweet) => {
+                                if (!identityToken || !tweet.id) return;
+                                try {
+                                    await likeTweet(identityToken, tweet.id);
+                                } catch (e) {
+                                    enqueueSnackbar(
+                                        e instanceof Error ? e.message : "Failed to like",
+                                        { variant: "error" }
+                                    );
+                                }
+                            }}
+                            clickable={true}
+                        />
+                    </Box>
+
+                    {/* Replies Section - directly appended after anchor tweet */}
+                    {threadLoading && (
+                        <Box
+                            sx={{
+                                display: "flex",
+                                alignItems: "center",
+                                gap: 2,
+                                py: 2,
+                                px: 2,
+                            }}
+                        >
+                            <CircularProgress size={20} />
+                            <Typography variant="body2" color="text.secondary">
+                                Loading replies...
+                            </Typography>
+                        </Box>
+                    )}
+
+                    {threadError && (
+                        <Box
+                            sx={{
+                                p: 2,
+                                borderRadius: 2,
+                                bgcolor: "error.50",
+                                border: 1,
+                                borderColor: "error.main",
+                                m: 2,
+                            }}
+                        >
+                            <Typography color="error">{threadError}</Typography>
+                        </Box>
+                    )}
+
+                    {!threadLoading && replies.length > 0 && (
+                        <Box sx={{ borderBottom: 1, borderColor: "grey.200" }}>
+                            <Box sx={{ px: 2, pt: 2, pb: 1 }}>
+                                <Typography variant="h6" sx={{ mb: 2, fontWeight: 700 }}>
+                                    {replies.length} {replies.length === 1 ? "Reply" : "Replies"}
+                                </Typography>
+                            </Box>
+                            <Box sx={{ px: 2, pb: 2 }}>
+                                {anchorId && renderReplies(anchorId)}
+                            </Box>
+                        </Box>
+                    )}
+
+                    {!threadLoading && replies.length === 0 && (
+                        <Box sx={{ borderBottom: 1, borderColor: "grey.200", p: 2 }}>
+                            <Typography variant="body2" color="text.secondary" sx={{ textAlign: "center" }}>
+                                No replies yet. Be the first to reply!
+                            </Typography>
+                        </Box>
+                    )}
+                </>
             )}
-
-            {/* Replies Section */}
-            <Box sx={{ p: 2 }}>
-                {threadLoading && (
-                    <Box
-                        sx={{
-                            display: "flex",
-                            alignItems: "center",
-                            gap: 2,
-                            py: 2,
-                        }}
-                    >
-                        <CircularProgress size={20} />
-                        <Typography variant="body2" color="text.secondary">
-                            Loading replies...
-                        </Typography>
-                    </Box>
-                )}
-
-                {threadError && (
-                    <Box
-                        sx={{
-                            p: 2,
-                            borderRadius: 2,
-                            bgcolor: "error.50",
-                            border: 1,
-                            borderColor: "error.main",
-                            mb: 2,
-                        }}
-                    >
-                        <Typography color="error">{threadError}</Typography>
-                    </Box>
-                )}
-
-                {!threadLoading && replies.length > 0 && (
-                    <>
-                        <Typography variant="h6" sx={{ mb: 2, fontWeight: 700 }}>
-                            {replies.length} {replies.length === 1 ? "Reply" : "Replies"}
-                        </Typography>
-                        <Box>{renderReplies(anchorId)}</Box>
-                    </>
-                )}
-
-                {!threadLoading && replies.length === 0 && (
-                    <Typography variant="body2" color="text.secondary" sx={{ py: 4, textAlign: "center" }}>
-                        No replies yet. Be the first to reply!
-                    </Typography>
-                )}
-            </Box>
 
             {/* Modals */}
             <ReplyModal
@@ -461,7 +524,7 @@ export default function TweetDetailPage() {
                     try {
                         const result = await quoteTweet(identityToken, quoteContent.trim(), quoteTweetId);
                         clearQuoteData();
-                        
+
                         // Show toast with transaction ID if post was created on-chain
                         if (result.onchainSignature) {
                             enqueueSnackbar(
@@ -469,9 +532,9 @@ export default function TweetDetailPage() {
                                 { variant: "success" }
                             );
                         } else {
-                        enqueueSnackbar("Quote tweet posted!", { variant: "success" });
+                            enqueueSnackbar("Quote tweet posted!", { variant: "success" });
                         }
-                        
+
                         // Refresh the thread
                         if (tweetId) {
                             await fetchThread(identityToken, tweetId);

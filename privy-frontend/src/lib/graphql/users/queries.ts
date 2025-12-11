@@ -122,6 +122,28 @@ export interface TipVaultBalancesResult {
   } | null;
 }
 
+export const TIPS_BY_POST_QUERY = `
+  query TipsByPost {
+    tipsByPost {
+      postId
+      postIdHash
+      tokenMint
+      totalAmount
+      claimed
+    }
+  }
+`;
+
+export interface TipsByPostResult {
+  tipsByPost: Array<{
+    postId: string | null;
+    postIdHash: string | null;
+    tokenMint: string;
+    totalAmount: number;
+    claimed: boolean;
+  }>;
+}
+
 export const CURRENT_SESSION_QUERY = `
   query CurrentSession {
     currentSession {

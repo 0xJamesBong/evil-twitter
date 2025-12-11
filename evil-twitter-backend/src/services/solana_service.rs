@@ -1573,37 +1573,15 @@ impl SolanaService {
             .await
             .map_err(|e| anyhow::anyhow!("Failed to fetch post account: {}", e))?;
 
-        // Handle parent post if this is a child post
-        // NOTE: The Solana program has a bug in SettlePost instruction where parent_post_pot_token_account
-        // and parent_post_pot_authority are derived using post.key() (current post) instead of parent_post.key().
-        // This means we must always pass accounts derived from the CURRENT post, not the parent post,
-        // to satisfy the seed constraint checks.
-        let (parent_post_pda, parent_post_pot_token_account_pda, parent_post_pot_authority_pda) =
-            match &post_account.relation {
-                opinions_market::states::PostRelation::Reply { parent }
-                | opinions_market::states::PostRelation::Quote { quoted: parent }
-                | opinions_market::states::PostRelation::AnswerTo { question: parent } => {
-                    // BUG WORKAROUND: Derive from current post (post_pda) not parent
-                    // The program's seeds use post.key() so we must match that
-                    let parent_pot_token_account =
-                        get_post_pot_token_account_pda(&program_id, &post_pda, token_mint);
-                    let parent_pot_authority = get_post_pot_authority_pda(&program_id, &post_pda);
-                    (
-                        Some(*parent),                    // Pass actual parent PDA for program logic
-                        Some(parent_pot_token_account.0), // But derive token account from current post
-                        parent_pot_authority.0,           // And derive authority from current post
-                    )
-                }
-                opinions_market::states::PostRelation::Root => {
-                    // For root posts, pass current post's accounts to satisfy constraint
-                    // The program won't use them since it checks relation == Root first
-                    (
-                        None,
-                        Some(post_pot_token_account_pda),
-                        post_pot_authority_pda,
-                    )
-                }
-            };
+        // Handle parent post if this is a child post (optional, only for reading parent state)
+        let parent_post_pda = match &post_account.relation {
+            opinions_market::states::PostRelation::Reply { parent }
+            | opinions_market::states::PostRelation::Quote { quoted: parent }
+            | opinions_market::states::PostRelation::AnswerTo { question: parent } => {
+                Some(*parent)
+            }
+            opinions_market::states::PostRelation::Root => None,
+        };
 
         println!("  🔨 SolanaService::settle_post_for_mint: Building SettlePost instruction...");
 
@@ -1616,9 +1594,7 @@ impl SolanaService {
                 post_pot_authority: post_pot_authority_pda,
                 post_mint_payout: post_mint_payout_pda,
                 protocol_token_treasury_token_account: protocol_treasury_token_account_pda,
-                parent_post: parent_post_pda,
-                parent_post_pot_token_account: parent_post_pot_token_account_pda,
-                parent_post_pot_authority: parent_post_pot_authority_pda,
+                parent_post: parent_post_pda, // Optional - only for reading parent state
                 config: config_pda,
                 token_mint: *token_mint,
                 token_program: spl_token::ID,
@@ -1806,6 +1782,7 @@ impl SolanaService {
             .await
             .map_err(|e| anyhow::anyhow!("Failed to fetch post account: {}", e))?;
 
+        // DistributeParentPostShare requires parent accounts (not optional)
         let (parent_post_pda, parent_post_pot_token_account_pda, parent_post_pot_authority_pda) =
             match &post_account.relation {
                 opinions_market::states::PostRelation::Reply { parent }
@@ -1815,9 +1792,9 @@ impl SolanaService {
                         get_post_pot_token_account_pda(&program_id, parent, token_mint);
                     let parent_pot_authority = get_post_pot_authority_pda(&program_id, parent);
                     (
-                        Some(*parent),
-                        Some(parent_pot_token_account.0),
-                        Some(parent_pot_authority.0),
+                        *parent, // Required, not Option
+                        parent_pot_token_account.0, // Required, not Option
+                        parent_pot_authority.0, // Required, not Option
                     )
                 }
                 opinions_market::states::PostRelation::Root => {
@@ -1835,9 +1812,9 @@ impl SolanaService {
                 post_pot_token_account: post_pot_token_account_pda,
                 post_pot_authority: post_pot_authority_pda,
                 post_mint_payout: post_mint_payout_pda,
-                parent_post: parent_post_pda,
-                parent_post_pot_token_account: parent_post_pot_token_account_pda,
-                parent_post_pot_authority: parent_post_pot_authority_pda,
+                parent_post: parent_post_pda, // Required, not Option
+                parent_post_pot_token_account: parent_post_pot_token_account_pda, // Required, not Option
+                parent_post_pot_authority: parent_post_pot_authority_pda, // Required, not Option
                 token_mint: *token_mint,
                 token_program: spl_token::ID,
             })
@@ -1886,37 +1863,15 @@ impl SolanaService {
             .await
             .map_err(|e| anyhow::anyhow!("Failed to fetch post account: {}", e))?;
 
-        // Handle parent post if this is a child post
-        // NOTE: The Solana program has a bug in SettlePost instruction where parent_post_pot_token_account
-        // and parent_post_pot_authority are derived using post.key() (current post) instead of parent_post.key().
-        // This means we must always pass accounts derived from the CURRENT post, not the parent post,
-        // to satisfy the seed constraint checks.
-        let (parent_post_pda, parent_post_pot_token_account_pda, parent_post_pot_authority_pda) =
-            match &post_account.relation {
-                opinions_market::states::PostRelation::Reply { parent }
-                | opinions_market::states::PostRelation::Quote { quoted: parent }
-                | opinions_market::states::PostRelation::AnswerTo { question: parent } => {
-                    // BUG WORKAROUND: Derive from current post (post_pda) not parent
-                    // The program's seeds use post.key() so we must match that
-                    let parent_pot_token_account =
-                        get_post_pot_token_account_pda(&program_id, &post_pda, token_mint);
-                    let parent_pot_authority = get_post_pot_authority_pda(&program_id, &post_pda);
-                    (
-                        Some(*parent),                    // Pass actual parent PDA for program logic
-                        Some(parent_pot_token_account.0), // But derive token account from current post
-                        parent_pot_authority.0,           // And derive authority from current post
-                    )
-                }
-                opinions_market::states::PostRelation::Root => {
-                    // For root posts, pass current post's accounts to satisfy constraint
-                    // The program won't use them since it checks relation == Root first
-                    (
-                        None,
-                        Some(post_pot_token_account_pda),
-                        post_pot_authority_pda,
-                    )
-                }
-            };
+        // Handle parent post if this is a child post (optional, only for reading parent state)
+        let parent_post_pda = match &post_account.relation {
+            opinions_market::states::PostRelation::Reply { parent }
+            | opinions_market::states::PostRelation::Quote { quoted: parent }
+            | opinions_market::states::PostRelation::AnswerTo { question: parent } => {
+                Some(*parent)
+            }
+            opinions_market::states::PostRelation::Root => None,
+        };
 
         let ixs = program
             .request()
@@ -1927,9 +1882,7 @@ impl SolanaService {
                 post_pot_authority: post_pot_authority_pda,
                 post_mint_payout: post_mint_payout_pda,
                 protocol_token_treasury_token_account: protocol_treasury_token_account_pda,
-                parent_post: parent_post_pda,
-                parent_post_pot_token_account: parent_post_pot_token_account_pda,
-                parent_post_pot_authority: parent_post_pot_authority_pda,
+                parent_post: parent_post_pda, // Optional - only for reading parent state
                 config: config_pda,
                 token_mint: *token_mint,
                 token_program: spl_token::ID,
@@ -2056,6 +2009,7 @@ impl SolanaService {
             .await
             .map_err(|e| anyhow::anyhow!("Failed to fetch post account: {}", e))?;
 
+        // DistributeParentPostShare requires parent accounts (not optional)
         let (parent_post_pda, parent_post_pot_token_account_pda, parent_post_pot_authority_pda) =
             match &post_account.relation {
                 opinions_market::states::PostRelation::Reply { parent }
@@ -2065,9 +2019,9 @@ impl SolanaService {
                         get_post_pot_token_account_pda(&program_id, parent, token_mint);
                     let parent_pot_authority = get_post_pot_authority_pda(&program_id, parent);
                     (
-                        Some(*parent),
-                        Some(parent_pot_token_account.0),
-                        Some(parent_pot_authority.0),
+                        *parent, // Required, not Option
+                        parent_pot_token_account.0, // Required, not Option
+                        parent_pot_authority.0, // Required, not Option
                     )
                 }
                 opinions_market::states::PostRelation::Root => {
@@ -2084,9 +2038,9 @@ impl SolanaService {
                 post_pot_token_account: post_pot_token_account_pda,
                 post_pot_authority: post_pot_authority_pda,
                 post_mint_payout: post_mint_payout_pda,
-                parent_post: parent_post_pda,
-                parent_post_pot_token_account: parent_post_pot_token_account_pda,
-                parent_post_pot_authority: parent_post_pot_authority_pda,
+                parent_post: parent_post_pda, // Required, not Option
+                parent_post_pot_token_account: parent_post_pot_token_account_pda, // Required, not Option
+                parent_post_pot_authority: parent_post_pot_authority_pda, // Required, not Option
                 token_mint: *token_mint,
                 token_program: spl_token::ID,
             })
