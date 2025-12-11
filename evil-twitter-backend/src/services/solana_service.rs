@@ -2195,6 +2195,7 @@ impl SolanaService {
         let (post_pot_authority_pda, _) = get_post_pot_authority_pda(&program_id, &post_pda);
         let (user_vault_token_account_pda, _) =
             get_user_vault_token_account_pda(&program_id, user_wallet, token_mint);
+        let (vault_authority_pda, _) = get_vault_authority_pda(&program_id);
         let (session_authority_pda, _) =
             get_session_authority_pda(&program_id, user_wallet, &self.session_key.pubkey());
 
@@ -2215,6 +2216,7 @@ impl SolanaService {
                 post_pot_token_account: post_pot_token_account_pda,
                 post_pot_authority: post_pot_authority_pda,
                 user_vault_token_account: user_vault_token_account_pda,
+                vault_authority: vault_authority_pda,
                 token_mint: *token_mint,
                 token_program: spl_token::ID,
                 system_program: solana_sdk::system_program::ID,
