@@ -225,11 +225,10 @@ export default function RewardsPage() {
     // Component to display individual token rewards (no claim button)
     const RewardItem = ({ reward }: { reward: ClaimableRewardNode }) => {
         const tokenConfig = getTokenConfig(reward.tokenMint, BLING_MINT, USDC_MINT, STABLECOIN_MINT);
-        const amount = parseFloat(reward.amount);
+        const amount = parseFloat(reward.amount); // Amount is in lamports
         // Determine decimals: USDC and stablecoin have 6, BLING has 9
         const decimals = tokenConfig?.metadata.decimals ??
             (reward.tokenMint === USDC_MINT || reward.tokenMint === STABLECOIN_MINT ? 6 : 9);
-        const formattedAmount = amount / Math.pow(10, decimals);
 
         return (
             <Paper sx={{ p: 2 }}>
@@ -245,7 +244,7 @@ export default function RewardsPage() {
                             </Typography>
                         </Stack>
                         <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
-                            {formatTokenBalance(formattedAmount, decimals)}{" "}
+                            {formatTokenBalance(amount, decimals)}{" "}
                             {tokenConfig?.metadata.symbol || ""}
                         </Typography>
                         <Chip

@@ -64,16 +64,11 @@ export function useClaimReward({
 
       if (result.claimPostReward) {
         setClaimed(true);
+        // Backend returns amount already in token units (not lamports)
         const amount = parseFloat(result.claimPostReward.amount);
-        // Determine decimals: USDC and stablecoin have 6, BLING has 9
-        const decimals = tokenConfig?.metadata.decimals ?? 
-          (token === USDC_MINT || token === STABLECOIN_MINT ? 6 : 9);
         const symbol = tokenConfig?.metadata.symbol || "TOKEN";
         enqueueSnackbar(
-          `Successfully claimed ${formatTokenBalance(
-            amount,
-            decimals
-          )} ${symbol}!`,
+          `Successfully claimed ${amount.toFixed(4)} ${symbol}!`,
           { variant: "success" }
         );
       }
