@@ -316,7 +316,6 @@ export default function RewardsPage() {
                         <Stack spacing={2}>
                             {tipGroups.map((tipGroup) => {
                                 const tokenConfig = getTokenConfig(tipGroup.tokenMint, BLING_MINT, USDC_MINT, STABLECOIN_MINT);
-                                const formattedAmount = tipGroup.balance / Math.pow(10, tipGroup.decimals);
                                 const isClaiming = claimingTipTokens.has(tipGroup.tokenMint);
 
                                 return (
@@ -331,7 +330,7 @@ export default function RewardsPage() {
                                                     {tokenConfig?.metadata.symbol || "Unknown Token"}
                                                 </Typography>
                                                 <Typography variant="body2" color="text.secondary">
-                                                    {formatTokenBalance(formattedAmount, tipGroup.decimals)}{" "}
+                                                    {formatTokenBalance(tipGroup.balance, tipGroup.decimals)}{" "}
                                                     {tokenConfig?.metadata.symbol || ""}
                                                 </Typography>
                                             </Box>
