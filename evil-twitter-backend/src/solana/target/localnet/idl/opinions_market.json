@@ -1751,16 +1751,84 @@
           }
         },
         {
-          "name": "parent_post",
-          "optional": true
+          "name": "parent_post"
         },
         {
           "name": "parent_post_pot_token_account",
-          "optional": true
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  111,
+                  115,
+                  116,
+                  95,
+                  112,
+                  111,
+                  116,
+                  95,
+                  116,
+                  111,
+                  107,
+                  101,
+                  110,
+                  95,
+                  97,
+                  99,
+                  99,
+                  111,
+                  117,
+                  110,
+                  116
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "parent_post"
+              },
+              {
+                "kind": "account",
+                "path": "token_mint"
+              }
+            ]
+          }
         },
         {
           "name": "parent_post_pot_authority",
-          "optional": true
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  111,
+                  115,
+                  116,
+                  95,
+                  112,
+                  111,
+                  116,
+                  95,
+                  97,
+                  117,
+                  116,
+                  104,
+                  111,
+                  114,
+                  105,
+                  116,
+                  121
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "parent_post"
+              }
+            ]
+          }
         },
         {
           "name": "token_mint"
@@ -2858,84 +2926,6 @@
         {
           "name": "parent_post",
           "optional": true
-        },
-        {
-          "name": "parent_post_pot_token_account",
-          "writable": true,
-          "optional": true,
-          "pda": {
-            "seeds": [
-              {
-                "kind": "const",
-                "value": [
-                  112,
-                  111,
-                  115,
-                  116,
-                  95,
-                  112,
-                  111,
-                  116,
-                  95,
-                  116,
-                  111,
-                  107,
-                  101,
-                  110,
-                  95,
-                  97,
-                  99,
-                  99,
-                  111,
-                  117,
-                  110,
-                  116
-                ]
-              },
-              {
-                "kind": "account",
-                "path": "post"
-              },
-              {
-                "kind": "account",
-                "path": "token_mint"
-              }
-            ]
-          }
-        },
-        {
-          "name": "parent_post_pot_authority",
-          "pda": {
-            "seeds": [
-              {
-                "kind": "const",
-                "value": [
-                  112,
-                  111,
-                  115,
-                  116,
-                  95,
-                  112,
-                  111,
-                  116,
-                  95,
-                  97,
-                  117,
-                  116,
-                  104,
-                  111,
-                  114,
-                  105,
-                  116,
-                  121
-                ]
-              },
-              {
-                "kind": "account",
-                "path": "post"
-              }
-            ]
-          }
         },
         {
           "name": "config"

@@ -1987,6 +1987,8 @@ impl SolanaService {
     }
 
     /// Build DistributeParentPostShare instruction (returns instruction, doesn't send)
+    /// Only builds if post is a child post (not root)
+    /// The instruction itself will check if mother_fee > 0 and return early if not
     pub async fn build_distribute_parent_post_share_instruction(
         &self,
         post_id_hash: [u8; 32],
@@ -2009,7 +2011,8 @@ impl SolanaService {
             .await
             .map_err(|e| anyhow::anyhow!("Failed to fetch post account: {}", e))?;
 
-        // DistributeParentPostShare requires parent accounts (not optional)
+        // Only proceed if post is a child post (not root)
+        // The instruction will check mother_fee > 0 internally
         let (parent_post_pda, parent_post_pot_token_account_pda, parent_post_pot_authority_pda) =
             match &post_account.relation {
                 opinions_market::states::PostRelation::Reply { parent }
@@ -2025,7 +2028,7 @@ impl SolanaService {
                     )
                 }
                 opinions_market::states::PostRelation::Root => {
-                    // Not a child post, return None
+                    // Not a child post, skip parent distribution
                     return Ok(None);
                 }
             };

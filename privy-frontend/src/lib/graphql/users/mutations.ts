@@ -226,24 +226,6 @@ export interface ClaimTipsResult {
   };
 }
 
-export const CLAIM_TIPS_BY_POST_MUTATION = `
-  mutation ClaimTipsByPost($input: ClaimTipsByPostInput!) {
-    claimTipsByPost(input: $input) {
-      success
-      signature
-      amountClaimed
-    }
-  }
-`;
-
-export interface ClaimTipsByPostResult {
-  claimTipsByPost: {
-    success: boolean;
-    signature: string;
-    amountClaimed: number;
-  };
-}
-
 export const SEND_TOKEN_MUTATION = `
   mutation SendToken($input: SendTokenInput!) {
     sendToken(input: $input) {

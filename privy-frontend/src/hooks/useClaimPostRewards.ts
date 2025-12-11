@@ -46,10 +46,15 @@ export function useClaimPostRewards(
     const claimedTokens: string[] = [];
     const failedTokens: string[] = [];
 
+    // Get mint addresses for token config
+    const BLING_MINT = process.env.NEXT_PUBLIC_BLING_MINT || "";
+    const USDC_MINT = process.env.NEXT_PUBLIC_USDC_MINT || "";
+    const STABLECOIN_MINT = process.env.NEXT_PUBLIC_STABLECOIN_MINT || "";
+
     // Claim each token reward sequentially
     for (const reward of rewards) {
       try {
-        const tokenConfig = getTokenConfig(reward.tokenMint);
+        const tokenConfig = getTokenConfig(reward.tokenMint, BLING_MINT, USDC_MINT, STABLECOIN_MINT);
 
         const input: ClaimRewardInput = {
           tweetId: reward.tweetId,
@@ -64,7 +69,9 @@ export function useClaimPostRewards(
 
         if (result.claimPostReward) {
           const amount = parseFloat(result.claimPostReward.amount);
-          const decimals = tokenConfig?.metadata.decimals || 9;
+          // Determine decimals: USDC and stablecoin have 6, BLING has 9
+          const decimals = tokenConfig?.metadata.decimals ?? 
+            (reward.tokenMint === USDC_MINT || reward.tokenMint === STABLECOIN_MINT ? 6 : 9);
           const symbol = tokenConfig?.metadata.symbol || "TOKEN";
           claimedTokens.push(
             `${formatTokenBalance(amount, decimals)} ${symbol}`
@@ -76,7 +83,7 @@ export function useClaimPostRewards(
           `Failed to claim reward for token ${reward.tokenMint}:`,
           err
         );
-        const tokenConfig = getTokenConfig(reward.tokenMint);
+        const tokenConfig = getTokenConfig(reward.tokenMint, BLING_MINT, USDC_MINT, STABLECOIN_MINT);
         failedTokens.push(tokenConfig?.metadata.symbol || "Unknown");
       }
     }
