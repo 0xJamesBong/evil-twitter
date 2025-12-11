@@ -1588,6 +1588,9 @@ pub async fn test_phenomena_claim_post_reward(
     )
     .0;
 
+    let vault_authority_pda =
+        Pubkey::find_program_address(&[VAULT_AUTHORITY_SEED], &opinions_market.id()).0;
+
     // Get initial balances and state
     // Check if position exists (user must have voted on this post)
     let position_result = opinions_market
@@ -1674,6 +1677,7 @@ pub async fn test_phenomena_claim_post_reward(
             post_pot_token_account: post_pot_token_account_pda,
             post_pot_authority: post_pot_authority_pda,
             user_vault_token_account: user_vault_token_account_pda,
+            vault_authority: vault_authority_pda,
             token_mint: *token_mint,
             token_program: spl_token::ID,
             system_program: system_program::ID,

@@ -732,10 +732,7 @@ pub struct ClaimPostReward<'info> {
     pub user: UncheckedAccount<'info>,
      
    /// CHECK: Signer paying the TX fee (user or backend)
-   #[account(
-    mut,
-    
-    )]
+   #[account(mut)]
     pub payer: Signer<'info>,
 
 
@@ -787,8 +784,22 @@ pub struct ClaimPostReward<'info> {
     )]
     pub post_pot_authority: UncheckedAccount<'info>,
 
-    #[account(mut)]
-    pub user_vault_token_account: Account<'info, TokenAccount>,
+    #[account(
+        init_if_needed,
+        payer = payer,
+        seeds = [USER_VAULT_TOKEN_ACCOUNT_SEED, user.key().as_ref(), token_mint.key().as_ref()],
+        bump,
+        token::mint = token_mint,
+        token::authority = vault_authority,
+    )]
+    pub user_vault_token_account: Box<Account<'info, TokenAccount>>,
+
+    /// CHECK: Vault authority PDA derived from seeds
+    #[account(
+        seeds = [VAULT_AUTHORITY_SEED],
+        bump,
+    )]
+    pub vault_authority: UncheckedAccount<'info>,
 
     pub token_mint: Account<'info, Mint>,
     pub token_program: Program<'info, Token>,
@@ -914,7 +925,6 @@ pub struct ClaimTips<'info> {
     )]
     pub tip_vault: Account<'info, TipVault>,
 
-  
 
     #[account(
         mut,
@@ -933,7 +943,8 @@ pub struct ClaimTips<'info> {
     pub vault_authority: UncheckedAccount<'info>,
 
     #[account(
-        mut,
+        init_if_needed,
+        payer = payer,
         seeds = [USER_VAULT_TOKEN_ACCOUNT_SEED, owner.key().as_ref(), token_mint.key().as_ref()],
         bump,
         token::mint = token_mint,
