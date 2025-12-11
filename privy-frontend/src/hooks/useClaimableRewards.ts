@@ -6,7 +6,6 @@ import {
   ClaimableRewardNode,
   ClaimableRewardsQueryResult,
 } from "@/lib/graphql/tweets/queries";
-import { dummyRewards } from "@/lib/mock/rewards";
 
 interface UseClaimableRewardsReturn {
   rewards: ClaimableRewardNode[];
@@ -22,21 +21,6 @@ export function useClaimableRewards(): UseClaimableRewardsReturn {
   const [error, setError] = useState<string | null>(null);
 
   const fetchRewards = async () => {
-    // Use dummy data if:
-    // 1. NEXT_PUBLIC_USE_DUMMY_REWARDS env var is set to "true", OR
-    // 2. We're in development mode and no identity token (for easier testing)
-    const useDummyData = true;
-
-    if (useDummyData) {
-      setLoading(true);
-      // Simulate API delay
-      await new Promise((resolve) => setTimeout(resolve, 500));
-      setRewards(dummyRewards);
-      setLoading(false);
-      setError(null);
-      return;
-    }
-
     if (!identityToken) {
       setLoading(false);
       setRewards([]);
