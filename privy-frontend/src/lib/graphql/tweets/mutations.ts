@@ -7,6 +7,7 @@ export const TWEET_CREATE_MUTATION = `
         id
         ownerId
         content
+        language
         tweetType
         createdAt
         updatedAt
@@ -66,6 +67,7 @@ export const TWEET_REPLY_MUTATION = `
         id
         ownerId
         content
+        language
         tweetType
         createdAt
         updatedAt
@@ -124,6 +126,7 @@ export const TWEET_QUOTE_MUTATION = `
         id
         ownerId
         content
+        language
         tweetType
         createdAt
         updatedAt
@@ -202,6 +205,7 @@ export const TWEET_RETWEET_MUTATION = `
         id
         ownerId
         content
+        language
         tweetType
         createdAt
         updatedAt
@@ -366,6 +370,7 @@ export const TWEET_QUESTION_MUTATION = `
         id
         ownerId
         content
+        language
         tweetType
         createdAt
         updatedAt
@@ -425,6 +430,7 @@ export const TWEET_ANSWER_MUTATION = `
         id
         ownerId
         content
+        language
         tweetType
         createdAt
         updatedAt

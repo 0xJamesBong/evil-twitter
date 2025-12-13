@@ -10,6 +10,7 @@ export const TIMELINE_QUERY = `
           id
           ownerId
           content
+          language
           tweetType
           createdAt
           updatedAt
@@ -241,6 +242,7 @@ export const TWEET_THREAD_QUERY = `
           id
           ownerId
           content
+          language
           tweetType
           createdAt
           author {
@@ -253,6 +255,7 @@ export const TWEET_THREAD_QUERY = `
           id
           ownerId
           content
+          language
           tweetType
           createdAt
           author {

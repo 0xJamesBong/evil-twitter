@@ -12,6 +12,14 @@ import {
     Stack,
 } from "@mui/material";
 import { Close as CloseIcon, Send as SendIcon, HelpOutline as QuestionIcon } from "@mui/icons-material";
+import { useBackendUserStore } from "@/lib/stores/backendUserStore";
+import { Language } from "@/lib/graphql/types";
+
+const LANGUAGE_FONT_FAMILY: Record<Language, string | null> = {
+  [Language.CANTONESE]: 'var(--font-jyutcitzi), Arial, Helvetica, sans-serif',
+  [Language.GOETSUAN]: 'var(--font-goetsusioji), Arial, Helvetica, sans-serif',
+  [Language.NONE]: null,
+};
 
 interface QuestionModalProps {
     open: boolean;
@@ -30,6 +38,15 @@ export function QuestionModal({
     onSubmit,
     isSubmitting,
 }: QuestionModalProps) {
+    const { user: backendUser } = useBackendUserStore();
+    
+    // Get user's language preference
+    const userLanguageStr = backendUser?.language?.toUpperCase() || 'NONE';
+    const userLanguage = userLanguageStr === 'CANTONESE' ? Language.CANTONESE :
+                         userLanguageStr === 'GOETSUAN' ? Language.GOETSUAN :
+                         Language.NONE;
+    const fontFamily = LANGUAGE_FONT_FAMILY[userLanguage] ?? null;
+    
     return (
         <Dialog
             open={open}
@@ -78,6 +95,11 @@ export function QuestionModal({
                             sx={{
                                 "& .MuiOutlinedInput-root": {
                                     borderRadius: 2,
+                                    ...(fontFamily && {
+                                        "& input, & textarea": {
+                                            fontFamily,
+                                        },
+                                    }),
                                 },
                             }}
                         />

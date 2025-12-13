@@ -80,4 +80,5 @@ export interface TweetNode {
   replyDepth: number;
   postIdHash?: string;
   postState?: PostStateNode;
+  language: string; // Script rendering mode: "CANTONESE", "GOETSUAN", or "NONE"
 }

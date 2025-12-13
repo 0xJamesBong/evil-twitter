@@ -2,6 +2,21 @@ use mongodb::bson::{DateTime, oid::ObjectId};
 use serde::{Deserialize, Serialize};
 use utoipa::ToSchema;
 
+/// Script rendering mode for PUA (Private Use Area) disambiguation.
+/// This is NOT about "language" in the linguistic sense, but about rendering intent.
+#[derive(Debug, Serialize, Deserialize, Clone, Copy, PartialEq, Eq, ToSchema)]
+pub enum Language {
+    Cantonese,
+    Goetsuan,
+    None,
+}
+
+impl Default for Language {
+    fn default() -> Self {
+        Language::Cantonese
+    }
+}
+
 #[derive(Debug, Serialize, Deserialize, Clone, Copy, PartialEq, Eq, ToSchema)]
 pub enum LoginType {
     #[serde(rename = "email_embedded")]
@@ -45,6 +60,13 @@ pub struct User {
     /// None means BLING (the default)
     #[schema(example = "7xKXtg2CZ3QZ4Z3J3J3J3J3J3J3J3J3J3J3J3J3J3")]
     pub default_payment_token: Option<String>,
+
+    /// Script rendering mode for PUA disambiguation
+    /// Default: Cantonese (new users)
+    /// User can explicitly switch to None
+    #[serde(default)]
+    #[schema(example = "Cantonese")]
+    pub language: Language,
 }
 
 #[derive(Debug, Deserialize, ToSchema)]

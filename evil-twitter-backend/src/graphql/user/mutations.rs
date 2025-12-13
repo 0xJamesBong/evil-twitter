@@ -13,7 +13,7 @@ use crate::models::follow::Follow;
 use crate::solana::get_session_authority_pda;
 use crate::{
     app_state::{AppState, TipBufferKey, TipBufferValue},
-    graphql::user::types::UserNode,
+    graphql::user::types::{Language, UserNode},
     utils::auth,
 };
 
@@ -76,6 +76,15 @@ impl UserMutation {
         input: UpdateDefaultPaymentTokenInput,
     ) -> Result<UserNode> {
         update_default_payment_token_resolver(ctx, input).await
+    }
+
+    /// Update user's script rendering mode for PUA disambiguation
+    async fn update_language(
+        &self,
+        ctx: &Context<'_>,
+        language: Language,
+    ) -> Result<UserNode> {
+        update_language_resolver(ctx, language).await
     }
 
     /// Follow a user
@@ -988,6 +997,49 @@ pub async fn update_default_payment_token_resolver(
     eprintln!(
         "update_default_payment_token: Updated default payment token for user {}: {:?}",
         privy_id, input.token_mint
+    );
+
+    Ok(UserNode::from(user))
+}
+
+/// Update user's script rendering mode for PUA disambiguation
+pub async fn update_language_resolver(
+    ctx: &Context<'_>,
+    language: Language,
+) -> Result<UserNode> {
+    let app_state = ctx.data::<Arc<AppState>>()?;
+    let headers = ctx
+        .data::<HeaderMap>()
+        .map_err(|_| async_graphql::Error::new("Failed to get headers from context"))?;
+
+    // Verify Privy token and get Privy ID
+    let privy_id = auth::get_privy_id_from_header(&app_state.privy_service, headers)
+        .await
+        .map_err(|(status, json)| {
+            let error_msg = json
+                .get("error")
+                .and_then(|v| v.as_str())
+                .unwrap_or("Authentication failed");
+            async_graphql::Error::new(format!("{} (status {})", error_msg, status))
+        })?;
+
+    // Get user from Mongo
+    let mut user = app_state
+        .mongo_service
+        .users
+        .get_user_by_privy_id(&privy_id)
+        .await?
+        .ok_or_else(|| async_graphql::Error::new("User not found in database"))?;
+
+    // Update language
+    user.language = language.into();
+
+    // Update user in database
+    app_state.mongo_service.users.update_user(&user).await?;
+
+    eprintln!(
+        "update_language: Updated language for user {}: {:?}",
+        privy_id, language
     );
 
     Ok(UserNode::from(user))

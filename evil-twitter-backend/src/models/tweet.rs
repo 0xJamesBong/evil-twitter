@@ -2,6 +2,8 @@ use mongodb::bson::{DateTime, oid::ObjectId};
 use serde::{Deserialize, Serialize};
 use utoipa::ToSchema;
 
+use crate::models::user::Language;
+
 /// Core tweet variants supported by the platform.
 #[derive(Debug, Serialize, Deserialize, Clone, Copy, PartialEq, Eq, ToSchema)]
 pub enum TweetType {
@@ -62,6 +64,19 @@ pub struct Tweet {
     #[serde(default)]
     #[schema(value_type = String, example = "a1b2c3d4e5f6...")]
     pub post_id_hash: Option<String>,
+
+    /// Script rendering mode marker (frozen at creation)
+    /// Copied from User.language at tweet creation time
+    /// Never inferred, never changed
+    /// 
+    /// IMPORTANT: Language pertains ONLY to this tweet's content.
+    /// It does NOT apply to:
+    /// - Parent tweets (quoted/replied-to tweets)
+    /// - Child tweets (replies to this tweet)
+    /// Each tweet has its own independent language marker.
+    #[serde(default)]
+    #[schema(example = "Cantonese")]
+    pub language: Language,
 }
 
 /// Aggregated engagement data tracked for each tweet.

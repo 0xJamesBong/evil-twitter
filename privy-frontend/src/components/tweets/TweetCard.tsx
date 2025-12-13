@@ -33,6 +33,13 @@ import { Button, CircularProgress } from "@mui/material";
 import { AccountBalance as SettleIcon } from "@mui/icons-material";
 import { useTweetStore } from "@/lib/stores/tweetStore";
 import { TipButton } from "@/components/tips/TipButton";
+import { Language } from "@/lib/graphql/types";
+
+const LANGUAGE_FONT_FAMILY: Record<Language, string | null> = {
+  [Language.CANTONESE]: 'var(--font-jyutcitzi), Arial, Helvetica, sans-serif',
+  [Language.GOETSUAN]: 'var(--font-goetsusioji), Arial, Helvetica, sans-serif',
+  [Language.NONE]: null,
+};
 
 interface TweetCardProps {
     tweet: TweetNode;
@@ -372,16 +379,47 @@ export function TweetCard({
                         )}
 
                         {/* Content */}
-                        <Typography
-                            variant="body1"
-                            sx={{
-                                mb: 1,
-                                whiteSpace: "pre-wrap",
-                                wordBreak: "break-word",
-                            }}
-                        >
-                            {tweet.content}
-                        </Typography>
+                        {(() => {
+                            // Convert string to Language enum (handle both PascalCase and SCREAMING_SNAKE_CASE)
+                            // GraphQL may return "Cantonese", "Goetsuan", "None" or "CANTONESE", "GOETSUAN", "NONE"
+                            const tweetLanguageStr = (tweet.language || '').toUpperCase();
+                            const tweetLanguage = tweetLanguageStr === 'CANTONESE' ? Language.CANTONESE :
+                                                  tweetLanguageStr === 'GOETSUAN' ? Language.GOETSUAN :
+                                                  Language.NONE;
+                            const fontFamily = LANGUAGE_FONT_FAMILY[tweetLanguage] ?? null;
+                            
+                            // Debug: log language and font for Goetsuan to troubleshoot
+                            if (tweetLanguage === Language.GOETSUAN) {
+                                console.log('🔍 Goetsuan tweet rendering:', { 
+                                    originalLanguage: tweet.language,
+                                    tweetLanguageStr, 
+                                    tweetLanguage, 
+                                    fontFamily,
+                                    expectedFont: LANGUAGE_FONT_FAMILY[Language.GOETSUAN],
+                                    allFonts: LANGUAGE_FONT_FAMILY
+                                });
+                            }
+                            
+                            return (
+                                <Typography
+                                    variant="body1"
+                                    sx={{
+                                        mb: 1,
+                                        whiteSpace: "pre-wrap",
+                                        wordBreak: "break-word",
+                                        ...(fontFamily && { 
+                                            fontFamily,
+                                            // Ensure font is applied with higher specificity
+                                            '& *': {
+                                                fontFamily: 'inherit',
+                                            },
+                                        }),
+                                    }}
+                                >
+                                    {tweet.content}
+                                </Typography>
+                            );
+                        })()}
 
                         {/* Quoted Tweet */}
                         {tweet.quotedTweet && (
@@ -505,7 +543,24 @@ export function TweetCard({
                                         </Typography>
                                     )}
                                 </Stack>
-                                <Typography variant="body2">{tweet.quotedTweet.content}</Typography>
+                                {(() => {
+                                    // Convert quoted tweet language string to Language enum
+                                    const quotedLanguageStr = tweet.quotedTweet.language?.toUpperCase() || 'NONE';
+                                    const quotedLanguage = quotedLanguageStr === 'CANTONESE' ? Language.CANTONESE :
+                                                           quotedLanguageStr === 'GOETSUAN' ? Language.GOETSUAN :
+                                                           Language.NONE;
+                                    const quotedFontFamily = LANGUAGE_FONT_FAMILY[quotedLanguage] ?? null;
+                                    return (
+                                        <Typography 
+                                            variant="body2"
+                                            sx={{
+                                                ...(quotedFontFamily && { fontFamily: quotedFontFamily }),
+                                            }}
+                                        >
+                                            {tweet.quotedTweet.content}
+                                        </Typography>
+                                    );
+                                })()}
                             </Box>
                         )}
 

@@ -79,6 +79,7 @@ impl TweetService {
             viewer_context: TweetViewerContext::default(),
             energy_state: TweetEnergyState::default(),
             post_id_hash,
+            language: user.language, // Copy user's language preference
         };
 
         tweet_collection
@@ -286,6 +287,7 @@ impl TweetService {
             metrics: TweetMetrics::default(),
             viewer_context: TweetViewerContext::default(),
             energy_state: TweetEnergyState::default(),
+            language: user.language, // Copy user's language preference
         };
 
         tweet_collection
@@ -347,6 +349,7 @@ impl TweetService {
             metrics: TweetMetrics::default(),
             viewer_context: TweetViewerContext::default(),
             energy_state: TweetEnergyState::default(),
+            language: user.language, // Copy user's language preference
         };
 
         tweet_collection
@@ -402,6 +405,7 @@ impl TweetService {
             metrics: TweetMetrics::default(),
             viewer_context: TweetViewerContext::default(),
             energy_state: TweetEnergyState::default(),
+            language: user.language, // Copy user's language preference
         };
 
         tweet_collection

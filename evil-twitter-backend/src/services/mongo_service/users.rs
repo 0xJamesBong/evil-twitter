@@ -122,6 +122,7 @@ impl UserService {
             status: crate::models::user::UserStatus::Active,
             created_at: now,
             default_payment_token: None,
+            language: crate::models::user::Language::default(), // Default to Cantonese
         };
 
         self.create_user(user).await

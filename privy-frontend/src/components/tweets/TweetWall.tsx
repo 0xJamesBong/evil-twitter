@@ -12,10 +12,19 @@ import { AnswerModal } from "./AnswerModal";
 import { RetweetModal } from "./RetweetModal";
 import { useTweetStore } from "@/lib/stores/tweetStore";
 import { TweetNode } from "@/lib/graphql/tweets/types";
+import { useBackendUserStore } from "@/lib/stores/backendUserStore";
+import { Language } from "@/lib/graphql/types";
+
+const LANGUAGE_FONT_FAMILY: Record<Language, string | null> = {
+  [Language.CANTONESE]: 'var(--font-jyutcitzi), Arial, Helvetica, sans-serif',
+  [Language.GOETSUAN]: 'var(--font-goetsusioji), Arial, Helvetica, sans-serif',
+  [Language.NONE]: null,
+};
 
 export function TweetWall() {
     const { enqueueSnackbar } = useSnackbar();
     const { identityToken } = useIdentityToken();
+    const { user: backendUser } = useBackendUserStore();
     const {
         tweets,
         isLoading,
@@ -269,21 +278,36 @@ export function TweetWall() {
                     {activeTab === "tweet" && (
                         <Box sx={{ p: 2 }}>
                             <Stack spacing={2}>
-                                <TextField
-                                    placeholder="What's happening?"
-                                    multiline
-                                    rows={3}
-                                    value={newTweetContent}
-                                    onChange={(e) => setNewTweetContent(e.target.value)}
-                                    variant="outlined"
-                                    sx={{
-                                        "& .MuiOutlinedInput-root": {
-                                            "& fieldset": {
-                                                border: "none",
-                                            },
-                                        },
-                                    }}
-                                />
+                                {(() => {
+                                    // Get user's language preference
+                                    const userLanguageStr = backendUser?.language?.toUpperCase() || 'NONE';
+                                    const userLanguage = userLanguageStr === 'CANTONESE' ? Language.CANTONESE :
+                                                         userLanguageStr === 'GOETSUAN' ? Language.GOETSUAN :
+                                                         Language.NONE;
+                                    const fontFamily = LANGUAGE_FONT_FAMILY[userLanguage] ?? null;
+                                    return (
+                                        <TextField
+                                            placeholder="What's happening?"
+                                            multiline
+                                            rows={3}
+                                            value={newTweetContent}
+                                            onChange={(e) => setNewTweetContent(e.target.value)}
+                                            variant="outlined"
+                                            sx={{
+                                                "& .MuiOutlinedInput-root": {
+                                                    "& fieldset": {
+                                                        border: "none",
+                                                    },
+                                                    ...(fontFamily && {
+                                                        "& input, & textarea": {
+                                                            fontFamily,
+                                                        },
+                                                    }),
+                                                },
+                                            }}
+                                        />
+                                    );
+                                })()}
                                 <Stack direction="row" justifyContent="flex-end">
                                     <Button
                                         variant="contained"
@@ -305,21 +329,36 @@ export function TweetWall() {
                     {activeTab === "question" && (
                         <Box sx={{ p: 2 }}>
                             <Stack spacing={2}>
-                                <TextField
-                                    placeholder="What would you like to know?"
-                                    multiline
-                                    rows={3}
-                                    value={questionContent}
-                                    onChange={(e) => setQuestionContent(e.target.value)}
-                                    variant="outlined"
-                                    sx={{
-                                        "& .MuiOutlinedInput-root": {
-                                            "& fieldset": {
-                                                border: "none",
-                                            },
-                                        },
-                                    }}
-                                />
+                                {(() => {
+                                    // Get user's language preference
+                                    const userLanguageStr = backendUser?.language?.toUpperCase() || 'NONE';
+                                    const userLanguage = userLanguageStr === 'CANTONESE' ? Language.CANTONESE :
+                                                         userLanguageStr === 'GOETSUAN' ? Language.GOETSUAN :
+                                                         Language.NONE;
+                                    const fontFamily = LANGUAGE_FONT_FAMILY[userLanguage] ?? null;
+                                    return (
+                                        <TextField
+                                            placeholder="What would you like to know?"
+                                            multiline
+                                            rows={3}
+                                            value={questionContent}
+                                            onChange={(e) => setQuestionContent(e.target.value)}
+                                            variant="outlined"
+                                            sx={{
+                                                "& .MuiOutlinedInput-root": {
+                                                    "& fieldset": {
+                                                        border: "none",
+                                                    },
+                                                    ...(fontFamily && {
+                                                        "& input, & textarea": {
+                                                            fontFamily,
+                                                        },
+                                                    }),
+                                                },
+                                            }}
+                                        />
+                                    );
+                                })()}
                                 <Stack direction="row" justifyContent="flex-end">
                                     <Button
                                         variant="contained"

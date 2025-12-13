@@ -156,6 +156,22 @@ export interface UpdateDefaultPaymentTokenResult {
   };
 }
 
+export const UPDATE_LANGUAGE_MUTATION = `
+  mutation UpdateLanguage($language: Language!) {
+    updateLanguage(language: $language) {
+      id
+      language
+    }
+  }
+`;
+
+export interface UpdateLanguageResult {
+  updateLanguage: {
+    id: string;
+    language: string;
+  };
+}
+
 export const FOLLOW_USER_MUTATION = `
   mutation FollowUser($input: FollowUserInput!) {
     followUser(input: $input) {
