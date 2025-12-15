@@ -2520,6 +2520,10 @@ export type OpinionsMarket = {
         {
           "name": "priceInBling",
           "type": "u64"
+        },
+        {
+          "name": "withdrawable",
+          "type": "bool"
         }
       ]
     },
@@ -3324,6 +3328,87 @@ export type OpinionsMarket = {
       ]
     },
     {
+      "name": "updateValidPaymentWithdrawable",
+      "docs": [
+        "Update the withdrawable flag for a valid payment token"
+      ],
+      "discriminator": [
+        72,
+        245,
+        94,
+        5,
+        186,
+        203,
+        134,
+        171
+      ],
+      "accounts": [
+        {
+          "name": "config",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  99,
+                  111,
+                  110,
+                  102,
+                  105,
+                  103
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "admin",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "mint"
+        },
+        {
+          "name": "acceptedMint",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  118,
+                  97,
+                  108,
+                  105,
+                  100,
+                  95,
+                  112,
+                  97,
+                  121,
+                  109,
+                  101,
+                  110,
+                  116
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "mint"
+              }
+            ]
+          }
+        }
+      ],
+      "args": [
+        {
+          "name": "withdrawable",
+          "type": "bool"
+        }
+      ]
+    },
+    {
       "name": "voteOnPost",
       "discriminator": [
         220,
@@ -4098,128 +4183,28 @@ export type OpinionsMarket = {
   "errors": [
     {
       "code": 6000,
-      "name": "postNotOpen",
-      "msg": "Post is not open"
+      "name": "invalidSessionKey",
+      "msg": "Invalid session key"
     },
     {
       "code": 6001,
-      "name": "postExpired",
-      "msg": "Post is expired"
+      "name": "invalidSessionOwner",
+      "msg": "Invalid session owner"
     },
     {
       "code": 6002,
-      "name": "postAlreadySettled",
-      "msg": "Post already settled"
+      "name": "sessionExpired",
+      "msg": "Session expired"
     },
     {
       "code": 6003,
-      "name": "postNotExpired",
-      "msg": "Post not yet expired"
-    },
-    {
-      "code": 6004,
-      "name": "postNotSettled",
-      "msg": "Post not settled"
-    },
-    {
-      "code": 6005,
-      "name": "noWinner",
-      "msg": "No winner for this post"
-    },
-    {
-      "code": 6006,
-      "name": "alreadyClaimed",
-      "msg": "Reward already claimed"
-    },
-    {
-      "code": 6007,
-      "name": "mathOverflow",
-      "msg": "Math overflow"
-    },
-    {
-      "code": 6008,
-      "name": "zeroVotes",
-      "msg": "Zero votes not allowed"
-    },
-    {
-      "code": 6009,
-      "name": "mintNotEnabled",
-      "msg": "Mint is not enabled"
-    },
-    {
-      "code": 6010,
-      "name": "blingCannotBeAlternativePayment",
-      "msg": "BLING cannot be registered as an alternative payment"
-    },
-    {
-      "code": 6011,
-      "name": "alternativePaymentAlreadyRegistered",
-      "msg": "Alternative payment already registered for this mint"
-    },
-    {
-      "code": 6012,
-      "name": "unauthorized",
-      "msg": "Unauthorized: user account does not belong to the payer"
-    },
-    {
-      "code": 6013,
-      "name": "invalidParentPost",
-      "msg": "Invalid parent post"
-    },
-    {
-      "code": 6014,
       "name": "invalidSignatureInstruction",
       "msg": "Invalid or missing Ed25519 signature verification instruction"
     },
     {
-      "code": 6015,
-      "name": "sessionExpired",
-      "msg": "Session expired or invalid timestamp"
-    },
-    {
-      "code": 6016,
+      "code": 6004,
       "name": "unauthorizedSigner",
       "msg": "Unauthorized signer"
-    },
-    {
-      "code": 6017,
-      "name": "invalidRelation",
-      "msg": "Invalid post relation"
-    },
-    {
-      "code": 6018,
-      "name": "answerMustTargetQuestion",
-      "msg": "Answer must target a Question post"
-    },
-    {
-      "code": 6019,
-      "name": "answerTargetNotRoot",
-      "msg": "Answer target must be a Root post"
-    },
-    {
-      "code": 6020,
-      "name": "zeroTipAmount",
-      "msg": "Zero tip amount not allowed"
-    },
-    {
-      "code": 6021,
-      "name": "cannotTipSelf",
-      "msg": "Cannot tip yourself"
-    },
-    {
-      "code": 6022,
-      "name": "noTipsToClaim",
-      "msg": "No tips to claim"
-    },
-    {
-      "code": 6023,
-      "name": "zeroAmount",
-      "msg": "Zero amount not allowed"
-    },
-    {
-      "code": 6024,
-      "name": "cannotSendToSelf",
-      "msg": "Cannot send tokens to yourself"
     }
   ],
   "types": [
@@ -4254,9 +4239,6 @@ export type OpinionsMarket = {
           },
           {
             "name": "bump",
-            "docs": [
-              "10_000 by default"
-            ],
             "type": "u8"
           },
           {
@@ -4779,6 +4761,10 @@ export type OpinionsMarket = {
           },
           {
             "name": "enabled",
+            "type": "bool"
+          },
+          {
+            "name": "withdrawable",
             "type": "bool"
           },
           {

@@ -11,19 +11,10 @@ pub struct Config {
     pub payer_authroity: Pubkey,
     pub bling_mint: Pubkey,
 
-    // pub protocol_vote_fee_bps: u16,
-    // pub protocol_vote_settlement_fee_bps: u16,
-
-    // pub creator_pump_vote_fee_bps: u16,
-    // pub creator_vote_settlement_fee_bps: u16,
     pub base_duration_secs: u32,
     pub max_duration_secs: u32,
     pub extension_per_vote_secs: u32,
 
-    // pub vote_per_bling_base_cost: u64,
-    // /// 1 vote = 1 * LAMPORTS_PER_SOL by default
-    // pub user_initial_social_score: i64,
-    /// 10_000 by default
     pub bump: u8,
     pub padding: [u8; 7], // 7
 }
@@ -72,15 +63,17 @@ pub struct ValidPayment {
     /// This value is lamport-free. So 1 BLING = 1 BLING
     pub price_in_bling: u64,
     pub enabled: bool,
+    pub withdrawable: bool,
     pub bump: u8,
 }
 
 impl ValidPayment {
-    pub fn new(token_mint: Pubkey, price_in_bling: u64, enabled: bool) -> Self {
+    pub fn new(token_mint: Pubkey, price_in_bling: u64, enabled: bool, withdrawable: bool) -> Self {
         Self {
             token_mint,
             price_in_bling,
             enabled,
+            withdrawable,
             bump: 0,
         }
     }

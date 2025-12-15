@@ -16,7 +16,8 @@ use crate::utils::phenomena::{
     test_phenomena_add_valid_payment, test_phenomena_claim_post_reward,
     test_phenomena_create_answer, test_phenomena_create_post, test_phenomena_create_question,
     test_phenomena_create_user, test_phenomena_deposit, test_phenomena_settle_post,
-    test_phenomena_tip, test_phenomena_vote_on_post, test_phenomena_withdraw,
+    test_phenomena_tip, test_phenomena_turn_on_withdrawable, test_phenomena_vote_on_post,
+    test_phenomena_withdraw,
 };
 use crate::utils::utils::{
     airdrop_sol_to_users, send_tx, setup_token_mint, setup_token_mint_ata_and_mint_to_many_users,
@@ -224,6 +225,10 @@ async fn test_setup() {
             .unwrap();
         println!("initialize tx: {:?}", initialize_tx);
 
+        // make bling withdrawable
+        test_phenomena_turn_on_withdrawable(&rpc, &opinions_market, &payer, &admin, &bling_pubkey)
+            .await;
+
         test_phenomena_add_valid_payment(&rpc, &opinions_market, &payer, &admin, &usdc_pubkey)
             .await;
 
@@ -280,7 +285,7 @@ async fn test_setup() {
             )
             .await;
         }
-    
+
         {
             println!("user 2 depositing 1_000 usdc to their vault");
             test_phenomena_deposit(
@@ -372,7 +377,7 @@ async fn test_setup() {
             )
             .await;
         }
-    
+
         //// ===== CREATING POSTS =====
         let (post_p1_pda, post_p1_id_hash) = {
             println!("user 1 creating an original post P1");
@@ -618,8 +623,8 @@ async fn test_setup() {
                 100 * LAMPORTS_PER_SOL,
                 &bling_pubkey,
                 &tokens,
-            ).await;
-
+            )
+            .await;
         }
         {
             println!("\n\n");
@@ -628,7 +633,6 @@ async fn test_setup() {
             println!(" 🟪🟪🟪🟪🟪🟪🟪🟪🟪🟪🟪🟪🟪🟪🟪🟪🟪");
             panic!();
         }
-
 
         // {
         //     println!("user 3 trying to make a post");
@@ -643,6 +647,5 @@ async fn test_setup() {
         //     )
         //     .await;
         // }
-      
     }
 }

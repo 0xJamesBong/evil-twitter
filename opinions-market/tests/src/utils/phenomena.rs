@@ -18,6 +18,126 @@ use opinions_market::pda_seeds::*;
 
 pub async fn test_phenomena() {}
 
+pub async fn test_phenomena_turn_on_withdrawable(
+    rpc: &RpcClient,
+    opinions_market: &Program<&Keypair>,
+    payer: &Keypair,
+    admin: &Keypair,
+    token_mint: &Pubkey,
+) {
+    println!("turning on withdrawable for {:}", token_mint);
+    let config_pda = Pubkey::find_program_address(&[b"config"], &opinions_market.id()).0;
+
+    let valid_payment_pda = Pubkey::find_program_address(
+        &[VALID_PAYMENT_SEED, token_mint.as_ref()],
+        &opinions_market.id(),
+    )
+    .0;
+
+    // Verify account exists before modifying
+    let account_before = opinions_market
+        .account::<opinions_market::states::ValidPayment>(valid_payment_pda)
+        .await
+        .expect("ValidPayment account should exist");
+
+    println!("📊 Before update:");
+    println!("   - Withdrawable: {}", account_before.withdrawable);
+
+    let update_ix = opinions_market
+        .request()
+        .accounts(opinions_market::accounts::ModifyAcceptedMint {
+            config: config_pda,
+            admin: admin.pubkey(),
+            mint: token_mint.clone(),
+            accepted_mint: valid_payment_pda,
+        })
+        .args(opinions_market::instruction::UpdateValidPaymentWithdrawable { withdrawable: true })
+        .instructions()
+        .unwrap();
+
+    let update_tx = send_tx(rpc, update_ix, &payer.pubkey(), &[&payer, admin])
+        .await
+        .unwrap();
+    println!("✅ Update withdrawable transaction: {:?}", update_tx);
+
+    // Verify the update
+    let account_after = opinions_market
+        .account::<opinions_market::states::ValidPayment>(valid_payment_pda)
+        .await
+        .unwrap();
+
+    println!("📊 After update:");
+    println!("   - Withdrawable: {}", account_after.withdrawable);
+
+    assert!(
+        account_after.withdrawable,
+        "Withdrawable should be true after update"
+    );
+    println!("✅ Verified: withdrawable is now true");
+}
+
+pub async fn test_phenomena_turn_off_withdrawable(
+    rpc: &RpcClient,
+    opinions_market: &Program<&Keypair>,
+    payer: &Keypair,
+    admin: &Keypair,
+    token_mint: &Pubkey,
+) {
+    println!("turning off withdrawable for {:}", token_mint);
+    let config_pda = Pubkey::find_program_address(&[b"config"], &opinions_market.id()).0;
+
+    let valid_payment_pda = Pubkey::find_program_address(
+        &[VALID_PAYMENT_SEED, token_mint.as_ref()],
+        &opinions_market.id(),
+    )
+    .0;
+
+    // Verify account exists before modifying
+    let account_before = opinions_market
+        .account::<opinions_market::states::ValidPayment>(valid_payment_pda)
+        .await
+        .expect("ValidPayment account should exist");
+
+    println!("📊 Before update:");
+    println!("   - Withdrawable: {}", account_before.withdrawable);
+
+    let update_ix = opinions_market
+        .request()
+        .accounts(opinions_market::accounts::ModifyAcceptedMint {
+            config: config_pda,
+            admin: admin.pubkey(),
+            mint: token_mint.clone(),
+            accepted_mint: valid_payment_pda,
+        })
+        .args(
+            opinions_market::instruction::UpdateValidPaymentWithdrawable {
+                withdrawable: false,
+            },
+        )
+        .instructions()
+        .unwrap();
+
+    let update_tx = send_tx(rpc, update_ix, &payer.pubkey(), &[&payer, admin])
+        .await
+        .unwrap();
+    println!("✅ Update withdrawable transaction: {:?}", update_tx);
+
+    // Verify the update
+    let account_after = opinions_market
+        .account::<opinions_market::states::ValidPayment>(valid_payment_pda)
+        .await
+        .unwrap();
+
+    println!("📊 After update:");
+    println!("   - Withdrawable: {}", account_after.withdrawable);
+
+    assert!(
+        !account_after.withdrawable,
+        "Withdrawable should be false after update"
+    );
+    println!("✅ Verified: withdrawable is now false");
+}
+
 pub async fn test_phenomena_add_valid_payment(
     rpc: &RpcClient,
     opinions_market: &Program<&Keypair>,
@@ -66,6 +186,7 @@ pub async fn test_phenomena_add_valid_payment(
         })
         .args(opinions_market::instruction::RegisterValidPayment {
             price_in_bling: RATES.usdc_to_bling,
+            withdrawable: true, // USDC is withdrawable
         })
         .instructions()
         .unwrap();
@@ -1889,8 +2010,14 @@ pub async fn test_phenomena_tip(
 
     println!("📊 After tip:");
     println!("   - Sender vault: {}", sender_vault_after.amount);
-    println!("   - Tip vault token account: {}", tip_vault_token_after.amount);
-    println!("   - Unclaimed amount: {}", tip_vault_after.unclaimed_amount);
+    println!(
+        "   - Tip vault token account: {}",
+        tip_vault_token_after.amount
+    );
+    println!(
+        "   - Unclaimed amount: {}",
+        tip_vault_after.unclaimed_amount
+    );
 
     // Verify sender vault decreased
     assert_eq!(
@@ -1920,8 +2047,7 @@ pub async fn test_phenomena_tip(
         "Tip vault owner should be recipient"
     );
     assert_eq!(
-        tip_vault_after.token_mint,
-        *token_mint,
+        tip_vault_after.token_mint, *token_mint,
         "Tip vault token mint should match"
     );
 
@@ -2020,7 +2146,10 @@ pub async fn test_phenomena_claim_tips(
 
     println!("📊 Before claim:");
     println!("   - Tip vault token account: {}", claim_amount);
-    println!("   - Unclaimed amount: {}", tip_vault_before.unclaimed_amount);
+    println!(
+        "   - Unclaimed amount: {}",
+        tip_vault_before.unclaimed_amount
+    );
     println!("   - Owner vault: {}", owner_vault_before.amount);
 
     // Create claim_tips instruction
@@ -2066,8 +2195,14 @@ pub async fn test_phenomena_claim_tips(
         .unwrap();
 
     println!("📊 After claim:");
-    println!("   - Tip vault token account: {}", tip_vault_token_after.amount);
-    println!("   - Unclaimed amount: {}", tip_vault_after.unclaimed_amount);
+    println!(
+        "   - Tip vault token account: {}",
+        tip_vault_token_after.amount
+    );
+    println!(
+        "   - Unclaimed amount: {}",
+        tip_vault_after.unclaimed_amount
+    );
     println!("   - Owner vault: {}", owner_vault_after.amount);
 
     // Verify tip vault token account is now empty
