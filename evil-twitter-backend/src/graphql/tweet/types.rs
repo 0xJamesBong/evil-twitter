@@ -9,7 +9,7 @@ use crate::graphql::user::types::{Language, ProfileNode};
 use crate::models::post_state::PostState;
 use crate::models::tweet::{TweetMetrics, TweetType, TweetView};
 use crate::solana::get_post_pda;
-use crate::utils::tweet::TweetThreadResponse;
+use crate::utils::tweet::{AnswerWithComments, QuestionThreadResponse, TweetThreadResponse};
 
 // ============================================================================
 // Connection Types
@@ -614,6 +614,76 @@ impl TweetThreadNode {
 
     async fn replies(&self) -> &Vec<TweetNode> {
         &self.replies
+    }
+}
+
+// ============================================================================
+// Question Thread Node
+// ============================================================================
+
+pub struct AnswerWithCommentsNode {
+    answer: TweetNode,
+    comments: Vec<TweetNode>,
+}
+
+impl From<AnswerWithComments> for AnswerWithCommentsNode {
+    fn from(item: AnswerWithComments) -> Self {
+        let answer = TweetNode::from(item.answer);
+        let comments = item.comments.into_iter().map(TweetNode::from).collect();
+        Self { answer, comments }
+    }
+}
+
+#[Object]
+impl AnswerWithCommentsNode {
+    async fn answer(&self) -> &TweetNode {
+        &self.answer
+    }
+
+    async fn comments(&self) -> &Vec<TweetNode> {
+        &self.comments
+    }
+}
+
+pub struct QuestionThreadNode {
+    question: TweetNode,
+    question_comments: Vec<TweetNode>,
+    answers: Vec<AnswerWithCommentsNode>,
+}
+
+impl From<QuestionThreadResponse> for QuestionThreadNode {
+    fn from(response: QuestionThreadResponse) -> Self {
+        let question = TweetNode::from(response.question);
+        let question_comments = response
+            .question_comments
+            .into_iter()
+            .map(TweetNode::from)
+            .collect();
+        let answers = response
+            .answers
+            .into_iter()
+            .map(AnswerWithCommentsNode::from)
+            .collect();
+        Self {
+            question,
+            question_comments,
+            answers,
+        }
+    }
+}
+
+#[Object]
+impl QuestionThreadNode {
+    async fn question(&self) -> &TweetNode {
+        &self.question
+    }
+
+    async fn question_comments(&self) -> &Vec<TweetNode> {
+        &self.question_comments
+    }
+
+    async fn answers(&self) -> &Vec<AnswerWithCommentsNode> {
+        &self.answers
     }
 }
 

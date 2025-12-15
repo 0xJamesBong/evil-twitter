@@ -12,7 +12,7 @@ use crate::{
         tweet::{Tweet, TweetEnergyState, TweetMetrics, TweetType, TweetView, TweetViewerContext},
         user::User,
     },
-    utils::tweet::TweetThreadResponse,
+    utils::tweet::{QuestionThreadResponse, TweetThreadResponse},
 };
 
 /// Service for tweet-related database operations
@@ -240,6 +240,19 @@ impl TweetService {
                     .get("error")
                     .and_then(|v| v.as_str())
                     .unwrap_or("Failed to assemble thread");
+                async_graphql::Error::new(format!("{} (status {})", msg, status))
+            })
+    }
+
+    /// Get question thread (question, answers, comments)
+    pub async fn get_question_thread(&self, question_id: ObjectId) -> Result<QuestionThreadResponse> {
+        crate::utils::tweet::assemble_question_thread_response(self.db(), question_id)
+            .await
+            .map_err(|(status, json)| {
+                let msg = json
+                    .get("error")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("Failed to assemble question thread");
                 async_graphql::Error::new(format!("{} (status {})", msg, status))
             })
     }

@@ -18,6 +18,8 @@ import { TweetNode } from "@/lib/graphql/tweets/types";
 import { TweetCard } from "@/components/tweets/TweetCard";
 import { ReplyModal } from "@/components/tweets/ReplyModal";
 import { QuoteModal } from "@/components/tweets/QuoteModal";
+import { AnswerModal } from "@/components/tweets/AnswerModal";
+import { QuestionThreadView } from "@/components/tweets/QuestionThreadView";
 
 // Group replies by parent ID for hierarchical display
 const groupRepliesByParent = (
@@ -56,9 +58,13 @@ export default function TweetDetailPage() {
     const {
         fetchTweet,
         fetchThread,
+        fetchQuestionThread,
         threads,
+        questionThreads,
         threadLoading,
+        questionThreadLoading,
         threadError,
+        questionThreadError,
         isLoading,
         replyTweet,
         quoteTweet,
@@ -79,6 +85,14 @@ export default function TweetDetailPage() {
         clearReplyData,
         clearQuoteData,
         isCreating,
+        openAnswerModal,
+        closeAnswerModal,
+        showAnswerModal,
+        answerQuestionId,
+        answerContent,
+        setAnswerContent,
+        clearAnswerData,
+        answerTweet,
     } = useTweetStore();
 
     const [tweet, setTweet] = useState<TweetNode | null>(null);
@@ -86,9 +100,13 @@ export default function TweetDetailPage() {
     const [showAllReplies, setShowAllReplies] = useState(false);
 
     const thread = tweetId ? threads[tweetId] : undefined;
+    const questionThread = tweetId ? questionThreads[tweetId] : undefined;
     const parents = thread?.parents ?? [];
     const replies = thread?.replies ?? [];
     const anchorTweet = thread?.tweet ?? tweet;
+    
+    // Check if this is a question
+    const isQuestion = anchorTweet?.postState?.function === "Question" || questionThread !== undefined;
 
     const repliesByParent = useMemo(
         () => groupRepliesByParent(replies),
@@ -240,8 +258,16 @@ export default function TweetDetailPage() {
             const tweetData = await fetchTweet(identityToken || undefined, tweetId);
             if (tweetData) {
                 setTweet(tweetData);
+                // Check if it's a question and fetch appropriate thread
+                if (tweetData.postState?.function === "Question") {
+                    await fetchQuestionThread(identityToken || undefined, tweetId);
+                } else {
+                    await fetchThread(identityToken || undefined, tweetId);
+                }
+            } else {
+                // Fallback: try regular thread
+                await fetchThread(identityToken || undefined, tweetId);
             }
-            await fetchThread(identityToken || undefined, tweetId);
         } catch (error) {
             console.error("Failed to load tweet:", error);
         } finally {
@@ -367,8 +393,100 @@ export default function TweetDetailPage() {
                 </Box>
             )}
 
-            {/* Anchor Tweet */}
-            {anchorTweet && (
+            {/* Question Thread View or Regular Thread View */}
+            {isQuestion && questionThread ? (
+                <>
+                    {(questionThreadLoading || threadLoading) && (
+                        <Box
+                            sx={{
+                                display: "flex",
+                                alignItems: "center",
+                                gap: 2,
+                                py: 2,
+                                px: 2,
+                            }}
+                        >
+                            <CircularProgress size={20} />
+                            <Typography variant="body2" color="text.secondary">
+                                Loading question thread...
+                            </Typography>
+                        </Box>
+                    )}
+
+                    {(questionThreadError || threadError) && (
+                        <Box
+                            sx={{
+                                p: 2,
+                                borderRadius: 2,
+                                bgcolor: "error.50",
+                                border: 1,
+                                borderColor: "error.main",
+                                m: 2,
+                            }}
+                        >
+                            <Typography color="error">
+                                {questionThreadError || threadError}
+                            </Typography>
+                        </Box>
+                    )}
+
+                    {!questionThreadLoading && questionThread && (
+                        <Box sx={{ p: 2 }}>
+                            <QuestionThreadView
+                                question={questionThread.question}
+                                questionComments={questionThread.questionComments}
+                                answers={questionThread.answers}
+                                onReply={(tweet) => {
+                                    if (!identityToken) {
+                                        enqueueSnackbar("Please log in to reply", { variant: "error" });
+                                        return;
+                                    }
+                                    openReplyModal(tweet.id || "");
+                                }}
+                                onQuote={(tweet) => {
+                                    if (!identityToken) {
+                                        enqueueSnackbar("Please log in to quote", { variant: "error" });
+                                        return;
+                                    }
+                                    openQuoteModal(tweet.id || "");
+                                }}
+                                onRetweet={async (tweet) => {
+                                    if (!identityToken || !tweet.id) return;
+                                    try {
+                                        await retweetTweet(identityToken, tweet.id);
+                                        enqueueSnackbar("Retweeted!", { variant: "success" });
+                                        if (tweetId) await fetchQuestionThread(identityToken, tweetId);
+                                    } catch (e) {
+                                        enqueueSnackbar(
+                                            e instanceof Error ? e.message : "Failed to retweet",
+                                            { variant: "error" }
+                                        );
+                                    }
+                                }}
+                                onLike={async (tweet) => {
+                                    if (!identityToken || !tweet.id) return;
+                                    try {
+                                        await likeTweet(identityToken, tweet.id);
+                                        if (tweetId) await fetchQuestionThread(identityToken, tweetId);
+                                    } catch (e) {
+                                        enqueueSnackbar(
+                                            e instanceof Error ? e.message : "Failed to like",
+                                            { variant: "error" }
+                                        );
+                                    }
+                                }}
+                                onAnswer={(tweet) => {
+                                    if (!identityToken) {
+                                        enqueueSnackbar("Please log in to answer", { variant: "error" });
+                                        return;
+                                    }
+                                    openAnswerModal(tweet.id || "");
+                                }}
+                            />
+                        </Box>
+                    )}
+                </>
+            ) : anchorTweet ? (
                 <>
                     <Box sx={{ borderBottom: 1, borderColor: "grey.200" }}>
                         <TweetCard
@@ -469,7 +587,7 @@ export default function TweetDetailPage() {
                         </Box>
                     )}
                 </>
-            )}
+            ) : null}
 
             {/* Modals */}
             <ReplyModal
@@ -479,8 +597,11 @@ export default function TweetDetailPage() {
                     replyTweetId
                         ? [
                             ...(anchorTweet ? [anchorTweet] : []),
+                            ...(questionThread ? [questionThread.question] : []),
                             ...parents,
                             ...replies,
+                            ...(questionThread?.questionComments || []),
+                            ...(questionThread?.answers.flatMap(a => [a.answer, ...a.comments]) || []),
                         ].find((t) => t.id === replyTweetId) || null
                         : null
                 }
@@ -494,7 +615,11 @@ export default function TweetDetailPage() {
                         enqueueSnackbar("Reply posted!", { variant: "success" });
                         // Refresh the thread
                         if (tweetId) {
-                            await fetchThread(identityToken, tweetId);
+                            if (isQuestion) {
+                                await fetchQuestionThread(identityToken, tweetId);
+                            } else {
+                                await fetchThread(identityToken, tweetId);
+                            }
                         }
                     } catch (e) {
                         enqueueSnackbar(
@@ -512,8 +637,11 @@ export default function TweetDetailPage() {
                     quoteTweetId
                         ? [
                             ...(anchorTweet ? [anchorTweet] : []),
+                            ...(questionThread ? [questionThread.question] : []),
                             ...parents,
                             ...replies,
+                            ...(questionThread?.questionComments || []),
+                            ...(questionThread?.answers.flatMap(a => [a.answer, ...a.comments]) || []),
                         ].find((t) => t.id === quoteTweetId) || null
                         : null
                 }
@@ -537,11 +665,57 @@ export default function TweetDetailPage() {
 
                         // Refresh the thread
                         if (tweetId) {
-                            await fetchThread(identityToken, tweetId);
+                            if (isQuestion) {
+                                await fetchQuestionThread(identityToken, tweetId);
+                            } else {
+                                await fetchThread(identityToken, tweetId);
+                            }
                         }
                     } catch (e) {
                         enqueueSnackbar(
                             e instanceof Error ? e.message : "Failed to post quote",
+                            { variant: "error" }
+                        );
+                    }
+                }}
+                isSubmitting={isCreating}
+            />
+            <AnswerModal
+                open={showAnswerModal}
+                onClose={closeAnswerModal}
+                question={
+                    answerQuestionId
+                        ? (questionThread?.question ||
+                            (anchorTweet?.postState?.function === "Question" ? anchorTweet : null) ||
+                            (tweet?.postState?.function === "Question" ? tweet : null) ||
+                            null)
+                        : null
+                }
+                content={answerContent}
+                onContentChange={setAnswerContent}
+                onSubmit={async () => {
+                    if (!identityToken || !answerQuestionId || !answerContent.trim()) return;
+                    try {
+                        const result = await answerTweet(identityToken, answerContent.trim(), answerQuestionId);
+                        clearAnswerData();
+                        
+                        // Show toast with transaction ID if post was created on-chain
+                        if (result.onchainSignature) {
+                            enqueueSnackbar(
+                                `Answer posted! Transaction: ${result.onchainSignature.slice(0, 8)}...`,
+                                { variant: "success" }
+                            );
+                        } else {
+                            enqueueSnackbar("Answer posted!", { variant: "success" });
+                        }
+                        
+                        // Refresh the question thread
+                        if (tweetId) {
+                            await fetchQuestionThread(identityToken, tweetId);
+                        }
+                    } catch (e) {
+                        enqueueSnackbar(
+                            e instanceof Error ? e.message : "Failed to post answer",
                             { variant: "error" }
                         );
                     }

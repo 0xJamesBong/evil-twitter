@@ -223,96 +223,12 @@ export function TweetCard({
                     <Box sx={{ flexGrow: 1, minWidth: 0 }}>
                         {/* Header */}
                         <Stack direction="row" spacing={1} alignItems="center" sx={{ mb: 0.5 }}>
-                            {author?.handle ? (
-                                <Link
-                                    href={`/${author.handle.replace(/^@+/, "")}`}
-                                    style={{ textDecoration: "none", color: "inherit" }}
-                                    onClick={(e) => {
-                                        e.stopPropagation();
-                                        e.preventDefault();
-                                        router.push(`/${author.handle.replace(/^@+/, "")}`);
-                                    }}
-                                >
-                                    <Typography
-                                        variant="subtitle2"
-                                        sx={{
-                                            fontWeight: 700,
-                                            "&:hover": { textDecoration: "underline", cursor: "pointer" },
-                                        }}
-                                    >
-                                        {author?.displayName || "Unknown"}
-                                    </Typography>
-                                </Link>
-                            ) : author?.userId ? (
-                                <Link
-                                    href={`/user/${author.userId}`}
-                                    style={{ textDecoration: "none", color: "inherit" }}
-                                    onClick={(e) => {
-                                        e.stopPropagation();
-                                        e.preventDefault();
-                                        router.push(`/user/${author.userId}`);
-                                    }}
-                                >
-                                    <Typography
-                                        variant="subtitle2"
-                                        sx={{
-                                            fontWeight: 700,
-                                            "&:hover": { textDecoration: "underline", cursor: "pointer" },
-                                        }}
-                                    >
-                                        {author?.displayName || "Unknown"}
-                                    </Typography>
-                                </Link>
-                            ) : (
-                                <Typography variant="subtitle2" sx={{ fontWeight: 700 }}>
-                                    {author?.displayName || "Unknown"}
-                                </Typography>
-                            )}
-                            {author?.handle ? (
-                                <Link
-                                    href={`/${author.handle.replace(/^@+/, "")}`}
-                                    style={{ textDecoration: "none", color: "inherit" }}
-                                    onClick={(e) => {
-                                        e.stopPropagation();
-                                        e.preventDefault();
-                                        router.push(`/${author.handle.replace(/^@+/, "")}`);
-                                    }}
-                                >
-                                    <Typography
-                                        variant="body2"
-                                        color="text.secondary"
-                                        sx={{
-                                            "&:hover": { textDecoration: "underline", cursor: "pointer" },
-                                        }}
-                                    >
-                                        @{author.handle.replace(/^@+/, "")}
-                                    </Typography>
-                                </Link>
-                            ) : author?.userId ? (
-                                <Link
-                                    href={`/user/${author.userId}`}
-                                    style={{ textDecoration: "none", color: "inherit" }}
-                                    onClick={(e) => {
-                                        e.stopPropagation();
-                                        e.preventDefault();
-                                        router.push(`/user/${author.userId}`);
-                                    }}
-                                >
-                                    <Typography
-                                        variant="body2"
-                                        color="text.secondary"
-                                        sx={{
-                                            "&:hover": { textDecoration: "underline", cursor: "pointer" },
-                                        }}
-                                    >
-                                        @{author?.handle || "unknown"}
-                                    </Typography>
-                                </Link>
-                            ) : (
-                                <Typography variant="body2" color="text.secondary">
-                                    @{author?.handle || "unknown"}
-                                </Typography>
-                            )}
+                            <Typography variant="subtitle2" sx={{ fontWeight: 700 }}>
+                                {author?.displayName || "Unknown"}
+                            </Typography>
+                            <Typography variant="body2" color="text.secondary">
+                                @{author?.handle?.replace(/^@+/, "") || "unknown"}
+                            </Typography>
                             <Typography variant="body2" color="text.secondary">
                                 ·
                             </Typography>
