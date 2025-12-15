@@ -33,9 +33,11 @@ import {
   TIMELINE_QUERY,
   TWEET_QUERY,
   TWEET_THREAD_QUERY,
+  QUESTION_THREAD_QUERY,
   TimelineQueryResult,
   TweetQueryResult,
   TweetThreadQueryResult,
+  QuestionThreadQueryResult,
 } from "../graphql/tweets/queries";
 import { TweetNode } from "../graphql/tweets/types";
 
@@ -49,6 +51,15 @@ export interface ThreadData {
   replies: TweetNode[];
 }
 
+export interface QuestionThreadData {
+  question: TweetNode;
+  questionComments: TweetNode[];
+  answers: Array<{
+    answer: TweetNode;
+    comments: TweetNode[];
+  }>;
+}
+
 // ============================================================================
 // Store State & Actions
 // ============================================================================
@@ -58,15 +69,18 @@ type TweetStoreState = {
   tweets: TweetNode[];
   userTweets: TweetNode[];
   threads: Record<string, ThreadData>;
+  questionThreads: Record<string, QuestionThreadData>;
 
   // Loading states
   isLoading: boolean;
   isCreating: boolean;
   threadLoading: boolean;
+  questionThreadLoading: boolean;
 
   // Error states
   error: string | null;
   threadError: string | null;
+  questionThreadError: string | null;
 
   // Modal states
   showQuoteModal: boolean;
@@ -103,6 +117,10 @@ type TweetStoreActions = {
   fetchThread: (
     identityToken: string | undefined,
     tweetId: string
+  ) => Promise<void>;
+  fetchQuestionThread: (
+    identityToken: string | undefined,
+    questionId: string
   ) => Promise<void>;
 
   // Mutation operations
@@ -190,11 +208,14 @@ export const useTweetStore = create<TweetStoreState & TweetStoreActions>(
     tweets: [],
     userTweets: [],
     threads: {},
+    questionThreads: {},
     isLoading: false,
     isCreating: false,
     threadLoading: false,
+    questionThreadLoading: false,
     error: null,
     threadError: null,
+    questionThreadError: null,
     showQuoteModal: false,
     quoteTweetId: null,
     quoteContent: "",
@@ -300,6 +321,40 @@ export const useTweetStore = create<TweetStoreState & TweetStoreActions>(
         const errorMessage =
           error instanceof Error ? error.message : "Failed to fetch thread";
         set({ threadError: errorMessage, threadLoading: false });
+        throw error;
+      }
+    },
+
+    fetchQuestionThread: async (identityToken: string | undefined, questionId: string) => {
+      set({ questionThreadLoading: true, questionThreadError: null });
+      try {
+        const data = await graphqlRequest<QuestionThreadQueryResult>(
+          QUESTION_THREAD_QUERY,
+          { questionId },
+          identityToken
+        );
+
+        if (!data.questionThread) {
+          throw new Error("Question thread not found");
+        }
+
+        const questionThreadData: QuestionThreadData = {
+          question: data.questionThread.question,
+          questionComments: data.questionThread.questionComments,
+          answers: data.questionThread.answers,
+        };
+
+        set((state) => ({
+          questionThreads: {
+            ...state.questionThreads,
+            [questionId]: questionThreadData,
+          },
+          questionThreadLoading: false,
+        }));
+      } catch (error) {
+        const errorMessage =
+          error instanceof Error ? error.message : "Failed to fetch question thread";
+        set({ questionThreadError: errorMessage, questionThreadLoading: false });
         throw error;
       }
     },

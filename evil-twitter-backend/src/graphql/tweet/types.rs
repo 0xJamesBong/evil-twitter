@@ -9,7 +9,7 @@ use crate::graphql::user::types::{Language, ProfileNode};
 use crate::models::post_state::PostState;
 use crate::models::tweet::{TweetMetrics, TweetType, TweetView};
 use crate::solana::get_post_pda;
-use crate::utils::tweet::TweetThreadResponse;
+use crate::utils::tweet::{AnswerWithComments, QuestionThreadResponse, TweetThreadResponse};
 
 // ============================================================================
 // Connection Types
@@ -396,6 +396,7 @@ impl TweetNode {
                             .await
                         {
                             Some(PostMintPayoutNode {
+                                token_mint: bling_mint.to_string(),
                                 frozen: payout.frozen,
                                 creator_fee: payout.creator_fee.to_string(),
                                 protocol_fee: payout.protocol_fee.to_string(),
@@ -476,6 +477,7 @@ pub struct PostStateNode {
     pub upvotes: u64,
     pub downvotes: u64,
     pub winning_side: Option<String>,
+    pub start_time: i64,
     pub end_time: i64,
     /// Post function: "Normal", "Question", or "Answer"
     pub function: Option<String>,
@@ -499,6 +501,7 @@ impl From<PostState> for PostStateNode {
             upvotes: state.upvotes,
             downvotes: state.downvotes,
             winning_side: state.winning_side,
+            start_time: state.start_time,
             end_time: state.end_time,
             function: state.function,
             pot_balances: None, // Will be populated by resolver
@@ -514,6 +517,7 @@ impl From<PostState> for PostStateNode {
 
 #[derive(SimpleObject, Clone)]
 pub struct PostMintPayoutNode {
+    pub token_mint: String,
     pub frozen: bool,
     pub creator_fee: String,
     pub protocol_fee: String,
@@ -610,6 +614,76 @@ impl TweetThreadNode {
 
     async fn replies(&self) -> &Vec<TweetNode> {
         &self.replies
+    }
+}
+
+// ============================================================================
+// Question Thread Node
+// ============================================================================
+
+pub struct AnswerWithCommentsNode {
+    answer: TweetNode,
+    comments: Vec<TweetNode>,
+}
+
+impl From<AnswerWithComments> for AnswerWithCommentsNode {
+    fn from(item: AnswerWithComments) -> Self {
+        let answer = TweetNode::from(item.answer);
+        let comments = item.comments.into_iter().map(TweetNode::from).collect();
+        Self { answer, comments }
+    }
+}
+
+#[Object]
+impl AnswerWithCommentsNode {
+    async fn answer(&self) -> &TweetNode {
+        &self.answer
+    }
+
+    async fn comments(&self) -> &Vec<TweetNode> {
+        &self.comments
+    }
+}
+
+pub struct QuestionThreadNode {
+    question: TweetNode,
+    question_comments: Vec<TweetNode>,
+    answers: Vec<AnswerWithCommentsNode>,
+}
+
+impl From<QuestionThreadResponse> for QuestionThreadNode {
+    fn from(response: QuestionThreadResponse) -> Self {
+        let question = TweetNode::from(response.question);
+        let question_comments = response
+            .question_comments
+            .into_iter()
+            .map(TweetNode::from)
+            .collect();
+        let answers = response
+            .answers
+            .into_iter()
+            .map(AnswerWithCommentsNode::from)
+            .collect();
+        Self {
+            question,
+            question_comments,
+            answers,
+        }
+    }
+}
+
+#[Object]
+impl QuestionThreadNode {
+    async fn question(&self) -> &TweetNode {
+        &self.question
+    }
+
+    async fn question_comments(&self) -> &Vec<TweetNode> {
+        &self.question_comments
+    }
+
+    async fn answers(&self) -> &Vec<AnswerWithCommentsNode> {
+        &self.answers
     }
 }
 

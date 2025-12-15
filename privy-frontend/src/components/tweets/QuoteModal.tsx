@@ -15,13 +15,7 @@ import {
 import { Close as CloseIcon, Send as SendIcon } from "@mui/icons-material";
 import { TweetNode } from "@/lib/graphql/tweets/types";
 import { useBackendUserStore } from "@/lib/stores/backendUserStore";
-import { Language } from "@/lib/graphql/types";
-
-const LANGUAGE_FONT_FAMILY: Record<Language, string | null> = {
-  [Language.CANTONESE]: 'var(--font-jyutcitzi), Arial, Helvetica, sans-serif',
-  [Language.GOETSUAN]: 'var(--font-goetsusioji), Arial, Helvetica, sans-serif',
-  [Language.NONE]: null,
-};
+import { getFontFamilyForLanguageString } from "@/lib/utils/language";
 
 interface QuoteModalProps {
     open: boolean;
@@ -47,12 +41,8 @@ export function QuoteModal({
     const { user: backendUser } = useBackendUserStore();
     const author = tweet.author;
     
-    // Get user's language preference
-    const userLanguageStr = backendUser?.language?.toUpperCase() || 'NONE';
-    const userLanguage = userLanguageStr === 'CANTONESE' ? Language.CANTONESE :
-                         userLanguageStr === 'GOETSUAN' ? Language.GOETSUAN :
-                         Language.NONE;
-    const fontFamily = LANGUAGE_FONT_FAMILY[userLanguage] ?? null;
+    // Get user's font family based on language preference
+    const fontFamily = getFontFamilyForLanguageString(backendUser?.language);
 
     return (
         <Dialog

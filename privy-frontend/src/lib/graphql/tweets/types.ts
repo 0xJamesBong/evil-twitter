@@ -43,6 +43,7 @@ export interface UserVotes {
 }
 
 export interface PostMintPayoutNode {
+  tokenMint: string;
   frozen: boolean;
   creatorFee: string;
   protocolFee: string;
@@ -55,6 +56,7 @@ export interface PostStateNode {
   upvotes: number;
   downvotes: number;
   winningSide?: string;
+  startTime: number;
   endTime: number;
   function?: string | null; // "Normal", "Question", or "Answer"
   potBalances?: PostPotBalances | null;

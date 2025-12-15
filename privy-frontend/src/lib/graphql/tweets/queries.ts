@@ -394,3 +394,197 @@ export interface ClaimableRewardNode {
 export interface ClaimableRewardsQueryResult {
   claimableRewards: ClaimableRewardNode[];
 }
+
+export const QUESTION_THREAD_QUERY = `
+  query QuestionThread($questionId: ID!) {
+    questionThread(questionId: $questionId) {
+      question {
+        id
+        ownerId
+        content
+        language
+        tweetType
+        createdAt
+        updatedAt
+        replyDepth
+        postIdHash
+        postState {
+          state
+          function
+          startTime
+          endTime
+          winningSide
+          upvotes
+          downvotes
+          potBalances {
+            bling
+            usdc
+            stablecoin
+          }
+          userVotes {
+            upvotes
+            downvotes
+          }
+        }
+        metrics {
+          likes
+          retweets
+          quotes
+          replies
+          impressions
+          smacks
+        }
+        energyState {
+          energy
+          kineticEnergy
+          potentialEnergy
+          energyGainedFromSupport
+          energyLostFromAttacks
+          mass
+          velocityInitial
+          heightInitial
+        }
+        author {
+          id
+          userId
+          handle
+          displayName
+          avatarUrl
+          bio
+          status
+          createdAt
+        }
+        rootTweetId
+        quotedTweetId
+        repliedToTweetId
+      }
+      questionComments {
+        id
+        ownerId
+        content
+        language
+        tweetType
+        createdAt
+        updatedAt
+        replyDepth
+        metrics {
+          likes
+          retweets
+          quotes
+          replies
+        }
+        author {
+          id
+          userId
+          handle
+          displayName
+          avatarUrl
+        }
+        rootTweetId
+        quotedTweetId
+        repliedToTweetId
+      }
+      answers {
+        answer {
+          id
+          ownerId
+          content
+          language
+          tweetType
+          createdAt
+          updatedAt
+          replyDepth
+          postIdHash
+          postState {
+            state
+            function
+            startTime
+            endTime
+            winningSide
+            upvotes
+            downvotes
+            potBalances {
+              bling
+              usdc
+              stablecoin
+            }
+            userVotes {
+              upvotes
+              downvotes
+            }
+          }
+          metrics {
+            likes
+            retweets
+            quotes
+            replies
+            impressions
+            smacks
+          }
+          energyState {
+            energy
+            kineticEnergy
+            potentialEnergy
+            energyGainedFromSupport
+            energyLostFromAttacks
+            mass
+            velocityInitial
+            heightInitial
+          }
+          author {
+            id
+            userId
+            handle
+            displayName
+            avatarUrl
+            bio
+            status
+            createdAt
+          }
+          rootTweetId
+          quotedTweetId
+          repliedToTweetId
+        }
+        comments {
+          id
+          ownerId
+          content
+          language
+          tweetType
+          createdAt
+          updatedAt
+          replyDepth
+          metrics {
+            likes
+            retweets
+            quotes
+            replies
+          }
+          author {
+            id
+            userId
+            handle
+            displayName
+            avatarUrl
+          }
+          rootTweetId
+          quotedTweetId
+          repliedToTweetId
+        }
+      }
+    }
+  }
+`;
+
+export interface AnswerWithComments {
+  answer: TweetNode;
+  comments: TweetNode[];
+}
+
+export interface QuestionThreadQueryResult {
+  questionThread: {
+    question: TweetNode;
+    questionComments: TweetNode[];
+    answers: AnswerWithComments[];
+  };
+}

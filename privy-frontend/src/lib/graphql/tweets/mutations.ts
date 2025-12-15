@@ -30,6 +30,14 @@ export const TWEET_CREATE_MUTATION = `
           velocityInitial
           heightInitial
         }
+        repliedToTweet {
+          id
+          content
+          author {
+            handle
+            displayName
+          }
+        }
         author {
           id
           userId
@@ -435,6 +443,20 @@ export const TWEET_ANSWER_MUTATION = `
         createdAt
         updatedAt
         replyDepth
+        postIdHash
+        postState {
+          state
+          function
+          startTime
+          endTime
+          winningSide
+          upvotes
+          downvotes
+          payoutInfo {
+            tokenMint
+            totalPayout
+          }
+        }
         metrics {
           likes
           retweets

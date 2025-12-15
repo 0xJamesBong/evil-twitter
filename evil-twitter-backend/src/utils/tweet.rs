@@ -8,6 +8,7 @@ use serde_json::Value;
 use std::collections::{HashMap, HashSet};
 
 use crate::models::{
+    post_state::PostState,
     profile::Profile,
     tweet::{Tweet, TweetView},
     user::User,
@@ -33,6 +34,19 @@ pub struct TweetThreadResponse {
     pub tweet: TweetView,
     pub parents: Vec<TweetView>,
     pub replies: Vec<TweetView>,
+}
+
+#[derive(Debug, serde::Serialize)]
+pub struct AnswerWithComments {
+    pub answer: TweetView,
+    pub comments: Vec<TweetView>,
+}
+
+#[derive(Debug, serde::Serialize)]
+pub struct QuestionThreadResponse {
+    pub question: TweetView,
+    pub question_comments: Vec<TweetView>,
+    pub answers: Vec<AnswerWithComments>,
 }
 
 async fn hydrate_tweets_with_references(
@@ -238,5 +252,184 @@ pub async fn assemble_thread_response(
         tweet: target_view,
         parents: parents_view,
         replies: replies_view,
+    })
+}
+
+pub async fn assemble_question_thread_response(
+    db: &mongodb::Database,
+    question_id: ObjectId,
+) -> Result<QuestionThreadResponse, ApiError> {
+    let tweet_collection: Collection<Tweet> = db.collection("tweets");
+    let user_collection: Collection<User> = db.collection("users");
+    let profile_collection: Collection<Profile> = db.collection("profiles");
+    let post_states_collection: Collection<PostState> = db.collection(PostState::COLLECTION_NAME);
+
+    // Fetch the question tweet
+    let question_tweet = tweet_collection
+        .find_one(doc! {"_id": question_id})
+        .await
+        .map_err(|_| internal_error("Database error fetching question tweet"))?
+        .ok_or_else(|| not_found("Question tweet not found"))?;
+
+    let question_tweet_id = question_tweet
+        .id
+        .ok_or_else(|| internal_error("Question tweet missing identifier"))?;
+
+    // Get all direct replies to the question
+    let mut cursor = tweet_collection
+        .find(doc! {"replied_to_tweet_id": question_tweet_id})
+        .await
+        .map_err(|_| internal_error("Database error fetching question replies"))?;
+
+    let mut all_replies: Vec<Tweet> = Vec::new();
+    while let Some(tweet) = cursor
+        .try_next()
+        .await
+        .map_err(|_| internal_error("Database error iterating question replies"))?
+    {
+        all_replies.push(tweet);
+    }
+
+    // Fetch postStates for all replies to determine function type
+    let post_id_hashes: Vec<String> = all_replies
+        .iter()
+        .filter_map(|tweet| tweet.post_id_hash.clone())
+        .collect();
+
+    let mut post_states_map: HashMap<String, PostState> = HashMap::new();
+    if !post_id_hashes.is_empty() {
+        let mut cursor = post_states_collection
+            .find(doc! {"post_id_hash": {"$in": &post_id_hashes}})
+            .await
+            .map_err(|_| internal_error("Database error fetching post states"))?;
+
+        while let Some(post_state) = cursor
+            .try_next()
+            .await
+            .map_err(|_| internal_error("Database error iterating post states"))?
+        {
+            post_states_map.insert(post_state.post_id_hash.clone(), post_state);
+        }
+    }
+
+    // Separate replies into answers and comments on question
+    let mut answers: Vec<Tweet> = Vec::new();
+    let mut question_comments: Vec<Tweet> = Vec::new();
+
+    for reply in all_replies {
+        let is_answer = reply
+            .post_id_hash
+            .as_ref()
+            .and_then(|hash| post_states_map.get(hash))
+            .and_then(|state| state.function.as_ref())
+            .map(|func| func == "Answer")
+            .unwrap_or(false);
+
+        if is_answer {
+            answers.push(reply);
+        } else {
+            question_comments.push(reply);
+        }
+    }
+
+    // For each answer, get its comments
+    let answer_ids: Vec<ObjectId> = answers
+        .iter()
+        .filter_map(|tweet| tweet.id)
+        .collect();
+
+    let mut answer_comments_map: HashMap<ObjectId, Vec<Tweet>> = HashMap::new();
+    if !answer_ids.is_empty() {
+        let mut cursor = tweet_collection
+            .find(doc! {"replied_to_tweet_id": {"$in": &answer_ids}})
+            .await
+            .map_err(|_| internal_error("Database error fetching answer comments"))?;
+
+        while let Some(comment) = cursor
+            .try_next()
+            .await
+            .map_err(|_| internal_error("Database error iterating answer comments"))?
+        {
+            if let Some(parent_id) = comment.replied_to_tweet_id {
+                answer_comments_map
+                    .entry(parent_id)
+                    .or_insert_with(Vec::new)
+                    .push(comment);
+            }
+        }
+    }
+
+    // Hydrate all tweets with references
+    let question_view = {
+        let mut views = hydrate_tweets_with_references(
+            vec![question_tweet],
+            &tweet_collection,
+            &user_collection,
+            &profile_collection,
+        )
+        .await?;
+        views
+            .pop()
+            .ok_or_else(|| internal_error("Failed to hydrate question tweet"))?
+    };
+
+    let question_comments_view = if question_comments.is_empty() {
+        Vec::new()
+    } else {
+        hydrate_tweets_with_references(
+            question_comments,
+            &tweet_collection,
+            &user_collection,
+            &profile_collection,
+        )
+        .await?
+    };
+
+    let answers_view = if answers.is_empty() {
+        Vec::new()
+    } else {
+        hydrate_tweets_with_references(
+            answers,
+            &tweet_collection,
+            &user_collection,
+            &profile_collection,
+        )
+        .await?
+    };
+
+    // Build AnswerWithComments for each answer
+    let mut answers_with_comments: Vec<AnswerWithComments> = Vec::new();
+    for answer_view in answers_view {
+        let answer_id = answer_view
+            .tweet
+            .id
+            .ok_or_else(|| internal_error("Answer tweet missing identifier"))?;
+
+        let comments = answer_comments_map
+            .remove(&answer_id)
+            .unwrap_or_default();
+
+        let comments_view = if comments.is_empty() {
+            Vec::new()
+        } else {
+            hydrate_tweets_with_references(
+                comments,
+                &tweet_collection,
+                &user_collection,
+                &profile_collection,
+            )
+            .await?
+        };
+
+        answers_with_comments.push(AnswerWithComments {
+            answer: answer_view,
+            comments: comments_view,
+        });
+    }
+
+    Ok(QuestionThreadResponse {
+        question: question_view,
+        question_comments: question_comments_view,
+        answers: answers_with_comments,
     })
 }
