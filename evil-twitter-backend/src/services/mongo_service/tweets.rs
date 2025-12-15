@@ -310,6 +310,71 @@ impl TweetService {
             .ok_or_else(|| async_graphql::Error::new("Failed to hydrate reply"))
     }
 
+    /// Create an answer to a question (stores replied_to_tweet_id for linkage)
+    pub async fn create_answer(
+        &self,
+        user: User,
+        content: String,
+        question_tweet: &Tweet,
+    ) -> Result<TweetView> {
+        let tweet_collection = self.tweet_collection();
+        let question_id = question_tweet
+            .id
+            .ok_or_else(|| async_graphql::Error::new("Question tweet missing identifier"))?;
+
+        let owner_id = user
+            .id
+            .ok_or_else(|| async_graphql::Error::new("User record missing identifier"))?;
+        let now = mongodb::bson::DateTime::now();
+        let answer_id = ObjectId::new();
+        let root_id = question_tweet
+            .root_tweet_id
+            .or(question_tweet.id)
+            .unwrap_or(answer_id);
+
+        // Generate post_id_hash (32 random bytes) for on-chain post creation
+        let mut post_id_hash_bytes = [0u8; 32];
+        rand::thread_rng().fill_bytes(&mut post_id_hash_bytes);
+        let post_id_hash = Some(hex::encode(post_id_hash_bytes));
+
+        let answer = Tweet {
+            id: Some(answer_id),
+            owner_id,
+            content,
+            tweet_type: TweetType::Reply,
+            quoted_tweet_id: None,
+            replied_to_tweet_id: Some(question_id),
+            root_tweet_id: Some(root_id),
+            reply_depth: question_tweet.reply_depth + 1,
+            created_at: now,
+            updated_at: Some(now),
+            post_id_hash,
+            metrics: TweetMetrics::default(),
+            viewer_context: TweetViewerContext::default(),
+            energy_state: TweetEnergyState::default(),
+            language: user.language, // Copy user's language preference
+        };
+
+        tweet_collection
+            .insert_one(&answer)
+            .await
+            .map_err(|e| async_graphql::Error::new(format!("Failed to create answer: {}", e)))?;
+
+        tweet_collection
+            .update_one(
+                doc! {"_id": question_id},
+                doc! {"$inc": {"metrics.replies": 1}},
+            )
+            .await
+            .map_err(|e| async_graphql::Error::new(format!("Database error: {}", e)))?;
+
+        let views = self.enrich_tweets(vec![answer]).await?;
+        views
+            .into_iter()
+            .next()
+            .ok_or_else(|| async_graphql::Error::new("Failed to hydrate answer"))
+    }
+
     /// Create a quote tweet
     pub async fn create_quote(
         &self,

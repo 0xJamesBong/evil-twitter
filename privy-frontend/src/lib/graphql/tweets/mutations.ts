@@ -30,6 +30,14 @@ export const TWEET_CREATE_MUTATION = `
           velocityInitial
           heightInitial
         }
+        repliedToTweet {
+          id
+          content
+          author {
+            handle
+            displayName
+          }
+        }
         author {
           id
           userId

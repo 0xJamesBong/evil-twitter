@@ -639,11 +639,11 @@ pub async fn tweet_answer_resolver(
         .await?
         .ok_or_else(|| async_graphql::Error::new("Question tweet not found"))?;
 
-    // Create answer tweet in MongoDB (generates post_id_hash)
+    // Create answer tweet in MongoDB (generates post_id_hash and links to question)
     let view = app_state
         .mongo_service
         .tweets
-        .create_tweet_with_author(user.clone(), input.content)
+        .create_answer(user.clone(), input.content, &question_tweet)
         .await?;
 
     // Create answer on-chain if post_id_hash exists and question has post_id_hash

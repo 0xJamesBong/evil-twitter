@@ -66,6 +66,8 @@ export function TweetCard({
     const currentUserId = user?.id;
     const { settlePost, loading: settleLoading } = useSettlePost();
     const { fetchTimeline } = useTweetStore();
+    const answeredQuestion =
+        tweet.postState?.function === "Answer" ? tweet.repliedToTweet : null;
 
     const handleSettlePost = async (e: React.MouseEvent) => {
         e.stopPropagation();
@@ -372,6 +374,57 @@ export function TweetCard({
                                     fontWeight: 600,
                                 }}
                             />
+                        )}
+
+                        {/* Answered Question Reference */}
+                        {answeredQuestion?.id && (
+                            <Box
+                                sx={{
+                                    mb: 1.5,
+                                    p: 1,
+                                    bgcolor: "rgba(255,193,7,0.08)",
+                                    borderRadius: 1,
+                                    display: "flex",
+                                    alignItems: "flex-start",
+                                    gap: 1,
+                                }}
+                                onClick={(e) => {
+                                    e.stopPropagation();
+                                    router.push(`/tweets/${answeredQuestion.id}`);
+                                }}
+                            >
+                                <QuestionAnswerIcon
+                                    fontSize="small"
+                                    sx={{ color: "warning.main", mt: "2px" }}
+                                />
+                                <Box sx={{ minWidth: 0 }}>
+                                    <Typography variant="caption" color="warning.main" sx={{ fontWeight: 700 }}>
+                                        Answering
+                                    </Typography>
+                                    <Link
+                                        href={`/tweets/${answeredQuestion.id}`}
+                                        style={{ textDecoration: "none", color: "inherit" }}
+                                        onClick={(e) => {
+                                            e.stopPropagation();
+                                            e.preventDefault();
+                                            router.push(`/tweets/${answeredQuestion.id}`);
+                                        }}
+                                    >
+                                        <Typography
+                                            variant="body2"
+                                            sx={{
+                                                color: "text.primary",
+                                                whiteSpace: "nowrap",
+                                                textOverflow: "ellipsis",
+                                                overflow: "hidden",
+                                                display: "block",
+                                            }}
+                                        >
+                                            {answeredQuestion.content}
+                                        </Typography>
+                                    </Link>
+                                </Box>
+                            </Box>
                         )}
 
                         {/* Content */}
@@ -886,4 +939,3 @@ export function TweetCard({
         </Card>
     );
 }
-
