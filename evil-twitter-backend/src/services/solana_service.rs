@@ -44,9 +44,9 @@ use crate::solana::get_config_pda;
 use crate::solana::{
     get_position_pda, get_post_mint_payout_pda, get_post_pda, get_post_pot_authority_pda,
     get_post_pot_token_account_pda, get_protocol_treasury_token_account_pda,
-    get_session_authority_pda, get_tip_vault_pda,
-    get_tip_vault_token_account_pda, get_user_account_pda, get_user_post_mint_claim_pda,
-    get_user_vault_token_account_pda, get_valid_payment_pda, get_vault_authority_pda,
+    get_session_authority_pda, get_tip_vault_pda, get_tip_vault_token_account_pda,
+    get_user_account_pda, get_user_post_mint_claim_pda, get_user_vault_token_account_pda,
+    get_valid_payment_pda, get_vault_authority_pda,
 };
 
 pub struct SolanaService {
@@ -1541,6 +1541,27 @@ impl SolanaService {
         Ok(mint.decimals as u32)
     }
 
+    /// Get ValidPayment account for a token mint
+    pub async fn get_valid_payment(
+        &self,
+        token_mint: &Pubkey,
+    ) -> anyhow::Result<Option<opinions_market::states::ValidPayment>> {
+        let program = self.opinions_market_program();
+        let program_id = program.id();
+
+        // Derive ValidPayment PDA
+        let (valid_payment_pda, _) = get_valid_payment_pda(&program_id, token_mint);
+
+        // Fetch ValidPayment account
+        match program
+            .account::<opinions_market::states::ValidPayment>(valid_payment_pda)
+            .await
+        {
+            Ok(valid_payment) => Ok(Some(valid_payment)),
+            Err(_) => Ok(None), // Account doesn't exist
+        }
+    }
+
     /// Settle a post for a specific token mint (freezes math, no transfers)
     pub async fn settle_post_for_mint(
         &self,
@@ -1577,9 +1598,7 @@ impl SolanaService {
         let parent_post_pda = match &post_account.relation {
             opinions_market::states::PostRelation::Reply { parent }
             | opinions_market::states::PostRelation::Quote { quoted: parent }
-            | opinions_market::states::PostRelation::AnswerTo { question: parent } => {
-                Some(*parent)
-            }
+            | opinions_market::states::PostRelation::AnswerTo { question: parent } => Some(*parent),
             opinions_market::states::PostRelation::Root => None,
         };
 
@@ -1792,9 +1811,9 @@ impl SolanaService {
                         get_post_pot_token_account_pda(&program_id, parent, token_mint);
                     let parent_pot_authority = get_post_pot_authority_pda(&program_id, parent);
                     (
-                        *parent, // Required, not Option
+                        *parent,                    // Required, not Option
                         parent_pot_token_account.0, // Required, not Option
-                        parent_pot_authority.0, // Required, not Option
+                        parent_pot_authority.0,     // Required, not Option
                     )
                 }
                 opinions_market::states::PostRelation::Root => {
@@ -1867,9 +1886,7 @@ impl SolanaService {
         let parent_post_pda = match &post_account.relation {
             opinions_market::states::PostRelation::Reply { parent }
             | opinions_market::states::PostRelation::Quote { quoted: parent }
-            | opinions_market::states::PostRelation::AnswerTo { question: parent } => {
-                Some(*parent)
-            }
+            | opinions_market::states::PostRelation::AnswerTo { question: parent } => Some(*parent),
             opinions_market::states::PostRelation::Root => None,
         };
 
@@ -2022,9 +2039,9 @@ impl SolanaService {
                         get_post_pot_token_account_pda(&program_id, parent, token_mint);
                     let parent_pot_authority = get_post_pot_authority_pda(&program_id, parent);
                     (
-                        *parent, // Required, not Option
+                        *parent,                    // Required, not Option
                         parent_pot_token_account.0, // Required, not Option
-                        parent_pot_authority.0, // Required, not Option
+                        parent_pot_authority.0,     // Required, not Option
                     )
                 }
                 opinions_market::states::PostRelation::Root => {
@@ -2319,7 +2336,10 @@ impl SolanaService {
         println!("  ✅ SolanaService::tip: Instruction built successfully");
 
         let tx = self.build_partial_signed_tx(ixs).await.map_err(|e| {
-            eprintln!("  ❌ SolanaService::tip: Failed to build transaction: {}", e);
+            eprintln!(
+                "  ❌ SolanaService::tip: Failed to build transaction: {}",
+                e
+            );
             e
         })?;
 

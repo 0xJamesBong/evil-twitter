@@ -30,6 +30,8 @@ import {
 } from "@/lib/solana/config";
 import { useNetworkStore } from "@/lib/stores/networkStore";
 import { formatTokenBalance } from "@/lib/utils/formatting";
+import { graphqlRequest } from "@/lib/graphql/client";
+import { VALID_PAYMENT_QUERY, ValidPaymentResult } from "@/lib/graphql/users/queries";
 
 // Token mint addresses
 const BLING_MINT = process.env.NEXT_PUBLIC_BLING_MINT || "";
@@ -37,9 +39,7 @@ const USDC_MINT = process.env.NEXT_PUBLIC_USDC_MINT || "";
 const STABLECOIN_MINT = process.env.NEXT_PUBLIC_STABLECOIN_MINT || "";
 
 type ConfigData = Awaited<ReturnType<typeof fetchConfig>>;
-type ValidPaymentData = NonNullable<
-    Awaited<ReturnType<typeof fetchValidPayment>>
->;
+type ValidPaymentData = NonNullable<ValidPaymentResult["validPayment"]>;
 
 function ContractsContent() {
     const { ready, authenticated } = usePrivy();
@@ -82,13 +82,19 @@ function ContractsContent() {
                     { name: "Stablecoin", mint: STABLECOIN_MINT },
                 ].filter((t) => t.mint);
 
+                // Fetch ValidPayment info from backend GraphQL (public data, no auth required)
                 for (const token of tokenMints) {
-                    const payment = await fetchValidPayment(
-                        solanaWallet,
-                        token.mint
-                    );
-                    if (payment) {
-                        payments[token.name] = payment;
+                    try {
+                        const result = await graphqlRequest<ValidPaymentResult>(
+                            VALID_PAYMENT_QUERY,
+                            { tokenMint: token.mint },
+                            undefined // No identity token needed for public data
+                        );
+                        if (result.validPayment) {
+                            payments[token.name] = result.validPayment;
+                        }
+                    } catch (err) {
+                        console.error(`Failed to fetch ValidPayment for ${token.name}:`, err);
                     }
                 }
 
@@ -332,6 +338,13 @@ function ContractsContent() {
                                                                 }
                                                                 size="small"
                                                             />
+                                                            {payment.withdrawable && (
+                                                                <Chip
+                                                                    label="Withdrawable"
+                                                                    color="info"
+                                                                    size="small"
+                                                                />
+                                                            )}
                                                         </Box>
                                                     </Box>
                                                     <Typography

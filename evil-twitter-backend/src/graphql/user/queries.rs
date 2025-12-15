@@ -3,7 +3,6 @@ use axum::http::HeaderMap;
 use base64::{Engine as _, engine::general_purpose::STANDARD};
 use futures::TryStreamExt;
 use mongodb::{Collection, bson::doc};
-use solana_sdk::pubkey::Pubkey;
 use std::str::FromStr;
 use std::sync::Arc;
 
@@ -51,11 +50,7 @@ impl UserQuery {
     }
 
     /// Find user by handle (username)
-    async fn user_by_handle(
-        &self,
-        ctx: &Context<'_>,
-        handle: String,
-    ) -> Result<Option<UserNode>> {
+    async fn user_by_handle(&self, ctx: &Context<'_>, handle: String) -> Result<Option<UserNode>> {
         user_by_handle_resolver(ctx, handle).await
     }
 
@@ -112,6 +107,17 @@ impl UserQuery {
     /// Returns session information if a valid session exists on-chain
     async fn current_session(&self, ctx: &Context<'_>) -> Result<Option<SessionInfo>> {
         current_session_resolver(ctx).await
+    }
+
+    /// Get ValidPayment info for a token mint
+    /// Returns None if the token is not registered as a valid payment
+    /// This is public on-chain data, no authentication required
+    async fn valid_payment(
+        &self,
+        ctx: &Context<'_>,
+        token_mint: String,
+    ) -> Result<Option<ValidPaymentNode>> {
+        valid_payment_resolver(ctx, token_mint).await
     }
 }
 
@@ -602,7 +608,10 @@ pub struct TipVaultBalances {
 }
 
 /// Get tip vault balances for all valid payment tokens
-pub async fn tip_vault_balances_resolver(ctx: &Context<'_>, wallet: &str) -> Result<TipVaultBalances> {
+pub async fn tip_vault_balances_resolver(
+    ctx: &Context<'_>,
+    wallet: &str,
+) -> Result<TipVaultBalances> {
     let app_state = ctx.data::<Arc<AppState>>()?;
 
     // Parse user's Solana wallet
@@ -672,4 +681,50 @@ pub async fn tip_vault_balances_resolver(ctx: &Context<'_>, wallet: &str) -> Res
         usdc: usdc_balance,
         stablecoin: stablecoin_balance,
     })
+}
+
+// ============================================================================
+// ValidPayment Query
+// ============================================================================
+
+#[derive(SimpleObject)]
+pub struct ValidPaymentNode {
+    pub token_mint: String,
+    pub price_in_bling: u64,
+    pub enabled: bool,
+    pub withdrawable: bool,
+}
+
+/// Get ValidPayment info for a token mint
+/// This is public on-chain data, no authentication required
+pub async fn valid_payment_resolver(
+    ctx: &Context<'_>,
+    token_mint: String,
+) -> Result<Option<ValidPaymentNode>> {
+    let app_state = ctx.data::<Arc<AppState>>()?;
+
+    // Parse token mint pubkey
+    let token_mint_pubkey = solana_sdk::pubkey::Pubkey::from_str(&token_mint)
+        .map_err(|e| async_graphql::Error::new(format!("Invalid token mint: {}", e)))?;
+
+    // Fetch ValidPayment account from Solana
+    match app_state
+        .solana_service
+        .get_valid_payment(&token_mint_pubkey)
+        .await
+    {
+        Ok(Some(valid_payment)) => Ok(Some(ValidPaymentNode {
+            token_mint: valid_payment.token_mint.to_string(),
+            price_in_bling: valid_payment.price_in_bling,
+            enabled: valid_payment.enabled,
+            withdrawable: valid_payment.withdrawable,
+        })),
+        Ok(None) => Ok(None), // Token not registered
+        Err(e) => {
+            eprintln!("Failed to fetch ValidPayment: {}", e);
+            Err(async_graphql::Error::new(
+                "Failed to fetch ValidPayment account",
+            ))
+        }
+    }
 }
