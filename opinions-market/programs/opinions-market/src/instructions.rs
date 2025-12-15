@@ -1026,6 +1026,358 @@ pub struct SendToken<'info> {
 }
 
 // -----------------------------------------------------------------------------
+// BOUNTY INSTRUCTIONS
+// -----------------------------------------------------------------------------
+
+#[derive(Accounts)]
+#[instruction(question_post_id_hash: [u8; 32], amount: u64, expires_at: i64)]
+pub struct CreateBounty<'info> {
+    #[account(mut)]
+    pub sponsor: UncheckedAccount<'info>,
+    #[account(mut)]
+    pub payer: Signer<'info>,
+    #[account(mut)]
+    pub session_key: UncheckedAccount<'info>,
+    #[account(
+        mut,
+        seeds = [SESSION_AUTHORITY_SEED, sponsor.key().as_ref(), session_key.key().as_ref()],
+        bump,
+    )]
+    pub session_authority: Account<'info, SessionAuthority>,
+    #[account(
+        mut,
+        seeds = [USER_ACCOUNT_SEED, sponsor.key().as_ref()],
+        bump,
+    )]
+    pub sponsor_user_account: Account<'info, UserAccount>,
+    #[account(
+        seeds = [POST_ACCOUNT_SEED, question_post_id_hash.as_ref()],
+        bump,
+    )]
+    pub question_post: Account<'info, PostAccount>,
+    pub token_mint: Account<'info, Mint>,
+    #[account(
+        seeds = [VALID_PAYMENT_SEED, token_mint.key().as_ref()],
+        bump = valid_payment.bump,
+        constraint = valid_payment.enabled @ ErrorCode::MintNotEnabled,
+    )]
+    pub valid_payment: Account<'info, ValidPayment>,
+    #[account(
+        init,
+        payer = payer,
+        seeds = [BOUNTY_SEED, question_post.key().as_ref(), sponsor.key().as_ref(), token_mint.key().as_ref()],
+        bump,
+        space = 8 + BountyAccount::INIT_SPACE,
+    )]
+    pub bounty: Account<'info, BountyAccount>,
+    #[account(
+        init_if_needed,
+        payer = payer,
+        seeds = [BOUNTY_VAULT_TOKEN_ACCOUNT_SEED, bounty.key().as_ref()],
+        bump,
+        token::mint = token_mint,
+        token::authority = vault_authority,
+    )]
+    pub bounty_vault_token_account: Account<'info, TokenAccount>,
+    #[account(
+        mut,
+        seeds = [USER_VAULT_TOKEN_ACCOUNT_SEED, sponsor.key().as_ref(), token_mint.key().as_ref()],
+        bump,
+    )]
+    pub sponsor_vault_token_account: Account<'info, TokenAccount>,
+    #[account(
+        seeds = [VAULT_AUTHORITY_SEED],
+        bump,
+    )]
+    pub vault_authority: UncheckedAccount<'info>,
+    pub token_program: Program<'info, Token>,
+    pub system_program: Program<'info, System>,
+}
+
+#[derive(Accounts)]
+#[instruction(question_post_id_hash: [u8; 32], additional_amount: u64)]
+pub struct IncreaseBounty<'info> {
+    #[account(mut)]
+    pub sponsor: UncheckedAccount<'info>,
+    #[account(mut)]
+    pub payer: Signer<'info>,
+    #[account(mut)]
+    pub session_key: UncheckedAccount<'info>,
+    #[account(
+        mut,
+        seeds = [SESSION_AUTHORITY_SEED, sponsor.key().as_ref(), session_key.key().as_ref()],
+        bump,
+    )]
+    pub session_authority: Account<'info, SessionAuthority>,
+    #[account(
+        seeds = [USER_ACCOUNT_SEED, sponsor.key().as_ref()],
+        bump,
+    )]
+    pub sponsor_user_account: Account<'info, UserAccount>,
+    #[account(
+        seeds = [POST_ACCOUNT_SEED, question_post_id_hash.as_ref()],
+        bump,
+    )]
+    pub question_post: Account<'info, PostAccount>,
+    pub token_mint: Account<'info, Mint>,
+    #[account(
+        mut,
+        seeds = [BOUNTY_SEED, question_post.key().as_ref(), sponsor.key().as_ref(), token_mint.key().as_ref()],
+        bump,
+    )]
+    pub bounty: Account<'info, BountyAccount>,
+    #[account(
+        mut,
+        seeds = [BOUNTY_VAULT_TOKEN_ACCOUNT_SEED, bounty.key().as_ref()],
+        bump,
+        token::mint = token_mint,
+        token::authority = vault_authority,
+    )]
+    pub bounty_vault_token_account: Account<'info, TokenAccount>,
+    #[account(
+        mut,
+        seeds = [USER_VAULT_TOKEN_ACCOUNT_SEED, sponsor.key().as_ref(), token_mint.key().as_ref()],
+        bump,
+    )]
+    pub sponsor_vault_token_account: Account<'info, TokenAccount>,
+    #[account(
+        seeds = [VAULT_AUTHORITY_SEED],
+        bump,
+    )]
+    pub vault_authority: UncheckedAccount<'info>,
+    pub token_program: Program<'info, Token>,
+}
+
+#[derive(Accounts)]
+#[instruction(question_post_id_hash: [u8; 32], answer_post_id_hash: [u8; 32])]
+pub struct AwardBounty<'info> {
+    #[account(mut)]
+    pub sponsor: UncheckedAccount<'info>,
+    #[account(mut)]
+    pub payer: Signer<'info>,
+    #[account(mut)]
+    pub session_key: UncheckedAccount<'info>,
+    #[account(
+        mut,
+        seeds = [SESSION_AUTHORITY_SEED, sponsor.key().as_ref(), session_key.key().as_ref()],
+        bump,
+    )]
+    pub session_authority: Account<'info, SessionAuthority>,
+    #[account(
+        mut,
+        seeds = [USER_ACCOUNT_SEED, sponsor.key().as_ref()],
+        bump,
+    )]
+    pub sponsor_user_account: Account<'info, UserAccount>,
+    #[account(
+        seeds = [POST_ACCOUNT_SEED, question_post_id_hash.as_ref()],
+        bump,
+    )]
+    pub question_post: Account<'info, PostAccount>,
+    #[account(
+        seeds = [POST_ACCOUNT_SEED, answer_post_id_hash.as_ref()],
+        bump,
+    )]
+    pub answer_post: Account<'info, PostAccount>,
+    pub token_mint: Account<'info, Mint>,
+    #[account(
+        mut,
+        seeds = [BOUNTY_SEED, question_post.key().as_ref(), sponsor.key().as_ref(), token_mint.key().as_ref()],
+        bump,
+    )]
+    pub bounty: Account<'info, BountyAccount>,
+}
+
+#[derive(Accounts)]
+#[instruction(question_post_id_hash: [u8; 32])]
+pub struct CloseBountyNoAward<'info> {
+    #[account(mut)]
+    pub sponsor: UncheckedAccount<'info>,
+    #[account(mut)]
+    pub payer: Signer<'info>,
+    #[account(mut)]
+    pub session_key: UncheckedAccount<'info>,
+    #[account(
+        mut,
+        seeds = [SESSION_AUTHORITY_SEED, sponsor.key().as_ref(), session_key.key().as_ref()],
+        bump,
+    )]
+    pub session_authority: Account<'info, SessionAuthority>,
+    #[account(
+        seeds = [USER_ACCOUNT_SEED, sponsor.key().as_ref()],
+        bump,
+    )]
+    pub sponsor_user_account: Account<'info, UserAccount>,
+    #[account(
+        seeds = [POST_ACCOUNT_SEED, question_post_id_hash.as_ref()],
+        bump,
+    )]
+    pub question_post: Account<'info, PostAccount>,
+    pub token_mint: Account<'info, Mint>,
+    #[account(
+        mut,
+        seeds = [BOUNTY_SEED, question_post.key().as_ref(), sponsor.key().as_ref(), token_mint.key().as_ref()],
+        bump,
+    )]
+    pub bounty: Account<'info, BountyAccount>,
+}
+
+#[derive(Accounts)]
+#[instruction(question_post_id_hash: [u8; 32], sponsor: Pubkey)]
+pub struct ExpireBounty<'info> {
+    /// CHECK: Anyone can call this (permissionless)
+    #[account(mut)]
+    pub payer: Signer<'info>,
+    #[account(
+        seeds = [POST_ACCOUNT_SEED, question_post_id_hash.as_ref()],
+        bump,
+    )]
+    pub question_post: Account<'info, PostAccount>,
+    pub token_mint: Account<'info, Mint>,
+    #[account(
+        mut,
+        seeds = [BOUNTY_SEED, question_post.key().as_ref(), sponsor.as_ref(), token_mint.key().as_ref()],
+        bump,
+        constraint = bounty.sponsor == sponsor @ ErrorCode::Unauthorized,
+    )]
+    pub bounty: Account<'info, BountyAccount>,
+    #[account(
+        mut,
+        seeds = [USER_ACCOUNT_SEED, sponsor.as_ref()],
+        bump,
+    )]
+    pub sponsor_user_account: Account<'info, UserAccount>,
+}
+
+#[derive(Accounts)]
+#[instruction(question_post_id_hash: [u8; 32], answer_post_id_hash: [u8; 32], sponsor: Pubkey)]
+pub struct ClaimBounty<'info> {
+    /// CHECK: Answer author (can be session key or wallet)
+    #[account(mut)]
+    pub answer_author: UncheckedAccount<'info>,
+    #[account(mut)]
+    pub payer: Signer<'info>,
+    #[account(mut)]
+    pub session_key: UncheckedAccount<'info>,
+    #[account(
+        mut,
+        seeds = [SESSION_AUTHORITY_SEED, answer_author.key().as_ref(), session_key.key().as_ref()],
+        bump,
+    )]
+    pub session_authority: Account<'info, SessionAuthority>,
+    #[account(
+        seeds = [POST_ACCOUNT_SEED, question_post_id_hash.as_ref()],
+        bump,
+    )]
+    pub question_post: Account<'info, PostAccount>,
+    #[account(
+        seeds = [POST_ACCOUNT_SEED, answer_post_id_hash.as_ref()],
+        bump,
+    )]
+    pub answer_post: Account<'info, PostAccount>,
+    pub token_mint: Account<'info, Mint>,
+    #[account(
+        mut,
+        seeds = [BOUNTY_SEED, question_post.key().as_ref(), sponsor.as_ref(), token_mint.key().as_ref()],
+        bump,
+        constraint = bounty.sponsor == sponsor @ ErrorCode::Unauthorized,
+    )]
+    pub bounty: Account<'info, BountyAccount>,
+    #[account(
+        mut,
+        seeds = [BOUNTY_VAULT_TOKEN_ACCOUNT_SEED, bounty.key().as_ref()],
+        bump,
+        token::mint = token_mint,
+        token::authority = vault_authority,
+    )]
+    pub bounty_vault_token_account: Account<'info, TokenAccount>,
+    #[account(
+        init_if_needed,
+        payer = payer,
+        seeds = [USER_VAULT_TOKEN_ACCOUNT_SEED, answer_author.key().as_ref(), token_mint.key().as_ref()],
+        bump,
+        token::mint = token_mint,
+        token::authority = vault_authority,
+    )]
+    pub answer_author_vault_token_account: Account<'info, TokenAccount>,
+    #[account(
+        seeds = [VAULT_AUTHORITY_SEED],
+        bump,
+    )]
+    pub vault_authority: UncheckedAccount<'info>,
+    pub token_program: Program<'info, Token>,
+    pub system_program: Program<'info, System>,
+}
+
+#[derive(Accounts)]
+#[instruction(question_post_id_hash: [u8; 32])]
+pub struct ReclaimBounty<'info> {
+    #[account(mut)]
+    pub sponsor: UncheckedAccount<'info>,
+    #[account(mut)]
+    pub payer: Signer<'info>,
+    #[account(mut)]
+    pub session_key: UncheckedAccount<'info>,
+    #[account(
+        mut,
+        seeds = [SESSION_AUTHORITY_SEED, sponsor.key().as_ref(), session_key.key().as_ref()],
+        bump,
+    )]
+    pub session_authority: Account<'info, SessionAuthority>,
+    #[account(
+        mut,
+        seeds = [USER_ACCOUNT_SEED, sponsor.key().as_ref()],
+        bump,
+    )]
+    pub sponsor_user_account: Account<'info, UserAccount>,
+    #[account(
+        seeds = [POST_ACCOUNT_SEED, question_post_id_hash.as_ref()],
+        bump,
+    )]
+    pub question_post: Account<'info, PostAccount>,
+    pub token_mint: Account<'info, Mint>,
+    #[account(
+        mut,
+        seeds = [BOUNTY_SEED, question_post.key().as_ref(), sponsor.key().as_ref(), token_mint.key().as_ref()],
+        bump,
+    )]
+    pub bounty: Account<'info, BountyAccount>,
+    #[account(
+        mut,
+        seeds = [BOUNTY_VAULT_TOKEN_ACCOUNT_SEED, bounty.key().as_ref()],
+        bump,
+        token::mint = token_mint,
+        token::authority = vault_authority,
+    )]
+    pub bounty_vault_token_account: Account<'info, TokenAccount>,
+    #[account(
+        mut,
+        seeds = [USER_VAULT_TOKEN_ACCOUNT_SEED, sponsor.key().as_ref(), token_mint.key().as_ref()],
+        bump,
+    )]
+    pub sponsor_vault_token_account: Account<'info, TokenAccount>,
+    #[account(
+        mut,
+        seeds = [PROTOCOL_TREASURY_TOKEN_ACCOUNT_SEED, token_mint.key().as_ref()],
+        bump,
+        token::mint = token_mint,
+        token::authority = config,
+    )]
+    pub protocol_treasury_token_account: Account<'info, TokenAccount>,
+    #[account(
+        seeds = [CONFIG_SEED],
+        bump,
+    )]
+    pub config: Account<'info, Config>,
+    #[account(
+        seeds = [VAULT_AUTHORITY_SEED],
+        bump,
+    )]
+    pub vault_authority: UncheckedAccount<'info>,
+    pub token_program: Program<'info, Token>,
+}
+
+// -----------------------------------------------------------------------------
 // ERRORS
 // -----------------------------------------------------------------------------
 // ErrorCode moved to lib.rs at crate root

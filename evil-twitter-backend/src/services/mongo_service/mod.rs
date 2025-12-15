@@ -1,15 +1,17 @@
 use mongodb::{Client, Collection, Database};
 
-use crate::models::{follow::Follow, like::Like, profile::Profile, tweet::Tweet, user::User};
+use crate::models::{follow::Follow, like::Like, profile::Profile, tweet::Tweet, user::User, bounty::Bounty};
 
 // MongoDB service modules
 pub mod profiles;
 pub mod tweets;
 pub mod users;
+pub mod bounties;
 
 use profiles::ProfileService;
 use tweets::TweetService;
 use users::UserService;
+use bounties::BountyService;
 
 /// Unified MongoDB service for all database operations
 #[derive(Clone)]
@@ -22,6 +24,8 @@ pub struct MongoService {
     pub users: UserService,
     /// Profile-related database operations
     pub profiles: ProfileService,
+    /// Bounty-related database operations
+    pub bounties: BountyService,
 }
 
 impl MongoService {
@@ -29,12 +33,14 @@ impl MongoService {
         let tweet_service = TweetService::new(db.clone());
         let user_service = UserService::new(db.clone());
         let profile_service = ProfileService::new(db.clone());
+        let bounty_service = BountyService::new(db.clone());
         Self {
             client,
             db,
             tweets: tweet_service,
             users: user_service,
             profiles: profile_service,
+            bounties: bounty_service,
         }
     }
 
@@ -70,5 +76,10 @@ impl MongoService {
     /// Get the profiles collection
     pub fn profile_collection(&self) -> Collection<Profile> {
         self.db.collection(Profile::COLLECTION_NAME)
+    }
+
+    /// Get the bounties collection
+    pub fn bounty_collection(&self) -> Collection<Bounty> {
+        self.db.collection("bounties")
     }
 }

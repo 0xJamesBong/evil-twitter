@@ -48,15 +48,30 @@ pub struct UserAccount {
     pub user: Pubkey,      // user wallet pubkey
     pub social_score: i64, // can drive withdraw penalty etc.
     pub attack_surface: UserAccountAttackSurface,
+    pub bounties_posted: u32,
+    pub bounties_awarded: u32,
+    pub bounties_expired: u32,
     pub bump: u8,
 }
 
 impl UserAccount {
+    pub const INIT_SPACE: usize = 8 +                             // discriminator
+        32 +                            // user
+        8 +                             // social_score
+        UserAccountAttackSurface::INIT_SPACE + // attack_surface
+        4 +                             // bounties_posted
+        4 +                             // bounties_awarded
+        4 +                             // bounties_expired
+        1;                              // bump
+
     pub fn new(user: Pubkey, bump: u8) -> Self {
         Self {
             user,
             social_score: PARAMS.user_initial_social_score,
             attack_surface: UserAccountAttackSurface::new(true),
+            bounties_posted: 0,
+            bounties_awarded: 0,
+            bounties_expired: 0,
             bump,
         }
     }

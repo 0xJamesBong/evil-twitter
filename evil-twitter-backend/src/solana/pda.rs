@@ -16,6 +16,8 @@ const USER_POST_MINT_CLAIM_SEED: &[u8] = b"user_post_mint_claim";
 const SESSION_AUTHORITY_SEED: &[u8] = b"session_authority";
 const TIP_VAULT_SEED: &[u8] = b"tip_vault";
 const TIP_VAULT_TOKEN_ACCOUNT_SEED: &[u8] = b"tip_vault_token_account";
+const BOUNTY_SEED: &[u8] = b"bounty";
+const BOUNTY_VAULT_TOKEN_ACCOUNT_SEED: &[u8] = b"bounty_vault_token_account";
 
 /// Derive the Config PDA
 pub fn get_config_pda(program_id: &Pubkey) -> (Pubkey, u8) {
@@ -176,6 +178,35 @@ pub fn get_tip_vault_token_account_pda(
             owner.as_ref(),
             token_mint.as_ref(),
         ],
+        program_id,
+    )
+}
+
+/// Derive the Bounty PDA
+pub fn get_bounty_pda(
+    program_id: &Pubkey,
+    question_post: &Pubkey,
+    sponsor: &Pubkey,
+    token_mint: &Pubkey,
+) -> (Pubkey, u8) {
+    Pubkey::find_program_address(
+        &[
+            BOUNTY_SEED,
+            question_post.as_ref(),
+            sponsor.as_ref(),
+            token_mint.as_ref(),
+        ],
+        program_id,
+    )
+}
+
+/// Derive the Bounty Vault Token Account PDA
+pub fn get_bounty_vault_token_account_pda(
+    program_id: &Pubkey,
+    bounty: &Pubkey,
+) -> (Pubkey, u8) {
+    Pubkey::find_program_address(
+        &[BOUNTY_VAULT_TOKEN_ACCOUNT_SEED, bounty.as_ref()],
         program_id,
     )
 }

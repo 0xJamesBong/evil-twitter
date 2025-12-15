@@ -42,7 +42,8 @@ use opinions_market::instructions::*;
 
 use crate::solana::get_config_pda;
 use crate::solana::{
-    get_position_pda, get_post_mint_payout_pda, get_post_pda, get_post_pot_authority_pda,
+    get_bounty_pda, get_bounty_vault_token_account_pda, get_position_pda,
+    get_post_mint_payout_pda, get_post_pda, get_post_pot_authority_pda,
     get_post_pot_token_account_pda, get_protocol_treasury_token_account_pda,
     get_session_authority_pda, get_tip_vault_pda, get_tip_vault_token_account_pda,
     get_user_account_pda, get_user_post_mint_claim_pda, get_user_vault_token_account_pda,
@@ -2509,6 +2510,568 @@ impl SolanaService {
 
         println!(
             "  ✅ SolanaService::send_token: Transaction confirmed! Signature: {}",
+            signature
+        );
+        Ok(signature)
+    }
+
+    /// Create a new bounty and escrow funds
+    pub async fn create_bounty(
+        &self,
+        sponsor_wallet: &Pubkey,
+        question_post_id_hash: &[u8; 32],
+        amount: u64,
+        expires_at: i64,
+        token_mint: &Pubkey,
+    ) -> anyhow::Result<Signature> {
+        println!(
+            "  🔧 SolanaService::create_bounty: Starting for sponsor {}, question {}, amount {}, mint {}",
+            sponsor_wallet, hex::encode(question_post_id_hash), amount, token_mint
+        );
+
+        let program = self.opinions_market_program();
+        let program_id = program.id();
+
+        // Derive PDAs
+        let (question_post_pda, _) = get_post_pda(&program_id, question_post_id_hash);
+        let (sponsor_user_account_pda, _) = get_user_account_pda(&program_id, sponsor_wallet);
+        let (bounty_pda, _) = get_bounty_pda(&program_id, &question_post_pda, sponsor_wallet, token_mint);
+        let (bounty_vault_token_account_pda, _) = get_bounty_vault_token_account_pda(&program_id, &bounty_pda);
+        let (sponsor_vault_token_account_pda, _) =
+            get_user_vault_token_account_pda(&program_id, sponsor_wallet, token_mint);
+        let (vault_authority_pda, _) = get_vault_authority_pda(&program_id);
+        let (valid_payment_pda, _) = get_valid_payment_pda(&program_id, token_mint);
+        let (session_authority_pda, _) =
+            get_session_authority_pda(&program_id, sponsor_wallet, &self.session_key.pubkey());
+
+        println!("  🔨 SolanaService::create_bounty: Building CreateBounty instruction...");
+
+        let ixs = program
+            .request()
+            .accounts(opinions_market::accounts::CreateBounty {
+                sponsor: *sponsor_wallet,
+                payer: self.payer.pubkey(),
+                session_key: self.session_key.pubkey(),
+                session_authority: session_authority_pda,
+                sponsor_user_account: sponsor_user_account_pda,
+                question_post: question_post_pda,
+                token_mint: *token_mint,
+                valid_payment: valid_payment_pda,
+                bounty: bounty_pda,
+                bounty_vault_token_account: bounty_vault_token_account_pda,
+                sponsor_vault_token_account: sponsor_vault_token_account_pda,
+                vault_authority: vault_authority_pda,
+                token_program: spl_token::ID,
+                system_program: solana_sdk::system_program::ID,
+            })
+            .args(opinions_market::instruction::CreateBounty {
+                question_post_id_hash: *question_post_id_hash,
+                amount,
+                expires_at,
+            })
+            .instructions()
+            .map_err(|e| {
+                eprintln!(
+                    "  ❌ SolanaService::create_bounty: Failed to build instruction: {}",
+                    e
+                );
+                anyhow::anyhow!("Failed to build CreateBounty instruction: {}", e)
+            })?;
+
+        println!("  ✅ SolanaService::create_bounty: Instruction built successfully");
+
+        let tx = self.build_partial_signed_tx(ixs).await.map_err(|e| {
+            eprintln!(
+                "  ❌ SolanaService::create_bounty: Failed to build transaction: {}",
+                e
+            );
+            e
+        })?;
+
+        let signature = self.send_signed_tx(&tx).await.map_err(|e| {
+            eprintln!(
+                "  ❌ SolanaService::create_bounty: Failed to send transaction: {}",
+                e
+            );
+            e
+        })?;
+
+        println!(
+            "  ✅ SolanaService::create_bounty: Transaction confirmed! Signature: {}",
+            signature
+        );
+        Ok(signature)
+    }
+
+    /// Increase an existing bounty
+    pub async fn increase_bounty(
+        &self,
+        sponsor_wallet: &Pubkey,
+        question_post_id_hash: &[u8; 32],
+        additional_amount: u64,
+        token_mint: &Pubkey,
+    ) -> anyhow::Result<Signature> {
+        println!(
+            "  🔧 SolanaService::increase_bounty: Starting for sponsor {}, question {}, additional_amount {}, mint {}",
+            sponsor_wallet, hex::encode(question_post_id_hash), additional_amount, token_mint
+        );
+
+        let program = self.opinions_market_program();
+        let program_id = program.id();
+
+        // Derive PDAs
+        let (question_post_pda, _) = get_post_pda(&program_id, question_post_id_hash);
+        let (sponsor_user_account_pda, _) = get_user_account_pda(&program_id, sponsor_wallet);
+        let (bounty_pda, _) = get_bounty_pda(&program_id, &question_post_pda, sponsor_wallet, token_mint);
+        let (bounty_vault_token_account_pda, _) = get_bounty_vault_token_account_pda(&program_id, &bounty_pda);
+        let (sponsor_vault_token_account_pda, _) =
+            get_user_vault_token_account_pda(&program_id, sponsor_wallet, token_mint);
+        let (vault_authority_pda, _) = get_vault_authority_pda(&program_id);
+        let (session_authority_pda, _) =
+            get_session_authority_pda(&program_id, sponsor_wallet, &self.session_key.pubkey());
+
+        println!("  🔨 SolanaService::increase_bounty: Building IncreaseBounty instruction...");
+
+        let ixs = program
+            .request()
+            .accounts(opinions_market::accounts::IncreaseBounty {
+                sponsor: *sponsor_wallet,
+                payer: self.payer.pubkey(),
+                session_key: self.session_key.pubkey(),
+                session_authority: session_authority_pda,
+                sponsor_user_account: sponsor_user_account_pda,
+                question_post: question_post_pda,
+                token_mint: *token_mint,
+                bounty: bounty_pda,
+                bounty_vault_token_account: bounty_vault_token_account_pda,
+                sponsor_vault_token_account: sponsor_vault_token_account_pda,
+                vault_authority: vault_authority_pda,
+                token_program: spl_token::ID,
+            })
+            .args(opinions_market::instruction::IncreaseBounty {
+                question_post_id_hash: *question_post_id_hash,
+                additional_amount,
+            })
+            .instructions()
+            .map_err(|e| {
+                eprintln!(
+                    "  ❌ SolanaService::increase_bounty: Failed to build instruction: {}",
+                    e
+                );
+                anyhow::anyhow!("Failed to build IncreaseBounty instruction: {}", e)
+            })?;
+
+        println!("  ✅ SolanaService::increase_bounty: Instruction built successfully");
+
+        let tx = self.build_partial_signed_tx(ixs).await.map_err(|e| {
+            eprintln!(
+                "  ❌ SolanaService::increase_bounty: Failed to build transaction: {}",
+                e
+            );
+            e
+        })?;
+
+        let signature = self.send_signed_tx(&tx).await.map_err(|e| {
+            eprintln!(
+                "  ❌ SolanaService::increase_bounty: Failed to send transaction: {}",
+                e
+            );
+            e
+        })?;
+
+        println!(
+            "  ✅ SolanaService::increase_bounty: Transaction confirmed! Signature: {}",
+            signature
+        );
+        Ok(signature)
+    }
+
+    /// Award bounty to an answer
+    pub async fn award_bounty(
+        &self,
+        sponsor_wallet: &Pubkey,
+        question_post_id_hash: &[u8; 32],
+        answer_post_id_hash: &[u8; 32],
+        token_mint: &Pubkey,
+    ) -> anyhow::Result<Signature> {
+        println!(
+            "  🔧 SolanaService::award_bounty: Starting for sponsor {}, question {}, answer {}, mint {}",
+            sponsor_wallet, hex::encode(question_post_id_hash), hex::encode(answer_post_id_hash), token_mint
+        );
+
+        let program = self.opinions_market_program();
+        let program_id = program.id();
+
+        // Derive PDAs
+        let (question_post_pda, _) = get_post_pda(&program_id, question_post_id_hash);
+        let (answer_post_pda, _) = get_post_pda(&program_id, answer_post_id_hash);
+        let (sponsor_user_account_pda, _) = get_user_account_pda(&program_id, sponsor_wallet);
+        let (bounty_pda, _) = get_bounty_pda(&program_id, &question_post_pda, sponsor_wallet, token_mint);
+        let (session_authority_pda, _) =
+            get_session_authority_pda(&program_id, sponsor_wallet, &self.session_key.pubkey());
+
+        println!("  🔨 SolanaService::award_bounty: Building AwardBounty instruction...");
+
+        let ixs = program
+            .request()
+            .accounts(opinions_market::accounts::AwardBounty {
+                sponsor: *sponsor_wallet,
+                payer: self.payer.pubkey(),
+                session_key: self.session_key.pubkey(),
+                session_authority: session_authority_pda,
+                sponsor_user_account: sponsor_user_account_pda,
+                question_post: question_post_pda,
+                answer_post: answer_post_pda,
+                token_mint: *token_mint,
+                bounty: bounty_pda,
+            })
+            .args(opinions_market::instruction::AwardBounty {
+                question_post_id_hash: *question_post_id_hash,
+                answer_post_id_hash: *answer_post_id_hash,
+            })
+            .instructions()
+            .map_err(|e| {
+                eprintln!(
+                    "  ❌ SolanaService::award_bounty: Failed to build instruction: {}",
+                    e
+                );
+                anyhow::anyhow!("Failed to build AwardBounty instruction: {}", e)
+            })?;
+
+        println!("  ✅ SolanaService::award_bounty: Instruction built successfully");
+
+        let tx = self.build_partial_signed_tx(ixs).await.map_err(|e| {
+            eprintln!(
+                "  ❌ SolanaService::award_bounty: Failed to build transaction: {}",
+                e
+            );
+            e
+        })?;
+
+        let signature = self.send_signed_tx(&tx).await.map_err(|e| {
+            eprintln!(
+                "  ❌ SolanaService::award_bounty: Failed to send transaction: {}",
+                e
+            );
+            e
+        })?;
+
+        println!(
+            "  ✅ SolanaService::award_bounty: Transaction confirmed! Signature: {}",
+            signature
+        );
+        Ok(signature)
+    }
+
+    /// Close bounty without awarding
+    pub async fn close_bounty_no_award(
+        &self,
+        sponsor_wallet: &Pubkey,
+        question_post_id_hash: &[u8; 32],
+        token_mint: &Pubkey,
+    ) -> anyhow::Result<Signature> {
+        println!(
+            "  🔧 SolanaService::close_bounty_no_award: Starting for sponsor {}, question {}, mint {}",
+            sponsor_wallet, hex::encode(question_post_id_hash), token_mint
+        );
+
+        let program = self.opinions_market_program();
+        let program_id = program.id();
+
+        // Derive PDAs
+        let (question_post_pda, _) = get_post_pda(&program_id, question_post_id_hash);
+        let (sponsor_user_account_pda, _) = get_user_account_pda(&program_id, sponsor_wallet);
+        let (bounty_pda, _) = get_bounty_pda(&program_id, &question_post_pda, sponsor_wallet, token_mint);
+        let (session_authority_pda, _) =
+            get_session_authority_pda(&program_id, sponsor_wallet, &self.session_key.pubkey());
+
+        println!("  🔨 SolanaService::close_bounty_no_award: Building CloseBountyNoAward instruction...");
+
+        let ixs = program
+            .request()
+            .accounts(opinions_market::accounts::CloseBountyNoAward {
+                sponsor: *sponsor_wallet,
+                payer: self.payer.pubkey(),
+                session_key: self.session_key.pubkey(),
+                session_authority: session_authority_pda,
+                sponsor_user_account: sponsor_user_account_pda,
+                question_post: question_post_pda,
+                token_mint: *token_mint,
+                bounty: bounty_pda,
+            })
+            .args(opinions_market::instruction::CloseBountyNoAward {
+                question_post_id_hash: *question_post_id_hash,
+            })
+            .instructions()
+            .map_err(|e| {
+                eprintln!(
+                    "  ❌ SolanaService::close_bounty_no_award: Failed to build instruction: {}",
+                    e
+                );
+                anyhow::anyhow!("Failed to build CloseBountyNoAward instruction: {}", e)
+            })?;
+
+        println!("  ✅ SolanaService::close_bounty_no_award: Instruction built successfully");
+
+        let tx = self.build_partial_signed_tx(ixs).await.map_err(|e| {
+            eprintln!(
+                "  ❌ SolanaService::close_bounty_no_award: Failed to build transaction: {}",
+                e
+            );
+            e
+        })?;
+
+        let signature = self.send_signed_tx(&tx).await.map_err(|e| {
+            eprintln!(
+                "  ❌ SolanaService::close_bounty_no_award: Failed to send transaction: {}",
+                e
+            );
+            e
+        })?;
+
+        println!(
+            "  ✅ SolanaService::close_bounty_no_award: Transaction confirmed! Signature: {}",
+            signature
+        );
+        Ok(signature)
+    }
+
+    /// Expire bounty (permissionless)
+    pub async fn expire_bounty(
+        &self,
+        question_post_id_hash: &[u8; 32],
+        sponsor: &Pubkey,
+        token_mint: &Pubkey,
+    ) -> anyhow::Result<Signature> {
+        println!(
+            "  🔧 SolanaService::expire_bounty: Starting for question {}, sponsor {}, mint {}",
+            hex::encode(question_post_id_hash), sponsor, token_mint
+        );
+
+        let program = self.opinions_market_program();
+        let program_id = program.id();
+
+        // Derive PDAs
+        let (question_post_pda, _) = get_post_pda(&program_id, question_post_id_hash);
+        let (sponsor_user_account_pda, _) = get_user_account_pda(&program_id, sponsor);
+        let (bounty_pda, _) = get_bounty_pda(&program_id, &question_post_pda, sponsor, token_mint);
+
+        println!("  🔨 SolanaService::expire_bounty: Building ExpireBounty instruction...");
+
+        let ixs = program
+            .request()
+            .accounts(opinions_market::accounts::ExpireBounty {
+                payer: self.payer.pubkey(),
+                question_post: question_post_pda,
+                token_mint: *token_mint,
+                bounty: bounty_pda,
+                sponsor_user_account: sponsor_user_account_pda,
+            })
+            .args(opinions_market::instruction::ExpireBounty {
+                question_post_id_hash: *question_post_id_hash,
+                sponsor: *sponsor,
+            })
+            .instructions()
+            .map_err(|e| {
+                eprintln!(
+                    "  ❌ SolanaService::expire_bounty: Failed to build instruction: {}",
+                    e
+                );
+                anyhow::anyhow!("Failed to build ExpireBounty instruction: {}", e)
+            })?;
+
+        println!("  ✅ SolanaService::expire_bounty: Instruction built successfully");
+
+        let tx = self.build_partial_signed_tx(ixs).await.map_err(|e| {
+            eprintln!(
+                "  ❌ SolanaService::expire_bounty: Failed to build transaction: {}",
+                e
+            );
+            e
+        })?;
+
+        let signature = self.send_signed_tx(&tx).await.map_err(|e| {
+            eprintln!(
+                "  ❌ SolanaService::expire_bounty: Failed to send transaction: {}",
+                e
+            );
+            e
+        })?;
+
+        println!(
+            "  ✅ SolanaService::expire_bounty: Transaction confirmed! Signature: {}",
+            signature
+        );
+        Ok(signature)
+    }
+
+    /// Claim awarded bounty (answer author)
+    pub async fn claim_bounty(
+        &self,
+        answer_author_wallet: &Pubkey,
+        question_post_id_hash: &[u8; 32],
+        answer_post_id_hash: &[u8; 32],
+        sponsor: &Pubkey,
+        token_mint: &Pubkey,
+    ) -> anyhow::Result<Signature> {
+        println!(
+            "  🔧 SolanaService::claim_bounty: Starting for answer_author {}, question {}, answer {}, sponsor {}, mint {}",
+            answer_author_wallet, hex::encode(question_post_id_hash), hex::encode(answer_post_id_hash), sponsor, token_mint
+        );
+
+        let program = self.opinions_market_program();
+        let program_id = program.id();
+
+        // Derive PDAs
+        let (question_post_pda, _) = get_post_pda(&program_id, question_post_id_hash);
+        let (answer_post_pda, _) = get_post_pda(&program_id, answer_post_id_hash);
+        let (bounty_pda, _) = get_bounty_pda(&program_id, &question_post_pda, sponsor, token_mint);
+        let (bounty_vault_token_account_pda, _) = get_bounty_vault_token_account_pda(&program_id, &bounty_pda);
+        let (answer_author_vault_token_account_pda, _) =
+            get_user_vault_token_account_pda(&program_id, answer_author_wallet, token_mint);
+        let (vault_authority_pda, _) = get_vault_authority_pda(&program_id);
+        let (session_authority_pda, _) =
+            get_session_authority_pda(&program_id, answer_author_wallet, &self.session_key.pubkey());
+
+        println!("  🔨 SolanaService::claim_bounty: Building ClaimBounty instruction...");
+
+        let ixs = program
+            .request()
+            .accounts(opinions_market::accounts::ClaimBounty {
+                answer_author: *answer_author_wallet,
+                payer: self.payer.pubkey(),
+                session_key: self.session_key.pubkey(),
+                session_authority: session_authority_pda,
+                question_post: question_post_pda,
+                answer_post: answer_post_pda,
+                token_mint: *token_mint,
+                bounty: bounty_pda,
+                bounty_vault_token_account: bounty_vault_token_account_pda,
+                answer_author_vault_token_account: answer_author_vault_token_account_pda,
+                vault_authority: vault_authority_pda,
+                token_program: spl_token::ID,
+                system_program: solana_sdk::system_program::ID,
+            })
+            .args(opinions_market::instruction::ClaimBounty {
+                question_post_id_hash: *question_post_id_hash,
+                answer_post_id_hash: *answer_post_id_hash,
+                sponsor: *sponsor,
+            })
+            .instructions()
+            .map_err(|e| {
+                eprintln!(
+                    "  ❌ SolanaService::claim_bounty: Failed to build instruction: {}",
+                    e
+                );
+                anyhow::anyhow!("Failed to build ClaimBounty instruction: {}", e)
+            })?;
+
+        println!("  ✅ SolanaService::claim_bounty: Instruction built successfully");
+
+        let tx = self.build_partial_signed_tx(ixs).await.map_err(|e| {
+            eprintln!(
+                "  ❌ SolanaService::claim_bounty: Failed to build transaction: {}",
+                e
+            );
+            e
+        })?;
+
+        let signature = self.send_signed_tx(&tx).await.map_err(|e| {
+            eprintln!(
+                "  ❌ SolanaService::claim_bounty: Failed to send transaction: {}",
+                e
+            );
+            e
+        })?;
+
+        println!(
+            "  ✅ SolanaService::claim_bounty: Transaction confirmed! Signature: {}",
+            signature
+        );
+        Ok(signature)
+    }
+
+    /// Reclaim bounty funds (sponsor)
+    pub async fn reclaim_bounty(
+        &self,
+        sponsor_wallet: &Pubkey,
+        question_post_id_hash: &[u8; 32],
+        token_mint: &Pubkey,
+    ) -> anyhow::Result<Signature> {
+        println!(
+            "  🔧 SolanaService::reclaim_bounty: Starting for sponsor {}, question {}, mint {}",
+            sponsor_wallet, hex::encode(question_post_id_hash), token_mint
+        );
+
+        let program = self.opinions_market_program();
+        let program_id = program.id();
+
+        // Derive PDAs
+        let (question_post_pda, _) = get_post_pda(&program_id, question_post_id_hash);
+        let (sponsor_user_account_pda, _) = get_user_account_pda(&program_id, sponsor_wallet);
+        let (bounty_pda, _) = get_bounty_pda(&program_id, &question_post_pda, sponsor_wallet, token_mint);
+        let (bounty_vault_token_account_pda, _) = get_bounty_vault_token_account_pda(&program_id, &bounty_pda);
+        let (sponsor_vault_token_account_pda, _) =
+            get_user_vault_token_account_pda(&program_id, sponsor_wallet, token_mint);
+        let (protocol_treasury_token_account_pda, _) =
+            get_protocol_treasury_token_account_pda(&program_id, token_mint);
+        let (config_pda, _) = get_config_pda(&program_id);
+        let (vault_authority_pda, _) = get_vault_authority_pda(&program_id);
+        let (session_authority_pda, _) =
+            get_session_authority_pda(&program_id, sponsor_wallet, &self.session_key.pubkey());
+
+        println!("  🔨 SolanaService::reclaim_bounty: Building ReclaimBounty instruction...");
+
+        let ixs = program
+            .request()
+            .accounts(opinions_market::accounts::ReclaimBounty {
+                sponsor: *sponsor_wallet,
+                payer: self.payer.pubkey(),
+                session_key: self.session_key.pubkey(),
+                session_authority: session_authority_pda,
+                sponsor_user_account: sponsor_user_account_pda,
+                question_post: question_post_pda,
+                token_mint: *token_mint,
+                bounty: bounty_pda,
+                bounty_vault_token_account: bounty_vault_token_account_pda,
+                sponsor_vault_token_account: sponsor_vault_token_account_pda,
+                protocol_treasury_token_account: protocol_treasury_token_account_pda,
+                config: config_pda,
+                vault_authority: vault_authority_pda,
+                token_program: spl_token::ID,
+            })
+            .args(opinions_market::instruction::ReclaimBounty {
+                question_post_id_hash: *question_post_id_hash,
+            })
+            .instructions()
+            .map_err(|e| {
+                eprintln!(
+                    "  ❌ SolanaService::reclaim_bounty: Failed to build instruction: {}",
+                    e
+                );
+                anyhow::anyhow!("Failed to build ReclaimBounty instruction: {}", e)
+            })?;
+
+        println!("  ✅ SolanaService::reclaim_bounty: Instruction built successfully");
+
+        let tx = self.build_partial_signed_tx(ixs).await.map_err(|e| {
+            eprintln!(
+                "  ❌ SolanaService::reclaim_bounty: Failed to build transaction: {}",
+                e
+            );
+            e
+        })?;
+
+        let signature = self.send_signed_tx(&tx).await.map_err(|e| {
+            eprintln!(
+                "  ❌ SolanaService::reclaim_bounty: Failed to send transaction: {}",
+                e
+            );
+            e
+        })?;
+
+        println!(
+            "  ✅ SolanaService::reclaim_bounty: Transaction confirmed! Signature: {}",
             signature
         );
         Ok(signature)

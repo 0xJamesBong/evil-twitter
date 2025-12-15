@@ -83,6 +83,55 @@ pub struct ClaimRewardInput {
     pub token_mint: String, // Token mint pubkey as string
 }
 
+#[derive(InputObject)]
+pub struct CreateBountyInput {
+    pub question_tweet_id: ID,
+    pub amount: String,     // Amount as decimal string
+    pub expires_at: String, // ISO 8601 timestamp
+    pub token_mint: String, // Token mint pubkey as string
+}
+
+#[derive(InputObject)]
+pub struct IncreaseBountyInput {
+    pub question_tweet_id: ID,
+    pub additional_amount: String, // Amount as decimal string
+    pub token_mint: String,        // Token mint pubkey as string
+}
+
+#[derive(InputObject)]
+pub struct AwardBountyInput {
+    pub question_tweet_id: ID,
+    pub answer_tweet_id: ID,
+    pub token_mint: String, // Token mint pubkey as string
+}
+
+#[derive(InputObject)]
+pub struct CloseBountyNoAwardInput {
+    pub question_tweet_id: ID,
+    pub token_mint: String, // Token mint pubkey as string
+}
+
+#[derive(InputObject)]
+pub struct ExpireBountyInput {
+    pub question_tweet_id: ID,
+    pub sponsor: String,    // Sponsor wallet pubkey as string
+    pub token_mint: String, // Token mint pubkey as string
+}
+
+#[derive(InputObject)]
+pub struct ClaimBountyInput {
+    pub question_tweet_id: ID,
+    pub answer_tweet_id: ID,
+    pub sponsor: String,    // Sponsor wallet pubkey as string
+    pub token_mint: String, // Token mint pubkey as string
+}
+
+#[derive(InputObject)]
+pub struct ReclaimBountyInput {
+    pub question_tweet_id: ID,
+    pub token_mint: String, // Token mint pubkey as string
+}
+
 // ============================================================================
 // Payload Types
 // ============================================================================
@@ -279,6 +328,66 @@ impl TweetMutation {
         input: ClaimRewardInput,
     ) -> Result<ClaimRewardPayload> {
         claim_post_reward_resolver(ctx, input).await
+    }
+
+    // ============================================================================
+    // Bounty Mutations
+    // ============================================================================
+
+    async fn create_bounty(
+        &self,
+        ctx: &Context<'_>,
+        input: CreateBountyInput,
+    ) -> Result<BountyPayload> {
+        create_bounty(ctx, input).await
+    }
+
+    async fn increase_bounty(
+        &self,
+        ctx: &Context<'_>,
+        input: IncreaseBountyInput,
+    ) -> Result<BountyPayload> {
+        increase_bounty(ctx, input).await
+    }
+
+    async fn award_bounty(
+        &self,
+        ctx: &Context<'_>,
+        input: AwardBountyInput,
+    ) -> Result<BountyPayload> {
+        award_bounty(ctx, input).await
+    }
+
+    async fn close_bounty_no_award(
+        &self,
+        ctx: &Context<'_>,
+        input: CloseBountyNoAwardInput,
+    ) -> Result<BountyPayload> {
+        close_bounty_no_award(ctx, input).await
+    }
+
+    async fn expire_bounty(
+        &self,
+        ctx: &Context<'_>,
+        input: ExpireBountyInput,
+    ) -> Result<BountyPayload> {
+        expire_bounty(ctx, input).await
+    }
+
+    async fn claim_bounty(
+        &self,
+        ctx: &Context<'_>,
+        input: ClaimBountyInput,
+    ) -> Result<BountyPayload> {
+        claim_bounty(ctx, input).await
+    }
+
+    async fn reclaim_bounty(
+        &self,
+        ctx: &Context<'_>,
+        input: ReclaimBountyInput,
+    ) -> Result<BountyPayload> {
+        reclaim_bounty(ctx, input).await
     }
 }
 
@@ -885,13 +994,11 @@ pub async fn settle_post_resolver(
     let program = app_state.solana_service.opinions_market_program();
     let program_id = program.id();
     let (post_pda, _) = crate::solana::get_post_pda(&program_id, &post_id_hash);
-    
+
     let post_account = program
         .account::<opinions_market::states::PostAccount>(post_pda)
         .await
-        .map_err(|e| {
-            async_graphql::Error::new(format!("Failed to fetch post account: {}", e))
-        })?;
+        .map_err(|e| async_graphql::Error::new(format!("Failed to fetch post account: {}", e)))?;
 
     // Check if post is a child post (not root) - only child posts can have parent distribution
     let is_child_post = matches!(
@@ -1231,5 +1338,739 @@ pub async fn claim_post_reward_resolver(
     Ok(ClaimRewardPayload {
         signature: signature.to_string(),
         amount: amount_string,
+    })
+}
+
+// ============================================================================
+// Bounty Mutations
+// ============================================================================
+
+#[derive(SimpleObject)]
+pub struct BountyPayload {
+    pub signature: String,
+    pub bounty_id: Option<ID>,
+}
+
+async fn create_bounty(ctx: &Context<'_>, input: CreateBountyInput) -> Result<BountyPayload> {
+    let app_state = ctx.data::<Arc<AppState>>()?;
+    let headers = ctx.data::<HeaderMap>()?;
+
+    // Get authenticated user
+    let user = crate::utils::auth::get_authenticated_user(
+        &app_state.mongo_service,
+        &app_state.privy_service,
+        headers,
+    )
+    .await
+    .map_err(|e| async_graphql::Error::new(format!("Authentication failed: {}", e)))?;
+
+    // Parse user's Solana wallet
+    let sponsor_wallet = Pubkey::from_str(&user.wallet)
+        .map_err(|e| async_graphql::Error::new(format!("Invalid user wallet: {}", e)))?;
+
+    // Parse question tweet ID
+    let question_tweet_id = ObjectId::parse_str(input.question_tweet_id.to_string())
+        .map_err(|e| async_graphql::Error::new(format!("Invalid question_tweet_id: {}", e)))?;
+
+    // Get tweet to get post_id_hash
+    let tweet = app_state
+        .mongo_service
+        .tweets
+        .get_tweet_by_id(question_tweet_id)
+        .await
+        .map_err(|e| async_graphql::Error::new(format!("Failed to fetch tweet: {}", e)))?
+        .ok_or_else(|| async_graphql::Error::new("Question tweet not found"))?;
+
+    let post_id_hash_hex = tweet
+        .post_id_hash
+        .ok_or_else(|| async_graphql::Error::new("Question tweet has no post_id_hash"))?;
+
+    let post_id_hash_bytes = hex::decode(post_id_hash_hex)
+        .map_err(|e| async_graphql::Error::new(format!("Invalid post_id_hash: {}", e)))?;
+
+    if post_id_hash_bytes.len() != 32 {
+        return Err(async_graphql::Error::new("post_id_hash must be 32 bytes"));
+    }
+
+    let mut post_id_hash = [0u8; 32];
+    post_id_hash.copy_from_slice(&post_id_hash_bytes);
+
+    // Parse token mint
+    let token_mint = Pubkey::from_str(&input.token_mint)
+        .map_err(|e| async_graphql::Error::new(format!("Invalid token_mint: {}", e)))?;
+
+    // Parse amount (convert from decimal string to lamports)
+    let amount_f64: f64 = input
+        .amount
+        .parse()
+        .map_err(|e| async_graphql::Error::new(format!("Invalid amount format: {}", e)))?;
+
+    // Get token decimals
+    let token_decimals = if &token_mint == app_state.solana_service.get_bling_mint() {
+        9
+    } else {
+        6 // USDC and stablecoin have 6 decimals
+    };
+
+    let amount = (amount_f64 * 10_f64.powi(token_decimals as i32)) as u64;
+
+    // Parse expires_at
+    let expires_at = chrono::DateTime::parse_from_rfc3339(&input.expires_at)
+        .map_err(|e| async_graphql::Error::new(format!("Invalid expires_at format: {}", e)))?
+        .timestamp();
+
+    // Call create_bounty on-chain
+    let signature = app_state
+        .solana_service
+        .create_bounty(
+            &sponsor_wallet,
+            &post_id_hash,
+            amount,
+            expires_at,
+            &token_mint,
+        )
+        .await
+        .map_err(|e| async_graphql::Error::new(format!("Failed to create bounty: {:?}", e)))?;
+
+    // Derive bounty PDA to get onchain pubkey
+    let program_id = app_state.solana_service.opinions_market_program().id();
+    let (question_post_pda, _) = get_post_pda(&program_id, &post_id_hash);
+    let (bounty_pda, _) = crate::solana::get_bounty_pda(
+        &program_id,
+        &question_post_pda,
+        &sponsor_wallet,
+        &token_mint,
+    );
+
+    // Create bounty in MongoDB
+    let bounty = crate::models::bounty::Bounty {
+        id: None,
+        question_tweet_id,
+        answer_tweet_id: None,
+        sponsor_user_id: user
+            .id
+            .ok_or_else(|| async_graphql::Error::new("User missing ID"))?,
+        token_mint: token_mint.to_string(),
+        amount,
+        expires_at: mongodb::bson::DateTime::from_chrono(
+            chrono::DateTime::parse_from_rfc3339(&input.expires_at)
+                .map_err(|e| async_graphql::Error::new(format!("Invalid expires_at: {}", e)))?
+                .with_timezone(&chrono::Utc),
+        ),
+        status: crate::models::bounty::BountyStatus::Open,
+        claimed: false,
+        onchain_bounty_pubkey: bounty_pda.to_string(),
+        created_at: mongodb::bson::DateTime::now(),
+        awarded_at: None,
+        claimed_at: None,
+        reclaimed_at: None,
+    };
+
+    let bounty_id = app_state
+        .mongo_service
+        .bounties
+        .create_bounty(bounty)
+        .await
+        .map_err(|e| async_graphql::Error::new(format!("Failed to save bounty: {}", e)))?;
+
+    Ok(BountyPayload {
+        signature: signature.to_string(),
+        bounty_id: Some(ID::from(bounty_id.to_hex())),
+    })
+}
+
+async fn increase_bounty(ctx: &Context<'_>, input: IncreaseBountyInput) -> Result<BountyPayload> {
+    let app_state = ctx.data::<Arc<AppState>>()?;
+    let headers = ctx.data::<HeaderMap>()?;
+
+    // Get authenticated user
+    let user = crate::utils::auth::get_authenticated_user(
+        &app_state.mongo_service,
+        &app_state.privy_service,
+        headers,
+    )
+    .await
+    .map_err(|e| async_graphql::Error::new(format!("Authentication failed: {}", e)))?;
+
+    // Parse user's Solana wallet
+    let sponsor_wallet = Pubkey::from_str(&user.wallet)
+        .map_err(|e| async_graphql::Error::new(format!("Invalid user wallet: {}", e)))?;
+
+    // Parse question tweet ID and get post_id_hash
+    let question_tweet_id = ObjectId::parse_str(input.question_tweet_id.to_string())
+        .map_err(|e| async_graphql::Error::new(format!("Invalid question_tweet_id: {}", e)))?;
+
+    let tweet = app_state
+        .mongo_service
+        .tweets
+        .get_tweet_by_id(question_tweet_id)
+        .await
+        .map_err(|e| async_graphql::Error::new(format!("Failed to fetch tweet: {}", e)))?
+        .ok_or_else(|| async_graphql::Error::new("Question tweet not found"))?;
+
+    let post_id_hash_hex = tweet
+        .post_id_hash
+        .ok_or_else(|| async_graphql::Error::new("Question tweet has no post_id_hash"))?;
+
+    let post_id_hash_bytes = hex::decode(post_id_hash_hex)
+        .map_err(|e| async_graphql::Error::new(format!("Invalid post_id_hash: {}", e)))?;
+
+    if post_id_hash_bytes.len() != 32 {
+        return Err(async_graphql::Error::new("post_id_hash must be 32 bytes"));
+    }
+
+    let mut post_id_hash = [0u8; 32];
+    post_id_hash.copy_from_slice(&post_id_hash_bytes);
+
+    // Parse token mint
+    let token_mint = Pubkey::from_str(&input.token_mint)
+        .map_err(|e| async_graphql::Error::new(format!("Invalid token_mint: {}", e)))?;
+
+    // Parse additional amount
+    let amount_f64: f64 = input
+        .additional_amount
+        .parse()
+        .map_err(|e| async_graphql::Error::new(format!("Invalid amount format: {}", e)))?;
+
+    let token_decimals = if &token_mint == app_state.solana_service.get_bling_mint() {
+        9
+    } else {
+        6
+    };
+
+    let additional_amount = (amount_f64 * 10_f64.powi(token_decimals as i32)) as u64;
+
+    // Call increase_bounty on-chain
+    let signature = app_state
+        .solana_service
+        .increase_bounty(
+            &sponsor_wallet,
+            &post_id_hash,
+            additional_amount,
+            &token_mint,
+        )
+        .await
+        .map_err(|e| async_graphql::Error::new(format!("Failed to increase bounty: {}", e)))?;
+
+    // Update MongoDB
+    let program_id = app_state.solana_service.opinions_market_program().id();
+    let (question_post_pda, _) = get_post_pda(&program_id, &post_id_hash);
+    let (bounty_pda, _) = crate::solana::get_bounty_pda(
+        &program_id,
+        &question_post_pda,
+        &sponsor_wallet,
+        &token_mint,
+    );
+
+    let bounty = app_state
+        .mongo_service
+        .bounties
+        .get_bounty_by_onchain_pubkey(&bounty_pda.to_string())
+        .await
+        .map_err(|e| async_graphql::Error::new(format!("Failed to fetch bounty: {}", e)))?
+        .ok_or_else(|| async_graphql::Error::new("Bounty not found"))?;
+
+    app_state
+        .mongo_service
+        .bounties
+        .increase_bounty_amount(&bounty.id.unwrap(), additional_amount)
+        .await
+        .map_err(|e| async_graphql::Error::new(format!("Failed to update bounty: {}", e)))?;
+
+    Ok(BountyPayload {
+        signature: signature.to_string(),
+        bounty_id: bounty.id.map(|id| ID::from(id.to_hex())),
+    })
+}
+
+async fn award_bounty(ctx: &Context<'_>, input: AwardBountyInput) -> Result<BountyPayload> {
+    let app_state = ctx.data::<Arc<AppState>>()?;
+    let headers = ctx.data::<HeaderMap>()?;
+
+    // Get authenticated user
+    let user = crate::utils::auth::get_authenticated_user(
+        &app_state.mongo_service,
+        &app_state.privy_service,
+        headers,
+    )
+    .await
+    .map_err(|e| async_graphql::Error::new(format!("Authentication failed: {}", e)))?;
+
+    // Parse user's Solana wallet
+    let sponsor_wallet = Pubkey::from_str(&user.wallet)
+        .map_err(|e| async_graphql::Error::new(format!("Invalid user wallet: {}", e)))?;
+
+    // Parse question and answer tweet IDs
+    let question_tweet_id = ObjectId::parse_str(input.question_tweet_id.to_string())
+        .map_err(|e| async_graphql::Error::new(format!("Invalid question_tweet_id: {}", e)))?;
+
+    let answer_tweet_id = ObjectId::parse_str(input.answer_tweet_id.to_string())
+        .map_err(|e| async_graphql::Error::new(format!("Invalid answer_tweet_id: {}", e)))?;
+
+    // Get tweets to get post_id_hashes
+    let question_tweet = app_state
+        .mongo_service
+        .tweets
+        .get_tweet_by_id(question_tweet_id)
+        .await
+        .map_err(|e| async_graphql::Error::new(format!("Failed to fetch question tweet: {}", e)))?
+        .ok_or_else(|| async_graphql::Error::new("Question tweet not found"))?;
+
+    let answer_tweet = app_state
+        .mongo_service
+        .tweets
+        .get_tweet_by_id(answer_tweet_id)
+        .await
+        .map_err(|e| async_graphql::Error::new(format!("Failed to fetch answer tweet: {}", e)))?
+        .ok_or_else(|| async_graphql::Error::new("Answer tweet not found"))?;
+
+    let question_post_id_hash_hex = question_tweet
+        .post_id_hash
+        .ok_or_else(|| async_graphql::Error::new("Question tweet has no post_id_hash"))?;
+
+    let answer_post_id_hash_hex = answer_tweet
+        .post_id_hash
+        .ok_or_else(|| async_graphql::Error::new("Answer tweet has no post_id_hash"))?;
+
+    let question_post_id_hash_bytes = hex::decode(question_post_id_hash_hex)
+        .map_err(|e| async_graphql::Error::new(format!("Invalid question post_id_hash: {}", e)))?;
+
+    let answer_post_id_hash_bytes = hex::decode(answer_post_id_hash_hex)
+        .map_err(|e| async_graphql::Error::new(format!("Invalid answer post_id_hash: {}", e)))?;
+
+    if question_post_id_hash_bytes.len() != 32 || answer_post_id_hash_bytes.len() != 32 {
+        return Err(async_graphql::Error::new("post_id_hash must be 32 bytes"));
+    }
+
+    let mut question_post_id_hash = [0u8; 32];
+    question_post_id_hash.copy_from_slice(&question_post_id_hash_bytes);
+
+    let mut answer_post_id_hash = [0u8; 32];
+    answer_post_id_hash.copy_from_slice(&answer_post_id_hash_bytes);
+
+    // Parse token mint
+    let token_mint = Pubkey::from_str(&input.token_mint)
+        .map_err(|e| async_graphql::Error::new(format!("Invalid token_mint: {}", e)))?;
+
+    // Call award_bounty on-chain
+    let signature = app_state
+        .solana_service
+        .award_bounty(
+            &sponsor_wallet,
+            &question_post_id_hash,
+            &answer_post_id_hash,
+            &token_mint,
+        )
+        .await
+        .map_err(|e| async_graphql::Error::new(format!("Failed to award bounty: {}", e)))?;
+
+    // Update MongoDB
+    let program_id = app_state.solana_service.opinions_market_program().id();
+    let (question_post_pda, _) = get_post_pda(&program_id, &question_post_id_hash);
+    let (bounty_pda, _) = crate::solana::get_bounty_pda(
+        &program_id,
+        &question_post_pda,
+        &sponsor_wallet,
+        &token_mint,
+    );
+
+    let bounty = app_state
+        .mongo_service
+        .bounties
+        .get_bounty_by_onchain_pubkey(&bounty_pda.to_string())
+        .await
+        .map_err(|e| async_graphql::Error::new(format!("Failed to fetch bounty: {}", e)))?
+        .ok_or_else(|| async_graphql::Error::new("Bounty not found"))?;
+
+    app_state
+        .mongo_service
+        .bounties
+        .update_bounty_status(
+            &bounty.id.unwrap(),
+            crate::models::bounty::BountyStatus::Awarded,
+            Some(answer_tweet_id),
+        )
+        .await
+        .map_err(|e| async_graphql::Error::new(format!("Failed to update bounty: {}", e)))?;
+
+    Ok(BountyPayload {
+        signature: signature.to_string(),
+        bounty_id: bounty.id.map(|id| ID::from(id.to_hex())),
+    })
+}
+
+async fn close_bounty_no_award(
+    ctx: &Context<'_>,
+    input: CloseBountyNoAwardInput,
+) -> Result<BountyPayload> {
+    let app_state = ctx.data::<Arc<AppState>>()?;
+    let headers = ctx.data::<HeaderMap>()?;
+
+    // Get authenticated user
+    let user = crate::utils::auth::get_authenticated_user(
+        &app_state.mongo_service,
+        &app_state.privy_service,
+        headers,
+    )
+    .await
+    .map_err(|e| async_graphql::Error::new(format!("Authentication failed: {}", e)))?;
+
+    // Parse user's Solana wallet
+    let sponsor_wallet = Pubkey::from_str(&user.wallet)
+        .map_err(|e| async_graphql::Error::new(format!("Invalid user wallet: {}", e)))?;
+
+    // Parse question tweet ID and get post_id_hash
+    let question_tweet_id = ObjectId::parse_str(input.question_tweet_id.to_string())
+        .map_err(|e| async_graphql::Error::new(format!("Invalid question_tweet_id: {}", e)))?;
+
+    let tweet = app_state
+        .mongo_service
+        .tweets
+        .get_tweet_by_id(question_tweet_id)
+        .await
+        .map_err(|e| async_graphql::Error::new(format!("Failed to fetch tweet: {}", e)))?
+        .ok_or_else(|| async_graphql::Error::new("Question tweet not found"))?;
+
+    let post_id_hash_hex = tweet
+        .post_id_hash
+        .ok_or_else(|| async_graphql::Error::new("Question tweet has no post_id_hash"))?;
+
+    let post_id_hash_bytes = hex::decode(post_id_hash_hex)
+        .map_err(|e| async_graphql::Error::new(format!("Invalid post_id_hash: {}", e)))?;
+
+    if post_id_hash_bytes.len() != 32 {
+        return Err(async_graphql::Error::new("post_id_hash must be 32 bytes"));
+    }
+
+    let mut post_id_hash = [0u8; 32];
+    post_id_hash.copy_from_slice(&post_id_hash_bytes);
+
+    // Parse token mint
+    let token_mint = Pubkey::from_str(&input.token_mint)
+        .map_err(|e| async_graphql::Error::new(format!("Invalid token_mint: {}", e)))?;
+
+    // Call close_bounty_no_award on-chain
+    let signature = app_state
+        .solana_service
+        .close_bounty_no_award(&sponsor_wallet, &post_id_hash, &token_mint)
+        .await
+        .map_err(|e| async_graphql::Error::new(format!("Failed to close bounty: {}", e)))?;
+
+    // Update MongoDB
+    let program_id = app_state.solana_service.opinions_market_program().id();
+    let (question_post_pda, _) = get_post_pda(&program_id, &post_id_hash);
+    let (bounty_pda, _) = crate::solana::get_bounty_pda(
+        &program_id,
+        &question_post_pda,
+        &sponsor_wallet,
+        &token_mint,
+    );
+
+    let bounty = app_state
+        .mongo_service
+        .bounties
+        .get_bounty_by_onchain_pubkey(&bounty_pda.to_string())
+        .await
+        .map_err(|e| async_graphql::Error::new(format!("Failed to fetch bounty: {}", e)))?
+        .ok_or_else(|| async_graphql::Error::new("Bounty not found"))?;
+
+    app_state
+        .mongo_service
+        .bounties
+        .update_bounty_status(
+            &bounty.id.unwrap(),
+            crate::models::bounty::BountyStatus::ClosedNoAward,
+            None,
+        )
+        .await
+        .map_err(|e| async_graphql::Error::new(format!("Failed to update bounty: {}", e)))?;
+
+    Ok(BountyPayload {
+        signature: signature.to_string(),
+        bounty_id: bounty.id.map(|id| ID::from(id.to_hex())),
+    })
+}
+
+async fn expire_bounty(ctx: &Context<'_>, input: ExpireBountyInput) -> Result<BountyPayload> {
+    let app_state = ctx.data::<Arc<AppState>>()?;
+
+    // Parse sponsor wallet
+    let sponsor = Pubkey::from_str(&input.sponsor)
+        .map_err(|e| async_graphql::Error::new(format!("Invalid sponsor wallet: {}", e)))?;
+
+    // Parse question tweet ID and get post_id_hash
+    let question_tweet_id = ObjectId::parse_str(input.question_tweet_id.to_string())
+        .map_err(|e| async_graphql::Error::new(format!("Invalid question_tweet_id: {}", e)))?;
+
+    let tweet = app_state
+        .mongo_service
+        .tweets
+        .get_tweet_by_id(question_tweet_id)
+        .await
+        .map_err(|e| async_graphql::Error::new(format!("Failed to fetch tweet: {}", e)))?
+        .ok_or_else(|| async_graphql::Error::new("Question tweet not found"))?;
+
+    let post_id_hash_hex = tweet
+        .post_id_hash
+        .ok_or_else(|| async_graphql::Error::new("Question tweet has no post_id_hash"))?;
+
+    let post_id_hash_bytes = hex::decode(post_id_hash_hex)
+        .map_err(|e| async_graphql::Error::new(format!("Invalid post_id_hash: {}", e)))?;
+
+    if post_id_hash_bytes.len() != 32 {
+        return Err(async_graphql::Error::new("post_id_hash must be 32 bytes"));
+    }
+
+    let mut post_id_hash = [0u8; 32];
+    post_id_hash.copy_from_slice(&post_id_hash_bytes);
+
+    // Parse token mint
+    let token_mint = Pubkey::from_str(&input.token_mint)
+        .map_err(|e| async_graphql::Error::new(format!("Invalid token_mint: {}", e)))?;
+
+    // Call expire_bounty on-chain (permissionless)
+    let signature = app_state
+        .solana_service
+        .expire_bounty(&post_id_hash, &sponsor, &token_mint)
+        .await
+        .map_err(|e| async_graphql::Error::new(format!("Failed to expire bounty: {}", e)))?;
+
+    // Update MongoDB
+    let program_id = app_state.solana_service.opinions_market_program().id();
+    let (question_post_pda, _) = get_post_pda(&program_id, &post_id_hash);
+    let (bounty_pda, _) =
+        crate::solana::get_bounty_pda(&program_id, &question_post_pda, &sponsor, &token_mint);
+
+    let bounty = app_state
+        .mongo_service
+        .bounties
+        .get_bounty_by_onchain_pubkey(&bounty_pda.to_string())
+        .await
+        .map_err(|e| async_graphql::Error::new(format!("Failed to fetch bounty: {}", e)))?
+        .ok_or_else(|| async_graphql::Error::new("Bounty not found"))?;
+
+    app_state
+        .mongo_service
+        .bounties
+        .update_bounty_status(
+            &bounty.id.unwrap(),
+            crate::models::bounty::BountyStatus::ExpiredUnresolved,
+            None,
+        )
+        .await
+        .map_err(|e| async_graphql::Error::new(format!("Failed to update bounty: {}", e)))?;
+
+    Ok(BountyPayload {
+        signature: signature.to_string(),
+        bounty_id: bounty.id.map(|id| ID::from(id.to_hex())),
+    })
+}
+
+async fn claim_bounty(ctx: &Context<'_>, input: ClaimBountyInput) -> Result<BountyPayload> {
+    let app_state = ctx.data::<Arc<AppState>>()?;
+    let headers = ctx.data::<HeaderMap>()?;
+
+    // Get authenticated user
+    let user = crate::utils::auth::get_authenticated_user(
+        &app_state.mongo_service,
+        &app_state.privy_service,
+        headers,
+    )
+    .await
+    .map_err(|e| async_graphql::Error::new(format!("Authentication failed: {}", e)))?;
+
+    // Parse user's Solana wallet
+    let answer_author_wallet = Pubkey::from_str(&user.wallet)
+        .map_err(|e| async_graphql::Error::new(format!("Invalid user wallet: {}", e)))?;
+
+    // Parse sponsor wallet
+    let sponsor = Pubkey::from_str(&input.sponsor)
+        .map_err(|e| async_graphql::Error::new(format!("Invalid sponsor wallet: {}", e)))?;
+
+    // Parse question and answer tweet IDs
+    let question_tweet_id = ObjectId::parse_str(input.question_tweet_id.to_string())
+        .map_err(|e| async_graphql::Error::new(format!("Invalid question_tweet_id: {}", e)))?;
+
+    let answer_tweet_id = ObjectId::parse_str(input.answer_tweet_id.to_string())
+        .map_err(|e| async_graphql::Error::new(format!("Invalid answer_tweet_id: {}", e)))?;
+
+    // Get tweets to get post_id_hashes
+    let question_tweet = app_state
+        .mongo_service
+        .tweets
+        .get_tweet_by_id(question_tweet_id)
+        .await
+        .map_err(|e| async_graphql::Error::new(format!("Failed to fetch question tweet: {}", e)))?
+        .ok_or_else(|| async_graphql::Error::new("Question tweet not found"))?;
+
+    let answer_tweet = app_state
+        .mongo_service
+        .tweets
+        .get_tweet_by_id(answer_tweet_id)
+        .await
+        .map_err(|e| async_graphql::Error::new(format!("Failed to fetch answer tweet: {}", e)))?
+        .ok_or_else(|| async_graphql::Error::new("Answer tweet not found"))?;
+
+    // Verify answer author matches authenticated user
+    if answer_tweet.owner_id
+        != user
+            .id
+            .ok_or_else(|| async_graphql::Error::new("User missing ID"))?
+    {
+        return Err(async_graphql::Error::new(
+            "Only the answer author can claim the bounty",
+        ));
+    }
+
+    let question_post_id_hash_hex = question_tweet
+        .post_id_hash
+        .ok_or_else(|| async_graphql::Error::new("Question tweet has no post_id_hash"))?;
+
+    let answer_post_id_hash_hex = answer_tweet
+        .post_id_hash
+        .ok_or_else(|| async_graphql::Error::new("Answer tweet has no post_id_hash"))?;
+
+    let question_post_id_hash_bytes = hex::decode(question_post_id_hash_hex)
+        .map_err(|e| async_graphql::Error::new(format!("Invalid question post_id_hash: {}", e)))?;
+
+    let answer_post_id_hash_bytes = hex::decode(answer_post_id_hash_hex)
+        .map_err(|e| async_graphql::Error::new(format!("Invalid answer post_id_hash: {}", e)))?;
+
+    if question_post_id_hash_bytes.len() != 32 || answer_post_id_hash_bytes.len() != 32 {
+        return Err(async_graphql::Error::new("post_id_hash must be 32 bytes"));
+    }
+
+    let mut question_post_id_hash = [0u8; 32];
+    question_post_id_hash.copy_from_slice(&question_post_id_hash_bytes);
+
+    let mut answer_post_id_hash = [0u8; 32];
+    answer_post_id_hash.copy_from_slice(&answer_post_id_hash_bytes);
+
+    // Parse token mint
+    let token_mint = Pubkey::from_str(&input.token_mint)
+        .map_err(|e| async_graphql::Error::new(format!("Invalid token_mint: {}", e)))?;
+
+    // Call claim_bounty on-chain
+    let signature = app_state
+        .solana_service
+        .claim_bounty(
+            &answer_author_wallet,
+            &question_post_id_hash,
+            &answer_post_id_hash,
+            &sponsor,
+            &token_mint,
+        )
+        .await
+        .map_err(|e| async_graphql::Error::new(format!("Failed to claim bounty: {}", e)))?;
+
+    // Update MongoDB
+    let program_id = app_state.solana_service.opinions_market_program().id();
+    let (question_post_pda, _) = get_post_pda(&program_id, &question_post_id_hash);
+    let (bounty_pda, _) =
+        crate::solana::get_bounty_pda(&program_id, &question_post_pda, &sponsor, &token_mint);
+
+    let bounty = app_state
+        .mongo_service
+        .bounties
+        .get_bounty_by_onchain_pubkey(&bounty_pda.to_string())
+        .await
+        .map_err(|e| async_graphql::Error::new(format!("Failed to fetch bounty: {}", e)))?
+        .ok_or_else(|| async_graphql::Error::new("Bounty not found"))?;
+
+    app_state
+        .mongo_service
+        .bounties
+        .mark_bounty_claimed(&bounty.id.unwrap())
+        .await
+        .map_err(|e| async_graphql::Error::new(format!("Failed to update bounty: {}", e)))?;
+
+    Ok(BountyPayload {
+        signature: signature.to_string(),
+        bounty_id: bounty.id.map(|id| ID::from(id.to_hex())),
+    })
+}
+
+async fn reclaim_bounty(ctx: &Context<'_>, input: ReclaimBountyInput) -> Result<BountyPayload> {
+    let app_state = ctx.data::<Arc<AppState>>()?;
+    let headers = ctx.data::<HeaderMap>()?;
+
+    // Get authenticated user
+    let user = crate::utils::auth::get_authenticated_user(
+        &app_state.mongo_service,
+        &app_state.privy_service,
+        headers,
+    )
+    .await
+    .map_err(|e| async_graphql::Error::new(format!("Authentication failed: {}", e)))?;
+
+    // Parse user's Solana wallet
+    let sponsor_wallet = Pubkey::from_str(&user.wallet)
+        .map_err(|e| async_graphql::Error::new(format!("Invalid user wallet: {}", e)))?;
+
+    // Parse question tweet ID and get post_id_hash
+    let question_tweet_id = ObjectId::parse_str(input.question_tweet_id.to_string())
+        .map_err(|e| async_graphql::Error::new(format!("Invalid question_tweet_id: {}", e)))?;
+
+    let tweet = app_state
+        .mongo_service
+        .tweets
+        .get_tweet_by_id(question_tweet_id)
+        .await
+        .map_err(|e| async_graphql::Error::new(format!("Failed to fetch tweet: {}", e)))?
+        .ok_or_else(|| async_graphql::Error::new("Question tweet not found"))?;
+
+    let post_id_hash_hex = tweet
+        .post_id_hash
+        .ok_or_else(|| async_graphql::Error::new("Question tweet has no post_id_hash"))?;
+
+    let post_id_hash_bytes = hex::decode(post_id_hash_hex)
+        .map_err(|e| async_graphql::Error::new(format!("Invalid post_id_hash: {}", e)))?;
+
+    if post_id_hash_bytes.len() != 32 {
+        return Err(async_graphql::Error::new("post_id_hash must be 32 bytes"));
+    }
+
+    let mut post_id_hash = [0u8; 32];
+    post_id_hash.copy_from_slice(&post_id_hash_bytes);
+
+    // Parse token mint
+    let token_mint = Pubkey::from_str(&input.token_mint)
+        .map_err(|e| async_graphql::Error::new(format!("Invalid token_mint: {}", e)))?;
+
+    // Call reclaim_bounty on-chain
+    let signature = app_state
+        .solana_service
+        .reclaim_bounty(&sponsor_wallet, &post_id_hash, &token_mint)
+        .await
+        .map_err(|e| async_graphql::Error::new(format!("Failed to reclaim bounty: {}", e)))?;
+
+    // Update MongoDB
+    let program_id = app_state.solana_service.opinions_market_program().id();
+    let (question_post_pda, _) = get_post_pda(&program_id, &post_id_hash);
+    let (bounty_pda, _) = crate::solana::get_bounty_pda(
+        &program_id,
+        &question_post_pda,
+        &sponsor_wallet,
+        &token_mint,
+    );
+
+    let bounty = app_state
+        .mongo_service
+        .bounties
+        .get_bounty_by_onchain_pubkey(&bounty_pda.to_string())
+        .await
+        .map_err(|e| async_graphql::Error::new(format!("Failed to fetch bounty: {}", e)))?
+        .ok_or_else(|| async_graphql::Error::new("Bounty not found"))?;
+
+    app_state
+        .mongo_service
+        .bounties
+        .mark_bounty_reclaimed(&bounty.id.unwrap())
+        .await
+        .map_err(|e| async_graphql::Error::new(format!("Failed to update bounty: {}", e)))?;
+
+    Ok(BountyPayload {
+        signature: signature.to_string(),
+        bounty_id: bounty.id.map(|id| ID::from(id.to_hex())),
     })
 }

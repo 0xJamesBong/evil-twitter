@@ -6,6 +6,7 @@ use std::sync::Arc;
 
 use crate::app_state::AppState;
 use crate::graphql::user::types::{Language, ProfileNode};
+use crate::models::bounty::{Bounty, BountyStatus};
 use crate::models::post_state::PostState;
 use crate::models::tweet::{TweetMetrics, TweetType, TweetView};
 use crate::solana::get_post_pda;
@@ -432,6 +433,68 @@ impl TweetNode {
     async fn post_id_hash(&self) -> Option<String> {
         self.view.tweet.post_id_hash.clone()
     }
+
+    /// Get bounties for this question (only returns bounties if this is a question)
+    async fn bounties(&self, ctx: &Context<'_>) -> Result<Vec<BountyNode>> {
+        let app_state = ctx.data::<Arc<AppState>>()?;
+
+        // Only return bounties if this is a question
+        let post_state = self.post_state(ctx).await?;
+        if let Some(ref ps) = post_state {
+            if ps.function.as_deref() != Some("Question") {
+                return Ok(vec![]);
+            }
+        } else {
+            return Ok(vec![]);
+        }
+
+        // Get tweet ID
+        let tweet_id = match self.view.tweet.id {
+            Some(id) => id,
+            None => return Ok(vec![]),
+        };
+
+        // Fetch bounties from MongoDB
+        let bounties = app_state
+            .mongo_service
+            .bounties
+            .get_bounties_for_question(&tweet_id)
+            .await
+            .map_err(|e| async_graphql::Error::new(format!("Failed to fetch bounties: {}", e)))?;
+
+        // Convert to BountyNode and populate sponsor profiles
+        let mut bounty_nodes = Vec::new();
+        for bounty in bounties {
+            let mut node = BountyNode::from(bounty.clone());
+
+            // Fetch sponsor profile
+            let sponsor_user = app_state
+                .mongo_service
+                .users
+                .get_user_by_id(bounty.sponsor_user_id)
+                .await
+                .ok()
+                .flatten();
+
+            if let Some(user) = sponsor_user {
+                let profile = app_state
+                    .mongo_service
+                    .profiles
+                    .get_profile_by_user_id(&user.privy_id)
+                    .await
+                    .ok()
+                    .flatten();
+
+                if let Some(p) = profile {
+                    node.sponsor = Some(ProfileNode::from(p));
+                }
+            }
+
+            bounty_nodes.push(node);
+        }
+
+        Ok(bounty_nodes)
+    }
 }
 
 // ============================================================================
@@ -698,4 +761,60 @@ pub struct ClaimableRewardNode {
     pub token_mint: String,
     pub amount: String,      // Amount as string (in token units)
     pub reward_type: String, // "creator" or "voter"
+}
+
+// ============================================================================
+// Bounty Types
+// ============================================================================
+
+#[derive(Enum, Copy, Clone, Eq, PartialEq)]
+pub enum BountyStatusOutput {
+    Open,
+    Awarded,
+    ClosedNoAward,
+    ExpiredUnresolved,
+}
+
+impl From<BountyStatus> for BountyStatusOutput {
+    fn from(status: BountyStatus) -> Self {
+        match status {
+            BountyStatus::Open => BountyStatusOutput::Open,
+            BountyStatus::Awarded => BountyStatusOutput::Awarded,
+            BountyStatus::ClosedNoAward => BountyStatusOutput::ClosedNoAward,
+            BountyStatus::ExpiredUnresolved => BountyStatusOutput::ExpiredUnresolved,
+        }
+    }
+}
+
+#[derive(SimpleObject, Clone)]
+pub struct BountyNode {
+    pub id: ID,
+    pub question_tweet_id: ID,
+    pub answer_tweet_id: Option<ID>,
+    pub sponsor: Option<ProfileNode>,
+    pub token_mint: String,
+    pub amount: String, // Decimal string
+    pub expires_at: String,
+    pub status: BountyStatusOutput,
+    pub claimed: bool,
+    pub created_at: String,
+    pub awarded_at: Option<String>,
+}
+
+impl From<Bounty> for BountyNode {
+    fn from(bounty: Bounty) -> Self {
+        BountyNode {
+            id: ID::from(bounty.id.unwrap().to_hex()),
+            question_tweet_id: ID::from(bounty.question_tweet_id.to_hex()),
+            answer_tweet_id: bounty.answer_tweet_id.map(|id| ID::from(id.to_hex())),
+            sponsor: None, // Will be populated by resolver
+            token_mint: bounty.token_mint,
+            amount: bounty.amount.to_string(),
+            expires_at: bounty.expires_at.to_chrono().to_rfc3339(),
+            status: BountyStatusOutput::from(bounty.status),
+            claimed: bounty.claimed,
+            created_at: bounty.created_at.to_chrono().to_rfc3339(),
+            awarded_at: bounty.awarded_at.map(|dt| dt.to_chrono().to_rfc3339()),
+        }
+    }
 }

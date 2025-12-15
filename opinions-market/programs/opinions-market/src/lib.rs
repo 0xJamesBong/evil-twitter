@@ -7,6 +7,7 @@ pub mod math;
 pub mod middleware;
 pub mod pda_seeds;
 pub mod states;
+use crate::constants::{EXPIRED_BOUNTY_PENALTY_BPS, MAX_BOUNTY_GRACE};
 use constants::*;
 use instructions::*;
 use states::*;
@@ -67,6 +68,22 @@ pub enum ErrorCode {
     CannotSendToSelf,
     #[msg("Token is not withdrawable")]
     TokenNotWithdrawable,
+    #[msg("Bounty already exists for this question, sponsor, and token")]
+    BountyAlreadyExists,
+    #[msg("Bounty is not open")]
+    BountyNotOpen,
+    #[msg("Bounty has expired")]
+    BountyExpired,
+    #[msg("Bounty has not expired yet")]
+    BountyNotExpired,
+    #[msg("Bounty has already been claimed")]
+    BountyAlreadyClaimed,
+    #[msg("Bounty has not been awarded")]
+    BountyNotAwarded,
+    #[msg("Invalid bounty expiry time")]
+    InvalidBountyExpiry,
+    #[msg("Answer does not match bounty question")]
+    AnswerMismatch,
 }
 
 #[event]
@@ -1245,6 +1262,414 @@ pub mod opinions_market {
             vault_authority_seeds,
         );
         anchor_spl::token::transfer(cpi_ctx, amount)?;
+
+        Ok(())
+    }
+
+    /// Create a new bounty and escrow funds
+    pub fn create_bounty(
+        ctx: Context<CreateBounty>,
+        question_post_id_hash: [u8; 32],
+        amount: u64,
+        expires_at: i64,
+    ) -> Result<()> {
+        let clock = Clock::get()?;
+        let now = clock.unix_timestamp;
+
+        // Auth: session or wallet
+        assert_session_or_wallet(
+            &ctx.accounts.sponsor.key(),
+            &ctx.accounts.sponsor_user_account.user,
+            Some(&ctx.accounts.session_authority),
+            now,
+        )?;
+
+        let question = &ctx.accounts.question_post;
+        let bounty = &mut ctx.accounts.bounty;
+        let sponsor_account = &mut ctx.accounts.sponsor_user_account;
+
+        // Validate question is a Question post
+        require!(
+            question.function == PostFunction::Question,
+            ErrorCode::AnswerMustTargetQuestion
+        );
+
+        // Validate amount
+        require!(amount > 0, ErrorCode::ZeroAmount);
+
+        // Validate expiry time
+        require!(expires_at > now, ErrorCode::InvalidBountyExpiry);
+        require!(
+            expires_at <= question.end_time + MAX_BOUNTY_GRACE,
+            ErrorCode::InvalidBountyExpiry
+        );
+
+        // Initialize bounty account
+        bounty.question = question.key();
+        bounty.sponsor = ctx.accounts.sponsor.key();
+        bounty.token_mint = ctx.accounts.token_mint.key();
+        bounty.amount = amount;
+        bounty.expires_at = expires_at;
+        bounty.status = BountyStatus::Open;
+        bounty.claimed = false;
+        bounty.bump = ctx.bumps.bounty;
+
+        // Transfer tokens from sponsor vault to bounty vault
+        let vault_bump = ctx.bumps.vault_authority;
+        let vault_authority_seeds: &[&[&[u8]]] = &[&[VAULT_AUTHORITY_SEED, &[vault_bump]]];
+
+        let cpi_accounts = anchor_spl::token::Transfer {
+            from: ctx.accounts.sponsor_vault_token_account.to_account_info(),
+            to: ctx.accounts.bounty_vault_token_account.to_account_info(),
+            authority: ctx.accounts.vault_authority.to_account_info(),
+        };
+        let cpi_ctx = CpiContext::new_with_signer(
+            ctx.accounts.token_program.to_account_info(),
+            cpi_accounts,
+            vault_authority_seeds,
+        );
+        anchor_spl::token::transfer(cpi_ctx, amount)?;
+
+        // Increment bounties_posted
+        sponsor_account.bounties_posted = sponsor_account
+            .bounties_posted
+            .checked_add(1)
+            .ok_or(ErrorCode::MathOverflow)?;
+
+        Ok(())
+    }
+
+    /// Top up an existing bounty
+    pub fn increase_bounty(
+        ctx: Context<IncreaseBounty>,
+        question_post_id_hash: [u8; 32],
+        additional_amount: u64,
+    ) -> Result<()> {
+        let clock = Clock::get()?;
+        let now = clock.unix_timestamp;
+
+        // Auth: session or wallet
+        assert_session_or_wallet(
+            &ctx.accounts.sponsor.key(),
+            &ctx.accounts.sponsor_user_account.user,
+            Some(&ctx.accounts.session_authority),
+            now,
+        )?;
+
+        let bounty = &mut ctx.accounts.bounty;
+
+        // Validate bounty is open
+        require!(
+            matches!(bounty.status, BountyStatus::Open),
+            ErrorCode::BountyNotOpen
+        );
+
+        // Validate not expired
+        require!(now < bounty.expires_at, ErrorCode::BountyExpired);
+
+        // Validate amount
+        require!(additional_amount > 0, ErrorCode::ZeroAmount);
+
+        // Transfer additional funds
+        let vault_bump = ctx.bumps.vault_authority;
+        let vault_authority_seeds: &[&[&[u8]]] = &[&[VAULT_AUTHORITY_SEED, &[vault_bump]]];
+
+        let cpi_accounts = anchor_spl::token::Transfer {
+            from: ctx.accounts.sponsor_vault_token_account.to_account_info(),
+            to: ctx.accounts.bounty_vault_token_account.to_account_info(),
+            authority: ctx.accounts.vault_authority.to_account_info(),
+        };
+        let cpi_ctx = CpiContext::new_with_signer(
+            ctx.accounts.token_program.to_account_info(),
+            cpi_accounts,
+            vault_authority_seeds,
+        );
+        anchor_spl::token::transfer(cpi_ctx, additional_amount)?;
+
+        // Increment amount
+        bounty.amount = bounty
+            .amount
+            .checked_add(additional_amount)
+            .ok_or(ErrorCode::MathOverflow)?;
+
+        Ok(())
+    }
+
+    /// Sponsor selects a winning Answer
+    pub fn award_bounty(
+        ctx: Context<AwardBounty>,
+        question_post_id_hash: [u8; 32],
+        answer_post_id_hash: [u8; 32],
+    ) -> Result<()> {
+        let clock = Clock::get()?;
+        let now = clock.unix_timestamp;
+
+        // Auth: sponsor only
+        assert_session_or_wallet(
+            &ctx.accounts.sponsor.key(),
+            &ctx.accounts.sponsor_user_account.user,
+            Some(&ctx.accounts.session_authority),
+            now,
+        )?;
+
+        let bounty = &mut ctx.accounts.bounty;
+        let sponsor_account = &mut ctx.accounts.sponsor_user_account;
+        let answer = &ctx.accounts.answer_post;
+
+        // Validate bounty is open
+        require!(
+            matches!(bounty.status, BountyStatus::Open),
+            ErrorCode::BountyNotOpen
+        );
+
+        // Validate not expired
+        require!(now < bounty.expires_at, ErrorCode::BountyExpired);
+
+        // Validate answer is for this question
+        require!(
+            answer.function == PostFunction::Answer,
+            ErrorCode::AnswerMustTargetQuestion
+        );
+
+        // Validate answer relation matches bounty question
+        match &answer.relation {
+            PostRelation::AnswerTo { question } => {
+                require!(*question == bounty.question, ErrorCode::AnswerMismatch);
+            }
+            _ => return Err(ErrorCode::AnswerMismatch.into()),
+        }
+
+        // Update bounty status
+        bounty.status = BountyStatus::Awarded {
+            answer: answer.key(),
+        };
+
+        // Increment bounties_awarded
+        sponsor_account.bounties_awarded = sponsor_account
+            .bounties_awarded
+            .checked_add(1)
+            .ok_or(ErrorCode::MathOverflow)?;
+
+        Ok(())
+    }
+
+    /// Sponsor explicitly rejects all answers
+    pub fn close_bounty_no_award(
+        ctx: Context<CloseBountyNoAward>,
+        question_post_id_hash: [u8; 32],
+    ) -> Result<()> {
+        let clock = Clock::get()?;
+        let now = clock.unix_timestamp;
+
+        // Auth: sponsor only
+        assert_session_or_wallet(
+            &ctx.accounts.sponsor.key(),
+            &ctx.accounts.sponsor_user_account.user,
+            Some(&ctx.accounts.session_authority),
+            now,
+        )?;
+
+        let bounty = &mut ctx.accounts.bounty;
+
+        // Validate bounty is open
+        require!(
+            matches!(bounty.status, BountyStatus::Open),
+            ErrorCode::BountyNotOpen
+        );
+
+        // Validate not expired
+        require!(now < bounty.expires_at, ErrorCode::BountyExpired);
+
+        // Update status
+        bounty.status = BountyStatus::ClosedNoAward;
+
+        Ok(())
+    }
+
+    /// Canonicalize expiry on-chain (permissionless)
+    pub fn expire_bounty(
+        ctx: Context<ExpireBounty>,
+        question_post_id_hash: [u8; 32],
+        sponsor: Pubkey,
+    ) -> Result<()> {
+        let clock = Clock::get()?;
+        let now = clock.unix_timestamp;
+
+        let bounty = &mut ctx.accounts.bounty;
+        let sponsor_account = &mut ctx.accounts.sponsor_user_account;
+
+        // Validate bounty is open
+        require!(
+            matches!(bounty.status, BountyStatus::Open),
+            ErrorCode::BountyNotOpen
+        );
+
+        // Validate expired
+        require!(now >= bounty.expires_at, ErrorCode::BountyNotExpired);
+
+        // Validate sponsor matches
+        require!(bounty.sponsor == sponsor, ErrorCode::Unauthorized);
+
+        // Update status
+        bounty.status = BountyStatus::ExpiredUnresolved;
+
+        // Increment bounties_expired
+        sponsor_account.bounties_expired = sponsor_account
+            .bounties_expired
+            .checked_add(1)
+            .ok_or(ErrorCode::MathOverflow)?;
+
+        Ok(())
+    }
+
+    /// Answer author claims awarded bounty
+    pub fn claim_bounty(
+        ctx: Context<ClaimBounty>,
+        question_post_id_hash: [u8; 32],
+        answer_post_id_hash: [u8; 32],
+        sponsor: Pubkey,
+    ) -> Result<()> {
+        let clock = Clock::get()?;
+        let now = clock.unix_timestamp;
+
+        // Auth: answer author
+        assert_session_or_wallet(
+            &ctx.accounts.answer_author.key(),
+            &ctx.accounts.answer_author.key(),
+            Some(&ctx.accounts.session_authority),
+            now,
+        )?;
+
+        let bounty = &mut ctx.accounts.bounty;
+        let answer = &ctx.accounts.answer_post;
+
+        // Validate bounty is awarded
+        let answer_pubkey = match bounty.status {
+            BountyStatus::Awarded { answer } => answer,
+            _ => return Err(ErrorCode::BountyNotAwarded.into()),
+        };
+
+        // Validate answer matches the awarded answer
+        require!(answer.key() == answer_pubkey, ErrorCode::AnswerMismatch);
+
+        // Validate answer creator is the claimer
+        require!(
+            answer.creator_user == ctx.accounts.answer_author.key(),
+            ErrorCode::Unauthorized
+        );
+
+        // Validate not already claimed
+        require!(!bounty.claimed, ErrorCode::BountyAlreadyClaimed);
+
+        // Validate sponsor matches
+        require!(bounty.sponsor == sponsor, ErrorCode::Unauthorized);
+
+        // Transfer tokens from bounty vault to answer author vault
+        let vault_bump = ctx.bumps.vault_authority;
+        let vault_authority_seeds: &[&[&[u8]]] = &[&[VAULT_AUTHORITY_SEED, &[vault_bump]]];
+
+        let cpi_accounts = anchor_spl::token::Transfer {
+            from: ctx.accounts.bounty_vault_token_account.to_account_info(),
+            to: ctx
+                .accounts
+                .answer_author_vault_token_account
+                .to_account_info(),
+            authority: ctx.accounts.vault_authority.to_account_info(),
+        };
+        let cpi_ctx = CpiContext::new_with_signer(
+            ctx.accounts.token_program.to_account_info(),
+            cpi_accounts,
+            vault_authority_seeds,
+        );
+        anchor_spl::token::transfer(cpi_ctx, bounty.amount)?;
+
+        // Mark as claimed
+        bounty.claimed = true;
+
+        Ok(())
+    }
+
+    /// Sponsor retrieves funds after non-award
+    pub fn reclaim_bounty(
+        ctx: Context<ReclaimBounty>,
+        question_post_id_hash: [u8; 32],
+    ) -> Result<()> {
+        let clock = Clock::get()?;
+        let now = clock.unix_timestamp;
+
+        // Auth: sponsor only
+        assert_session_or_wallet(
+            &ctx.accounts.sponsor.key(),
+            &ctx.accounts.sponsor_user_account.user,
+            Some(&ctx.accounts.session_authority),
+            now,
+        )?;
+
+        let bounty = &mut ctx.accounts.bounty;
+
+        // Validate status allows reclaim
+        let is_expired = matches!(bounty.status, BountyStatus::ExpiredUnresolved);
+        let is_closed = matches!(bounty.status, BountyStatus::ClosedNoAward);
+        require!(is_expired || is_closed, ErrorCode::BountyNotOpen);
+
+        // Validate not already claimed
+        require!(!bounty.claimed, ErrorCode::BountyAlreadyClaimed);
+
+        // Calculate penalty (only for expired)
+        let penalty = if is_expired {
+            bounty
+                .amount
+                .checked_mul(EXPIRED_BOUNTY_PENALTY_BPS as u64)
+                .ok_or(ErrorCode::MathOverflow)?
+                .checked_div(10_000)
+                .ok_or(ErrorCode::MathOverflow)?
+        } else {
+            0
+        };
+
+        let net_amount = bounty
+            .amount
+            .checked_sub(penalty)
+            .ok_or(ErrorCode::MathOverflow)?;
+
+        let vault_bump = ctx.bumps.vault_authority;
+        let vault_authority_seeds: &[&[&[u8]]] = &[&[VAULT_AUTHORITY_SEED, &[vault_bump]]];
+
+        // Transfer net amount to sponsor
+        if net_amount > 0 {
+            let cpi_accounts = anchor_spl::token::Transfer {
+                from: ctx.accounts.bounty_vault_token_account.to_account_info(),
+                to: ctx.accounts.sponsor_vault_token_account.to_account_info(),
+                authority: ctx.accounts.vault_authority.to_account_info(),
+            };
+            let cpi_ctx = CpiContext::new_with_signer(
+                ctx.accounts.token_program.to_account_info(),
+                cpi_accounts,
+                vault_authority_seeds,
+            );
+            anchor_spl::token::transfer(cpi_ctx, net_amount)?;
+        }
+
+        // Transfer penalty to protocol treasury
+        if penalty > 0 {
+            let cpi_accounts = anchor_spl::token::Transfer {
+                from: ctx.accounts.bounty_vault_token_account.to_account_info(),
+                to: ctx
+                    .accounts
+                    .protocol_treasury_token_account
+                    .to_account_info(),
+                authority: ctx.accounts.vault_authority.to_account_info(),
+            };
+            let cpi_ctx = CpiContext::new_with_signer(
+                ctx.accounts.token_program.to_account_info(),
+                cpi_accounts,
+                vault_authority_seeds,
+            );
+            anchor_spl::token::transfer(cpi_ctx, penalty)?;
+        }
+
+        // Mark as claimed
+        bounty.claimed = true;
 
         Ok(())
     }

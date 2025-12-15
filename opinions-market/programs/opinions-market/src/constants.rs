@@ -31,3 +31,6 @@ pub const PARAMS: PayoutParams = PayoutParams {
     bling_per_vote_base_cost: 1 * LAMPORTS_PER_SOL, // 1 vote = 1 * LAMPORTS_PER_SOL by default
     user_initial_social_score: 10_000, // 10_000 by default - already have room to decrease and die of bankruptcy
 };
+
+pub const MAX_BOUNTY_GRACE: i64 = 7 * 24 * 60 * 60; // 7 days in seconds
+pub const EXPIRED_BOUNTY_PENALTY_BPS: u16 = 100; // 1% penalty for expired bounties

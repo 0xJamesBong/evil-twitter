@@ -19,3 +19,6 @@ pub const USER_POST_MINT_CLAIM_SEED: &[u8] = b"user_post_mint_claim";
 
 pub const TIP_VAULT_SEED: &[u8] = b"tip_vault";
 pub const TIP_VAULT_TOKEN_ACCOUNT_SEED: &[u8] = b"tip_vault_token_account";
+
+pub const BOUNTY_SEED: &[u8] = b"bounty";
+pub const BOUNTY_VAULT_TOKEN_ACCOUNT_SEED: &[u8] = b"bounty_vault_token_account";
