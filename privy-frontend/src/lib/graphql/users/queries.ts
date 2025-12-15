@@ -9,6 +9,7 @@ export const ME_QUERY = `
       status
       createdAt
       defaultPaymentToken
+      language
       hasOnchainAccount
       vaultBalance
       vaultBalances {
@@ -44,6 +45,7 @@ export interface MeQueryResult {
     status: string;
     createdAt: string;
     defaultPaymentToken: string | null;
+    language: string;
     hasOnchainAccount: boolean | null;
     vaultBalance: number | null;
     vaultBalances: {
@@ -96,6 +98,32 @@ export interface CanonicalVoteCostsResult {
   };
 }
 
+export const TIP_VAULT_BALANCES_QUERY = `
+  query TipVaultBalances {
+    me {
+      id
+      wallet
+      tipVaultBalances {
+        bling
+        usdc
+        stablecoin
+      }
+    }
+  }
+`;
+
+export interface TipVaultBalancesResult {
+  me: {
+    id: string;
+    wallet: string;
+    tipVaultBalances: {
+      bling: number;
+      usdc: number | null;
+      stablecoin: number | null;
+    };
+  } | null;
+}
+
 export const CURRENT_SESSION_QUERY = `
   query CurrentSession {
     currentSession {
@@ -127,6 +155,7 @@ export const USER_BY_HANDLE_QUERY = `
       status
       createdAt
       defaultPaymentToken
+      language
       hasOnchainAccount
       vaultBalance
       vaultBalances {
@@ -254,6 +283,7 @@ export interface UserByHandleResult {
     status: string;
     createdAt: string;
     defaultPaymentToken: string | null;
+    language: string;
     hasOnchainAccount: boolean | null;
     vaultBalance: number | null;
     vaultBalances: {
@@ -295,6 +325,7 @@ export const USER_BY_ID_QUERY = `
       status
       createdAt
       defaultPaymentToken
+      language
       hasOnchainAccount
       vaultBalance
       vaultBalances {
@@ -422,6 +453,7 @@ export interface UserByIdResult {
     status: string;
     createdAt: string;
     defaultPaymentToken: string | null;
+    language: string;
     hasOnchainAccount: boolean | null;
     vaultBalance: number | null;
     vaultBalances: {

@@ -46,7 +46,10 @@ export function useClaimReward({
     try {
       // Default to BLING token if not provided
       const token = tokenMint || process.env.NEXT_PUBLIC_BLING_MINT || "";
-      const tokenConfig = getTokenConfig(token);
+      const BLING_MINT = process.env.NEXT_PUBLIC_BLING_MINT || "";
+      const USDC_MINT = process.env.NEXT_PUBLIC_USDC_MINT || "";
+      const STABLECOIN_MINT = process.env.NEXT_PUBLIC_STABLECOIN_MINT || "";
+      const tokenConfig = getTokenConfig(token, BLING_MINT, USDC_MINT, STABLECOIN_MINT);
 
       const input: ClaimRewardInput = {
         tweetId,
@@ -61,14 +64,11 @@ export function useClaimReward({
 
       if (result.claimPostReward) {
         setClaimed(true);
+        // Backend returns amount already in token units (not lamports)
         const amount = parseFloat(result.claimPostReward.amount);
-        const decimals = tokenConfig?.metadata.decimals || 9;
         const symbol = tokenConfig?.metadata.symbol || "TOKEN";
         enqueueSnackbar(
-          `Successfully claimed ${formatTokenBalance(
-            amount,
-            decimals
-          )} ${symbol}!`,
+          `Successfully claimed ${amount.toFixed(4)} ${symbol}!`,
           { variant: "success" }
         );
       }

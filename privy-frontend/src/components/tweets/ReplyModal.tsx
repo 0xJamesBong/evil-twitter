@@ -14,6 +14,14 @@ import {
 import { Close as CloseIcon, Send as SendIcon } from "@mui/icons-material";
 import Link from "next/link";
 import { TweetNode } from "@/lib/graphql/tweets/types";
+import { useBackendUserStore } from "@/lib/stores/backendUserStore";
+import { Language } from "@/lib/graphql/types";
+
+const LANGUAGE_FONT_FAMILY: Record<Language, string | null> = {
+  [Language.CANTONESE]: 'var(--font-jyutcitzi), Arial, Helvetica, sans-serif',
+  [Language.GOETSUAN]: 'var(--font-goetsusioji), Arial, Helvetica, sans-serif',
+  [Language.NONE]: null,
+};
 
 interface ReplyModalProps {
     open: boolean;
@@ -36,7 +44,15 @@ export function ReplyModal({
 }: ReplyModalProps) {
     if (!tweet) return null;
 
+    const { user: backendUser } = useBackendUserStore();
     const author = tweet.author;
+    
+    // Get user's language preference
+    const userLanguageStr = backendUser?.language?.toUpperCase() || 'NONE';
+    const userLanguage = userLanguageStr === 'CANTONESE' ? Language.CANTONESE :
+                         userLanguageStr === 'GOETSUAN' ? Language.GOETSUAN :
+                         Language.NONE;
+    const fontFamily = LANGUAGE_FONT_FAMILY[userLanguage] ?? null;
 
     return (
         <Dialog
@@ -194,6 +210,11 @@ export function ReplyModal({
                             sx={{
                                 "& .MuiOutlinedInput-root": {
                                     borderRadius: 2,
+                                    ...(fontFamily && {
+                                        "& input, & textarea": {
+                                            fontFamily,
+                                        },
+                                    }),
                                 },
                             }}
                         />

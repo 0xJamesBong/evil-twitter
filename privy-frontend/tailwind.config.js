@@ -10,6 +10,8 @@ module.exports = {
       fontFamily: {
         sans: ["var(--font-inter)", "Arial", "Helvetica", "sans-serif"],
         "abc-favorit": ["var(--font-abc-favorit)", "Arial", "Helvetica", "sans-serif"],
+        goetsuan: ["var(--font-goetsusioji)", "Arial", "Helvetica", "sans-serif"],
+        cantonese: ["var(--font-jyutcitzi)", "Arial", "Helvetica", "sans-serif"],
       },
     },
   },

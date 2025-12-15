@@ -47,6 +47,30 @@ pub struct VoteBufferValue {
     pub last_click_ts: i64,
 }
 
+/// Key for tip buffer: uniquely identifies a pending tip batch
+#[derive(Clone, PartialEq, Eq)]
+pub struct TipBufferKey {
+    pub sender: Pubkey,
+    pub recipient: Pubkey,
+    pub post_id: Option<String>, // MongoDB ObjectId as string, None for user tips
+    pub token_mint: Pubkey,
+}
+
+impl Hash for TipBufferKey {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        self.sender.hash(state);
+        self.recipient.hash(state);
+        self.post_id.hash(state);
+        self.token_mint.hash(state);
+    }
+}
+
+/// Value for tip buffer: accumulated tip amount and metadata
+pub struct TipBufferValue {
+    pub accumulated_amount: u64, // Amount in lamports
+    pub last_click_ts: i64,
+}
+
 /// Application state shared across all handlers
 ///
 /// This struct holds all the services and dependencies needed by the application.
@@ -63,6 +87,8 @@ pub struct AppState {
     pub solana_service: Arc<SolanaService>,
     /// Vote buffer: accumulates clicks before batching into Solana transactions
     pub vote_buffer: Arc<Mutex<HashMap<VoteBufferKey, VoteBufferValue>>>,
+    /// Tip buffer: accumulates tips before batching into Solana transactions
+    pub tip_buffer: Arc<Mutex<HashMap<TipBufferKey, TipBufferValue>>>,
     // Post sync service for syncing on-chain post state to MongoDB
     // pub post_sync_service: Arc<PostSyncService>,
     // pub cache: Arc<RedisClient>,
@@ -181,6 +207,7 @@ impl AppState {
             privy_service: Arc::new(PrivyService::new(app_id, app_secret)),
             solana_service,
             vote_buffer: Arc::new(Mutex::new(HashMap::new())),
+            tip_buffer: Arc::new(Mutex::new(HashMap::new())),
             // post_sync_service,
         }
     }

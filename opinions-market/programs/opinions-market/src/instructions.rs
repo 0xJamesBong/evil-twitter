@@ -545,22 +545,6 @@ pub struct SettlePost<'info> {
     // Optional parent post (if child)
     pub parent_post: Option<Account<'info, PostAccount>>,
 
-    #[account(
-        mut,
-        seeds = [POST_POT_TOKEN_ACCOUNT_SEED, post.key().as_ref(), token_mint.key().as_ref()],
-        bump,
-        constraint = post_pot_token_account.mint == token_mint.key(),
-        constraint = post_pot_token_account.owner == parent_post_pot_authority.key(),
-    )]
-    pub parent_post_pot_token_account: Option<Account<'info, TokenAccount>>,
-
-    /// CHECK: Post pot authority PDA derived from seeds
-    #[account(
-            seeds = [POST_POT_AUTHORITY_SEED, post.key().as_ref()],
-            bump,
-        )]
-    pub parent_post_pot_authority: UncheckedAccount<'info>,
-
     pub config: Account<'info, Config>,
     pub token_mint: Account<'info, Mint>,
 
@@ -673,6 +657,7 @@ pub struct DistributeProtocolFee<'info> {
     pub token_program: Program<'info, Token>,
 }
 
+// This function is called only if the post is a child post
 #[derive(Accounts)]
 #[instruction(post_id_hash: [u8; 32])]
 pub struct DistributeParentPostShare<'info> {
@@ -708,14 +693,24 @@ pub struct DistributeParentPostShare<'info> {
     )]
     pub post_mint_payout: Account<'info, PostMintPayout>,
 
-    // Optional parent post (must be provided if this is a child post)
-    pub parent_post: Option<Account<'info, PostAccount>>,
+    // Required parent post (must be provided if this is a child post)
+    pub parent_post: Account<'info, PostAccount>,
 
-    /// CHECK: Parent post pot token account (optional, only needed if parent_post is Some)
-    pub parent_post_pot_token_account: Option<Account<'info, TokenAccount>>,
+    #[account(
+        mut,
+        seeds = [POST_POT_TOKEN_ACCOUNT_SEED, parent_post.key().as_ref(), token_mint.key().as_ref()],
+        bump,
+        constraint = parent_post_pot_token_account.mint == token_mint.key(),
+        constraint = parent_post_pot_token_account.owner == parent_post_pot_authority.key(),
+    )]
+    pub parent_post_pot_token_account: Account<'info, TokenAccount>,
 
-    /// CHECK: Parent post pot authority PDA (optional, only needed if parent_post is Some)
-    pub parent_post_pot_authority: Option<UncheckedAccount<'info>>,
+    /// CHECK: Parent post pot authority PDA
+    #[account(
+        seeds = [POST_POT_AUTHORITY_SEED, parent_post.key().as_ref()],
+        bump,
+    )]
+    pub parent_post_pot_authority: UncheckedAccount<'info>,
 
     pub token_mint: Account<'info, Mint>,
     pub token_program: Program<'info, Token>,
@@ -737,10 +732,7 @@ pub struct ClaimPostReward<'info> {
     pub user: UncheckedAccount<'info>,
      
    /// CHECK: Signer paying the TX fee (user or backend)
-   #[account(
-    mut,
-    
-    )]
+   #[account(mut)]
     pub payer: Signer<'info>,
 
 
@@ -792,10 +784,243 @@ pub struct ClaimPostReward<'info> {
     )]
     pub post_pot_authority: UncheckedAccount<'info>,
 
-    #[account(mut)]
-    pub user_vault_token_account: Account<'info, TokenAccount>,
+    #[account(
+        init_if_needed,
+        payer = payer,
+        seeds = [USER_VAULT_TOKEN_ACCOUNT_SEED, user.key().as_ref(), token_mint.key().as_ref()],
+        bump,
+        token::mint = token_mint,
+        token::authority = vault_authority,
+    )]
+    pub user_vault_token_account: Box<Account<'info, TokenAccount>>,
+
+    /// CHECK: Vault authority PDA derived from seeds
+    #[account(
+        seeds = [VAULT_AUTHORITY_SEED],
+        bump,
+    )]
+    pub vault_authority: UncheckedAccount<'info>,
 
     pub token_mint: Account<'info, Mint>,
+    pub token_program: Program<'info, Token>,
+    pub system_program: Program<'info, System>,
+}
+
+
+
+#[derive(Accounts)]
+pub struct Tip<'info> {
+    /// CHECK: Sender (can be session key or wallet)
+    #[account(mut)]
+    pub sender: UncheckedAccount<'info>,
+
+    /// CHECK: Payer for transaction fees and account initialization
+    #[account(mut)]
+    pub payer: Signer<'info>,
+
+    /// CHECK: Recipient of the tip (validated in instruction logic)
+    #[account(mut)]
+    pub recipient: UncheckedAccount<'info>,
+
+    /// CHECK: ephemeral delegated session key (can be same as sender for wallet signing)
+    #[account(mut)]
+    pub session_key: UncheckedAccount<'info>,
+
+    #[account(
+        mut,
+        seeds = [SESSION_AUTHORITY_SEED, sender_user_account.user.as_ref(), session_key.key().as_ref()],
+        bump,
+    )]
+    pub session_authority: Account<'info, SessionAuthority>,
+
+    #[account(
+        seeds = [USER_ACCOUNT_SEED, sender.key().as_ref()],
+        bump,
+    )]
+    pub sender_user_account: Account<'info, UserAccount>,
+
+    pub token_mint: Account<'info, Mint>,
+
+    #[account(
+        seeds = [VALID_PAYMENT_SEED, token_mint.key().as_ref()],
+        bump = valid_payment.bump,
+        constraint = valid_payment.enabled @ ErrorCode::MintNotEnabled,
+    )]
+    pub valid_payment: Account<'info, ValidPayment>,
+
+    #[account(
+        mut,
+        seeds = [USER_VAULT_TOKEN_ACCOUNT_SEED, sender.key().as_ref(), token_mint.key().as_ref()],
+        bump,
+        token::mint = token_mint,
+        token::authority = vault_authority,
+    )]
+    pub sender_user_vault_token_account: Account<'info, TokenAccount>,
+
+    
+    /// CHECK: Global vault authority PDA
+    #[account(
+        seeds = [VAULT_AUTHORITY_SEED],
+        bump,
+    )]
+    pub vault_authority: UncheckedAccount<'info>,
+
+    #[account(
+        init_if_needed,
+        payer = payer,
+        seeds = [TIP_VAULT_SEED, recipient.key().as_ref(), token_mint.key().as_ref()],
+        bump,
+        space = 8 + TipVault::INIT_SPACE,
+    )]
+    pub tip_vault: Account<'info, TipVault>,
+
+    
+    #[account(
+        init_if_needed,
+        payer = payer,
+        seeds = [TIP_VAULT_TOKEN_ACCOUNT_SEED, recipient.key().as_ref(), token_mint.key().as_ref()],
+        bump,
+        token::mint = token_mint,
+        token::authority = vault_authority,
+    )]
+    pub tip_vault_token_account: Account<'info, TokenAccount>,
+
+    pub token_program: Program<'info, Token>,
+    pub system_program: Program<'info, System>,
+}
+
+#[derive(Accounts)]
+pub struct ClaimTips<'info> {
+    /// CHECK: Owner of the tip vault (can be session key or wallet)
+    #[account(mut)]
+    pub owner: UncheckedAccount<'info>,
+
+    /// CHECK: Payer for transaction fees
+    #[account(mut)]
+    pub payer: Signer<'info>,
+
+    /// CHECK: ephemeral delegated session key
+    #[account(mut)]
+    pub session_key: UncheckedAccount<'info>,
+
+    #[account(
+        mut,
+        seeds = [SESSION_AUTHORITY_SEED, owner.key().as_ref(), session_key.key().as_ref()],
+        bump,
+    )]
+    pub session_authority: Account<'info, SessionAuthority>,
+
+    #[account(
+        seeds = [USER_ACCOUNT_SEED, owner.key().as_ref()],
+        bump,
+    )]
+    pub user_account: Account<'info, UserAccount>,
+
+    pub token_mint: Account<'info, Mint>,
+
+    #[account(
+        mut,
+        seeds = [TIP_VAULT_SEED, owner.key().as_ref(), token_mint.key().as_ref()],
+        bump,
+    )]
+    pub tip_vault: Account<'info, TipVault>,
+
+
+    #[account(
+        mut,
+        seeds = [TIP_VAULT_TOKEN_ACCOUNT_SEED, owner.key().as_ref(), token_mint.key().as_ref()],
+        bump,
+        token::mint = token_mint,
+        token::authority = vault_authority,
+    )]
+    pub tip_vault_token_account: Account<'info, TokenAccount>,
+
+    /// CHECK: Global vault authority PDA
+    #[account(
+        seeds = [VAULT_AUTHORITY_SEED],
+        bump,
+    )]
+    pub vault_authority: UncheckedAccount<'info>,
+
+    #[account(
+        init_if_needed,
+        payer = payer,
+        seeds = [USER_VAULT_TOKEN_ACCOUNT_SEED, owner.key().as_ref(), token_mint.key().as_ref()],
+        bump,
+        token::mint = token_mint,
+        token::authority = vault_authority,
+    )]
+    pub owner_user_vault_token_account: Account<'info, TokenAccount>,
+
+    pub token_program: Program<'info, Token>,
+    pub system_program: Program<'info, System>,
+}
+
+#[derive(Accounts)]
+pub struct SendToken<'info> {
+    /// CHECK: Sender (can be session key or wallet)
+    #[account(mut)]
+    pub sender: UncheckedAccount<'info>,
+
+    /// CHECK: Payer for transaction fees and account initialization
+    #[account(mut)]
+    pub payer: Signer<'info>,
+
+    /// CHECK: Recipient of the tokens
+    pub recipient: UncheckedAccount<'info>,
+
+    /// CHECK: ephemeral delegated session key
+    #[account(mut)]
+    pub session_key: UncheckedAccount<'info>,
+
+    #[account(
+        mut,
+        seeds = [SESSION_AUTHORITY_SEED, sender_user_account.user.as_ref(), session_key.key().as_ref()],
+        bump,
+    )]
+    pub session_authority: Account<'info, SessionAuthority>,
+
+    #[account(
+        seeds = [USER_ACCOUNT_SEED, sender.key().as_ref()],
+        bump,
+    )]
+    pub sender_user_account: Account<'info, UserAccount>,
+
+    pub token_mint: Account<'info, Mint>,
+
+    #[account(
+        seeds = [VALID_PAYMENT_SEED, token_mint.key().as_ref()],
+        bump = valid_payment.bump,
+        constraint = valid_payment.enabled @ ErrorCode::MintNotEnabled,
+    )]
+    pub valid_payment: Account<'info, ValidPayment>,
+
+    #[account(
+        mut,
+        seeds = [USER_VAULT_TOKEN_ACCOUNT_SEED, sender.key().as_ref(), token_mint.key().as_ref()],
+        bump,
+        token::mint = token_mint,
+        token::authority = vault_authority,
+    )]
+    pub sender_user_vault_token_account: Account<'info, TokenAccount>,
+
+    /// CHECK: Global vault authority PDA
+    #[account(
+        seeds = [VAULT_AUTHORITY_SEED],
+        bump,
+    )]
+    pub vault_authority: UncheckedAccount<'info>,
+
+    #[account(
+        init_if_needed,
+        payer = payer,
+        seeds = [USER_VAULT_TOKEN_ACCOUNT_SEED, recipient.key().as_ref(), token_mint.key().as_ref()],
+        bump,
+        token::mint = token_mint,
+        token::authority = vault_authority,
+    )]
+    pub recipient_user_vault_token_account: Account<'info, TokenAccount>,
+
     pub token_program: Program<'info, Token>,
     pub system_program: Program<'info, System>,
 }

@@ -5,7 +5,7 @@ use std::str::FromStr;
 use std::sync::Arc;
 
 use crate::app_state::AppState;
-use crate::graphql::user::types::ProfileNode;
+use crate::graphql::user::types::{Language, ProfileNode};
 use crate::models::post_state::PostState;
 use crate::models::tweet::{TweetMetrics, TweetType, TweetView};
 use crate::solana::get_post_pda;
@@ -54,6 +54,11 @@ impl TweetNode {
 
     async fn content(&self) -> &str {
         &self.view.tweet.content
+    }
+
+    /// Get the tweet's script rendering mode for PUA disambiguation
+    async fn language(&self) -> Language {
+        self.view.tweet.language.into()
     }
 
     async fn tweet_type(&self) -> TweetTypeOutput {

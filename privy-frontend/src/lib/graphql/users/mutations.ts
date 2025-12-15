@@ -156,6 +156,22 @@ export interface UpdateDefaultPaymentTokenResult {
   };
 }
 
+export const UPDATE_LANGUAGE_MUTATION = `
+  mutation UpdateLanguage($language: Language!) {
+    updateLanguage(language: $language) {
+      id
+      language
+    }
+  }
+`;
+
+export interface UpdateLanguageResult {
+  updateLanguage: {
+    id: string;
+    language: string;
+  };
+}
+
 export const FOLLOW_USER_MUTATION = `
   mutation FollowUser($input: FollowUserInput!) {
     followUser(input: $input) {
@@ -185,5 +201,61 @@ export interface UnfollowUserResult {
   unfollowUser: {
     success: boolean;
     isFollowing: boolean;
+  };
+}
+
+export const TIP_MUTATION = `
+  mutation Tip($input: TipInput!) {
+    tip(input: $input) {
+      success
+      signature
+      recipientUserId
+      postId
+    }
+  }
+`;
+
+export interface TipResult {
+  tip: {
+    success: boolean;
+    signature: string;
+    recipientUserId: string;
+    postId: string | null;
+  };
+}
+
+export const CLAIM_TIPS_MUTATION = `
+  mutation ClaimTips($input: ClaimTipsInput!) {
+    claimTips(input: $input) {
+      success
+      signature
+      amountClaimed
+    }
+  }
+`;
+
+export interface ClaimTipsResult {
+  claimTips: {
+    success: boolean;
+    signature: string;
+    amountClaimed: number;
+  };
+}
+
+export const SEND_TOKEN_MUTATION = `
+  mutation SendToken($input: SendTokenInput!) {
+    sendToken(input: $input) {
+      success
+      signature
+      recipientUserId
+    }
+  }
+`;
+
+export interface SendTokenResult {
+  sendToken: {
+    success: boolean;
+    signature: string;
+    recipientUserId: string;
   };
 }

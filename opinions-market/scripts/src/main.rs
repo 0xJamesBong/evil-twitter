@@ -209,7 +209,7 @@ async fn main() {
             token_program: anchor_spl::token::spl_token::ID,
         })
         .args(opinions_market::instruction::RegisterValidPayment {
-            price_in_bling: 10_000, // 1 USDC = 10,000 BLING
+            price_in_bling: 10, // 1 USDC = 10 BLING
         })
         .instructions()
         .unwrap();
@@ -252,7 +252,7 @@ async fn main() {
             token_program: anchor_spl::token::spl_token::ID,
         })
         .args(opinions_market::instruction::RegisterValidPayment {
-            price_in_bling: 11_000, // 1 STABLECOIN = 10,000 BLING
+            price_in_bling: 1000, // 1 STABLECOIN = 1000 BLING
         })
         .instructions()
         .unwrap();

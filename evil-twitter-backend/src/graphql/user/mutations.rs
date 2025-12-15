@@ -11,7 +11,11 @@ use solana_sdk::pubkey::Pubkey;
 
 use crate::models::follow::Follow;
 use crate::solana::get_session_authority_pda;
-use crate::{app_state::AppState, graphql::user::types::UserNode, utils::auth};
+use crate::{
+    app_state::{AppState, TipBufferKey, TipBufferValue},
+    graphql::user::types::{Language, UserNode},
+    utils::auth,
+};
 
 // ============================================================================
 // UserMutation Object
@@ -74,6 +78,15 @@ impl UserMutation {
         update_default_payment_token_resolver(ctx, input).await
     }
 
+    /// Update user's script rendering mode for PUA disambiguation
+    async fn update_language(
+        &self,
+        ctx: &Context<'_>,
+        language: Language,
+    ) -> Result<UserNode> {
+        update_language_resolver(ctx, language).await
+    }
+
     /// Follow a user
     async fn follow_user(
         &self,
@@ -90,6 +103,36 @@ impl UserMutation {
         input: UnfollowUserInput,
     ) -> Result<UnfollowUserPayload> {
         unfollow_user_resolver(ctx, input).await
+    }
+
+    /// Tip a user or post creator
+    /// recipient_user_id: ID of the user receiving the tip (required)
+    /// post_id: Optional ID of the post being tipped (if provided, tip goes to post creator)
+    async fn tip(
+        &self,
+        ctx: &Context<'_>,
+        input: TipInput,
+    ) -> Result<TipPayload> {
+        tip_resolver(ctx, input).await
+    }
+
+    /// Claim tips from tip vault to user's main vault
+    async fn claim_tips(
+        &self,
+        ctx: &Context<'_>,
+        input: ClaimTipsInput,
+    ) -> Result<ClaimTipsPayload> {
+        claim_tips_resolver(ctx, input).await
+    }
+
+    /// Send tokens from sender's vault to recipient's vault (direct transfer)
+    /// recipient_user_id: ID of the user receiving the tokens (required, users only)
+    async fn send_token(
+        &self,
+        ctx: &Context<'_>,
+        input: SendTokenInput,
+    ) -> Result<SendTokenPayload> {
+        send_token_resolver(ctx, input).await
     }
 }
 
@@ -132,6 +175,34 @@ pub struct UnfollowUserInput {
     pub user_id: ID,
 }
 
+#[derive(InputObject)]
+pub struct TipInput {
+    /// ID of the user receiving the tip (required only when post_id is not provided)
+    pub recipient_user_id: Option<ID>,
+    /// Optional ID of the post being tipped (if provided, tip goes to post creator, recipient_user_id is ignored)
+    pub post_id: Option<ID>,
+    /// Amount to tip (in token units, will be converted to lamports)
+    pub amount: f64,
+    /// Token mint pubkey as string (defaults to BLING if not provided)
+    pub token_mint: Option<String>,
+}
+
+#[derive(InputObject)]
+pub struct ClaimTipsInput {
+    /// Token mint pubkey as string (defaults to BLING if not provided)
+    pub token_mint: Option<String>,
+}
+
+#[derive(InputObject)]
+pub struct SendTokenInput {
+    /// ID of the user receiving the tokens
+    pub recipient_user_id: ID,
+    /// Amount to send (in token units, will be converted to lamports)
+    pub amount: f64,
+    /// Token mint pubkey as string (defaults to BLING if not provided)
+    pub token_mint: Option<String>,
+}
+
 #[derive(SimpleObject)]
 pub struct FollowUserPayload {
     pub success: bool,
@@ -142,6 +213,28 @@ pub struct FollowUserPayload {
 pub struct UnfollowUserPayload {
     pub success: bool,
     pub is_following: bool,
+}
+
+#[derive(SimpleObject)]
+pub struct TipPayload {
+    pub success: bool,
+    pub signature: String,
+    pub recipient_user_id: ID,
+    pub post_id: Option<ID>,
+}
+
+#[derive(SimpleObject)]
+pub struct ClaimTipsPayload {
+    pub success: bool,
+    pub signature: String,
+    pub amount_claimed: u64,
+}
+
+#[derive(SimpleObject)]
+pub struct SendTokenPayload {
+    pub success: bool,
+    pub signature: String,
+    pub recipient_user_id: ID,
 }
 
 // ============================================================================
@@ -907,4 +1000,383 @@ pub async fn update_default_payment_token_resolver(
     );
 
     Ok(UserNode::from(user))
+}
+
+/// Update user's script rendering mode for PUA disambiguation
+pub async fn update_language_resolver(
+    ctx: &Context<'_>,
+    language: Language,
+) -> Result<UserNode> {
+    let app_state = ctx.data::<Arc<AppState>>()?;
+    let headers = ctx
+        .data::<HeaderMap>()
+        .map_err(|_| async_graphql::Error::new("Failed to get headers from context"))?;
+
+    // Verify Privy token and get Privy ID
+    let privy_id = auth::get_privy_id_from_header(&app_state.privy_service, headers)
+        .await
+        .map_err(|(status, json)| {
+            let error_msg = json
+                .get("error")
+                .and_then(|v| v.as_str())
+                .unwrap_or("Authentication failed");
+            async_graphql::Error::new(format!("{} (status {})", error_msg, status))
+        })?;
+
+    // Get user from Mongo
+    let mut user = app_state
+        .mongo_service
+        .users
+        .get_user_by_privy_id(&privy_id)
+        .await?
+        .ok_or_else(|| async_graphql::Error::new("User not found in database"))?;
+
+    // Update language
+    user.language = language.into();
+
+    // Update user in database
+    app_state.mongo_service.users.update_user(&user).await?;
+
+    eprintln!(
+        "update_language: Updated language for user {}: {:?}",
+        privy_id, language
+    );
+
+    Ok(UserNode::from(user))
+}
+
+/// Tip a user or post creator
+pub async fn tip_resolver(
+    ctx: &Context<'_>,
+    input: TipInput,
+) -> Result<TipPayload> {
+    let app_state = ctx.data::<Arc<AppState>>()?;
+    let headers = ctx
+        .data::<HeaderMap>()
+        .map_err(|_| async_graphql::Error::new("Failed to get headers from context"))?;
+
+    // Verify Privy token and get Privy ID
+    let privy_id = auth::get_privy_id_from_header(&app_state.privy_service, headers)
+        .await
+        .map_err(|(status, json)| {
+            let error_msg = json
+                .get("error")
+                .and_then(|v| v.as_str())
+                .unwrap_or("Authentication failed");
+            async_graphql::Error::new(format!("{} (status {})", error_msg, status))
+        })?;
+
+    // Get sender user
+    let sender_user = app_state
+        .mongo_service
+        .users
+        .get_user_by_privy_id(&privy_id)
+        .await?
+        .ok_or_else(|| async_graphql::Error::new("User not found"))?;
+
+    let sender_wallet = Pubkey::from_str(&sender_user.wallet)
+        .map_err(|e| async_graphql::Error::new(format!("Invalid sender wallet: {}", e)))?;
+
+    // Determine recipient: if post_id is provided, get post creator; otherwise use recipient_user_id
+    let final_recipient_wallet = if let Some(post_id_str) = input.post_id.as_ref() {
+        // Tip to post: fetch post and get creator
+        let post_id = mongodb::bson::oid::ObjectId::parse_str(post_id_str.as_str())
+            .map_err(|_| async_graphql::Error::new("Invalid post ID"))?;
+
+        let post = app_state
+            .mongo_service
+            .tweets
+            .get_tweet_by_id(post_id)
+            .await?
+            .ok_or_else(|| async_graphql::Error::new("Post not found"))?;
+
+        // Get post creator's wallet (this is the recipient)
+        let creator_user = app_state
+            .mongo_service
+            .users
+            .get_user_by_id(post.owner_id)
+            .await?
+            .ok_or_else(|| async_graphql::Error::new("Post creator not found"))?;
+
+        Pubkey::from_str(&creator_user.wallet)
+            .map_err(|e| async_graphql::Error::new(format!("Invalid creator wallet: {}", e)))?
+    } else {
+        // Direct tip to user: recipient_user_id is required
+        let recipient_user_id = input.recipient_user_id
+            .as_ref()
+            .ok_or_else(|| async_graphql::Error::new("recipient_user_id is required when post_id is not provided"))?;
+        
+        let recipient_user_id_oid = mongodb::bson::oid::ObjectId::parse_str(recipient_user_id.as_str())
+            .map_err(|_| async_graphql::Error::new("Invalid recipient user ID"))?;
+
+        let recipient_user = app_state
+            .mongo_service
+            .users
+            .get_user_by_id(recipient_user_id_oid)
+            .await?
+            .ok_or_else(|| async_graphql::Error::new("Recipient user not found"))?;
+
+        Pubkey::from_str(&recipient_user.wallet)
+            .map_err(|e| async_graphql::Error::new(format!("Invalid recipient wallet: {}", e)))?
+    };
+
+    // Determine token mint (default to BLING)
+    let token_mint = if let Some(token_mint_str) = input.token_mint {
+        Pubkey::from_str(&token_mint_str)
+            .map_err(|e| async_graphql::Error::new(format!("Invalid token_mint: {}", e)))?
+    } else {
+        // Get BLING mint from config
+        let program_id = app_state.solana_service.opinions_market_program().id();
+        let (config_pda, _) = crate::solana::get_config_pda(&program_id);
+        let config_account = app_state
+            .solana_service
+            .opinions_market_program()
+            .account::<opinions_market::states::Config>(config_pda)
+            .await
+            .map_err(|e| async_graphql::Error::new(format!("Failed to get config: {}", e)))?;
+        config_account.bling_mint
+    };
+
+    // Convert amount to lamports using token decimals
+    // USDC and stablecoin have 6 decimals, BLING has 9 decimals
+    let token_decimals = if token_mint == *app_state.solana_service.get_bling_mint() {
+        9
+    } else {
+        6 // USDC and stablecoin have 6 decimals
+    };
+    let amount_lamports = (input.amount * 10_f64.powi(token_decimals)) as u64;
+    
+    // Validate minimum tip: at least 1 token
+    let min_amount_lamports = 10_u64.pow(token_decimals as u32);
+    if amount_lamports < min_amount_lamports {
+        return Err(async_graphql::Error::new(format!(
+            "Tip amount must be at least 1 token ({} lamports for this token)",
+            min_amount_lamports
+        )));
+    }
+
+    // Write tip to buffer (will be batched and sent by background flush task)
+    use std::time::{SystemTime, UNIX_EPOCH};
+    let now = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map_err(|e| async_graphql::Error::new(format!("Failed to get timestamp: {}", e)))?
+        .as_secs() as i64;
+
+    let buffer_key = TipBufferKey {
+        sender: sender_wallet,
+        recipient: final_recipient_wallet,
+        post_id: input.post_id.as_ref().map(|id| id.to_string()),
+        token_mint,
+    };
+
+    // Increment accumulated tip amount in buffer
+    let mut buffer = app_state
+        .tip_buffer
+        .lock()
+        .map_err(|e| async_graphql::Error::new(format!("Failed to lock tip buffer: {}", e)))?;
+
+    buffer
+        .entry(buffer_key)
+        .and_modify(|v| {
+            v.accumulated_amount += amount_lamports;
+            v.last_click_ts = now;
+        })
+        .or_insert_with(|| TipBufferValue {
+            accumulated_amount: amount_lamports,
+            last_click_ts: now,
+        });
+
+    // Tip is queued, return immediate success
+    // The background flush task will handle the actual Solana transaction
+
+    // Determine recipient_user_id for response
+    // For post tips, we don't have recipient_user_id in input (backend determined it from post)
+    // For direct user tips, use the provided recipient_user_id
+    let response_recipient_user_id = input.recipient_user_id
+        .clone()
+        .unwrap_or_else(|| ID::from(""));
+
+    Ok(TipPayload {
+        success: true,
+        signature: "queued".to_string(), // Placeholder - actual signature will be in flush task
+        recipient_user_id: response_recipient_user_id,
+        post_id: input.post_id,
+    })
+}
+
+/// Claim tips from tip vault
+pub async fn claim_tips_resolver(
+    ctx: &Context<'_>,
+    input: ClaimTipsInput,
+) -> Result<ClaimTipsPayload> {
+    let app_state = ctx.data::<Arc<AppState>>()?;
+    let headers = ctx
+        .data::<HeaderMap>()
+        .map_err(|_| async_graphql::Error::new("Failed to get headers from context"))?;
+
+    // Verify Privy token and get Privy ID
+    let privy_id = auth::get_privy_id_from_header(&app_state.privy_service, headers)
+        .await
+        .map_err(|(status, json)| {
+            let error_msg = json
+                .get("error")
+                .and_then(|v| v.as_str())
+                .unwrap_or("Authentication failed");
+            async_graphql::Error::new(format!("{} (status {})", error_msg, status))
+        })?;
+
+    // Get user
+    let user = app_state
+        .mongo_service
+        .users
+        .get_user_by_privy_id(&privy_id)
+        .await?
+        .ok_or_else(|| async_graphql::Error::new("User not found"))?;
+
+    let owner_wallet = Pubkey::from_str(&user.wallet)
+        .map_err(|e| async_graphql::Error::new(format!("Invalid wallet: {}", e)))?;
+
+    // Determine token mint (default to BLING)
+    let token_mint = if let Some(token_mint_str) = input.token_mint {
+        Pubkey::from_str(&token_mint_str)
+            .map_err(|e| async_graphql::Error::new(format!("Invalid token_mint: {}", e)))?
+    } else {
+        // Get BLING mint from config
+        let program_id = app_state.solana_service.opinions_market_program().id();
+        let (config_pda, _) = crate::solana::get_config_pda(&program_id);
+        let config_account = app_state
+            .solana_service
+            .opinions_market_program()
+            .account::<opinions_market::states::Config>(config_pda)
+            .await
+            .map_err(|e| async_graphql::Error::new(format!("Failed to get config: {}", e)))?;
+        config_account.bling_mint
+    };
+
+    // Get tip vault balance before claiming
+    let program_id = app_state.solana_service.opinions_market_program().id();
+    let (tip_vault_token_account_pda, _) = crate::solana::get_tip_vault_token_account_pda(
+        &program_id,
+        &owner_wallet,
+        &token_mint,
+    );
+
+    let tip_vault_before = app_state
+        .solana_service
+        .opinions_market_program()
+        .account::<anchor_spl::token::TokenAccount>(tip_vault_token_account_pda)
+        .await
+        .ok();
+
+    let amount_claimed = tip_vault_before
+        .map(|account| account.amount)
+        .unwrap_or(0);
+
+    // Call Solana service to claim tips
+    let signature = app_state
+        .solana_service
+        .claim_tips(&owner_wallet, &token_mint)
+        .await
+        .map_err(|e| async_graphql::Error::new(format!("Failed to claim tips: {}", e)))?;
+
+    Ok(ClaimTipsPayload {
+        success: true,
+        signature: signature.to_string(),
+        amount_claimed,
+    })
+}
+
+/// Send tokens from sender's vault to recipient's vault
+pub async fn send_token_resolver(
+    ctx: &Context<'_>,
+    input: SendTokenInput,
+) -> Result<SendTokenPayload> {
+    let app_state = ctx.data::<Arc<AppState>>()?;
+    let headers = ctx
+        .data::<HeaderMap>()
+        .map_err(|_| async_graphql::Error::new("Failed to get headers from context"))?;
+
+    // Verify Privy token and get Privy ID
+    let privy_id = auth::get_privy_id_from_header(&app_state.privy_service, headers)
+        .await
+        .map_err(|(status, json)| {
+            let error_msg = json
+                .get("error")
+                .and_then(|v| v.as_str())
+                .unwrap_or("Authentication failed");
+            async_graphql::Error::new(format!("{} (status {})", error_msg, status))
+        })?;
+
+    // Get sender user
+    let sender_user = app_state
+        .mongo_service
+        .users
+        .get_user_by_privy_id(&privy_id)
+        .await?
+        .ok_or_else(|| async_graphql::Error::new("User not found"))?;
+
+    let sender_wallet = Pubkey::from_str(&sender_user.wallet)
+        .map_err(|e| async_graphql::Error::new(format!("Invalid sender wallet: {}", e)))?;
+
+    // Get recipient user
+    let recipient_user_id = mongodb::bson::oid::ObjectId::parse_str(input.recipient_user_id.as_str())
+        .map_err(|_| async_graphql::Error::new("Invalid recipient user ID"))?;
+
+    let recipient_user = app_state
+        .mongo_service
+        .users
+        .get_user_by_id(recipient_user_id)
+        .await?
+        .ok_or_else(|| async_graphql::Error::new("Recipient user not found"))?;
+
+    let recipient_wallet = Pubkey::from_str(&recipient_user.wallet)
+        .map_err(|e| async_graphql::Error::new(format!("Invalid recipient wallet: {}", e)))?;
+
+    // Determine token mint (default to BLING)
+    let token_mint = if let Some(token_mint_str) = input.token_mint {
+        Pubkey::from_str(&token_mint_str)
+            .map_err(|e| async_graphql::Error::new(format!("Invalid token_mint: {}", e)))?
+    } else {
+        // Get BLING mint from config
+        let program_id = app_state.solana_service.opinions_market_program().id();
+        let (config_pda, _) = crate::solana::get_config_pda(&program_id);
+        let config_account = app_state
+            .solana_service
+            .opinions_market_program()
+            .account::<opinions_market::states::Config>(config_pda)
+            .await
+            .map_err(|e| async_graphql::Error::new(format!("Failed to get config: {}", e)))?;
+        config_account.bling_mint
+    };
+
+    // Convert amount to lamports using token decimals
+    // USDC and stablecoin have 6 decimals, BLING has 9 decimals
+    let token_decimals = if token_mint == *app_state.solana_service.get_bling_mint() {
+        9
+    } else {
+        6 // USDC and stablecoin have 6 decimals
+    };
+    let amount_lamports = (input.amount * 10_f64.powi(token_decimals)) as u64;
+    
+    // Validate minimum amount: at least 1 token
+    let min_amount_lamports = 10_u64.pow(token_decimals as u32);
+    if amount_lamports < min_amount_lamports {
+        return Err(async_graphql::Error::new(format!(
+            "Amount must be at least 1 token ({} lamports for this token)",
+            min_amount_lamports
+        )));
+    }
+
+    // Call Solana service to send tokens
+    let signature = app_state
+        .solana_service
+        .send_token(&sender_wallet, &recipient_wallet, amount_lamports, &token_mint)
+        .await
+        .map_err(|e| async_graphql::Error::new(format!("Failed to send tokens: {}", e)))?;
+
+    Ok(SendTokenPayload {
+        success: true,
+        signature: signature.to_string(),
+        recipient_user_id: input.recipient_user_id,
+    })
 }

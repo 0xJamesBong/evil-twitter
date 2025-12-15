@@ -9,7 +9,12 @@ use std::sync::Arc;
 use crate::app_state::AppState;
 use crate::graphql::tweet::types::{TweetConnection, TweetEdge, TweetNode};
 use crate::graphql::user::queries::{VaultBalances, vault_balances_resolver};
-use crate::models::{follow::Follow, profile::Profile, tweet::Tweet, user::User};
+use crate::models::{
+    follow::Follow,
+    profile::Profile,
+    tweet::Tweet,
+    user::{Language as ModelLanguage, User},
+};
 use crate::utils::auth;
 use crate::utils::tweet::enrich_tweets_with_references;
 use async_graphql::SimpleObject;
@@ -18,8 +23,7 @@ use async_graphql::SimpleObject;
 // Input Types
 // ============================================================================
 
-
-// Need to prepare for tips, bounty questions, and send tokens to user 
+// Need to prepare for tips, bounty questions, and send tokens to user
 #[derive(InputObject, Default)]
 pub struct DiscoverFilters {
     #[graphql(name = "minFollowers")]
@@ -36,6 +40,35 @@ pub enum DiscoverSort {
     Followers,
     Tweets,
     DollarRate,
+}
+
+/// Script rendering mode for PUA (Private Use Area) disambiguation.
+/// This is NOT about "language" in the linguistic sense, but about rendering intent.
+#[derive(Enum, Copy, Clone, Eq, PartialEq, Debug)]
+pub enum Language {
+    Cantonese,
+    Goetsuan,
+    None,
+}
+
+impl From<ModelLanguage> for Language {
+    fn from(lang: ModelLanguage) -> Self {
+        match lang {
+            ModelLanguage::Cantonese => Language::Cantonese,
+            ModelLanguage::Goetsuan => Language::Goetsuan,
+            ModelLanguage::None => Language::None,
+        }
+    }
+}
+
+impl From<Language> for ModelLanguage {
+    fn from(lang: Language) -> Self {
+        match lang {
+            Language::Cantonese => ModelLanguage::Cantonese,
+            Language::Goetsuan => ModelLanguage::Goetsuan,
+            Language::None => ModelLanguage::None,
+        }
+    }
 }
 
 impl DiscoverSort {
@@ -120,6 +153,11 @@ impl UserNode {
     /// Returns None if BLING (the default)
     async fn default_payment_token(&self) -> Option<&str> {
         self.inner.default_payment_token.as_deref()
+    }
+
+    /// Get the user's script rendering mode for PUA disambiguation
+    async fn language(&self) -> Language {
+        self.inner.language.into()
     }
 
     /// Get the user's profile
@@ -261,10 +299,11 @@ impl UserNode {
             .map_err(|_| async_graphql::Error::new("Failed to get headers from context"))?;
 
         // Try to get authenticated user, but don't fail if not authenticated
-        let viewer_privy_id = match auth::get_privy_id_from_header(&app_state.privy_service, headers).await {
-            Ok(id) => id,
-            Err(_) => return Ok(false), // Not authenticated, so not following
-        };
+        let viewer_privy_id =
+            match auth::get_privy_id_from_header(&app_state.privy_service, headers).await {
+                Ok(id) => id,
+                Err(_) => return Ok(false), // Not authenticated, so not following
+            };
 
         // Get viewer's user ID
         let viewer_user = app_state
@@ -291,7 +330,9 @@ impl UserNode {
         let exists = collection
             .find_one(doc! {"follower_id": viewer_id, "following_id": user_id})
             .await
-            .map_err(|e| async_graphql::Error::new(format!("Failed to check follow status: {}", e)))?;
+            .map_err(|e| {
+                async_graphql::Error::new(format!("Failed to check follow status: {}", e))
+            })?;
 
         Ok(exists.is_some())
     }
@@ -465,6 +506,14 @@ impl UserNode {
     /// Get user's vault balances for all valid payment tokens (BLING, USDC, Stablecoin)
     async fn vault_balances(&self, ctx: &Context<'_>) -> Result<VaultBalances> {
         vault_balances_resolver(ctx, &self.inner.wallet).await
+    }
+
+    /// Get user's tip vault balances for all valid payment tokens (BLING, USDC, Stablecoin)
+    async fn tip_vault_balances(
+        &self,
+        ctx: &Context<'_>,
+    ) -> Result<crate::graphql::user::queries::TipVaultBalances> {
+        crate::graphql::user::queries::tip_vault_balances_resolver(ctx, &self.inner.wallet).await
     }
 
     /// Check if the user account exists on-chain

@@ -44,7 +44,8 @@ use crate::solana::get_config_pda;
 use crate::solana::{
     get_position_pda, get_post_mint_payout_pda, get_post_pda, get_post_pot_authority_pda,
     get_post_pot_token_account_pda, get_protocol_treasury_token_account_pda,
-    get_session_authority_pda, get_user_account_pda, get_user_post_mint_claim_pda,
+    get_session_authority_pda, get_tip_vault_pda,
+    get_tip_vault_token_account_pda, get_user_account_pda, get_user_post_mint_claim_pda,
     get_user_vault_token_account_pda, get_valid_payment_pda, get_vault_authority_pda,
 };
 
@@ -281,6 +282,33 @@ impl SolanaService {
                     return Ok(0);
                 }
                 return Err(anyhow::anyhow!("Failed to get account: {}", e));
+            }
+        };
+
+        // SPL Token decoding
+        let token_account = spl_token::state::Account::unpack_from_slice(&account.data)
+            .map_err(|_| anyhow::anyhow!("Invalid token account data"))?;
+
+        Ok(token_account.amount)
+    }
+
+    /// Get tip vault balance for a user and token mint
+    pub async fn get_tip_vault_balance(
+        &self,
+        user_wallet: &Pubkey,
+        token_mint: &Pubkey,
+    ) -> anyhow::Result<u64> {
+        let (tip_vault_token_account_pda, _) =
+            get_tip_vault_token_account_pda(&self.program_id, user_wallet, token_mint);
+
+        let account = match self.rpc.get_account(&tip_vault_token_account_pda).await {
+            Ok(account) => account,
+            Err(e) => {
+                let msg = e.to_string();
+                if msg.contains("AccountNotFound") || msg.contains("not found") {
+                    return Ok(0);
+                }
+                return Err(anyhow::anyhow!("Failed to get tip vault account: {}", e));
             }
         };
 
@@ -1545,37 +1573,15 @@ impl SolanaService {
             .await
             .map_err(|e| anyhow::anyhow!("Failed to fetch post account: {}", e))?;
 
-        // Handle parent post if this is a child post
-        // NOTE: The Solana program has a bug in SettlePost instruction where parent_post_pot_token_account
-        // and parent_post_pot_authority are derived using post.key() (current post) instead of parent_post.key().
-        // This means we must always pass accounts derived from the CURRENT post, not the parent post,
-        // to satisfy the seed constraint checks.
-        let (parent_post_pda, parent_post_pot_token_account_pda, parent_post_pot_authority_pda) =
-            match &post_account.relation {
-                opinions_market::states::PostRelation::Reply { parent }
-                | opinions_market::states::PostRelation::Quote { quoted: parent }
-                | opinions_market::states::PostRelation::AnswerTo { question: parent } => {
-                    // BUG WORKAROUND: Derive from current post (post_pda) not parent
-                    // The program's seeds use post.key() so we must match that
-                    let parent_pot_token_account =
-                        get_post_pot_token_account_pda(&program_id, &post_pda, token_mint);
-                    let parent_pot_authority = get_post_pot_authority_pda(&program_id, &post_pda);
-                    (
-                        Some(*parent),                    // Pass actual parent PDA for program logic
-                        Some(parent_pot_token_account.0), // But derive token account from current post
-                        parent_pot_authority.0,           // And derive authority from current post
-                    )
-                }
-                opinions_market::states::PostRelation::Root => {
-                    // For root posts, pass current post's accounts to satisfy constraint
-                    // The program won't use them since it checks relation == Root first
-                    (
-                        None,
-                        Some(post_pot_token_account_pda),
-                        post_pot_authority_pda,
-                    )
-                }
-            };
+        // Handle parent post if this is a child post (optional, only for reading parent state)
+        let parent_post_pda = match &post_account.relation {
+            opinions_market::states::PostRelation::Reply { parent }
+            | opinions_market::states::PostRelation::Quote { quoted: parent }
+            | opinions_market::states::PostRelation::AnswerTo { question: parent } => {
+                Some(*parent)
+            }
+            opinions_market::states::PostRelation::Root => None,
+        };
 
         println!("  🔨 SolanaService::settle_post_for_mint: Building SettlePost instruction...");
 
@@ -1588,9 +1594,7 @@ impl SolanaService {
                 post_pot_authority: post_pot_authority_pda,
                 post_mint_payout: post_mint_payout_pda,
                 protocol_token_treasury_token_account: protocol_treasury_token_account_pda,
-                parent_post: parent_post_pda,
-                parent_post_pot_token_account: parent_post_pot_token_account_pda,
-                parent_post_pot_authority: parent_post_pot_authority_pda,
+                parent_post: parent_post_pda, // Optional - only for reading parent state
                 config: config_pda,
                 token_mint: *token_mint,
                 token_program: spl_token::ID,
@@ -1778,6 +1782,7 @@ impl SolanaService {
             .await
             .map_err(|e| anyhow::anyhow!("Failed to fetch post account: {}", e))?;
 
+        // DistributeParentPostShare requires parent accounts (not optional)
         let (parent_post_pda, parent_post_pot_token_account_pda, parent_post_pot_authority_pda) =
             match &post_account.relation {
                 opinions_market::states::PostRelation::Reply { parent }
@@ -1787,9 +1792,9 @@ impl SolanaService {
                         get_post_pot_token_account_pda(&program_id, parent, token_mint);
                     let parent_pot_authority = get_post_pot_authority_pda(&program_id, parent);
                     (
-                        Some(*parent),
-                        Some(parent_pot_token_account.0),
-                        Some(parent_pot_authority.0),
+                        *parent, // Required, not Option
+                        parent_pot_token_account.0, // Required, not Option
+                        parent_pot_authority.0, // Required, not Option
                     )
                 }
                 opinions_market::states::PostRelation::Root => {
@@ -1807,9 +1812,9 @@ impl SolanaService {
                 post_pot_token_account: post_pot_token_account_pda,
                 post_pot_authority: post_pot_authority_pda,
                 post_mint_payout: post_mint_payout_pda,
-                parent_post: parent_post_pda,
-                parent_post_pot_token_account: parent_post_pot_token_account_pda,
-                parent_post_pot_authority: parent_post_pot_authority_pda,
+                parent_post: parent_post_pda, // Required, not Option
+                parent_post_pot_token_account: parent_post_pot_token_account_pda, // Required, not Option
+                parent_post_pot_authority: parent_post_pot_authority_pda, // Required, not Option
                 token_mint: *token_mint,
                 token_program: spl_token::ID,
             })
@@ -1858,37 +1863,15 @@ impl SolanaService {
             .await
             .map_err(|e| anyhow::anyhow!("Failed to fetch post account: {}", e))?;
 
-        // Handle parent post if this is a child post
-        // NOTE: The Solana program has a bug in SettlePost instruction where parent_post_pot_token_account
-        // and parent_post_pot_authority are derived using post.key() (current post) instead of parent_post.key().
-        // This means we must always pass accounts derived from the CURRENT post, not the parent post,
-        // to satisfy the seed constraint checks.
-        let (parent_post_pda, parent_post_pot_token_account_pda, parent_post_pot_authority_pda) =
-            match &post_account.relation {
-                opinions_market::states::PostRelation::Reply { parent }
-                | opinions_market::states::PostRelation::Quote { quoted: parent }
-                | opinions_market::states::PostRelation::AnswerTo { question: parent } => {
-                    // BUG WORKAROUND: Derive from current post (post_pda) not parent
-                    // The program's seeds use post.key() so we must match that
-                    let parent_pot_token_account =
-                        get_post_pot_token_account_pda(&program_id, &post_pda, token_mint);
-                    let parent_pot_authority = get_post_pot_authority_pda(&program_id, &post_pda);
-                    (
-                        Some(*parent),                    // Pass actual parent PDA for program logic
-                        Some(parent_pot_token_account.0), // But derive token account from current post
-                        parent_pot_authority.0,           // And derive authority from current post
-                    )
-                }
-                opinions_market::states::PostRelation::Root => {
-                    // For root posts, pass current post's accounts to satisfy constraint
-                    // The program won't use them since it checks relation == Root first
-                    (
-                        None,
-                        Some(post_pot_token_account_pda),
-                        post_pot_authority_pda,
-                    )
-                }
-            };
+        // Handle parent post if this is a child post (optional, only for reading parent state)
+        let parent_post_pda = match &post_account.relation {
+            opinions_market::states::PostRelation::Reply { parent }
+            | opinions_market::states::PostRelation::Quote { quoted: parent }
+            | opinions_market::states::PostRelation::AnswerTo { question: parent } => {
+                Some(*parent)
+            }
+            opinions_market::states::PostRelation::Root => None,
+        };
 
         let ixs = program
             .request()
@@ -1899,9 +1882,7 @@ impl SolanaService {
                 post_pot_authority: post_pot_authority_pda,
                 post_mint_payout: post_mint_payout_pda,
                 protocol_token_treasury_token_account: protocol_treasury_token_account_pda,
-                parent_post: parent_post_pda,
-                parent_post_pot_token_account: parent_post_pot_token_account_pda,
-                parent_post_pot_authority: parent_post_pot_authority_pda,
+                parent_post: parent_post_pda, // Optional - only for reading parent state
                 config: config_pda,
                 token_mint: *token_mint,
                 token_program: spl_token::ID,
@@ -2006,6 +1987,8 @@ impl SolanaService {
     }
 
     /// Build DistributeParentPostShare instruction (returns instruction, doesn't send)
+    /// Only builds if post is a child post (not root)
+    /// The instruction itself will check if mother_fee > 0 and return early if not
     pub async fn build_distribute_parent_post_share_instruction(
         &self,
         post_id_hash: [u8; 32],
@@ -2028,6 +2011,8 @@ impl SolanaService {
             .await
             .map_err(|e| anyhow::anyhow!("Failed to fetch post account: {}", e))?;
 
+        // Only proceed if post is a child post (not root)
+        // The instruction will check mother_fee > 0 internally
         let (parent_post_pda, parent_post_pot_token_account_pda, parent_post_pot_authority_pda) =
             match &post_account.relation {
                 opinions_market::states::PostRelation::Reply { parent }
@@ -2037,13 +2022,13 @@ impl SolanaService {
                         get_post_pot_token_account_pda(&program_id, parent, token_mint);
                     let parent_pot_authority = get_post_pot_authority_pda(&program_id, parent);
                     (
-                        Some(*parent),
-                        Some(parent_pot_token_account.0),
-                        Some(parent_pot_authority.0),
+                        *parent, // Required, not Option
+                        parent_pot_token_account.0, // Required, not Option
+                        parent_pot_authority.0, // Required, not Option
                     )
                 }
                 opinions_market::states::PostRelation::Root => {
-                    // Not a child post, return None
+                    // Not a child post, skip parent distribution
                     return Ok(None);
                 }
             };
@@ -2056,9 +2041,9 @@ impl SolanaService {
                 post_pot_token_account: post_pot_token_account_pda,
                 post_pot_authority: post_pot_authority_pda,
                 post_mint_payout: post_mint_payout_pda,
-                parent_post: parent_post_pda,
-                parent_post_pot_token_account: parent_post_pot_token_account_pda,
-                parent_post_pot_authority: parent_post_pot_authority_pda,
+                parent_post: parent_post_pda, // Required, not Option
+                parent_post_pot_token_account: parent_post_pot_token_account_pda, // Required, not Option
+                parent_post_pot_authority: parent_post_pot_authority_pda, // Required, not Option
                 token_mint: *token_mint,
                 token_program: spl_token::ID,
             })
@@ -2210,6 +2195,7 @@ impl SolanaService {
         let (post_pot_authority_pda, _) = get_post_pot_authority_pda(&program_id, &post_pda);
         let (user_vault_token_account_pda, _) =
             get_user_vault_token_account_pda(&program_id, user_wallet, token_mint);
+        let (vault_authority_pda, _) = get_vault_authority_pda(&program_id);
         let (session_authority_pda, _) =
             get_session_authority_pda(&program_id, user_wallet, &self.session_key.pubkey());
 
@@ -2230,6 +2216,7 @@ impl SolanaService {
                 post_pot_token_account: post_pot_token_account_pda,
                 post_pot_authority: post_pot_authority_pda,
                 user_vault_token_account: user_vault_token_account_pda,
+                vault_authority: vault_authority_pda,
                 token_mint: *token_mint,
                 token_program: spl_token::ID,
                 system_program: solana_sdk::system_program::ID,
@@ -2265,6 +2252,243 @@ impl SolanaService {
 
         println!(
             "  ✅ SolanaService::claim_post_reward: Transaction confirmed! Signature: {}",
+            signature
+        );
+        Ok(signature)
+    }
+
+    /// Tip a user or post creator
+    /// recipient_wallet: The wallet of the user receiving the tip (can be a user or post creator)
+    pub async fn tip(
+        &self,
+        sender_wallet: &Pubkey,
+        recipient_wallet: &Pubkey,
+        amount: u64,
+        token_mint: &Pubkey,
+    ) -> anyhow::Result<Signature> {
+        println!(
+            "  🔧 SolanaService::tip: Starting for sender {}, recipient {}, amount {}, mint {}",
+            sender_wallet, recipient_wallet, amount, token_mint
+        );
+
+        let program = self.opinions_market_program();
+        let program_id = program.id();
+
+        // Derive PDAs
+        let (sender_user_account_pda, _) = get_user_account_pda(&program_id, sender_wallet);
+        let (sender_vault_token_account_pda, _) =
+            get_user_vault_token_account_pda(&program_id, sender_wallet, token_mint);
+        let (tip_vault_pda, _) = get_tip_vault_pda(&program_id, recipient_wallet, token_mint);
+        let (tip_vault_token_account_pda, _) =
+            get_tip_vault_token_account_pda(&program_id, recipient_wallet, token_mint);
+        let (vault_authority_pda, _) = get_vault_authority_pda(&program_id);
+        let (valid_payment_pda, _) = get_valid_payment_pda(&program_id, token_mint);
+        let (session_authority_pda, _) =
+            get_session_authority_pda(&program_id, sender_wallet, &self.session_key.pubkey());
+
+        println!("  🔨 SolanaService::tip: Building Tip instruction...");
+
+        let ixs = program
+            .request()
+            .accounts(opinions_market::accounts::Tip {
+                sender: *sender_wallet,
+                payer: self.payer.pubkey(),
+                recipient: *recipient_wallet,
+                session_key: self.session_key.pubkey(),
+                session_authority: session_authority_pda,
+                sender_user_account: sender_user_account_pda,
+                token_mint: *token_mint,
+                valid_payment: valid_payment_pda,
+                sender_user_vault_token_account: sender_vault_token_account_pda,
+                vault_authority: vault_authority_pda,
+                tip_vault: tip_vault_pda,
+                tip_vault_token_account: tip_vault_token_account_pda,
+                token_program: spl_token::ID,
+                system_program: solana_sdk::system_program::ID,
+            })
+            .args(opinions_market::instruction::Tip { amount })
+            .instructions()
+            .map_err(|e| {
+                eprintln!(
+                    "  ❌ SolanaService::tip: Failed to build instruction: {}",
+                    e
+                );
+                anyhow::anyhow!("Failed to build Tip instruction: {}", e)
+            })?;
+
+        println!("  ✅ SolanaService::tip: Instruction built successfully");
+
+        let tx = self.build_partial_signed_tx(ixs).await.map_err(|e| {
+            eprintln!("  ❌ SolanaService::tip: Failed to build transaction: {}", e);
+            e
+        })?;
+
+        let signature = self.send_signed_tx(&tx).await.map_err(|e| {
+            eprintln!("  ❌ SolanaService::tip: Failed to send transaction: {}", e);
+            e
+        })?;
+
+        println!(
+            "  ✅ SolanaService::tip: Transaction confirmed! Signature: {}",
+            signature
+        );
+        Ok(signature)
+    }
+
+    /// Claim tips from tip vault to user's main vault
+    pub async fn claim_tips(
+        &self,
+        owner_wallet: &Pubkey,
+        token_mint: &Pubkey,
+    ) -> anyhow::Result<Signature> {
+        println!(
+            "  🔧 SolanaService::claim_tips: Starting for owner {}, mint {}",
+            owner_wallet, token_mint
+        );
+
+        let program = self.opinions_market_program();
+        let program_id = program.id();
+
+        // Derive PDAs
+        let (user_account_pda, _) = get_user_account_pda(&program_id, owner_wallet);
+        let (tip_vault_pda, _) = get_tip_vault_pda(&program_id, owner_wallet, token_mint);
+        let (tip_vault_token_account_pda, _) =
+            get_tip_vault_token_account_pda(&program_id, owner_wallet, token_mint);
+        let (owner_vault_token_account_pda, _) =
+            get_user_vault_token_account_pda(&program_id, owner_wallet, token_mint);
+        let (vault_authority_pda, _) = get_vault_authority_pda(&program_id);
+        let (session_authority_pda, _) =
+            get_session_authority_pda(&program_id, owner_wallet, &self.session_key.pubkey());
+
+        println!("  🔨 SolanaService::claim_tips: Building ClaimTips instruction...");
+
+        let ixs = program
+            .request()
+            .accounts(opinions_market::accounts::ClaimTips {
+                owner: *owner_wallet,
+                payer: self.payer.pubkey(),
+                session_key: self.session_key.pubkey(),
+                session_authority: session_authority_pda,
+                user_account: user_account_pda,
+                token_mint: *token_mint,
+                tip_vault: tip_vault_pda,
+                tip_vault_token_account: tip_vault_token_account_pda,
+                vault_authority: vault_authority_pda,
+                owner_user_vault_token_account: owner_vault_token_account_pda,
+                token_program: spl_token::ID,
+                system_program: solana_sdk::system_program::ID,
+            })
+            .args(opinions_market::instruction::ClaimTips {})
+            .instructions()
+            .map_err(|e| {
+                eprintln!(
+                    "  ❌ SolanaService::claim_tips: Failed to build instruction: {}",
+                    e
+                );
+                anyhow::anyhow!("Failed to build ClaimTips instruction: {}", e)
+            })?;
+
+        println!("  ✅ SolanaService::claim_tips: Instruction built successfully");
+
+        let tx = self.build_partial_signed_tx(ixs).await.map_err(|e| {
+            eprintln!(
+                "  ❌ SolanaService::claim_tips: Failed to build transaction: {}",
+                e
+            );
+            e
+        })?;
+
+        let signature = self.send_signed_tx(&tx).await.map_err(|e| {
+            eprintln!(
+                "  ❌ SolanaService::claim_tips: Failed to send transaction: {}",
+                e
+            );
+            e
+        })?;
+
+        println!(
+            "  ✅ SolanaService::claim_tips: Transaction confirmed! Signature: {}",
+            signature
+        );
+        Ok(signature)
+    }
+
+    /// Send tokens from sender's vault to recipient's vault
+    pub async fn send_token(
+        &self,
+        sender_wallet: &Pubkey,
+        recipient_wallet: &Pubkey,
+        amount: u64,
+        token_mint: &Pubkey,
+    ) -> anyhow::Result<Signature> {
+        println!(
+            "  🔧 SolanaService::send_token: Starting for sender {}, recipient {}, amount {}, mint {}",
+            sender_wallet, recipient_wallet, amount, token_mint
+        );
+
+        let program = self.opinions_market_program();
+        let program_id = program.id();
+
+        // Derive PDAs
+        let (sender_user_account_pda, _) = get_user_account_pda(&program_id, sender_wallet);
+        let (sender_vault_token_account_pda, _) =
+            get_user_vault_token_account_pda(&program_id, sender_wallet, token_mint);
+        let (recipient_vault_token_account_pda, _) =
+            get_user_vault_token_account_pda(&program_id, recipient_wallet, token_mint);
+        let (vault_authority_pda, _) = get_vault_authority_pda(&program_id);
+        let (valid_payment_pda, _) = get_valid_payment_pda(&program_id, token_mint);
+        let (session_authority_pda, _) =
+            get_session_authority_pda(&program_id, sender_wallet, &self.session_key.pubkey());
+
+        println!("  🔨 SolanaService::send_token: Building SendToken instruction...");
+
+        let ixs = program
+            .request()
+            .accounts(opinions_market::accounts::SendToken {
+                sender: *sender_wallet,
+                payer: self.payer.pubkey(),
+                recipient: *recipient_wallet,
+                session_key: self.session_key.pubkey(),
+                session_authority: session_authority_pda,
+                sender_user_account: sender_user_account_pda,
+                token_mint: *token_mint,
+                valid_payment: valid_payment_pda,
+                sender_user_vault_token_account: sender_vault_token_account_pda,
+                vault_authority: vault_authority_pda,
+                recipient_user_vault_token_account: recipient_vault_token_account_pda,
+                token_program: spl_token::ID,
+                system_program: solana_sdk::system_program::ID,
+            })
+            .args(opinions_market::instruction::SendToken { amount })
+            .instructions()
+            .map_err(|e| {
+                eprintln!(
+                    "  ❌ SolanaService::send_token: Failed to build instruction: {}",
+                    e
+                );
+                anyhow::anyhow!("Failed to build SendToken instruction: {}", e)
+            })?;
+
+        println!("  ✅ SolanaService::send_token: Instruction built successfully");
+
+        let tx = self.build_partial_signed_tx(ixs).await.map_err(|e| {
+            eprintln!(
+                "  ❌ SolanaService::send_token: Failed to build transaction: {}",
+                e
+            );
+            e
+        })?;
+
+        let signature = self.send_signed_tx(&tx).await.map_err(|e| {
+            eprintln!(
+                "  ❌ SolanaService::send_token: Failed to send transaction: {}",
+                e
+            );
+            e
+        })?;
+
+        println!(
+            "  ✅ SolanaService::send_token: Transaction confirmed! Signature: {}",
             signature
         );
         Ok(signature)

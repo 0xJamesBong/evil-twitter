@@ -881,6 +881,26 @@ pub async fn settle_post_resolver(
         }
     }
 
+    // Fetch post account once to check if it's a child post (before the loop)
+    let program = app_state.solana_service.opinions_market_program();
+    let program_id = program.id();
+    let (post_pda, _) = crate::solana::get_post_pda(&program_id, &post_id_hash);
+    
+    let post_account = program
+        .account::<opinions_market::states::PostAccount>(post_pda)
+        .await
+        .map_err(|e| {
+            async_graphql::Error::new(format!("Failed to fetch post account: {}", e))
+        })?;
+
+    // Check if post is a child post (not root) - only child posts can have parent distribution
+    let is_child_post = matches!(
+        post_account.relation,
+        opinions_market::states::PostRelation::Reply { .. }
+            | opinions_market::states::PostRelation::Quote { .. }
+            | opinions_market::states::PostRelation::AnswerTo { .. }
+    );
+
     // Collect all instructions to chain
     let mut all_instructions: Vec<solana_sdk::instruction::Instruction> = Vec::new();
 
@@ -942,20 +962,26 @@ pub async fn settle_post_resolver(
             })?;
         all_instructions.extend(protocol_ixs);
 
-        // Build distribute parent post share instruction (if child post)
-        let parent_ixs_opt = app_state
-            .solana_service
-            .build_distribute_parent_post_share_instruction(post_id_hash, token_mint)
-            .await
-            .map_err(|e| {
-                async_graphql::Error::new(format!(
-                    "Failed to build distribute parent post share instruction for token {}: {}",
-                    token_mint, e
-                ))
-            })?;
+        // Only build parent distribution instruction if post is a child (not root)
+        // The instruction itself will check mother_fee > 0 and return early if not
+        if is_child_post {
+            // Build distribute parent post share instruction
+            // This will return None if post is root (double-check), or build instruction
+            // The instruction will check mother_fee > 0 internally and return early if 0
+            let parent_ixs_opt = app_state
+                .solana_service
+                .build_distribute_parent_post_share_instruction(post_id_hash, token_mint)
+                .await
+                .map_err(|e| {
+                    async_graphql::Error::new(format!(
+                        "Failed to build distribute parent post share instruction for token {}: {}",
+                        token_mint, e
+                    ))
+                })?;
 
-        if let Some(parent_ixs) = parent_ixs_opt {
-            all_instructions.extend(parent_ixs);
+            if let Some(parent_ixs) = parent_ixs_opt {
+                all_instructions.extend(parent_ixs);
+            }
         }
     }
 
@@ -1181,12 +1207,12 @@ pub async fn claim_post_reward_resolver(
     let claimable_amount = claimable_amount
         .ok_or_else(|| async_graphql::Error::new("No reward available to claim"))?;
 
-    // Get token decimals for formatting (default to 9 for BLING, 6 for USDC/stablecoin)
-    // We'll use a reasonable default since get_token_decimals is private
+    // Get token decimals for formatting
+    // USDC and stablecoin have 6 decimals, BLING has 9 decimals
     let token_decimals = if &token_mint == app_state.solana_service.get_bling_mint() {
         9
     } else {
-        6 // Default for USDC and stablecoin
+        6 // USDC and stablecoin have 6 decimals
     };
 
     // Format amount as string
