@@ -396,6 +396,7 @@ impl TweetNode {
                             .await
                         {
                             Some(PostMintPayoutNode {
+                                token_mint: bling_mint.to_string(),
                                 frozen: payout.frozen,
                                 creator_fee: payout.creator_fee.to_string(),
                                 protocol_fee: payout.protocol_fee.to_string(),
@@ -476,6 +477,7 @@ pub struct PostStateNode {
     pub upvotes: u64,
     pub downvotes: u64,
     pub winning_side: Option<String>,
+    pub start_time: i64,
     pub end_time: i64,
     /// Post function: "Normal", "Question", or "Answer"
     pub function: Option<String>,
@@ -499,6 +501,7 @@ impl From<PostState> for PostStateNode {
             upvotes: state.upvotes,
             downvotes: state.downvotes,
             winning_side: state.winning_side,
+            start_time: state.start_time,
             end_time: state.end_time,
             function: state.function,
             pot_balances: None, // Will be populated by resolver
@@ -514,6 +517,7 @@ impl From<PostState> for PostStateNode {
 
 #[derive(SimpleObject, Clone)]
 pub struct PostMintPayoutNode {
+    pub token_mint: String,
     pub frozen: bool,
     pub creator_fee: String,
     pub protocol_fee: String,

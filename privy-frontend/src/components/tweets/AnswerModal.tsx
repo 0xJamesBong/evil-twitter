@@ -10,18 +10,13 @@ import {
     Avatar,
     Typography,
     Stack,
-    Paper,
+    IconButton,
+    Divider,
 } from "@mui/material";
-import { Close as CloseIcon, Send as SendIcon } from "@mui/icons-material";
+import { Close as CloseIcon, Send as SendIcon, FormatBold as FormatBoldIcon, Image as ImageIcon, Info as InfoIcon } from "@mui/icons-material";
 import { TweetNode } from "@/lib/graphql/tweets/types";
 import { useBackendUserStore } from "@/lib/stores/backendUserStore";
-import { Language } from "@/lib/graphql/types";
-
-const LANGUAGE_FONT_FAMILY: Record<Language, string | null> = {
-  [Language.CANTONESE]: 'var(--font-jyutcitzi), Arial, Helvetica, sans-serif',
-  [Language.GOETSUAN]: 'var(--font-goetsusioji), Arial, Helvetica, sans-serif',
-  [Language.NONE]: null,
-};
+import { getFontFamilyForLanguageString } from "@/lib/utils/language";
 
 interface AnswerModalProps {
     open: boolean;
@@ -46,120 +41,158 @@ export function AnswerModal({
 
     const { user: backendUser } = useBackendUserStore();
     const author = question.author;
-    
-    // Get user's language preference
-    const userLanguageStr = backendUser?.language?.toUpperCase() || 'NONE';
-    const userLanguage = userLanguageStr === 'CANTONESE' ? Language.CANTONESE :
-                         userLanguageStr === 'GOETSUAN' ? Language.GOETSUAN :
-                         Language.NONE;
-    const fontFamily = LANGUAGE_FONT_FAMILY[userLanguage] ?? null;
+
+    // Get user's font family based on language preference
+    const fontFamily = getFontFamilyForLanguageString(backendUser?.language);
 
     return (
         <Dialog
             open={open}
             onClose={onClose}
-            maxWidth="sm"
+            maxWidth="md"
             fullWidth
             PaperProps={{
                 sx: {
-                    borderRadius: 2,
+                    borderRadius: 3,
+                    bgcolor: "background.paper",
                 },
             }}
         >
-            <DialogTitle>
-                <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-                    <Button
-                        onClick={onClose}
-                        sx={{ minWidth: "auto", p: 1 }}
-                    >
-                        <CloseIcon />
-                    </Button>
-                    <Typography variant="h6" sx={{ flexGrow: 1, textAlign: "center" }}>
-                        Answer Question
-                    </Typography>
-                    <Box sx={{ width: 40 }} /> {/* Spacer for centering */}
-                </Box>
-            </DialogTitle>
+            {/* Header with close button */}
+            <Box sx={{ position: "relative", p: 2, pb: 1 }}>
+                <IconButton
+                    onClick={onClose}
+                    sx={{
+                        position: "absolute",
+                        left: 8,
+                        top: 8,
+                        color: "text.secondary",
+                        "&:hover": {
+                            bgcolor: "action.hover",
+                        },
+                    }}
+                >
+                    <CloseIcon />
+                </IconButton>
+            </Box>
 
-            <DialogContent>
-                <Stack spacing={2}>
-                    {/* Answer Input */}
-                    <Box sx={{ display: "flex", gap: 2 }}>
-                        <Avatar
-                            sx={{ width: 40, height: 40, bgcolor: "primary.main" }}
+            <DialogContent sx={{ px: 3, pt: 0 }}>
+                <Stack spacing={3}>
+
+                    {/* Question Display */}
+                    <Box>
+                        <Typography
+                            variant="h5"
+                            sx={{
+                                fontWeight: 600,
+                                color: "text.primary",
+                                lineHeight: 1.4,
+                                mb: 2,
+                            }}
                         >
-                            A
-                        </Avatar>
+                            {question.content}
+                        </Typography>
+                        <Box sx={{ display: "flex", alignItems: "center", gap: 1, mb: 3 }}>
+                            <Avatar
+                                src={author?.avatarUrl || undefined}
+                                sx={{ width: 32, height: 32, bgcolor: "primary.main" }}
+                            >
+                                {author?.displayName?.charAt(0).toUpperCase() || "?"}
+                            </Avatar>
+                            <Typography variant="body2" color="text.secondary">
+                                {author?.displayName || "Unknown"}
+                            </Typography>
+                        </Box>
+                    </Box>
+
+                    {/* Answer Input */}
+                    <Box>
                         <TextField
                             fullWidth
                             multiline
-                            rows={4}
-                            placeholder="Write your answer..."
+                            minRows={8}
+                            placeholder="Write your answer"
                             value={content}
                             onChange={(e) => onContentChange(e.target.value)}
-                            variant="outlined"
+                            variant="standard"
+                            InputProps={{
+                                disableUnderline: true,
+                            }}
                             sx={{
-                                "& .MuiOutlinedInput-root": {
-                                    borderRadius: 2,
+                                "& .MuiInputBase-root": {
+                                    fontSize: "1rem",
                                     ...(fontFamily && {
-                                        "& input, & textarea": {
-                                            fontFamily,
-                                        },
+                                        fontFamily,
                                     }),
+                                },
+                                "& .MuiInputBase-input": {
+                                    py: 2,
+                                    minHeight: "200px",
                                 },
                             }}
                         />
                     </Box>
 
-                    {/* Question Preview */}
-                    <Paper
-                        variant="outlined"
-                        sx={{
-                            p: 2,
-                            bgcolor: "#181C20",
-                            borderRadius: 2,
-                            border: 1,
-                            borderColor: "rgba(255,255,255,0.06)",
-                        }}
-                    >
-                        <Box sx={{ display: "flex", gap: 2 }}>
-                            <Avatar
-                                src={author?.avatarUrl || undefined}
-                                sx={{ width: 40, height: 40, bgcolor: "primary.main" }}
+                    {/* Formatting tools and info */}
+                    <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", pt: 1 }}>
+                        <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+                            <IconButton
+                                size="small"
+                                sx={{
+                                    color: "text.secondary",
+                                    "&:hover": {
+                                        bgcolor: "action.hover",
+                                    },
+                                }}
                             >
-                                {author?.displayName?.charAt(0).toUpperCase() || "?"}
-                            </Avatar>
-                            <Box sx={{ flexGrow: 1 }}>
-                                <Stack direction="row" spacing={1} alignItems="center" sx={{ mb: 0.5 }}>
-                                    <Typography variant="subtitle2" sx={{ fontWeight: 700, color: "text.primary" }}>
-                                        {author?.displayName || "Unknown"}
-                                    </Typography>
-                                    <Typography variant="body2" color="text.secondary">
-                                        @{author?.handle || "unknown"}
-                                    </Typography>
-                                </Stack>
-                                <Typography variant="body2" sx={{ fontWeight: 500, mb: 0.5, color: "text.primary" }}>
-                                    Question:
-                                </Typography>
-                                <Typography variant="body2" sx={{ color: "text.primary" }}>{question.content}</Typography>
-                            </Box>
+                                <FormatBoldIcon fontSize="small" />
+                            </IconButton>
+                            <IconButton
+                                size="small"
+                                sx={{
+                                    color: "text.secondary",
+                                    "&:hover": {
+                                        bgcolor: "action.hover",
+                                    },
+                                }}
+                            >
+                                <ImageIcon fontSize="small" />
+                            </IconButton>
                         </Box>
-                    </Paper>
+                        <Typography variant="caption" color="text.secondary" sx={{ fontSize: "0.75rem" }}>
+                            No answer yet
+                        </Typography>
+                    </Box>
                 </Stack>
             </DialogContent>
 
-            <DialogActions sx={{ p: 2, pt: 1 }}>
+            <DialogActions sx={{ px: 3, pb: 3, pt: 2, justifyContent: "space-between" }}>
+                <Button
+                    variant="text"
+                    startIcon={<InfoIcon />}
+                    sx={{
+                        textTransform: "none",
+                        color: "text.secondary",
+                        "&:hover": {
+                            bgcolor: "action.hover",
+                        },
+                    }}
+                >
+                    Rules
+                </Button>
                 <Button
                     variant="contained"
                     onClick={onSubmit}
                     disabled={!content.trim() || isSubmitting}
-                    startIcon={<SendIcon />}
                     sx={{
                         borderRadius: "9999px",
-                        px: 3,
+                        px: 4,
+                        py: 1,
+                        textTransform: "none",
+                        fontWeight: 600,
                     }}
                 >
-                    {isSubmitting ? "Posting..." : "Post Answer"}
+                    {isSubmitting ? "Submitting..." : "Submit"}
                 </Button>
             </DialogActions>
         </Dialog>

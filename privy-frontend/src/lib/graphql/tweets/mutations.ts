@@ -435,6 +435,20 @@ export const TWEET_ANSWER_MUTATION = `
         createdAt
         updatedAt
         replyDepth
+        postIdHash
+        postState {
+          state
+          function
+          startTime
+          endTime
+          winningSide
+          upvotes
+          downvotes
+          payoutInfo {
+            tokenMint
+            totalPayout
+          }
+        }
         metrics {
           likes
           retweets

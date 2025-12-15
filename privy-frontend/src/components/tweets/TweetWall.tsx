@@ -13,13 +13,7 @@ import { RetweetModal } from "./RetweetModal";
 import { useTweetStore } from "@/lib/stores/tweetStore";
 import { TweetNode } from "@/lib/graphql/tweets/types";
 import { useBackendUserStore } from "@/lib/stores/backendUserStore";
-import { Language } from "@/lib/graphql/types";
-
-const LANGUAGE_FONT_FAMILY: Record<Language, string | null> = {
-  [Language.CANTONESE]: 'var(--font-jyutcitzi), Arial, Helvetica, sans-serif',
-  [Language.GOETSUAN]: 'var(--font-goetsusioji), Arial, Helvetica, sans-serif',
-  [Language.NONE]: null,
-};
+import { getFontFamilyForLanguageString } from "@/lib/utils/language";
 
 export function TweetWall() {
     const { enqueueSnackbar } = useSnackbar();
@@ -279,12 +273,8 @@ export function TweetWall() {
                         <Box sx={{ p: 2 }}>
                             <Stack spacing={2}>
                                 {(() => {
-                                    // Get user's language preference
-                                    const userLanguageStr = backendUser?.language?.toUpperCase() || 'NONE';
-                                    const userLanguage = userLanguageStr === 'CANTONESE' ? Language.CANTONESE :
-                                                         userLanguageStr === 'GOETSUAN' ? Language.GOETSUAN :
-                                                         Language.NONE;
-                                    const fontFamily = LANGUAGE_FONT_FAMILY[userLanguage] ?? null;
+                                    // Get user's font family based on language preference
+                                    const fontFamily = getFontFamilyForLanguageString(backendUser?.language);
                                     return (
                                         <TextField
                                             placeholder="What's happening?"
@@ -330,12 +320,8 @@ export function TweetWall() {
                         <Box sx={{ p: 2 }}>
                             <Stack spacing={2}>
                                 {(() => {
-                                    // Get user's language preference
-                                    const userLanguageStr = backendUser?.language?.toUpperCase() || 'NONE';
-                                    const userLanguage = userLanguageStr === 'CANTONESE' ? Language.CANTONESE :
-                                                         userLanguageStr === 'GOETSUAN' ? Language.GOETSUAN :
-                                                         Language.NONE;
-                                    const fontFamily = LANGUAGE_FONT_FAMILY[userLanguage] ?? null;
+                                    // Get user's font family based on language preference
+                                    const fontFamily = getFontFamilyForLanguageString(backendUser?.language);
                                     return (
                                         <TextField
                                             placeholder="What would you like to know?"

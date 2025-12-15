@@ -10,6 +10,7 @@ import {
     Avatar,
     Stack,
     Chip,
+    Tooltip,
 } from "@mui/material";
 import "@/theme/types"; // Import type declarations
 import {
@@ -34,12 +35,7 @@ import { AccountBalance as SettleIcon } from "@mui/icons-material";
 import { useTweetStore } from "@/lib/stores/tweetStore";
 import { TipButton } from "@/components/tips/TipButton";
 import { Language } from "@/lib/graphql/types";
-
-const LANGUAGE_FONT_FAMILY: Record<Language, string | null> = {
-  [Language.CANTONESE]: 'var(--font-jyutcitzi), Arial, Helvetica, sans-serif',
-  [Language.GOETSUAN]: 'var(--font-goetsusioji), Arial, Helvetica, sans-serif',
-  [Language.NONE]: null,
-};
+import { parseLanguage, getFontFamilyForLanguage, LANGUAGE_FONT_FAMILY } from "@/lib/utils/language";
 
 interface TweetCardProps {
     tweet: TweetNode;
@@ -380,26 +376,21 @@ export function TweetCard({
 
                         {/* Content */}
                         {(() => {
-                            // Convert string to Language enum (handle both PascalCase and SCREAMING_SNAKE_CASE)
-                            // GraphQL may return "Cantonese", "Goetsuan", "None" or "CANTONESE", "GOETSUAN", "NONE"
-                            const tweetLanguageStr = (tweet.language || '').toUpperCase();
-                            const tweetLanguage = tweetLanguageStr === 'CANTONESE' ? Language.CANTONESE :
-                                                  tweetLanguageStr === 'GOETSUAN' ? Language.GOETSUAN :
-                                                  Language.NONE;
-                            const fontFamily = LANGUAGE_FONT_FAMILY[tweetLanguage] ?? null;
-                            
+                            // Convert string to Language enum and get font family
+                            const tweetLanguage = parseLanguage(tweet.language);
+                            const fontFamily = getFontFamilyForLanguage(tweetLanguage);
+
                             // Debug: log language and font for Goetsuan to troubleshoot
                             if (tweetLanguage === Language.GOETSUAN) {
-                                console.log('🔍 Goetsuan tweet rendering:', { 
+                                console.log('🔍 Goetsuan tweet rendering:', {
                                     originalLanguage: tweet.language,
-                                    tweetLanguageStr, 
-                                    tweetLanguage, 
+                                    tweetLanguage,
                                     fontFamily,
                                     expectedFont: LANGUAGE_FONT_FAMILY[Language.GOETSUAN],
                                     allFonts: LANGUAGE_FONT_FAMILY
                                 });
                             }
-                            
+
                             return (
                                 <Typography
                                     variant="body1"
@@ -407,7 +398,7 @@ export function TweetCard({
                                         mb: 1,
                                         whiteSpace: "pre-wrap",
                                         wordBreak: "break-word",
-                                        ...(fontFamily && { 
+                                        ...(fontFamily && {
                                             fontFamily,
                                             // Ensure font is applied with higher specificity
                                             '& *': {
@@ -545,13 +536,10 @@ export function TweetCard({
                                 </Stack>
                                 {(() => {
                                     // Convert quoted tweet language string to Language enum
-                                    const quotedLanguageStr = tweet.quotedTweet.language?.toUpperCase() || 'NONE';
-                                    const quotedLanguage = quotedLanguageStr === 'CANTONESE' ? Language.CANTONESE :
-                                                           quotedLanguageStr === 'GOETSUAN' ? Language.GOETSUAN :
-                                                           Language.NONE;
-                                    const quotedFontFamily = LANGUAGE_FONT_FAMILY[quotedLanguage] ?? null;
+                                    const quotedLanguage = parseLanguage(tweet.quotedTweet.language);
+                                    const quotedFontFamily = getFontFamilyForLanguage(quotedLanguage);
                                     return (
-                                        <Typography 
+                                        <Typography
                                             variant="body2"
                                             sx={{
                                                 ...(quotedFontFamily && { fontFamily: quotedFontFamily }),
@@ -840,32 +828,34 @@ export function TweetCard({
 
                             {/* Answer - Show only for questions */}
                             {tweet.postIdHash && tweet.postState?.function === "Question" && (
-                                <Box
-                                    sx={{
-                                        display: "flex",
-                                        alignItems: "center",
-                                        gap: 0.5,
-                                        cursor: "pointer",
-                                        "&:hover": {
-                                            "& .answer-icon": { color: "warning.main" },
-                                        },
-                                    }}
-                                >
-                                    <IconButton
-                                        size="small"
-                                        onClick={(e) => {
-                                            e.stopPropagation();
-                                            onAnswer?.(tweet);
-                                        }}
-                                        className="answer-icon"
+                                <Tooltip title="Answer" arrow>
+                                    <Box
                                         sx={{
-                                            color: "text.secondary",
-                                            "&:hover": { bgcolor: "rgba(255,193,7,0.15)" },
+                                            display: "flex",
+                                            alignItems: "center",
+                                            gap: 0.5,
+                                            cursor: "pointer",
+                                            "&:hover": {
+                                                "& .answer-icon": { color: "warning.main" },
+                                            },
                                         }}
                                     >
-                                        <AnswerIcon fontSize="small" />
-                                    </IconButton>
-                                </Box>
+                                        <IconButton
+                                            size="small"
+                                            onClick={(e) => {
+                                                e.stopPropagation();
+                                                onAnswer?.(tweet);
+                                            }}
+                                            className="answer-icon"
+                                            sx={{
+                                                color: "text.secondary",
+                                                "&:hover": { bgcolor: "rgba(255,193,7,0.15)" },
+                                            }}
+                                        >
+                                            <AnswerIcon fontSize="small" />
+                                        </IconButton>
+                                    </Box>
+                                </Tooltip>
                             )}
 
                             {/* Tip - Show for all tweets with postId */}
