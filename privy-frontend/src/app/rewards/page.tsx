@@ -25,6 +25,7 @@ import { useClaimTips } from "@/hooks/useClaimTips";
 import { TokenLogo } from "@/components/tokens/TokenLogo";
 import { AttachMoney as TipIcon } from "@mui/icons-material";
 import Divider from "@mui/material/Divider";
+import { BLING_MINT_STR, USDC_MINT_STR, STABLECOIN_MINT_STR } from "@/lib/config/tokens";
 
 interface RewardGroup {
     postIdHash: string;
@@ -40,11 +41,6 @@ export default function RewardsPage() {
     const { claimTips } = useClaimTips();
     const [claimingPosts, setClaimingPosts] = useState<Set<string>>(new Set());
     const [claimingTipTokens, setClaimingTipTokens] = useState<Set<string>>(new Set());
-
-    // Get token mints from environment (must be before useMemo)
-    const BLING_MINT = process.env.NEXT_PUBLIC_BLING_MINT || "";
-    const USDC_MINT = process.env.NEXT_PUBLIC_USDC_MINT || "";
-    const STABLECOIN_MINT = process.env.NEXT_PUBLIC_STABLECOIN_MINT || "";
 
     // Group rewards by post
     const groupedRewards = useMemo(() => {
@@ -66,11 +62,11 @@ export default function RewardsPage() {
             const group = groups.get(key)!;
             group.rewards.push(reward);
 
-            const tokenConfig = getTokenConfig(reward.tokenMint, BLING_MINT, USDC_MINT, STABLECOIN_MINT);
+            const tokenConfig = getTokenConfig(reward.tokenMint, BLING_MINT_STR, USDC_MINT_STR, STABLECOIN_MINT_STR);
             const amount = parseFloat(reward.amount);
             // Determine decimals: USDC and stablecoin have 6, BLING has 9
             const decimals = tokenConfig?.metadata.decimals ??
-                (reward.tokenMint === USDC_MINT || reward.tokenMint === STABLECOIN_MINT ? 6 : 9);
+                (reward.tokenMint === USDC_MINT_STR || reward.tokenMint === STABLECOIN_MINT_STR ? 6 : 9);
             const formattedAmount = amount / Math.pow(10, decimals);
             group.totalAmount += formattedAmount;
         }
@@ -85,37 +81,37 @@ export default function RewardsPage() {
         const groups: Array<{ tokenMint: string; balance: number; decimals: number }> = [];
 
         // BLING tips
-        if (tipBalances.bling > 0 && BLING_MINT) {
-            const tokenConfig = getTokenConfig(BLING_MINT, BLING_MINT, USDC_MINT, STABLECOIN_MINT);
+        if (tipBalances.bling > 0 && BLING_MINT_STR) {
+            const tokenConfig = getTokenConfig(BLING_MINT_STR, BLING_MINT_STR, USDC_MINT_STR, STABLECOIN_MINT_STR);
             groups.push({
-                tokenMint: BLING_MINT,
+                tokenMint: BLING_MINT_STR,
                 balance: tipBalances.bling,
                 decimals: tokenConfig?.metadata.decimals ?? 9, // BLING has 9 decimals
             });
         }
 
         // USDC tips
-        if (tipBalances.usdc && tipBalances.usdc > 0 && USDC_MINT) {
-            const tokenConfig = getTokenConfig(USDC_MINT, BLING_MINT, USDC_MINT, STABLECOIN_MINT);
+        if (tipBalances.usdc && tipBalances.usdc > 0 && USDC_MINT_STR) {
+            const tokenConfig = getTokenConfig(USDC_MINT_STR, BLING_MINT_STR, USDC_MINT_STR, STABLECOIN_MINT_STR);
             groups.push({
-                tokenMint: USDC_MINT,
+                tokenMint: USDC_MINT_STR,
                 balance: tipBalances.usdc,
                 decimals: tokenConfig?.metadata.decimals ?? 6, // USDC has 6 decimals
             });
         }
 
         // Stablecoin tips
-        if (tipBalances.stablecoin && tipBalances.stablecoin > 0 && STABLECOIN_MINT) {
-            const tokenConfig = getTokenConfig(STABLECOIN_MINT, BLING_MINT, USDC_MINT, STABLECOIN_MINT);
+        if (tipBalances.stablecoin && tipBalances.stablecoin > 0 && STABLECOIN_MINT_STR) {
+            const tokenConfig = getTokenConfig(STABLECOIN_MINT_STR, BLING_MINT_STR, USDC_MINT_STR, STABLECOIN_MINT_STR);
             groups.push({
-                tokenMint: STABLECOIN_MINT,
+                tokenMint: STABLECOIN_MINT_STR,
                 balance: tipBalances.stablecoin,
                 decimals: tokenConfig?.metadata.decimals ?? 6, // Stablecoin has 6 decimals
             });
         }
 
         return groups;
-    }, [tipBalances, BLING_MINT, USDC_MINT, STABLECOIN_MINT]);
+    }, [tipBalances]);
 
     const handleClaimTips = async (tokenMint: string) => {
         setClaimingTipTokens((prev) => new Set(prev).add(tokenMint));
@@ -224,11 +220,11 @@ export default function RewardsPage() {
 
     // Component to display individual token rewards (no claim button)
     const RewardItem = ({ reward }: { reward: ClaimableRewardNode }) => {
-        const tokenConfig = getTokenConfig(reward.tokenMint, BLING_MINT, USDC_MINT, STABLECOIN_MINT);
+        const tokenConfig = getTokenConfig(reward.tokenMint, BLING_MINT_STR, USDC_MINT_STR, STABLECOIN_MINT_STR);
         const amount = parseFloat(reward.amount); // Amount is in lamports
         // Determine decimals: USDC and stablecoin have 6, BLING has 9
         const decimals = tokenConfig?.metadata.decimals ??
-            (reward.tokenMint === USDC_MINT || reward.tokenMint === STABLECOIN_MINT ? 6 : 9);
+            (reward.tokenMint === USDC_MINT_STR || reward.tokenMint === STABLECOIN_MINT_STR ? 6 : 9);
 
         return (
             <Paper sx={{ p: 2 }}>
@@ -314,7 +310,7 @@ export default function RewardsPage() {
                         </Box>
                         <Stack spacing={2}>
                             {tipGroups.map((tipGroup) => {
-                                const tokenConfig = getTokenConfig(tipGroup.tokenMint, BLING_MINT, USDC_MINT, STABLECOIN_MINT);
+                                const tokenConfig = getTokenConfig(tipGroup.tokenMint, BLING_MINT_STR, USDC_MINT_STR, STABLECOIN_MINT_STR);
                                 const isClaiming = claimingTipTokens.has(tipGroup.tokenMint);
 
                                 return (

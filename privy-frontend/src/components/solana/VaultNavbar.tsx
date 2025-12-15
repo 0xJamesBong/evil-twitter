@@ -43,15 +43,14 @@ import { TokenDisplay, TokenLogo } from "../tokens";
 import { getTokenConfig } from "../../lib/utils/tokens";
 import { graphqlRequest } from "../../lib/graphql/client";
 import { VALID_PAYMENT_QUERY, ValidPaymentResult } from "../../lib/graphql/users/queries";
-
-// Token mints - should match backend
-const BLING_MINT_STR = process.env.NEXT_PUBLIC_BLING_MINT || "bbb9w3ZidNJJGm4TKbhkCXqB9XSnzsjTedmJ5F2THX8";
-const USDC_MINT_STR = process.env.NEXT_PUBLIC_USDC_MINT || "";
-const STABLECOIN_MINT_STR = process.env.NEXT_PUBLIC_STABLECOIN_MINT || "";
-
-const BLING_MINT = new PublicKey(BLING_MINT_STR);
-const USDC_MINT = USDC_MINT_STR ? new PublicKey(USDC_MINT_STR) : null;
-const STABLECOIN_MINT = STABLECOIN_MINT_STR ? new PublicKey(STABLECOIN_MINT_STR) : null;
+import {
+  BLING_MINT_STR,
+  USDC_MINT_STR,
+  STABLECOIN_MINT_STR,
+  BLING_MINT,
+  USDC_MINT,
+  STABLECOIN_MINT,
+} from "../../lib/config/tokens";
 
 export function VaultNavbar() {
   const { authenticated, login } = usePrivy();

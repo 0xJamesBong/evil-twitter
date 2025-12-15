@@ -10,6 +10,7 @@ import {
 import { getTokenConfig } from "@/lib/utils/tokens";
 import { formatTokenBalance } from "@/lib/utils/formatting";
 import { ClaimableRewardNode } from "@/lib/graphql/tweets/queries";
+import { BLING_MINT_STR, USDC_MINT_STR, STABLECOIN_MINT_STR } from "@/lib/config/tokens";
 
 interface UseClaimRewardForRewardReturn {
   claimReward: () => Promise<void>;
@@ -41,10 +42,7 @@ export function useClaimRewardForReward(
     setError(null);
 
     try {
-      const BLING_MINT = process.env.NEXT_PUBLIC_BLING_MINT || "";
-      const USDC_MINT = process.env.NEXT_PUBLIC_USDC_MINT || "";
-      const STABLECOIN_MINT = process.env.NEXT_PUBLIC_STABLECOIN_MINT || "";
-      const tokenConfig = getTokenConfig(reward.tokenMint, BLING_MINT, USDC_MINT, STABLECOIN_MINT);
+      const tokenConfig = getTokenConfig(reward.tokenMint, BLING_MINT_STR, USDC_MINT_STR, STABLECOIN_MINT_STR);
 
       const input: ClaimRewardInput = {
         tweetId: reward.tweetId,

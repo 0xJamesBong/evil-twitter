@@ -10,6 +10,7 @@ import { TweetNode } from "../../lib/graphql/tweets/types";
 import { getTokenConfig, TokenType } from "../../lib/utils/tokens";
 import { TokenDisplay } from "../tokens/TokenDisplay";
 import { formatTokenBalance } from "../../lib/utils/formatting";
+import { BLING_MINT_STR, USDC_MINT_STR, STABLECOIN_MINT_STR } from "../../lib/config/tokens";
 
 interface VoteButtonsProps {
     tweet: TweetNode;
@@ -243,15 +244,14 @@ export function VoteButtons({ tweet: tweetProp }: VoteButtonsProps) {
                     {postState.potBalances && (
                         <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
                             {(() => {
-                                const BLING_MINT = process.env.NEXT_PUBLIC_BLING_MINT || "";
-                                const blingConfig = getTokenConfig(BLING_MINT);
+                                const blingConfig = getTokenConfig(BLING_MINT_STR);
                                 return (
                                     <Chip
                                         size="small"
                                         label={
                                             <Stack direction="row" spacing={0.5} alignItems="center">
                                                 <TokenDisplay
-                                                    mint={BLING_MINT}
+                                                    mint={BLING_MINT_STR}
                                                     showSymbol={true}
                                                     size="small"
                                                 />
@@ -270,15 +270,14 @@ export function VoteButtons({ tweet: tweetProp }: VoteButtonsProps) {
                             {postState.potBalances.usdc !== null &&
                                 postState.potBalances.usdc !== undefined && (
                                     (() => {
-                                        const USDC_MINT = process.env.NEXT_PUBLIC_USDC_MINT || "";
-                                        const usdcConfig = getTokenConfig(USDC_MINT);
+                                        const usdcConfig = getTokenConfig(USDC_MINT_STR);
                                         return (
                                             <Chip
                                                 size="small"
                                                 label={
                                                     <Stack direction="row" spacing={0.5} alignItems="center">
                                                         <TokenDisplay
-                                                            mint={USDC_MINT}
+                                                            mint={USDC_MINT_STR}
                                                             showSymbol={true}
                                                             size="small"
                                                         />
@@ -298,15 +297,14 @@ export function VoteButtons({ tweet: tweetProp }: VoteButtonsProps) {
                             {postState.potBalances.stablecoin !== null &&
                                 postState.potBalances.stablecoin !== undefined && (
                                     (() => {
-                                        const STABLECOIN_MINT = process.env.NEXT_PUBLIC_STABLECOIN_MINT || "";
-                                        const stablecoinConfig = getTokenConfig(STABLECOIN_MINT);
+                                        const stablecoinConfig = getTokenConfig(STABLECOIN_MINT_STR);
                                         return (
                                             <Chip
                                                 size="small"
                                                 label={
                                                     <Stack direction="row" spacing={0.5} alignItems="center">
                                                         <TokenDisplay
-                                                            mint={STABLECOIN_MINT}
+                                                            mint={STABLECOIN_MINT_STR}
                                                             showSymbol={true}
                                                             size="small"
                                                         />

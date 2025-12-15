@@ -2,6 +2,12 @@
  * Token utilities for managing token metadata, logos, and display information
  */
 
+import {
+  BLING_MINT_STR,
+  USDC_MINT_STR,
+  STABLECOIN_MINT_STR,
+} from "../config/tokens";
+
 // Token emoji data from tokens.json
 // This is hardcoded here to avoid build-time issues with importing from public folder
 // To update, modify both this file and public/tokens.json
@@ -65,10 +71,9 @@ export function getTokenConfig(
   usdcMint?: string,
   stablecoinMint?: string
 ): TokenConfig | null {
-  const BLING = blingMint || process.env.NEXT_PUBLIC_BLING_MINT || "";
-  const USDC = usdcMint || process.env.NEXT_PUBLIC_USDC_MINT || "";
-  const STABLECOIN =
-    stablecoinMint || process.env.NEXT_PUBLIC_STABLECOIN_MINT || "";
+  const BLING = blingMint || BLING_MINT_STR;
+  const USDC = usdcMint || USDC_MINT_STR;
+  const STABLECOIN = stablecoinMint || STABLECOIN_MINT_STR;
 
   let tokenType: TokenType | null = null;
 
@@ -165,10 +170,9 @@ export function getAllTokenConfigs(
 ): TokenConfig[] {
   const configs: TokenConfig[] = [];
 
-  const BLING = blingMint || process.env.NEXT_PUBLIC_BLING_MINT || "";
-  const USDC = usdcMint || process.env.NEXT_PUBLIC_USDC_MINT || "";
-  const STABLECOIN =
-    stablecoinMint || process.env.NEXT_PUBLIC_STABLECOIN_MINT || "";
+  const BLING = blingMint || BLING_MINT_STR;
+  const USDC = usdcMint || USDC_MINT_STR;
+  const STABLECOIN = stablecoinMint || STABLECOIN_MINT_STR;
 
   if (BLING) {
     const config = getTokenConfig(BLING, blingMint, usdcMint, stablecoinMint);

@@ -14,6 +14,7 @@ import { TweetNode } from "@/lib/graphql/tweets/types";
 import { getTokenConfig } from "@/lib/utils/tokens";
 import { formatTokenBalance } from "@/lib/utils/formatting";
 import { useClaimReward } from "@/hooks/useClaimReward";
+import { BLING_MINT_STR } from "@/lib/config/tokens";
 
 interface RewardCollectionProps {
     tweet: TweetNode;
@@ -54,7 +55,7 @@ export function RewardCollection({ tweet, currentUserId }: RewardCollectionProps
     const [showConfetti, setShowConfetti] = useState(false);
 
     // Default to BLING token
-    const tokenMint = process.env.NEXT_PUBLIC_BLING_MINT || "";
+    const tokenMint = BLING_MINT_STR;
     const tokenConfig = getTokenConfig(tokenMint);
 
     const { claimReward, loading, claimed } = useClaimReward({

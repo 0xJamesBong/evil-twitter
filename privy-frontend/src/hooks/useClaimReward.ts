@@ -9,6 +9,7 @@ import {
 } from "@/lib/graphql/tweets/mutations";
 import { getTokenConfig } from "@/lib/utils/tokens";
 import { formatTokenBalance } from "@/lib/utils/formatting";
+import { BLING_MINT_STR, USDC_MINT_STR, STABLECOIN_MINT_STR } from "@/lib/config/tokens";
 
 interface UseClaimRewardOptions {
   tweetId: string;
@@ -45,11 +46,8 @@ export function useClaimReward({
 
     try {
       // Default to BLING token if not provided
-      const token = tokenMint || process.env.NEXT_PUBLIC_BLING_MINT || "";
-      const BLING_MINT = process.env.NEXT_PUBLIC_BLING_MINT || "";
-      const USDC_MINT = process.env.NEXT_PUBLIC_USDC_MINT || "";
-      const STABLECOIN_MINT = process.env.NEXT_PUBLIC_STABLECOIN_MINT || "";
-      const tokenConfig = getTokenConfig(token, BLING_MINT, USDC_MINT, STABLECOIN_MINT);
+      const token = tokenMint || BLING_MINT_STR;
+      const tokenConfig = getTokenConfig(token, BLING_MINT_STR, USDC_MINT_STR, STABLECOIN_MINT_STR);
 
       const input: ClaimRewardInput = {
         tweetId,

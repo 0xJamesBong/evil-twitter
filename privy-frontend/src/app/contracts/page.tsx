@@ -32,11 +32,11 @@ import { useNetworkStore } from "@/lib/stores/networkStore";
 import { formatTokenBalance } from "@/lib/utils/formatting";
 import { graphqlRequest } from "@/lib/graphql/client";
 import { VALID_PAYMENT_QUERY, ValidPaymentResult } from "@/lib/graphql/users/queries";
-
-// Token mint addresses
-const BLING_MINT = process.env.NEXT_PUBLIC_BLING_MINT || "";
-const USDC_MINT = process.env.NEXT_PUBLIC_USDC_MINT || "";
-const STABLECOIN_MINT = process.env.NEXT_PUBLIC_STABLECOIN_MINT || "";
+import {
+    BLING_MINT_STR,
+    USDC_MINT_STR,
+    STABLECOIN_MINT_STR,
+} from "@/lib/config/tokens";
 
 type ConfigData = Awaited<ReturnType<typeof fetchConfig>>;
 type ValidPaymentData = NonNullable<ValidPaymentResult["validPayment"]>;
@@ -77,9 +77,9 @@ function ContractsContent() {
 
                 const payments: Record<string, ValidPaymentData> = {};
                 const tokenMints = [
-                    { name: "BLING", mint: BLING_MINT },
-                    { name: "USDC", mint: USDC_MINT },
-                    { name: "Stablecoin", mint: STABLECOIN_MINT },
+                    { name: "BLING", mint: BLING_MINT_STR },
+                    { name: "USDC", mint: USDC_MINT_STR },
+                    { name: "Stablecoin", mint: STABLECOIN_MINT_STR },
                 ].filter((t) => t.mint);
 
                 // Fetch ValidPayment info from backend GraphQL (public data, no auth required)
