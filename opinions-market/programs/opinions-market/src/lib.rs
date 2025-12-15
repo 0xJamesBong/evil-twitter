@@ -1271,7 +1271,7 @@ pub mod opinions_market {
         ctx: Context<CreateBounty>,
         question_post_id_hash: [u8; 32],
         amount: u64,
-        expires_at: i64,
+        time_till_expiration: i64,
     ) -> Result<()> {
         let clock = Clock::get()?;
         let now = clock.unix_timestamp;
@@ -1298,11 +1298,12 @@ pub mod opinions_market {
         require!(amount > 0, ErrorCode::ZeroAmount);
 
         // Validate expiry time
-        require!(expires_at > now, ErrorCode::InvalidBountyExpiry);
-        require!(
-            expires_at <= question.end_time + MAX_BOUNTY_GRACE,
-            ErrorCode::InvalidBountyExpiry
-        );
+        let expires_at = now + time_till_expiration;
+        // require!(expires_at > now, ErrorCode::InvalidBountyExpiry);
+        // require!(
+        //     expires_at <= question.end_time + MAX_BOUNTY_GRACE,
+        //     ErrorCode::InvalidBountyExpiry
+        // );
 
         // Initialize bounty account
         bounty.question = question.key();

@@ -1032,10 +1032,12 @@ pub struct SendToken<'info> {
 #[derive(Accounts)]
 #[instruction(question_post_id_hash: [u8; 32], amount: u64, expires_at: i64)]
 pub struct CreateBounty<'info> {
+    /// CHECK: Sponsor wallet (validated via session authority)
     #[account(mut)]
     pub sponsor: UncheckedAccount<'info>,
     #[account(mut)]
     pub payer: Signer<'info>,
+    /// CHECK: Ephemeral delegated session key
     #[account(mut)]
     pub session_key: UncheckedAccount<'info>,
     #[account(
@@ -1085,6 +1087,7 @@ pub struct CreateBounty<'info> {
         bump,
     )]
     pub sponsor_vault_token_account: Account<'info, TokenAccount>,
+    /// CHECK: Global vault authority PDA (derived from seeds)
     #[account(
         seeds = [VAULT_AUTHORITY_SEED],
         bump,
@@ -1097,10 +1100,12 @@ pub struct CreateBounty<'info> {
 #[derive(Accounts)]
 #[instruction(question_post_id_hash: [u8; 32], additional_amount: u64)]
 pub struct IncreaseBounty<'info> {
+    /// CHECK: Sponsor wallet (validated via session authority)
     #[account(mut)]
     pub sponsor: UncheckedAccount<'info>,
     #[account(mut)]
     pub payer: Signer<'info>,
+    /// CHECK: Ephemeral delegated session key
     #[account(mut)]
     pub session_key: UncheckedAccount<'info>,
     #[account(
@@ -1140,6 +1145,7 @@ pub struct IncreaseBounty<'info> {
         bump,
     )]
     pub sponsor_vault_token_account: Account<'info, TokenAccount>,
+    /// CHECK: Global vault authority PDA (derived from seeds)
     #[account(
         seeds = [VAULT_AUTHORITY_SEED],
         bump,
@@ -1151,10 +1157,12 @@ pub struct IncreaseBounty<'info> {
 #[derive(Accounts)]
 #[instruction(question_post_id_hash: [u8; 32], answer_post_id_hash: [u8; 32])]
 pub struct AwardBounty<'info> {
+    /// CHECK: Sponsor wallet (validated via session authority)
     #[account(mut)]
     pub sponsor: UncheckedAccount<'info>,
     #[account(mut)]
     pub payer: Signer<'info>,
+    /// CHECK: Ephemeral delegated session key
     #[account(mut)]
     pub session_key: UncheckedAccount<'info>,
     #[account(
@@ -1191,10 +1199,12 @@ pub struct AwardBounty<'info> {
 #[derive(Accounts)]
 #[instruction(question_post_id_hash: [u8; 32])]
 pub struct CloseBountyNoAward<'info> {
+    /// CHECK: Sponsor wallet (validated via session authority)
     #[account(mut)]
     pub sponsor: UncheckedAccount<'info>,
     #[account(mut)]
     pub payer: Signer<'info>,
+    /// CHECK: Ephemeral delegated session key
     #[account(mut)]
     pub session_key: UncheckedAccount<'info>,
     #[account(
@@ -1257,6 +1267,7 @@ pub struct ClaimBounty<'info> {
     pub answer_author: UncheckedAccount<'info>,
     #[account(mut)]
     pub payer: Signer<'info>,
+    /// CHECK: Ephemeral delegated session key
     #[account(mut)]
     pub session_key: UncheckedAccount<'info>,
     #[account(
@@ -1300,6 +1311,7 @@ pub struct ClaimBounty<'info> {
         token::authority = vault_authority,
     )]
     pub answer_author_vault_token_account: Account<'info, TokenAccount>,
+    /// CHECK: Global vault authority PDA (derived from seeds)
     #[account(
         seeds = [VAULT_AUTHORITY_SEED],
         bump,
@@ -1312,10 +1324,12 @@ pub struct ClaimBounty<'info> {
 #[derive(Accounts)]
 #[instruction(question_post_id_hash: [u8; 32])]
 pub struct ReclaimBounty<'info> {
+    /// CHECK: Sponsor wallet (validated via session authority)
     #[account(mut)]
     pub sponsor: UncheckedAccount<'info>,
     #[account(mut)]
     pub payer: Signer<'info>,
+    /// CHECK: Ephemeral delegated session key
     #[account(mut)]
     pub session_key: UncheckedAccount<'info>,
     #[account(
@@ -1369,6 +1383,7 @@ pub struct ReclaimBounty<'info> {
         bump,
     )]
     pub config: Account<'info, Config>,
+    /// CHECK: Global vault authority PDA (derived from seeds)
     #[account(
         seeds = [VAULT_AUTHORITY_SEED],
         bump,

@@ -13,11 +13,12 @@ use solana_sdk::{
 
 use crate::config::TIME_CONFIG_FAST;
 use crate::utils::phenomena::{
-    test_phenomena_add_valid_payment, test_phenomena_claim_post_reward,
-    test_phenomena_create_answer, test_phenomena_create_post, test_phenomena_create_question,
-    test_phenomena_create_user, test_phenomena_deposit, test_phenomena_settle_post,
-    test_phenomena_tip, test_phenomena_turn_on_withdrawable, test_phenomena_vote_on_post,
-    test_phenomena_withdraw,
+    test_phenomena_add_valid_payment, test_phenomena_award_bounty, test_phenomena_claim_bounty,
+    test_phenomena_claim_post_reward, test_phenomena_close_bounty_no_award,
+    test_phenomena_create_answer, test_phenomena_create_bounty, test_phenomena_create_post,
+    test_phenomena_create_question, test_phenomena_create_user, test_phenomena_deposit,
+    test_phenomena_increase_bounty, test_phenomena_settle_post, test_phenomena_tip,
+    test_phenomena_turn_on_withdrawable, test_phenomena_vote_on_post, test_phenomena_withdraw,
 };
 use crate::utils::utils::{
     airdrop_sol_to_users, send_tx, setup_token_mint, setup_token_mint_ata_and_mint_to_many_users,
@@ -554,7 +555,7 @@ async fn test_setup() {
         }
 
         {
-            // question
+            // Questions and upvoting and commenting on questionsquestion
             println!("user 1 creating a question post Q1");
             let (question_post_pda, question_post_id_hash) = test_phenomena_create_question(
                 &rpc,
@@ -626,6 +627,140 @@ async fn test_setup() {
             )
             .await;
         }
+        // Questions and bounties
+        {
+            println!("user 1 asks a question");
+            let (question_post_pda, question_post_id_hash) = test_phenomena_create_question(
+                &rpc,
+                &opinions_market,
+                &payer,
+                &user_1,
+                &session_key,
+                &config_pda,
+            )
+            .await;
+
+            println!("user 2 answers question Q2");
+            let (answer_post_pda, answer_post_id_hash) = test_phenomena_create_answer(
+                &rpc,
+                &opinions_market,
+                &payer,
+                &user_2,
+                &session_key,
+                &config_pda,
+                question_post_pda,
+                question_post_id_hash,
+            )
+            .await;
+            // we deliberate want an answer before someone offers up a bounty to see how this more degnerate case would behave
+            println!("user 2 offers a bounty of 100 bling for question");
+            test_phenomena_create_bounty(
+                &rpc,
+                &opinions_market,
+                &payer,
+                &user_2,
+                &session_key,
+                question_post_pda,
+                question_post_id_hash,
+                100 * LAMPORTS_PER_SOL,
+                10, //10 seconds
+                &bling_pubkey,
+                &tokens,
+            )
+            .await;
+
+            println!("user 3 offers a bounty of 100 usdc for question Q2");
+            test_phenomena_create_bounty(
+                &rpc,
+                &opinions_market,
+                &payer,
+                &user_3,
+                &session_key,
+                question_post_pda,
+                question_post_id_hash,
+                100 * USDC_LAMPORTS_PER_USDC,
+                10, //10 seconds
+                &usdc_pubkey,
+                &tokens,
+            )
+            .await;
+
+            println!("user 2 increases the bounty of 100 usdc for question Q2 by 100 usdc");
+            test_phenomena_increase_bounty(
+                &rpc,
+                &opinions_market,
+                &payer,
+                &user_2,
+                &session_key,
+                question_post_pda,
+                question_post_id_hash,
+                100 * USDC_LAMPORTS_PER_USDC,
+                &usdc_pubkey,
+                &tokens,
+            )
+            .await;
+
+            println!("user 3 creates an answer");
+            let (answer_post_pda, answer_post_id_hash) = test_phenomena_create_answer(
+                &rpc,
+                &opinions_market,
+                &payer,
+                &user_3,
+                &session_key,
+                &config_pda,
+                question_post_pda,
+                question_post_id_hash,
+            )
+            .await;
+
+            println!("user 2 immediately finds the answer created by user 3 to be great and awards the bounty to user 3");
+            test_phenomena_award_bounty(
+                &rpc,
+                &opinions_market,
+                &payer,
+                &user_2,
+                &session_key,
+                question_post_pda,
+                question_post_id_hash,
+                answer_post_pda,
+                answer_post_id_hash,
+                &usdc_pubkey,
+                &tokens,
+            )
+            .await;
+
+            println!("user 3 closes the bounty without awarding it");
+            test_phenomena_close_bounty_no_award(
+                &rpc,
+                &opinions_market,
+                &payer,
+                &user_3,
+                &session_key,
+                question_post_pda,
+                question_post_id_hash,
+                &usdc_pubkey,
+                &tokens,
+            )
+            .await;
+
+            println!("user 2 claims the bounty of 100 usdc for question Q2");
+            test_phenomena_claim_bounty(
+                &rpc,
+                &opinions_market,
+                &payer,
+                &user_2,
+                &session_key,
+                question_post_pda,
+                question_post_id_hash,
+                answer_post_pda,
+                answer_post_id_hash,
+                &user_3_pubkey,
+                &usdc_pubkey,
+                &tokens,
+            )
+            .await;
+        }
+
         {
             println!("\n\n");
             println!(" 🟪🟪🟪🟪🟪🟪🟪🟪🟪🟪🟪🟪🟪🟪🟪🟪🟪");

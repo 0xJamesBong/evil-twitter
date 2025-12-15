@@ -2371,3 +2371,1106 @@ pub async fn test_phenomena_send_token(
 
     println!("✅ Send token successful");
 }
+
+pub async fn test_phenomena_create_bounty(
+    rpc: &RpcClient,
+    opinions_market: &Program<&Keypair>,
+    payer: &Keypair,
+    sponsor: &Keypair,
+    session_key: &Keypair,
+    question_post_pda: Pubkey,
+    question_post_id_hash: [u8; 32],
+    amount: u64,
+    time_till_expiration: i64,
+    token_mint: &Pubkey,
+    tokens: &HashMap<Pubkey, String>,
+) {
+    let _token_name = tokens.get(token_mint).unwrap();
+    println!(
+        "User {:?} creating bounty of {} for question {:?}",
+        sponsor.pubkey(),
+        amount,
+        hex::encode(question_post_id_hash)
+    );
+
+    // Derive PDAs
+    let sponsor_user_account_pda = Pubkey::find_program_address(
+        &[USER_ACCOUNT_SEED, sponsor.pubkey().as_ref()],
+        &opinions_market.id(),
+    )
+    .0;
+
+    let bounty_pda = Pubkey::find_program_address(
+        &[
+            BOUNTY_SEED,
+            question_post_pda.as_ref(),
+            sponsor.pubkey().as_ref(),
+            token_mint.as_ref(),
+        ],
+        &opinions_market.id(),
+    )
+    .0;
+
+    let bounty_vault_token_account_pda = Pubkey::find_program_address(
+        &[BOUNTY_VAULT_TOKEN_ACCOUNT_SEED, bounty_pda.as_ref()],
+        &opinions_market.id(),
+    )
+    .0;
+
+    let sponsor_vault_token_account_pda = Pubkey::find_program_address(
+        &[
+            USER_VAULT_TOKEN_ACCOUNT_SEED,
+            sponsor.pubkey().as_ref(),
+            token_mint.as_ref(),
+        ],
+        &opinions_market.id(),
+    )
+    .0;
+
+    let vault_authority_pda =
+        Pubkey::find_program_address(&[VAULT_AUTHORITY_SEED], &opinions_market.id()).0;
+
+    let valid_payment_pda = Pubkey::find_program_address(
+        &[VALID_PAYMENT_SEED, token_mint.as_ref()],
+        &opinions_market.id(),
+    )
+    .0;
+
+    let session_authority_pda = Pubkey::find_program_address(
+        &[
+            SESSION_AUTHORITY_SEED,
+            sponsor.pubkey().as_ref(),
+            session_key.pubkey().as_ref(),
+        ],
+        &opinions_market.id(),
+    )
+    .0;
+
+    // Get initial balances
+    let sponsor_vault_before = opinions_market
+        .account::<anchor_spl::token::TokenAccount>(sponsor_vault_token_account_pda)
+        .await
+        .unwrap();
+
+    let sponsor_user_account_before = opinions_market
+        .account::<opinions_market::states::UserAccount>(sponsor_user_account_pda)
+        .await
+        .unwrap();
+
+    println!("📊 Before create bounty:");
+    println!("   - Sponsor vault: {}", sponsor_vault_before.amount);
+    println!(
+        "   - Bounties posted: {}",
+        sponsor_user_account_before.bounties_posted
+    );
+
+    // Create create_bounty instruction
+    let create_bounty_ix = opinions_market
+        .request()
+        .accounts(opinions_market::accounts::CreateBounty {
+            sponsor: sponsor.pubkey(),
+            payer: payer.pubkey(),
+            session_key: session_key.pubkey(),
+            session_authority: session_authority_pda,
+            sponsor_user_account: sponsor_user_account_pda,
+            question_post: question_post_pda,
+            token_mint: *token_mint,
+            valid_payment: valid_payment_pda,
+            bounty: bounty_pda,
+            bounty_vault_token_account: bounty_vault_token_account_pda,
+            sponsor_vault_token_account: sponsor_vault_token_account_pda,
+            vault_authority: vault_authority_pda,
+            token_program: spl_token::ID,
+            system_program: system_program::ID,
+        })
+        .args(opinions_market::instruction::CreateBounty {
+            question_post_id_hash,
+            amount,
+            time_till_expiration,
+        })
+        .instructions()
+        .unwrap();
+
+    let create_bounty_tx = send_tx(&rpc, create_bounty_ix, &payer.pubkey(), &[&payer])
+        .await
+        .unwrap();
+    println!("create bounty tx: {:?}", create_bounty_tx);
+
+    // Verify balances after create
+    let sponsor_vault_after = opinions_market
+        .account::<anchor_spl::token::TokenAccount>(sponsor_vault_token_account_pda)
+        .await
+        .unwrap();
+
+    let bounty_vault_after = opinions_market
+        .account::<anchor_spl::token::TokenAccount>(bounty_vault_token_account_pda)
+        .await
+        .unwrap();
+
+    let bounty_account = opinions_market
+        .account::<opinions_market::states::BountyAccount>(bounty_pda)
+        .await
+        .unwrap();
+
+    let sponsor_user_account_after = opinions_market
+        .account::<opinions_market::states::UserAccount>(sponsor_user_account_pda)
+        .await
+        .unwrap();
+
+    println!("📊 After create bounty:");
+    println!("   - Sponsor vault: {}", sponsor_vault_after.amount);
+    println!("   - Bounty vault: {}", bounty_vault_after.amount);
+    println!("   - Bounty amount: {}", bounty_account.amount);
+    println!("   - Bounty status: {:?}", bounty_account.status);
+    println!(
+        "   - Bounties posted: {}",
+        sponsor_user_account_after.bounties_posted
+    );
+
+    // Verify sponsor vault decreased
+    assert_eq!(
+        sponsor_vault_after.amount,
+        sponsor_vault_before.amount.checked_sub(amount).unwrap(),
+        "Sponsor vault should decrease by bounty amount"
+    );
+
+    // Verify bounty vault increased
+    assert_eq!(
+        bounty_vault_after.amount, amount,
+        "Bounty vault should equal bounty amount"
+    );
+
+    // Verify bounty account fields
+    assert_eq!(bounty_account.amount, amount, "Bounty amount should match");
+    assert_eq!(
+        bounty_account.expires_at, expires_at,
+        "Bounty expires_at should match"
+    );
+    assert_eq!(
+        bounty_account.status,
+        opinions_market::states::BountyStatus::Open,
+        "Bounty status should be Open"
+    );
+    assert_eq!(
+        bounty_account.claimed, false,
+        "Bounty should not be claimed"
+    );
+    assert_eq!(
+        bounty_account.question, question_post_pda,
+        "Bounty question should match"
+    );
+    assert_eq!(
+        bounty_account.sponsor,
+        sponsor.pubkey(),
+        "Bounty sponsor should match"
+    );
+    assert_eq!(
+        bounty_account.token_mint, *token_mint,
+        "Bounty token_mint should match"
+    );
+
+    // Verify bounties_posted incremented
+    assert_eq!(
+        sponsor_user_account_after.bounties_posted,
+        sponsor_user_account_before
+            .bounties_posted
+            .checked_add(1)
+            .unwrap(),
+        "Bounties posted should increment"
+    );
+
+    println!("✅ Create bounty successful");
+}
+
+pub async fn test_phenomena_increase_bounty(
+    rpc: &RpcClient,
+    opinions_market: &Program<&Keypair>,
+    payer: &Keypair,
+    sponsor: &Keypair,
+    session_key: &Keypair,
+    question_post_pda: Pubkey,
+    question_post_id_hash: [u8; 32],
+    additional_amount: u64,
+    token_mint: &Pubkey,
+    tokens: &HashMap<Pubkey, String>,
+) {
+    let _token_name = tokens.get(token_mint).unwrap();
+    println!(
+        "User {:?} increasing bounty by {} for question {:?}",
+        sponsor.pubkey(),
+        additional_amount,
+        hex::encode(question_post_id_hash)
+    );
+
+    // Derive PDAs
+    let sponsor_user_account_pda = Pubkey::find_program_address(
+        &[USER_ACCOUNT_SEED, sponsor.pubkey().as_ref()],
+        &opinions_market.id(),
+    )
+    .0;
+
+    let bounty_pda = Pubkey::find_program_address(
+        &[
+            BOUNTY_SEED,
+            question_post_pda.as_ref(),
+            sponsor.pubkey().as_ref(),
+            token_mint.as_ref(),
+        ],
+        &opinions_market.id(),
+    )
+    .0;
+
+    let bounty_vault_token_account_pda = Pubkey::find_program_address(
+        &[BOUNTY_VAULT_TOKEN_ACCOUNT_SEED, bounty_pda.as_ref()],
+        &opinions_market.id(),
+    )
+    .0;
+
+    let sponsor_vault_token_account_pda = Pubkey::find_program_address(
+        &[
+            USER_VAULT_TOKEN_ACCOUNT_SEED,
+            sponsor.pubkey().as_ref(),
+            token_mint.as_ref(),
+        ],
+        &opinions_market.id(),
+    )
+    .0;
+
+    let vault_authority_pda =
+        Pubkey::find_program_address(&[VAULT_AUTHORITY_SEED], &opinions_market.id()).0;
+
+    let session_authority_pda = Pubkey::find_program_address(
+        &[
+            SESSION_AUTHORITY_SEED,
+            sponsor.pubkey().as_ref(),
+            session_key.pubkey().as_ref(),
+        ],
+        &opinions_market.id(),
+    )
+    .0;
+
+    // Get initial balances
+    let sponsor_vault_before = opinions_market
+        .account::<anchor_spl::token::TokenAccount>(sponsor_vault_token_account_pda)
+        .await
+        .unwrap();
+
+    let bounty_vault_before = opinions_market
+        .account::<anchor_spl::token::TokenAccount>(bounty_vault_token_account_pda)
+        .await
+        .unwrap();
+
+    let bounty_before = opinions_market
+        .account::<opinions_market::states::BountyAccount>(bounty_pda)
+        .await
+        .unwrap();
+
+    println!("📊 Before increase bounty:");
+    println!("   - Sponsor vault: {}", sponsor_vault_before.amount);
+    println!("   - Bounty vault: {}", bounty_vault_before.amount);
+    println!("   - Bounty amount: {}", bounty_before.amount);
+
+    // Create increase_bounty instruction
+    let increase_bounty_ix = opinions_market
+        .request()
+        .accounts(opinions_market::accounts::IncreaseBounty {
+            sponsor: sponsor.pubkey(),
+            payer: payer.pubkey(),
+            session_key: session_key.pubkey(),
+            session_authority: session_authority_pda,
+            sponsor_user_account: sponsor_user_account_pda,
+            question_post: question_post_pda,
+            token_mint: *token_mint,
+            bounty: bounty_pda,
+            bounty_vault_token_account: bounty_vault_token_account_pda,
+            sponsor_vault_token_account: sponsor_vault_token_account_pda,
+            vault_authority: vault_authority_pda,
+            token_program: spl_token::ID,
+        })
+        .args(opinions_market::instruction::IncreaseBounty {
+            question_post_id_hash,
+            additional_amount,
+        })
+        .instructions()
+        .unwrap();
+
+    let increase_bounty_tx = send_tx(&rpc, increase_bounty_ix, &payer.pubkey(), &[&payer])
+        .await
+        .unwrap();
+    println!("increase bounty tx: {:?}", increase_bounty_tx);
+
+    // Verify balances after increase
+    let sponsor_vault_after = opinions_market
+        .account::<anchor_spl::token::TokenAccount>(sponsor_vault_token_account_pda)
+        .await
+        .unwrap();
+
+    let bounty_vault_after = opinions_market
+        .account::<anchor_spl::token::TokenAccount>(bounty_vault_token_account_pda)
+        .await
+        .unwrap();
+
+    let bounty_after = opinions_market
+        .account::<opinions_market::states::BountyAccount>(bounty_pda)
+        .await
+        .unwrap();
+
+    println!("📊 After increase bounty:");
+    println!("   - Sponsor vault: {}", sponsor_vault_after.amount);
+    println!("   - Bounty vault: {}", bounty_vault_after.amount);
+    println!("   - Bounty amount: {}", bounty_after.amount);
+
+    // Verify sponsor vault decreased
+    assert_eq!(
+        sponsor_vault_after.amount,
+        sponsor_vault_before
+            .amount
+            .checked_sub(additional_amount)
+            .unwrap(),
+        "Sponsor vault should decrease by additional amount"
+    );
+
+    // Verify bounty vault increased
+    assert_eq!(
+        bounty_vault_after.amount,
+        bounty_vault_before
+            .amount
+            .checked_add(additional_amount)
+            .unwrap(),
+        "Bounty vault should increase by additional amount"
+    );
+
+    // Verify bounty amount increased
+    assert_eq!(
+        bounty_after.amount,
+        bounty_before.amount.checked_add(additional_amount).unwrap(),
+        "Bounty amount should increase by additional amount"
+    );
+
+    println!("✅ Increase bounty successful");
+}
+
+pub async fn test_phenomena_award_bounty(
+    rpc: &RpcClient,
+    opinions_market: &Program<&Keypair>,
+    payer: &Keypair,
+    sponsor: &Keypair,
+    session_key: &Keypair,
+    question_post_pda: Pubkey,
+    question_post_id_hash: [u8; 32],
+    answer_post_pda: Pubkey,
+    answer_post_id_hash: [u8; 32],
+    token_mint: &Pubkey,
+    tokens: &HashMap<Pubkey, String>,
+) {
+    let _token_name = tokens.get(token_mint).unwrap();
+    println!(
+        "User {:?} awarding bounty to answer {:?} for question {:?}",
+        sponsor.pubkey(),
+        hex::encode(answer_post_id_hash),
+        hex::encode(question_post_id_hash)
+    );
+
+    // Derive PDAs
+    let sponsor_user_account_pda = Pubkey::find_program_address(
+        &[USER_ACCOUNT_SEED, sponsor.pubkey().as_ref()],
+        &opinions_market.id(),
+    )
+    .0;
+
+    let bounty_pda = Pubkey::find_program_address(
+        &[
+            BOUNTY_SEED,
+            question_post_pda.as_ref(),
+            sponsor.pubkey().as_ref(),
+            token_mint.as_ref(),
+        ],
+        &opinions_market.id(),
+    )
+    .0;
+
+    let session_authority_pda = Pubkey::find_program_address(
+        &[
+            SESSION_AUTHORITY_SEED,
+            sponsor.pubkey().as_ref(),
+            session_key.pubkey().as_ref(),
+        ],
+        &opinions_market.id(),
+    )
+    .0;
+
+    // Get initial state
+    let bounty_before = opinions_market
+        .account::<opinions_market::states::BountyAccount>(bounty_pda)
+        .await
+        .unwrap();
+
+    let sponsor_user_account_before = opinions_market
+        .account::<opinions_market::states::UserAccount>(sponsor_user_account_pda)
+        .await
+        .unwrap();
+
+    println!("📊 Before award bounty:");
+    println!("   - Bounty status: {:?}", bounty_before.status);
+    println!(
+        "   - Bounties awarded: {}",
+        sponsor_user_account_before.bounties_awarded
+    );
+
+    // Create award_bounty instruction
+    let award_bounty_ix = opinions_market
+        .request()
+        .accounts(opinions_market::accounts::AwardBounty {
+            sponsor: sponsor.pubkey(),
+            payer: payer.pubkey(),
+            session_key: session_key.pubkey(),
+            session_authority: session_authority_pda,
+            sponsor_user_account: sponsor_user_account_pda,
+            question_post: question_post_pda,
+            answer_post: answer_post_pda,
+            token_mint: *token_mint,
+            bounty: bounty_pda,
+        })
+        .args(opinions_market::instruction::AwardBounty {
+            question_post_id_hash,
+            answer_post_id_hash,
+        })
+        .instructions()
+        .unwrap();
+
+    let award_bounty_tx = send_tx(&rpc, award_bounty_ix, &payer.pubkey(), &[&payer])
+        .await
+        .unwrap();
+    println!("award bounty tx: {:?}", award_bounty_tx);
+
+    // Verify state after award
+    let bounty_after = opinions_market
+        .account::<opinions_market::states::BountyAccount>(bounty_pda)
+        .await
+        .unwrap();
+
+    let sponsor_user_account_after = opinions_market
+        .account::<opinions_market::states::UserAccount>(sponsor_user_account_pda)
+        .await
+        .unwrap();
+
+    println!("📊 After award bounty:");
+    println!("   - Bounty status: {:?}", bounty_after.status);
+    println!(
+        "   - Bounties awarded: {}",
+        sponsor_user_account_after.bounties_awarded
+    );
+
+    // Verify bounty status is Awarded
+    match bounty_after.status {
+        opinions_market::states::BountyStatus::Awarded { answer } => {
+            assert_eq!(answer, answer_post_pda, "Awarded answer should match");
+        }
+        _ => panic!("Bounty status should be Awarded"),
+    }
+
+    // Verify bounties_awarded incremented
+    assert_eq!(
+        sponsor_user_account_after.bounties_awarded,
+        sponsor_user_account_before
+            .bounties_awarded
+            .checked_add(1)
+            .unwrap(),
+        "Bounties awarded should increment"
+    );
+
+    println!("✅ Award bounty successful");
+}
+
+pub async fn test_phenomena_close_bounty_no_award(
+    rpc: &RpcClient,
+    opinions_market: &Program<&Keypair>,
+    payer: &Keypair,
+    sponsor: &Keypair,
+    session_key: &Keypair,
+    question_post_pda: Pubkey,
+    question_post_id_hash: [u8; 32],
+    token_mint: &Pubkey,
+    tokens: &HashMap<Pubkey, String>,
+) {
+    let _token_name = tokens.get(token_mint).unwrap();
+    println!(
+        "User {:?} closing bounty without award for question {:?}",
+        sponsor.pubkey(),
+        hex::encode(question_post_id_hash)
+    );
+
+    // Derive PDAs
+    let sponsor_user_account_pda = Pubkey::find_program_address(
+        &[USER_ACCOUNT_SEED, sponsor.pubkey().as_ref()],
+        &opinions_market.id(),
+    )
+    .0;
+
+    let bounty_pda = Pubkey::find_program_address(
+        &[
+            BOUNTY_SEED,
+            question_post_pda.as_ref(),
+            sponsor.pubkey().as_ref(),
+            token_mint.as_ref(),
+        ],
+        &opinions_market.id(),
+    )
+    .0;
+
+    let session_authority_pda = Pubkey::find_program_address(
+        &[
+            SESSION_AUTHORITY_SEED,
+            sponsor.pubkey().as_ref(),
+            session_key.pubkey().as_ref(),
+        ],
+        &opinions_market.id(),
+    )
+    .0;
+
+    // Get initial state
+    let bounty_before = opinions_market
+        .account::<opinions_market::states::BountyAccount>(bounty_pda)
+        .await
+        .unwrap();
+
+    println!("📊 Before close bounty:");
+    println!("   - Bounty status: {:?}", bounty_before.status);
+
+    // Create close_bounty_no_award instruction
+    let close_bounty_ix = opinions_market
+        .request()
+        .accounts(opinions_market::accounts::CloseBountyNoAward {
+            sponsor: sponsor.pubkey(),
+            payer: payer.pubkey(),
+            session_key: session_key.pubkey(),
+            session_authority: session_authority_pda,
+            sponsor_user_account: sponsor_user_account_pda,
+            question_post: question_post_pda,
+            token_mint: *token_mint,
+            bounty: bounty_pda,
+        })
+        .args(opinions_market::instruction::CloseBountyNoAward {
+            question_post_id_hash,
+        })
+        .instructions()
+        .unwrap();
+
+    let close_bounty_tx = send_tx(&rpc, close_bounty_ix, &payer.pubkey(), &[&payer])
+        .await
+        .unwrap();
+    println!("close bounty tx: {:?}", close_bounty_tx);
+
+    // Verify state after close
+    let bounty_after = opinions_market
+        .account::<opinions_market::states::BountyAccount>(bounty_pda)
+        .await
+        .unwrap();
+
+    println!("📊 After close bounty:");
+    println!("   - Bounty status: {:?}", bounty_after.status);
+
+    // Verify bounty status is ClosedNoAward
+    assert_eq!(
+        bounty_after.status,
+        opinions_market::states::BountyStatus::ClosedNoAward,
+        "Bounty status should be ClosedNoAward"
+    );
+
+    println!("✅ Close bounty successful");
+}
+
+pub async fn test_phenomena_expire_bounty(
+    rpc: &RpcClient,
+    opinions_market: &Program<&Keypair>,
+    payer: &Keypair,
+    question_post_pda: Pubkey,
+    question_post_id_hash: [u8; 32],
+    sponsor: &Pubkey,
+    token_mint: &Pubkey,
+    tokens: &HashMap<Pubkey, String>,
+) {
+    let _token_name = tokens.get(token_mint).unwrap();
+    println!(
+        "Expiring bounty for question {:?} (sponsor: {:?})",
+        hex::encode(question_post_id_hash),
+        sponsor
+    );
+
+    // Derive PDAs
+    let sponsor_user_account_pda = Pubkey::find_program_address(
+        &[USER_ACCOUNT_SEED, sponsor.as_ref()],
+        &opinions_market.id(),
+    )
+    .0;
+
+    let bounty_pda = Pubkey::find_program_address(
+        &[
+            BOUNTY_SEED,
+            question_post_pda.as_ref(),
+            sponsor.as_ref(),
+            token_mint.as_ref(),
+        ],
+        &opinions_market.id(),
+    )
+    .0;
+
+    // Get initial state
+    let bounty_before = opinions_market
+        .account::<opinions_market::states::BountyAccount>(bounty_pda)
+        .await
+        .unwrap();
+
+    let sponsor_user_account_before = opinions_market
+        .account::<opinions_market::states::UserAccount>(sponsor_user_account_pda)
+        .await
+        .unwrap();
+
+    println!("📊 Before expire bounty:");
+    println!("   - Bounty status: {:?}", bounty_before.status);
+    println!(
+        "   - Bounties expired: {}",
+        sponsor_user_account_before.bounties_expired
+    );
+
+    // Create expire_bounty instruction (permissionless)
+    let expire_bounty_ix = opinions_market
+        .request()
+        .accounts(opinions_market::accounts::ExpireBounty {
+            payer: payer.pubkey(),
+            question_post: question_post_pda,
+            token_mint: *token_mint,
+            bounty: bounty_pda,
+            sponsor_user_account: sponsor_user_account_pda,
+        })
+        .args(opinions_market::instruction::ExpireBounty {
+            question_post_id_hash,
+            sponsor: *sponsor,
+        })
+        .instructions()
+        .unwrap();
+
+    let expire_bounty_tx = send_tx(&rpc, expire_bounty_ix, &payer.pubkey(), &[&payer])
+        .await
+        .unwrap();
+    println!("expire bounty tx: {:?}", expire_bounty_tx);
+
+    // Verify state after expire
+    let bounty_after = opinions_market
+        .account::<opinions_market::states::BountyAccount>(bounty_pda)
+        .await
+        .unwrap();
+
+    let sponsor_user_account_after = opinions_market
+        .account::<opinions_market::states::UserAccount>(sponsor_user_account_pda)
+        .await
+        .unwrap();
+
+    println!("📊 After expire bounty:");
+    println!("   - Bounty status: {:?}", bounty_after.status);
+    println!(
+        "   - Bounties expired: {}",
+        sponsor_user_account_after.bounties_expired
+    );
+
+    // Verify bounty status is ExpiredUnresolved
+    assert_eq!(
+        bounty_after.status,
+        opinions_market::states::BountyStatus::ExpiredUnresolved,
+        "Bounty status should be ExpiredUnresolved"
+    );
+
+    // Verify bounties_expired incremented
+    assert_eq!(
+        sponsor_user_account_after.bounties_expired,
+        sponsor_user_account_before
+            .bounties_expired
+            .checked_add(1)
+            .unwrap(),
+        "Bounties expired should increment"
+    );
+
+    println!("✅ Expire bounty successful");
+}
+
+pub async fn test_phenomena_claim_bounty(
+    rpc: &RpcClient,
+    opinions_market: &Program<&Keypair>,
+    payer: &Keypair,
+    answer_author: &Keypair,
+    session_key: &Keypair,
+    question_post_pda: Pubkey,
+    question_post_id_hash: [u8; 32],
+    answer_post_pda: Pubkey,
+    answer_post_id_hash: [u8; 32],
+    sponsor: &Pubkey,
+    token_mint: &Pubkey,
+    tokens: &HashMap<Pubkey, String>,
+) {
+    let _token_name = tokens.get(token_mint).unwrap();
+    println!(
+        "User {:?} claiming bounty for answer {:?}",
+        answer_author.pubkey(),
+        hex::encode(answer_post_id_hash)
+    );
+
+    // Derive PDAs
+    let bounty_pda = Pubkey::find_program_address(
+        &[
+            BOUNTY_SEED,
+            question_post_pda.as_ref(),
+            sponsor.as_ref(),
+            token_mint.as_ref(),
+        ],
+        &opinions_market.id(),
+    )
+    .0;
+
+    let bounty_vault_token_account_pda = Pubkey::find_program_address(
+        &[BOUNTY_VAULT_TOKEN_ACCOUNT_SEED, bounty_pda.as_ref()],
+        &opinions_market.id(),
+    )
+    .0;
+
+    let answer_author_vault_token_account_pda = Pubkey::find_program_address(
+        &[
+            USER_VAULT_TOKEN_ACCOUNT_SEED,
+            answer_author.pubkey().as_ref(),
+            token_mint.as_ref(),
+        ],
+        &opinions_market.id(),
+    )
+    .0;
+
+    let vault_authority_pda =
+        Pubkey::find_program_address(&[VAULT_AUTHORITY_SEED], &opinions_market.id()).0;
+
+    let session_authority_pda = Pubkey::find_program_address(
+        &[
+            SESSION_AUTHORITY_SEED,
+            answer_author.pubkey().as_ref(),
+            session_key.pubkey().as_ref(),
+        ],
+        &opinions_market.id(),
+    )
+    .0;
+
+    // Get initial balances
+    let bounty_vault_before = opinions_market
+        .account::<anchor_spl::token::TokenAccount>(bounty_vault_token_account_pda)
+        .await
+        .unwrap();
+
+    let answer_author_vault_before_result = opinions_market
+        .account::<anchor_spl::token::TokenAccount>(answer_author_vault_token_account_pda)
+        .await;
+
+    let answer_author_vault_before = match answer_author_vault_before_result {
+        Ok(account) => account.amount,
+        Err(_) => 0,
+    };
+
+    let bounty_before = opinions_market
+        .account::<opinions_market::states::BountyAccount>(bounty_pda)
+        .await
+        .unwrap();
+
+    println!("📊 Before claim bounty:");
+    println!("   - Bounty vault: {}", bounty_vault_before.amount);
+    println!("   - Answer author vault: {}", answer_author_vault_before);
+    println!("   - Bounty claimed: {}", bounty_before.claimed);
+
+    // Create claim_bounty instruction
+    let claim_bounty_ix = opinions_market
+        .request()
+        .accounts(opinions_market::accounts::ClaimBounty {
+            answer_author: answer_author.pubkey(),
+            payer: payer.pubkey(),
+            session_key: session_key.pubkey(),
+            session_authority: session_authority_pda,
+            question_post: question_post_pda,
+            answer_post: answer_post_pda,
+            token_mint: *token_mint,
+            bounty: bounty_pda,
+            bounty_vault_token_account: bounty_vault_token_account_pda,
+            answer_author_vault_token_account: answer_author_vault_token_account_pda,
+            vault_authority: vault_authority_pda,
+            token_program: spl_token::ID,
+            system_program: system_program::ID,
+        })
+        .args(opinions_market::instruction::ClaimBounty {
+            question_post_id_hash,
+            answer_post_id_hash,
+            sponsor: *sponsor,
+        })
+        .instructions()
+        .unwrap();
+
+    let claim_bounty_tx = send_tx(&rpc, claim_bounty_ix, &payer.pubkey(), &[&payer])
+        .await
+        .unwrap();
+    println!("claim bounty tx: {:?}", claim_bounty_tx);
+
+    // Verify balances after claim
+    let bounty_vault_after = opinions_market
+        .account::<anchor_spl::token::TokenAccount>(bounty_vault_token_account_pda)
+        .await
+        .unwrap();
+
+    let answer_author_vault_after = opinions_market
+        .account::<anchor_spl::token::TokenAccount>(answer_author_vault_token_account_pda)
+        .await
+        .unwrap();
+
+    let bounty_after = opinions_market
+        .account::<opinions_market::states::BountyAccount>(bounty_pda)
+        .await
+        .unwrap();
+
+    println!("📊 After claim bounty:");
+    println!("   - Bounty vault: {}", bounty_vault_after.amount);
+    println!(
+        "   - Answer author vault: {}",
+        answer_author_vault_after.amount
+    );
+    println!("   - Bounty claimed: {}", bounty_after.claimed);
+
+    // Verify bounty vault decreased to zero
+    assert_eq!(
+        bounty_vault_after.amount, 0,
+        "Bounty vault should be empty after claim"
+    );
+
+    // Verify answer author vault increased
+    assert_eq!(
+        answer_author_vault_after.amount,
+        answer_author_vault_before
+            .checked_add(bounty_before.amount)
+            .unwrap(),
+        "Answer author vault should increase by bounty amount"
+    );
+
+    // Verify bounty is marked as claimed
+    assert_eq!(
+        bounty_after.claimed, true,
+        "Bounty should be marked as claimed"
+    );
+
+    println!("✅ Claim bounty successful");
+}
+
+pub async fn test_phenomena_reclaim_bounty(
+    rpc: &RpcClient,
+    opinions_market: &Program<&Keypair>,
+    payer: &Keypair,
+    sponsor: &Keypair,
+    session_key: &Keypair,
+    question_post_pda: Pubkey,
+    question_post_id_hash: [u8; 32],
+    token_mint: &Pubkey,
+    tokens: &HashMap<Pubkey, String>,
+) {
+    let _token_name = tokens.get(token_mint).unwrap();
+    println!(
+        "User {:?} reclaiming bounty for question {:?}",
+        sponsor.pubkey(),
+        hex::encode(question_post_id_hash)
+    );
+
+    // Derive PDAs
+    let sponsor_user_account_pda = Pubkey::find_program_address(
+        &[USER_ACCOUNT_SEED, sponsor.pubkey().as_ref()],
+        &opinions_market.id(),
+    )
+    .0;
+
+    let bounty_pda = Pubkey::find_program_address(
+        &[
+            BOUNTY_SEED,
+            question_post_pda.as_ref(),
+            sponsor.pubkey().as_ref(),
+            token_mint.as_ref(),
+        ],
+        &opinions_market.id(),
+    )
+    .0;
+
+    let bounty_vault_token_account_pda = Pubkey::find_program_address(
+        &[BOUNTY_VAULT_TOKEN_ACCOUNT_SEED, bounty_pda.as_ref()],
+        &opinions_market.id(),
+    )
+    .0;
+
+    let sponsor_vault_token_account_pda = Pubkey::find_program_address(
+        &[
+            USER_VAULT_TOKEN_ACCOUNT_SEED,
+            sponsor.pubkey().as_ref(),
+            token_mint.as_ref(),
+        ],
+        &opinions_market.id(),
+    )
+    .0;
+
+    let protocol_treasury_token_account_pda = Pubkey::find_program_address(
+        &[PROTOCOL_TREASURY_TOKEN_ACCOUNT_SEED, token_mint.as_ref()],
+        &opinions_market.id(),
+    )
+    .0;
+
+    let config_pda = Pubkey::find_program_address(&[CONFIG_SEED], &opinions_market.id()).0;
+
+    let vault_authority_pda =
+        Pubkey::find_program_address(&[VAULT_AUTHORITY_SEED], &opinions_market.id()).0;
+
+    let session_authority_pda = Pubkey::find_program_address(
+        &[
+            SESSION_AUTHORITY_SEED,
+            sponsor.pubkey().as_ref(),
+            session_key.pubkey().as_ref(),
+        ],
+        &opinions_market.id(),
+    )
+    .0;
+
+    // Get initial balances
+    let bounty_vault_before = opinions_market
+        .account::<anchor_spl::token::TokenAccount>(bounty_vault_token_account_pda)
+        .await
+        .unwrap();
+
+    let sponsor_vault_before = opinions_market
+        .account::<anchor_spl::token::TokenAccount>(sponsor_vault_token_account_pda)
+        .await
+        .unwrap();
+
+    let protocol_treasury_before_result = opinions_market
+        .account::<anchor_spl::token::TokenAccount>(protocol_treasury_token_account_pda)
+        .await;
+
+    let protocol_treasury_before = match protocol_treasury_before_result {
+        Ok(account) => account.amount,
+        Err(_) => 0,
+    };
+
+    let bounty_before = opinions_market
+        .account::<opinions_market::states::BountyAccount>(bounty_pda)
+        .await
+        .unwrap();
+
+    // Determine if expired (penalty applies) or closed (no penalty)
+    let is_expired = matches!(
+        bounty_before.status,
+        opinions_market::states::BountyStatus::ExpiredUnresolved
+    );
+    let expected_penalty = if is_expired {
+        (bounty_before.amount as u128 * 100u128 / 10000u128) as u64 // 1% penalty
+    } else {
+        0
+    };
+    let expected_net_amount = bounty_before.amount.checked_sub(expected_penalty).unwrap();
+
+    println!("📊 Before reclaim bounty:");
+    println!("   - Bounty vault: {}", bounty_vault_before.amount);
+    println!("   - Sponsor vault: {}", sponsor_vault_before.amount);
+    println!("   - Protocol treasury: {}", protocol_treasury_before);
+    println!("   - Bounty status: {:?}", bounty_before.status);
+    println!("   - Expected penalty: {}", expected_penalty);
+    println!("   - Expected net amount: {}", expected_net_amount);
+
+    // Create reclaim_bounty instruction
+    let reclaim_bounty_ix = opinions_market
+        .request()
+        .accounts(opinions_market::accounts::ReclaimBounty {
+            sponsor: sponsor.pubkey(),
+            payer: payer.pubkey(),
+            session_key: session_key.pubkey(),
+            session_authority: session_authority_pda,
+            sponsor_user_account: sponsor_user_account_pda,
+            question_post: question_post_pda,
+            token_mint: *token_mint,
+            bounty: bounty_pda,
+            bounty_vault_token_account: bounty_vault_token_account_pda,
+            sponsor_vault_token_account: sponsor_vault_token_account_pda,
+            protocol_treasury_token_account: protocol_treasury_token_account_pda,
+            config: config_pda,
+            vault_authority: vault_authority_pda,
+            token_program: spl_token::ID,
+        })
+        .args(opinions_market::instruction::ReclaimBounty {
+            question_post_id_hash,
+        })
+        .instructions()
+        .unwrap();
+
+    let reclaim_bounty_tx = send_tx(&rpc, reclaim_bounty_ix, &payer.pubkey(), &[&payer])
+        .await
+        .unwrap();
+    println!("reclaim bounty tx: {:?}", reclaim_bounty_tx);
+
+    // Verify balances after reclaim
+    let bounty_vault_after = opinions_market
+        .account::<anchor_spl::token::TokenAccount>(bounty_vault_token_account_pda)
+        .await
+        .unwrap();
+
+    let sponsor_vault_after = opinions_market
+        .account::<anchor_spl::token::TokenAccount>(sponsor_vault_token_account_pda)
+        .await
+        .unwrap();
+
+    let protocol_treasury_after = opinions_market
+        .account::<anchor_spl::token::TokenAccount>(protocol_treasury_token_account_pda)
+        .await
+        .unwrap();
+
+    let bounty_after = opinions_market
+        .account::<opinions_market::states::BountyAccount>(bounty_pda)
+        .await
+        .unwrap();
+
+    println!("📊 After reclaim bounty:");
+    println!("   - Bounty vault: {}", bounty_vault_after.amount);
+    println!("   - Sponsor vault: {}", sponsor_vault_after.amount);
+    println!("   - Protocol treasury: {}", protocol_treasury_after.amount);
+    println!("   - Bounty claimed: {}", bounty_after.claimed);
+
+    // Verify bounty vault is empty
+    assert_eq!(
+        bounty_vault_after.amount, 0,
+        "Bounty vault should be empty after reclaim"
+    );
+
+    // Verify sponsor vault increased by net amount
+    assert_eq!(
+        sponsor_vault_after.amount,
+        sponsor_vault_before
+            .amount
+            .checked_add(expected_net_amount)
+            .unwrap(),
+        "Sponsor vault should increase by net amount"
+    );
+
+    // Verify protocol treasury increased by penalty (if expired)
+    if is_expired {
+        assert_eq!(
+            protocol_treasury_after.amount,
+            protocol_treasury_before
+                .checked_add(expected_penalty)
+                .unwrap(),
+            "Protocol treasury should increase by penalty"
+        );
+    } else {
+        assert_eq!(
+            protocol_treasury_after.amount, protocol_treasury_before,
+            "Protocol treasury should not change for closed bounties"
+        );
+    }
+
+    // Verify bounty is marked as claimed
+    assert_eq!(
+        bounty_after.claimed, true,
+        "Bounty should be marked as claimed"
+    );
+
+    println!("✅ Reclaim bounty successful");
+}
