@@ -65,6 +65,8 @@ pub enum ErrorCode {
     ZeroAmount,
     #[msg("Cannot send tokens to yourself")]
     CannotSendToSelf,
+    #[msg("Token is not withdrawable")]
+    TokenNotWithdrawable,
 }
 
 #[event]
@@ -134,11 +136,12 @@ pub mod opinions_market {
 
         let valid_payment = &mut ctx.accounts.valid_payment;
 
-        let new_valid_payment = ValidPayment::new(ctx.accounts.bling_mint.key(), 1, true);
+        let new_valid_payment = ValidPayment::new(ctx.accounts.bling_mint.key(), 1, true, false);
 
         valid_payment.token_mint = new_valid_payment.token_mint;
         valid_payment.price_in_bling = new_valid_payment.price_in_bling;
         valid_payment.enabled = new_valid_payment.enabled;
+        valid_payment.withdrawable = new_valid_payment.withdrawable; // BLING is not withdrawable by default
         valid_payment.bump = ctx.bumps.valid_payment; // Use the actual bump from Anchor
 
         Ok(())
@@ -147,6 +150,7 @@ pub mod opinions_market {
     pub fn register_valid_payment(
         ctx: Context<RegisterValidPayment>,
         price_in_bling: u64, // How much is 1 token in BLING -
+        withdrawable: bool,  // Whether this token can be withdrawn from vault
     ) -> Result<()> {
         let cfg = &ctx.accounts.config;
 
@@ -154,14 +158,29 @@ pub mod opinions_market {
         // If the account already exists (same PDA seeds), init will fail before this function is called.
 
         let valid_payment = &mut ctx.accounts.valid_payment;
-        let new_valid_payment =
-            ValidPayment::new(ctx.accounts.token_mint.key(), price_in_bling, true);
+        let new_valid_payment = ValidPayment::new(
+            ctx.accounts.token_mint.key(),
+            price_in_bling,
+            true,
+            withdrawable,
+        );
 
         valid_payment.token_mint = new_valid_payment.token_mint;
         valid_payment.price_in_bling = new_valid_payment.price_in_bling;
         valid_payment.enabled = new_valid_payment.enabled;
+        valid_payment.withdrawable = new_valid_payment.withdrawable;
         valid_payment.bump = ctx.bumps.valid_payment; // Use the actual bump from Anchor
 
+        Ok(())
+    }
+
+    /// Update the withdrawable flag for a valid payment token
+    pub fn update_valid_payment_withdrawable(
+        ctx: Context<ModifyAcceptedMint>,
+        withdrawable: bool,
+    ) -> Result<()> {
+        let valid_payment = &mut ctx.accounts.accepted_mint;
+        valid_payment.withdrawable = withdrawable;
         Ok(())
     }
 
@@ -1054,7 +1073,7 @@ pub mod opinions_market {
         // Initialize TipVault if needed (init_if_needed will create it if missing)
         let tip_vault = &mut ctx.accounts.tip_vault;
         let is_new = tip_vault.owner == Pubkey::default();
-        
+
         if is_new {
             let new_tip_vault = TipVault::new(
                 ctx.accounts.recipient.key(),
@@ -1082,7 +1101,10 @@ pub mod opinions_market {
         let vault_authority_seeds: &[&[&[u8]]] = &[&[VAULT_AUTHORITY_SEED, &[vault_bump]]];
 
         let cpi_accounts = anchor_spl::token::Transfer {
-            from: ctx.accounts.sender_user_vault_token_account.to_account_info(),
+            from: ctx
+                .accounts
+                .sender_user_vault_token_account
+                .to_account_info(),
             to: ctx.accounts.tip_vault_token_account.to_account_info(),
             authority: ctx.accounts.vault_authority.to_account_info(),
         };
@@ -1150,7 +1172,10 @@ pub mod opinions_market {
 
         let cpi_accounts = anchor_spl::token::Transfer {
             from: ctx.accounts.tip_vault_token_account.to_account_info(),
-            to: ctx.accounts.owner_user_vault_token_account.to_account_info(),
+            to: ctx
+                .accounts
+                .owner_user_vault_token_account
+                .to_account_info(),
             authority: ctx.accounts.vault_authority.to_account_info(),
         };
         let cpi_ctx = CpiContext::new_with_signer(
@@ -1204,8 +1229,14 @@ pub mod opinions_market {
         let vault_authority_seeds: &[&[&[u8]]] = &[&[VAULT_AUTHORITY_SEED, &[vault_bump]]];
 
         let cpi_accounts = anchor_spl::token::Transfer {
-            from: ctx.accounts.sender_user_vault_token_account.to_account_info(),
-            to: ctx.accounts.recipient_user_vault_token_account.to_account_info(),
+            from: ctx
+                .accounts
+                .sender_user_vault_token_account
+                .to_account_info(),
+            to: ctx
+                .accounts
+                .recipient_user_vault_token_account
+                .to_account_info(),
             authority: ctx.accounts.vault_authority.to_account_info(),
         };
         let cpi_ctx = CpiContext::new_with_signer(

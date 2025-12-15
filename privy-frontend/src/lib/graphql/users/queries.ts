@@ -627,3 +627,23 @@ export interface UserFollowingResult {
     };
   } | null;
 }
+
+export const VALID_PAYMENT_QUERY = `
+  query ValidPayment($tokenMint: String!) {
+    validPayment(tokenMint: $tokenMint) {
+      tokenMint
+      priceInBling
+      enabled
+      withdrawable
+    }
+  }
+`;
+
+export interface ValidPaymentResult {
+  validPayment: {
+    tokenMint: string;
+    priceInBling: number;
+    enabled: boolean;
+    withdrawable: boolean;
+  } | null;
+}

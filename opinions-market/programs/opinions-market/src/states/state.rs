@@ -75,14 +75,16 @@ pub struct ValidPayment {
     /// This value is lamport-free. So 1 BLING = 1 BLING
     pub price_in_bling: u64,
     pub enabled: bool,
+    pub withdrawable: bool,
     pub bump: u8,
 }
 impl ValidPayment {
-    pub fn new(token_mint: Pubkey, price_in_bling: u64, enabled: bool) -> Self {
+    pub fn new(token_mint: Pubkey, price_in_bling: u64, enabled: bool, withdrawable: bool) -> Self {
         Self {
             token_mint,
             price_in_bling,
             enabled,
+            withdrawable,
             bump: 0,
         }
     }

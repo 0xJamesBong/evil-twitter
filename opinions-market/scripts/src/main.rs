@@ -210,6 +210,7 @@ async fn main() {
         })
         .args(opinions_market::instruction::RegisterValidPayment {
             price_in_bling: 10, // 1 USDC = 10 BLING
+            withdrawable: true, // USDC is withdrawable
         })
         .instructions()
         .unwrap();
@@ -253,6 +254,7 @@ async fn main() {
         })
         .args(opinions_market::instruction::RegisterValidPayment {
             price_in_bling: 1000, // 1 STABLECOIN = 1000 BLING
+            withdrawable: true,   // STABLECOIN is withdrawable
         })
         .instructions()
         .unwrap();

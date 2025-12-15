@@ -43,10 +43,9 @@ export function getTokenName(
   usdcMint?: string,
   stablecoinMint?: string
 ): string {
-  const BLING = blingMint || process.env.NEXT_PUBLIC_BLING_MINT || "";
-  const USDC = usdcMint || process.env.NEXT_PUBLIC_USDC_MINT || "";
-  const STABLECOIN =
-    stablecoinMint || process.env.NEXT_PUBLIC_STABLECOIN_MINT || "";
+  const BLING = blingMint || BLING_MINT_STR;
+  const USDC = usdcMint || USDC_MINT_STR;
+  const STABLECOIN = stablecoinMint || STABLECOIN_MINT_STR;
 
   if (mint === BLING) return "BLING";
   if (mint === USDC) return "USDC";

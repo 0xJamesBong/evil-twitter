@@ -9,6 +9,7 @@ import {
 } from "@/lib/graphql/tweets/mutations";
 import { getTokenConfig } from "@/lib/utils/tokens";
 import { formatTokenBalance } from "@/lib/utils/formatting";
+import { BLING_MINT_STR, USDC_MINT_STR, STABLECOIN_MINT_STR } from "@/lib/config/tokens";
 import { ClaimableRewardNode } from "@/lib/graphql/tweets/queries";
 
 interface UseClaimPostRewardsReturn {
@@ -46,15 +47,10 @@ export function useClaimPostRewards(
     const claimedTokens: string[] = [];
     const failedTokens: string[] = [];
 
-    // Get mint addresses for token config
-    const BLING_MINT = process.env.NEXT_PUBLIC_BLING_MINT || "";
-    const USDC_MINT = process.env.NEXT_PUBLIC_USDC_MINT || "";
-    const STABLECOIN_MINT = process.env.NEXT_PUBLIC_STABLECOIN_MINT || "";
-
     // Claim each token reward sequentially
     for (const reward of rewards) {
       try {
-        const tokenConfig = getTokenConfig(reward.tokenMint, BLING_MINT, USDC_MINT, STABLECOIN_MINT);
+        const tokenConfig = getTokenConfig(reward.tokenMint, BLING_MINT_STR, USDC_MINT_STR, STABLECOIN_MINT_STR);
 
         const input: ClaimRewardInput = {
           tweetId: reward.tweetId,
@@ -81,7 +77,7 @@ export function useClaimPostRewards(
           `Failed to claim reward for token ${reward.tokenMint}:`,
           err
         );
-        const tokenConfig = getTokenConfig(reward.tokenMint, BLING_MINT, USDC_MINT, STABLECOIN_MINT);
+        const tokenConfig = getTokenConfig(reward.tokenMint, BLING_MINT_STR, USDC_MINT_STR, STABLECOIN_MINT_STR);
         failedTokens.push(tokenConfig?.metadata.symbol || "Unknown");
       }
     }

@@ -41,15 +41,16 @@ import { AmountInputWithSlider } from "./AmountInputWithSlider";
 import { formatTokenBalance } from "../../lib/utils/formatting";
 import { TokenDisplay, TokenLogo } from "../tokens";
 import { getTokenConfig } from "../../lib/utils/tokens";
-
-// Token mints - should match backend
-const BLING_MINT_STR = process.env.NEXT_PUBLIC_BLING_MINT || "bbb9w3ZidNJJGm4TKbhkCXqB9XSnzsjTedmJ5F2THX8";
-const USDC_MINT_STR = process.env.NEXT_PUBLIC_USDC_MINT || "";
-const STABLECOIN_MINT_STR = process.env.NEXT_PUBLIC_STABLECOIN_MINT || "";
-
-const BLING_MINT = new PublicKey(BLING_MINT_STR);
-const USDC_MINT = USDC_MINT_STR ? new PublicKey(USDC_MINT_STR) : null;
-const STABLECOIN_MINT = STABLECOIN_MINT_STR ? new PublicKey(STABLECOIN_MINT_STR) : null;
+import { graphqlRequest } from "../../lib/graphql/client";
+import { VALID_PAYMENT_QUERY, ValidPaymentResult } from "../../lib/graphql/users/queries";
+import {
+  BLING_MINT_STR,
+  USDC_MINT_STR,
+  STABLECOIN_MINT_STR,
+  BLING_MINT,
+  USDC_MINT,
+  STABLECOIN_MINT,
+} from "../../lib/config/tokens";
 
 export function VaultNavbar() {
   const { authenticated, login } = usePrivy();
@@ -139,6 +140,42 @@ export function VaultNavbar() {
   const [handle, setHandle] = useState<string>("");
   const [displayName, setDisplayName] = useState<string>("");
   const [selectedTokenMint, setSelectedTokenMint] = useState<string>(BLING_MINT_STR);
+  const [validPayments, setValidPayments] = useState<Record<string, { withdrawable: boolean; enabled: boolean }>>({});
+  const [loadingValidPayments, setLoadingValidPayments] = useState(false);
+
+  // Fetch ValidPayment info for all tokens from backend (public data, no auth required)
+  useEffect(() => {
+    const fetchValidPayments = async () => {
+      setLoadingValidPayments(true);
+      const payments: Record<string, { withdrawable: boolean; enabled: boolean }> = {};
+
+      const tokens = [BLING_MINT_STR, USDC_MINT_STR, STABLECOIN_MINT_STR].filter(Boolean);
+
+      for (const tokenMint of tokens) {
+        try {
+          // ValidPayment is public on-chain data, no authentication required
+          const result = await graphqlRequest<ValidPaymentResult>(
+            VALID_PAYMENT_QUERY,
+            { tokenMint },
+            undefined // No identity token needed for public data
+          );
+          if (result.validPayment) {
+            payments[tokenMint] = {
+              withdrawable: result.validPayment.withdrawable,
+              enabled: result.validPayment.enabled,
+            };
+          }
+        } catch (error) {
+          console.error(`Failed to fetch ValidPayment for ${tokenMint}:`, error);
+        }
+      }
+
+      setValidPayments(payments);
+      setLoadingValidPayments(false);
+    };
+
+    fetchValidPayments();
+  }, [BLING_MINT_STR, USDC_MINT_STR, STABLECOIN_MINT_STR]);
 
   // Get selected token config
   const selectedTokenConfig = getTokenConfig(
@@ -280,7 +317,15 @@ export function VaultNavbar() {
 
     setDialogMode(mode);
     setAmount("");
-    setSelectedTokenMint(BLING_MINT_STR); // Reset to BLING when opening dialog
+    // In withdraw mode, select first withdrawable token, otherwise default to BLING
+    if (mode === "withdraw") {
+      const withdrawableToken = [BLING_MINT_STR, USDC_MINT_STR, STABLECOIN_MINT_STR].find(
+        (mint) => mint && validPayments[mint]?.withdrawable
+      );
+      setSelectedTokenMint(withdrawableToken || BLING_MINT_STR);
+    } else {
+      setSelectedTokenMint(BLING_MINT_STR); // Reset to BLING when opening dialog
+    }
     setDialogOpen(true);
   };
 
@@ -803,52 +848,90 @@ export function VaultNavbar() {
                       },
                     }}
                   >
-                    <ToggleButton value={BLING_MINT_STR} aria-label="BLING">
-                      <Box sx={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 0.5, py: 1 }}>
-                        <TokenLogo
-                          mint={BLING_MINT_STR}
-                          blingMint={BLING_MINT_STR}
-                          usdcMint={USDC_MINT_STR}
-                          stablecoinMint={STABLECOIN_MINT_STR}
-                          size={24}
-                        />
-                        <Typography variant="caption" sx={{ fontWeight: 500 }}>
-                          BLING
-                        </Typography>
-                      </Box>
-                    </ToggleButton>
-                    {USDC_MINT_STR && (
-                      <ToggleButton value={USDC_MINT_STR} aria-label="USDC">
-                        <Box sx={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 0.5, py: 1 }}>
-                          <TokenLogo
-                            mint={USDC_MINT_STR}
-                            blingMint={BLING_MINT_STR}
-                            usdcMint={USDC_MINT_STR}
-                            stablecoinMint={STABLECOIN_MINT_STR}
-                            size={24}
-                          />
-                          <Typography variant="caption" sx={{ fontWeight: 500 }}>
-                            USDC
-                          </Typography>
-                        </Box>
-                      </ToggleButton>
-                    )}
-                    {STABLECOIN_MINT_STR && (
-                      <ToggleButton value={STABLECOIN_MINT_STR} aria-label="Stablecoin">
-                        <Box sx={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 0.5, py: 1 }}>
-                          <TokenLogo
-                            mint={STABLECOIN_MINT_STR}
-                            blingMint={BLING_MINT_STR}
-                            usdcMint={USDC_MINT_STR}
-                            stablecoinMint={STABLECOIN_MINT_STR}
-                            size={24}
-                          />
-                          <Typography variant="caption" sx={{ fontWeight: 500 }}>
-                            Stablecoin
-                          </Typography>
-                        </Box>
-                      </ToggleButton>
-                    )}
+                    {(() => {
+                      const blingWithdrawable = validPayments[BLING_MINT_STR]?.withdrawable ?? false;
+                      const isBlingDisabled = dialogMode === "withdraw" && !blingWithdrawable;
+                      return (
+                        <ToggleButton
+                          value={BLING_MINT_STR}
+                          aria-label="BLING"
+                          disabled={isBlingDisabled}
+                          sx={{
+                            opacity: isBlingDisabled ? 0.5 : 1,
+                            cursor: isBlingDisabled ? "not-allowed" : "pointer",
+                          }}
+                        >
+                          <Box sx={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 0.5, py: 1 }}>
+                            <TokenLogo
+                              mint={BLING_MINT_STR}
+                              blingMint={BLING_MINT_STR}
+                              usdcMint={USDC_MINT_STR}
+                              stablecoinMint={STABLECOIN_MINT_STR}
+                              size={24}
+                            />
+                            <Typography variant="caption" sx={{ fontWeight: 500 }}>
+                              BLING
+                            </Typography>
+                          </Box>
+                        </ToggleButton>
+                      );
+                    })()}
+                    {USDC_MINT_STR && (() => {
+                      const usdcWithdrawable = validPayments[USDC_MINT_STR]?.withdrawable ?? false;
+                      const isUsdcDisabled = dialogMode === "withdraw" && !usdcWithdrawable;
+                      return (
+                        <ToggleButton
+                          value={USDC_MINT_STR}
+                          aria-label="USDC"
+                          disabled={isUsdcDisabled}
+                          sx={{
+                            opacity: isUsdcDisabled ? 0.5 : 1,
+                            cursor: isUsdcDisabled ? "not-allowed" : "pointer",
+                          }}
+                        >
+                          <Box sx={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 0.5, py: 1 }}>
+                            <TokenLogo
+                              mint={USDC_MINT_STR}
+                              blingMint={BLING_MINT_STR}
+                              usdcMint={USDC_MINT_STR}
+                              stablecoinMint={STABLECOIN_MINT_STR}
+                              size={24}
+                            />
+                            <Typography variant="caption" sx={{ fontWeight: 500 }}>
+                              USDC
+                            </Typography>
+                          </Box>
+                        </ToggleButton>
+                      );
+                    })()}
+                    {STABLECOIN_MINT_STR && (() => {
+                      const stablecoinWithdrawable = validPayments[STABLECOIN_MINT_STR]?.withdrawable ?? false;
+                      const isStablecoinDisabled = dialogMode === "withdraw" && !stablecoinWithdrawable;
+                      return (
+                        <ToggleButton
+                          value={STABLECOIN_MINT_STR}
+                          aria-label="Stablecoin"
+                          disabled={isStablecoinDisabled}
+                          sx={{
+                            opacity: isStablecoinDisabled ? 0.5 : 1,
+                            cursor: isStablecoinDisabled ? "not-allowed" : "pointer",
+                          }}
+                        >
+                          <Box sx={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 0.5, py: 1 }}>
+                            <TokenLogo
+                              mint={STABLECOIN_MINT_STR}
+                              blingMint={BLING_MINT_STR}
+                              usdcMint={USDC_MINT_STR}
+                              stablecoinMint={STABLECOIN_MINT_STR}
+                              size={24}
+                            />
+                            <Typography variant="caption" sx={{ fontWeight: 500 }}>
+                              Stablecoin
+                            </Typography>
+                          </Box>
+                        </ToggleButton>
+                      );
+                    })()}
                   </ToggleButtonGroup>
                 </Box>
 
@@ -914,7 +997,12 @@ export function VaultNavbar() {
               onClick={dialogMode === "deposit" ? handleDeposit : handleWithdraw}
               variant="contained"
               color={dialogMode === "deposit" ? "success" : "error"}
-              disabled={isLoading || !amount || parseFloat(amount) <= 0}
+              disabled={
+                isLoading ||
+                !amount ||
+                parseFloat(amount) <= 0 ||
+                (dialogMode === "withdraw" && !validPayments[selectedTokenMint]?.withdrawable)
+              }
               startIcon={isLoading ? <CircularProgress size={16} /> : null}
             >
               {isLoading

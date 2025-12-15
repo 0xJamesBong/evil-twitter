@@ -54,11 +54,11 @@ import { UserByHandleResult, UserByIdResult } from "@/lib/graphql/users/queries"
 import { TweetNode } from "@/lib/graphql/tweets/types";
 import { FollowList } from "./FollowList";
 import { TipButton } from "@/components/tips/TipButton";
-
-// Token mint addresses
-const BLING_MINT = process.env.NEXT_PUBLIC_BLING_MINT || "";
-const USDC_MINT = process.env.NEXT_PUBLIC_USDC_MINT || "";
-const STABLECOIN_MINT = process.env.NEXT_PUBLIC_STABLECOIN_MINT || "";
+import {
+    BLING_MINT_STR,
+    USDC_MINT_STR,
+    STABLECOIN_MINT_STR,
+} from "@/lib/config/tokens";
 
 type UserData = (UserByHandleResult["userByHandle"] | UserByIdResult["user"]) & {
     tweets?: {
@@ -92,11 +92,11 @@ export function UserProfile({
     const [followTab, setFollowTab] = useState<"followers" | "following">("followers");
 
     // Get wallet token balances (only for own profile)
-    const mintAddresses = [BLING_MINT, USDC_MINT, STABLECOIN_MINT].filter(Boolean);
+    const mintAddresses = [BLING_MINT_STR, USDC_MINT_STR, STABLECOIN_MINT_STR].filter(Boolean);
     const { balances, loading: loadingBalances } = useWalletTokenBalances(
         isOwnProfile ? mintAddresses : [],
-        USDC_MINT,
-        STABLECOIN_MINT
+        USDC_MINT_STR,
+        STABLECOIN_MINT_STR
     );
 
     // Get canonical vote costs (only for own profile)
@@ -143,9 +143,9 @@ export function UserProfile({
     }
 
     // Get token decimals
-    const blingTokenConfig = getTokenConfig(BLING_MINT, BLING_MINT, USDC_MINT, STABLECOIN_MINT);
-    const usdcTokenConfig = USDC_MINT ? getTokenConfig(USDC_MINT, BLING_MINT, USDC_MINT, STABLECOIN_MINT) : null;
-    const stablecoinTokenConfig = STABLECOIN_MINT ? getTokenConfig(STABLECOIN_MINT, BLING_MINT, USDC_MINT, STABLECOIN_MINT) : null;
+    const blingTokenConfig = getTokenConfig(BLING_MINT_STR, BLING_MINT_STR, USDC_MINT_STR, STABLECOIN_MINT_STR);
+    const usdcTokenConfig = USDC_MINT_STR ? getTokenConfig(USDC_MINT_STR, BLING_MINT_STR, USDC_MINT_STR, STABLECOIN_MINT_STR) : null;
+    const stablecoinTokenConfig = STABLECOIN_MINT_STR ? getTokenConfig(STABLECOIN_MINT_STR, BLING_MINT_STR, USDC_MINT_STR, STABLECOIN_MINT_STR) : null;
 
     const blingDecimals = blingTokenConfig?.metadata.decimals ?? 9;
     const usdcDecimals = usdcTokenConfig?.metadata.decimals ?? 6;
@@ -370,10 +370,10 @@ export function UserProfile({
                                         <Stack spacing={1}>
                                             <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                                                 <TokenDisplay
-                                                    mint={BLING_MINT}
-                                                    blingMint={BLING_MINT}
-                                                    usdcMint={USDC_MINT}
-                                                    stablecoinMint={STABLECOIN_MINT}
+                                                    mint={BLING_MINT_STR}
+                                                    blingMint={BLING_MINT_STR}
+                                                    usdcMint={USDC_MINT_STR}
+                                                    stablecoinMint={STABLECOIN_MINT_STR}
                                                     size="small"
                                                 />
                                                 <Typography variant="body1" sx={{ fontWeight: 600 }}>
@@ -384,13 +384,13 @@ export function UserProfile({
                                                             : "N/A"}
                                                 </Typography>
                                             </Box>
-                                            {USDC_MINT && user.vaultBalances?.usdc !== null && (
+                                            {USDC_MINT_STR && user.vaultBalances?.usdc !== null && (
                                                 <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                                                     <TokenDisplay
-                                                        mint={USDC_MINT}
-                                                        blingMint={BLING_MINT}
-                                                        usdcMint={USDC_MINT}
-                                                        stablecoinMint={STABLECOIN_MINT}
+                                                        mint={USDC_MINT_STR}
+                                                        blingMint={BLING_MINT_STR}
+                                                        usdcMint={USDC_MINT_STR}
+                                                        stablecoinMint={STABLECOIN_MINT_STR}
                                                         size="small"
                                                     />
                                                     <Typography variant="body1" sx={{ fontWeight: 600 }}>
@@ -398,13 +398,13 @@ export function UserProfile({
                                                     </Typography>
                                                 </Box>
                                             )}
-                                            {STABLECOIN_MINT && user.vaultBalances?.stablecoin !== null && (
+                                            {STABLECOIN_MINT_STR && user.vaultBalances?.stablecoin !== null && (
                                                 <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                                                     <TokenDisplay
-                                                        mint={STABLECOIN_MINT}
-                                                        blingMint={BLING_MINT}
-                                                        usdcMint={USDC_MINT}
-                                                        stablecoinMint={STABLECOIN_MINT}
+                                                        mint={STABLECOIN_MINT_STR}
+                                                        blingMint={BLING_MINT_STR}
+                                                        usdcMint={USDC_MINT_STR}
+                                                        stablecoinMint={STABLECOIN_MINT_STR}
                                                         size="small"
                                                     />
                                                     <Typography variant="body1" sx={{ fontWeight: 600 }}>
