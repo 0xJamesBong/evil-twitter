@@ -1,224 +1,213 @@
-// use std::collections::HashMap;
+use std::collections::HashMap;
 
-// use anchor_client::anchor_lang::require;
-// use anchor_client::anchor_lang::solana_program::example_mocks::solana_sdk::system_program;
-// use anchor_client::Program;
-// use anchor_spl::token::spl_token;
-// use solana_client::nonblocking::rpc_client::RpcClient;
-// use solana_sdk::pubkey::Pubkey;
-// use solana_sdk::{signature::Keypair, signer::Signer};
+use anchor_client::anchor_lang::require;
+use anchor_client::anchor_lang::solana_program::example_mocks::solana_sdk::system_program;
+use anchor_client::Program;
+use anchor_spl::token::spl_token;
+use solana_client::nonblocking::rpc_client::RpcClient;
+use solana_sdk::pubkey::Pubkey;
+use solana_sdk::{signature::Keypair, signer::Signer};
 
-// use crate::config::TIME_CONFIG_FAST;
-// use crate::utils::rates::RATES;
-// use crate::utils::utils::{
-//     create_ed25519_instruction_for_session, current_chain_timestamp, send_tx,
-//     sign_message_for_session_registration, wait_for_post_to_expire, PRIVILEGES_HASH,
-// };
-// use opinions_market::pda_seeds::*;
+use crate::config::TIME_CONFIG_FAST;
+use crate::utils::rates::RATES;
+use crate::utils::utils::{
+    create_ed25519_instruction_for_session, current_chain_timestamp, send_tx,
+    sign_message_for_session_registration, wait_for_post_to_expire, PRIVILEGES_HASH,
+};
+use opinions_market::pda_seeds::*;
 
-// pub async fn test_phenomena() {}
+pub async fn test_phenomena() {}
 
-// pub async fn test_phenomena_turn_on_withdrawable(
-//     rpc: &RpcClient,
-//     opinions_market: &Program<&Keypair>,
-//     payer: &Keypair,
-//     admin: &Keypair,
-//     token_mint: &Pubkey,
-// ) {
-//     println!("turning on withdrawable for {:}", token_mint);
-//     let config_pda = Pubkey::find_program_address(&[b"config"], &opinions_market.id()).0;
+pub async fn test_phenomena_turn_on_withdrawable(
+    rpc: &RpcClient,
+    fed: &Program<&Keypair>,
+    payer: &Keypair,
+    admin: &Keypair,
+    token_mint: &Pubkey,
+) {
+    println!("turning on withdrawable for {:}", token_mint);
+    let config_pda = Pubkey::find_program_address(&[b"config"], &fed.id()).0;
 
-//     let valid_payment_pda = Pubkey::find_program_address(
-//         &[VALID_PAYMENT_SEED, token_mint.as_ref()],
-//         &opinions_market.id(),
-//     )
-//     .0;
+    let valid_payment_pda =
+        Pubkey::find_program_address(&[VALID_PAYMENT_SEED, token_mint.as_ref()], &fed.id()).0;
 
-//     // Verify account exists before modifying
-//     let account_before = opinions_market
-//         .account::<opinions_market::states::ValidPayment>(valid_payment_pda)
-//         .await
-//         .expect("ValidPayment account should exist");
+    // Verify account exists before modifying
+    let account_before = fed
+        .account::<fed::states::ValidPayment>(valid_payment_pda)
+        .await
+        .expect("ValidPayment account should exist");
 
-//     println!("📊 Before update:");
-//     println!("   - Withdrawable: {}", account_before.withdrawable);
+    println!("📊 Before update:");
+    println!("   - Withdrawable: {}", account_before.withdrawable);
 
-//     let update_ix = opinions_market
-//         .request()
-//         .accounts(opinions_market::accounts::ModifyAcceptedMint {
-//             config: config_pda,
-//             admin: admin.pubkey(),
-//             mint: token_mint.clone(),
-//             accepted_mint: valid_payment_pda,
-//         })
-//         .args(opinions_market::instruction::UpdateValidPaymentWithdrawable { withdrawable: true })
-//         .instructions()
-//         .unwrap();
+    let update_ix = fed
+        .request()
+        .accounts(fed::accounts::ModifyAcceptedMint {
+            config: config_pda,
+            admin: admin.pubkey(),
+            mint: token_mint.clone(),
+            accepted_mint: valid_payment_pda,
+        })
+        .args(fed::instruction::UpdateValidPaymentWithdrawable { withdrawable: true })
+        .instructions()
+        .unwrap();
 
-//     let update_tx = send_tx(rpc, update_ix, &payer.pubkey(), &[&payer, admin])
-//         .await
-//         .unwrap();
-//     println!("✅ Update withdrawable transaction: {:?}", update_tx);
+    let update_tx = send_tx(rpc, update_ix, &payer.pubkey(), &[&payer, admin])
+        .await
+        .unwrap();
+    println!("✅ Update withdrawable transaction: {:?}", update_tx);
 
-//     // Verify the update
-//     let account_after = opinions_market
-//         .account::<opinions_market::states::ValidPayment>(valid_payment_pda)
-//         .await
-//         .unwrap();
+    // Verify the update
+    let account_after = fed
+        .account::<fed::states::ValidPayment>(valid_payment_pda)
+        .await
+        .unwrap();
 
-//     println!("📊 After update:");
-//     println!("   - Withdrawable: {}", account_after.withdrawable);
+    println!("📊 After update:");
+    println!("   - Withdrawable: {}", account_after.withdrawable);
 
-//     assert!(
-//         account_after.withdrawable,
-//         "Withdrawable should be true after update"
-//     );
-//     println!("✅ Verified: withdrawable is now true");
-// }
+    assert!(
+        account_after.withdrawable,
+        "Withdrawable should be true after update"
+    );
+    println!("✅ Verified: withdrawable is now true");
+}
 
-// pub async fn test_phenomena_turn_off_withdrawable(
-//     rpc: &RpcClient,
-//     opinions_market: &Program<&Keypair>,
-//     payer: &Keypair,
-//     admin: &Keypair,
-//     token_mint: &Pubkey,
-// ) {
-//     println!("turning off withdrawable for {:}", token_mint);
-//     let config_pda = Pubkey::find_program_address(&[b"config"], &opinions_market.id()).0;
+pub async fn test_phenomena_turn_off_withdrawable(
+    rpc: &RpcClient,
+    fed: &Program<&Keypair>,
+    payer: &Keypair,
+    admin: &Keypair,
+    token_mint: &Pubkey,
+) {
+    println!("turning off withdrawable for {:}", token_mint);
+    let config_pda = Pubkey::find_program_address(&[b"config"], &fed.id()).0;
 
-//     let valid_payment_pda = Pubkey::find_program_address(
-//         &[VALID_PAYMENT_SEED, token_mint.as_ref()],
-//         &opinions_market.id(),
-//     )
-//     .0;
+    let valid_payment_pda =
+        Pubkey::find_program_address(&[VALID_PAYMENT_SEED, token_mint.as_ref()], &fed.id()).0;
 
-//     // Verify account exists before modifying
-//     let account_before = opinions_market
-//         .account::<opinions_market::states::ValidPayment>(valid_payment_pda)
-//         .await
-//         .expect("ValidPayment account should exist");
+    // Verify account exists before modifying
+    let account_before = fed
+        .account::<fed::states::ValidPayment>(valid_payment_pda)
+        .await
+        .expect("ValidPayment account should exist");
 
-//     println!("📊 Before update:");
-//     println!("   - Withdrawable: {}", account_before.withdrawable);
+    println!("📊 Before update:");
+    println!("   - Withdrawable: {}", account_before.withdrawable);
 
-//     let update_ix = opinions_market
-//         .request()
-//         .accounts(opinions_market::accounts::ModifyAcceptedMint {
-//             config: config_pda,
-//             admin: admin.pubkey(),
-//             mint: token_mint.clone(),
-//             accepted_mint: valid_payment_pda,
-//         })
-//         .args(
-//             opinions_market::instruction::UpdateValidPaymentWithdrawable {
-//                 withdrawable: false,
-//             },
-//         )
-//         .instructions()
-//         .unwrap();
+    let update_ix = fed
+        .request()
+        .accounts(fed::accounts::ModifyAcceptedMint {
+            config: config_pda,
+            admin: admin.pubkey(),
+            mint: token_mint.clone(),
+            accepted_mint: valid_payment_pda,
+        })
+        .args(fed::instruction::UpdateValidPaymentWithdrawable {
+            withdrawable: false,
+        })
+        .instructions()
+        .unwrap();
 
-//     let update_tx = send_tx(rpc, update_ix, &payer.pubkey(), &[&payer, admin])
-//         .await
-//         .unwrap();
-//     println!("✅ Update withdrawable transaction: {:?}", update_tx);
+    let update_tx = send_tx(rpc, update_ix, &payer.pubkey(), &[&payer, admin])
+        .await
+        .unwrap();
+    println!("✅ Update withdrawable transaction: {:?}", update_tx);
 
-//     // Verify the update
-//     let account_after = opinions_market
-//         .account::<opinions_market::states::ValidPayment>(valid_payment_pda)
-//         .await
-//         .unwrap();
+    // Verify the update
+    let account_after = fed
+        .account::<fed::states::ValidPayment>(valid_payment_pda)
+        .await
+        .unwrap();
 
-//     println!("📊 After update:");
-//     println!("   - Withdrawable: {}", account_after.withdrawable);
+    println!("📊 After update:");
+    println!("   - Withdrawable: {}", account_after.withdrawable);
 
-//     assert!(
-//         !account_after.withdrawable,
-//         "Withdrawable should be false after update"
-//     );
-//     println!("✅ Verified: withdrawable is now false");
-// }
+    assert!(
+        !account_after.withdrawable,
+        "Withdrawable should be false after update"
+    );
+    println!("✅ Verified: withdrawable is now false");
+}
 
-// pub async fn test_phenomena_add_valid_payment(
-//     rpc: &RpcClient,
-//     opinions_market: &Program<&Keypair>,
-//     payer: &Keypair,
-//     admin: &Keypair,
+pub async fn test_phenomena_add_valid_payment(
+    rpc: &RpcClient,
+    fed: &Program<&Keypair>,
+    payer: &Keypair,
+    admin: &Keypair,
 
-//     new_token_mint: &Pubkey,
-// ) {
-//     println!("adding {:} as an valid payment mint", new_token_mint);
-//     let config_pda = Pubkey::find_program_address(&[b"config"], &opinions_market.id()).0;
+    new_token_mint: &Pubkey,
+) {
+    println!("adding {:} as an valid payment mint", new_token_mint);
+    let config_pda = Pubkey::find_program_address(&[b"config"], &fed.id()).0;
 
-//     // adding usdc as an valid payment mint
-//     let valid_payment_pda = Pubkey::find_program_address(
-//         &[VALID_PAYMENT_SEED, new_token_mint.as_ref()],
-//         &opinions_market.id(),
-//     )
-//     .0;
+    // adding usdc as an valid payment mint
+    let valid_payment_pda =
+        Pubkey::find_program_address(&[VALID_PAYMENT_SEED, new_token_mint.as_ref()], &fed.id()).0;
 
-//     // BEFORE: Verify USDC is NOT an valid payment mint (account doesn't exist)
-//     let account_before = opinions_market
-//         .account::<opinions_market::states::ValidPayment>(valid_payment_pda)
-//         .await;
-//     assert!(
-//         account_before.is_err(),
-//         "USDC should NOT be registered as valid payment before registration"
-//     );
-//     println!("✅ Verified: USDC is NOT registered before registration");
-//     let treasury_token_account_pda = Pubkey::find_program_address(
-//         &[
-//             PROTOCOL_TREASURY_TOKEN_ACCOUNT_SEED,
-//             new_token_mint.as_ref(),
-//         ],
-//         &opinions_market.id(),
-//     )
-//     .0;
-//     let register_valid_payment_ix = opinions_market
-//         .request()
-//         .accounts(opinions_market::accounts::RegisterValidPayment {
-//             config: config_pda,
-//             admin: admin.pubkey(),
-//             token_mint: new_token_mint.clone(),
-//             valid_payment: valid_payment_pda,
-//             protocol_token_treasury_token_account: treasury_token_account_pda,
-//             system_program: system_program::ID,
-//             token_program: spl_token::ID,
-//         })
-//         .args(opinions_market::instruction::RegisterValidPayment {
-//             price_in_bling: RATES.usdc_to_bling,
-//             withdrawable: true, // USDC is withdrawable
-//         })
-//         .instructions()
-//         .unwrap();
+    // BEFORE: Verify USDC is NOT an valid payment mint (account doesn't exist)
+    let account_before = fed
+        .account::<fed::states::ValidPayment>(valid_payment_pda)
+        .await;
+    assert!(
+        account_before.is_err(),
+        "USDC should NOT be registered as valid payment before registration"
+    );
+    println!("✅ Verified: USDC is NOT registered before registration");
+    let treasury_token_account_pda = Pubkey::find_program_address(
+        &[
+            PROTOCOL_TREASURY_TOKEN_ACCOUNT_SEED,
+            new_token_mint.as_ref(),
+        ],
+        &fed.id(),
+    )
+    .0;
+    let register_valid_payment_ix = fed
+        .request()
+        .accounts(fed::accounts::RegisterValidPayment {
+            config: config_pda,
+            admin: admin.pubkey(),
+            token_mint: new_token_mint.clone(),
+            valid_payment: valid_payment_pda,
+            protocol_token_treasury_token_account: treasury_token_account_pda,
+            system_program: system_program::ID,
+            token_program: spl_token::ID,
+        })
+        .args(fed::instruction::RegisterValidPayment {
+            price_in_bling: RATES.usdc_to_bling,
+            withdrawable: true, // USDC is withdrawable
+        })
+        .instructions()
+        .unwrap();
 
-//     let register_valid_payment_tx = send_tx(
-//         &rpc,
-//         register_valid_payment_ix,
-//         &payer.pubkey(),
-//         &[&payer, &admin],
-//     )
-//     .await
-//     .unwrap();
-//     println!("register valid payment tx: {:?}", register_valid_payment_tx);
+    let register_valid_payment_tx = send_tx(
+        &rpc,
+        register_valid_payment_ix,
+        &payer.pubkey(),
+        &[&payer, &admin],
+    )
+    .await
+    .unwrap();
+    println!("register valid payment tx: {:?}", register_valid_payment_tx);
 
-//     // AFTER: Verify USDC IS an valid payment mint (account exists and is enabled)
-//     let account_after = opinions_market
-//         .account::<opinions_market::states::ValidPayment>(valid_payment_pda)
-//         .await
-//         .unwrap();
-//     assert_eq!(
-//         account_after.token_mint, *new_token_mint,
-//         "Token mint should match USDC"
-//     );
-//     assert!(
-//         account_after.enabled,
-//         "USDC should be enabled as valid payment"
-//     );
-//     assert_eq!(
-//         account_after.price_in_bling, RATES.usdc_to_bling,
-//         "Price in BLING should match the registered rate"
-//     );
-// }
+    // AFTER: Verify USDC IS an valid payment mint (account exists and is enabled)
+    let account_after = fed
+        .account::<fed::states::ValidPayment>(valid_payment_pda)
+        .await
+        .unwrap();
+    assert_eq!(
+        account_after.token_mint, *new_token_mint,
+        "Token mint should match USDC"
+    );
+    assert!(
+        account_after.enabled,
+        "USDC should be enabled as valid payment"
+    );
+    assert_eq!(
+        account_after.price_in_bling, RATES.usdc_to_bling,
+        "Price in BLING should match the registered rate"
+    );
+}
 
 // pub async fn test_phenomena_create_user(
 //     rpc: &RpcClient,
