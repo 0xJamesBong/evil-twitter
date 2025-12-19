@@ -2514,6 +2514,10 @@
         {
           "name": "price_in_bling",
           "type": "u64"
+        },
+        {
+          "name": "withdrawable",
+          "type": "bool"
         }
       ]
     },
@@ -3314,6 +3318,87 @@
         {
           "name": "amount",
           "type": "u64"
+        }
+      ]
+    },
+    {
+      "name": "update_valid_payment_withdrawable",
+      "docs": [
+        "Update the withdrawable flag for a valid payment token"
+      ],
+      "discriminator": [
+        72,
+        245,
+        94,
+        5,
+        186,
+        203,
+        134,
+        171
+      ],
+      "accounts": [
+        {
+          "name": "config",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  99,
+                  111,
+                  110,
+                  102,
+                  105,
+                  103
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "admin",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "mint"
+        },
+        {
+          "name": "accepted_mint",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  118,
+                  97,
+                  108,
+                  105,
+                  100,
+                  95,
+                  112,
+                  97,
+                  121,
+                  109,
+                  101,
+                  110,
+                  116
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "mint"
+              }
+            ]
+          }
+        }
+      ],
+      "args": [
+        {
+          "name": "withdrawable",
+          "type": "bool"
         }
       ]
     },
@@ -4214,6 +4299,11 @@
       "code": 6024,
       "name": "CannotSendToSelf",
       "msg": "Cannot send tokens to yourself"
+    },
+    {
+      "code": 6025,
+      "name": "TokenNotWithdrawable",
+      "msg": "Token is not withdrawable"
     }
   ],
   "types": [
@@ -4248,9 +4338,6 @@
           },
           {
             "name": "bump",
-            "docs": [
-              "10_000 by default"
-            ],
             "type": "u8"
           },
           {
@@ -4773,6 +4860,10 @@
           },
           {
             "name": "enabled",
+            "type": "bool"
+          },
+          {
+            "name": "withdrawable",
             "type": "bool"
           },
           {

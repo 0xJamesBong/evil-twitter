@@ -8,6 +8,8 @@ upgradeable = true
 
 [programs.localnet]
 opinions_market = "4z5rjroGdWmgGX13SdFsh4wRM4jJkMUrcvYrNpV3gezm"
+persona = "3bE1UxZ4VFKbptUhpFwzA1AdXgdJENhRcLQApj9F9Z1d"
+referrals = "44Ti52xtPRNGHBrWWpWFFWHzngCQChCzoEPeLWxeRFxC"
 
 [registry]
 url = "https://api.apr.dev"

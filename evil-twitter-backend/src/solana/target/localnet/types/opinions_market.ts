@@ -2520,6 +2520,10 @@ export type OpinionsMarket = {
         {
           "name": "priceInBling",
           "type": "u64"
+        },
+        {
+          "name": "withdrawable",
+          "type": "bool"
         }
       ]
     },
@@ -3320,6 +3324,87 @@ export type OpinionsMarket = {
         {
           "name": "amount",
           "type": "u64"
+        }
+      ]
+    },
+    {
+      "name": "updateValidPaymentWithdrawable",
+      "docs": [
+        "Update the withdrawable flag for a valid payment token"
+      ],
+      "discriminator": [
+        72,
+        245,
+        94,
+        5,
+        186,
+        203,
+        134,
+        171
+      ],
+      "accounts": [
+        {
+          "name": "config",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  99,
+                  111,
+                  110,
+                  102,
+                  105,
+                  103
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "admin",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "mint"
+        },
+        {
+          "name": "acceptedMint",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  118,
+                  97,
+                  108,
+                  105,
+                  100,
+                  95,
+                  112,
+                  97,
+                  121,
+                  109,
+                  101,
+                  110,
+                  116
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "mint"
+              }
+            ]
+          }
+        }
+      ],
+      "args": [
+        {
+          "name": "withdrawable",
+          "type": "bool"
         }
       ]
     },
@@ -4220,6 +4305,11 @@ export type OpinionsMarket = {
       "code": 6024,
       "name": "cannotSendToSelf",
       "msg": "Cannot send tokens to yourself"
+    },
+    {
+      "code": 6025,
+      "name": "tokenNotWithdrawable",
+      "msg": "Token is not withdrawable"
     }
   ],
   "types": [
@@ -4254,9 +4344,6 @@ export type OpinionsMarket = {
           },
           {
             "name": "bump",
-            "docs": [
-              "10_000 by default"
-            ],
             "type": "u8"
           },
           {
@@ -4779,6 +4866,10 @@ export type OpinionsMarket = {
           },
           {
             "name": "enabled",
+            "type": "bool"
+          },
+          {
+            "name": "withdrawable",
             "type": "bool"
           },
           {
