@@ -84,7 +84,11 @@ use std::collections::HashMap;
 
 #[tokio::test]
 async fn test_setup() {
-    let program_id = opinions_market::ID;
+    let opinions_market_program_id = opinions_market::ID;
+    let persona_program_id = persona::ID;
+    let referrals_program_id = referrals::ID;
+    let fed_program_id = fed::ID;
+
     let anchor_wallet = std::env::var("ANCHOR_WALLET").unwrap();
     let payer = read_keypair_file(&anchor_wallet).unwrap();
     let payer_pubkey = &payer.pubkey();
@@ -110,7 +114,12 @@ async fn test_setup() {
 
     let client = Client::new_with_options(Cluster::Localnet, &payer, CommitmentConfig::confirmed());
 
-    let opinions_market = client.program(program_id).unwrap();
+    let opinions_market = client.program(opinions_market_program_id).unwrap();
+
+    let persona = client.program(persona_program_id).unwrap();
+    let referrals = client.program(referrals_program_id).unwrap();
+    let fed = client.program(fed_program_id).unwrap();
+
     let rpc = opinions_market.rpc();
 
     let bling_mint = Keypair::new();
@@ -185,19 +194,21 @@ async fn test_setup() {
     )
     .await;
 
-    let config_pda = Pubkey::find_program_address(&[b"config"], &program_id).0;
+    let config_pda = Pubkey::find_program_address(&[b"config"], &opinions_market_program_id).0;
 
     {
         println!("initializing opinions market engine");
         let protocol_bling_treasury_pda = Pubkey::find_program_address(
             &[PROTOCOL_TREASURY_TOKEN_ACCOUNT_SEED, bling_pubkey.as_ref()],
-            &program_id,
+            &opinions_market_program_id,
         )
         .0;
 
-        let valid_payment_pda =
-            Pubkey::find_program_address(&[VALID_PAYMENT_SEED, bling_pubkey.as_ref()], &program_id)
-                .0;
+        let valid_payment_pda = Pubkey::find_program_address(
+            &[VALID_PAYMENT_SEED, bling_pubkey.as_ref()],
+            &opinions_market_program_id,
+        )
+        .0;
 
         let initialize_ix = opinions_market
             .request()
