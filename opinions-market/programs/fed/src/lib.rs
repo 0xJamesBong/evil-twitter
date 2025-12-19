@@ -167,4 +167,281 @@ pub mod fed {
         valid_payment.withdrawable = withdrawable;
         Ok(())
     }
+    /// User deposits from their wallet into the program-controlled vault.
+    pub fn deposit(ctx: Context<Deposit>, amount: u64) -> Result<()> {
+        // No logic needed—Anchor already checked mint is allowed.
+        let cpi_accounts = anchor_spl::token::Transfer {
+            from: ctx.accounts.user_token_ata.to_account_info(),
+            to: ctx.accounts.user_vault_token_account.to_account_info(),
+            authority: ctx.accounts.user.to_account_info(),
+        };
+        let cpi_ctx = CpiContext::new(ctx.accounts.token_program.to_account_info(), cpi_accounts);
+        anchor_spl::token::transfer(cpi_ctx, amount)?;
+        Ok(())
+    }
+
+    /// Withdraw with possible penalty based on social interactions.
+    /// You can later implement:
+    ///   effective_amount = amount * (10000 - user.withdraw_penalty_bps()) / 10000
+    pub fn withdraw(ctx: Context<Withdraw>, amount: u64) -> Result<()> {
+        // later you’ll put the social penalty logic here
+        let effective_amount = amount;
+
+        let vault_bump = ctx.bumps.vault_authority;
+        let seeds: &[&[&[u8]]] = &[&[VAULT_AUTHORITY_SEED, &[vault_bump]]];
+
+        let cpi_accounts = anchor_spl::token::Transfer {
+            from: ctx.accounts.user_vault_token_account.to_account_info(),
+            to: ctx.accounts.user_token_dest_ata.to_account_info(),
+            authority: ctx.accounts.vault_authority.to_account_info(),
+        };
+        let cpi_ctx = CpiContext::new_with_signer(
+            ctx.accounts.token_program.to_account_info(),
+            cpi_accounts,
+            seeds,
+        );
+        anchor_spl::token::transfer(cpi_ctx, effective_amount)?;
+        Ok(())
+    }
+
+    /// Tip another user from sender's vault to recipient's tip vault.
+    /// Tips accumulate in the recipient's tip vault until they claim.
+    pub fn tip(ctx: Context<Tip>, amount: u64) -> Result<()> {
+        let clock = Clock::get()?;
+        let now = clock.unix_timestamp;
+
+        // Determine actual signer (could be sender wallet or session key)
+        let signer = ctx.accounts.sender.key();
+
+        // Auth: session or wallet
+        assert_session_or_wallet(
+            &signer,
+            &ctx.accounts.sender_user_account.user,
+            Some(&ctx.accounts.session_authority),
+            now,
+        )?;
+
+        // Validate amount
+        require!(amount > 0, ErrorCode::ZeroTipAmount);
+
+        // Validate recipient != sender
+        require!(
+            ctx.accounts.recipient.key() != ctx.accounts.sender_user_account.user,
+            ErrorCode::CannotTipSelf
+        );
+
+        // Initialize TipVault if needed (init_if_needed will create it if missing)
+        let tip_vault = &mut ctx.accounts.tip_vault;
+        let is_new = tip_vault.owner == Pubkey::default();
+
+        if is_new {
+            let new_tip_vault = TipVault::new(
+                ctx.accounts.recipient.key(),
+                ctx.accounts.token_mint.key(),
+                ctx.bumps.tip_vault,
+            );
+            tip_vault.owner = new_tip_vault.owner;
+            tip_vault.token_mint = new_tip_vault.token_mint;
+            tip_vault.unclaimed_amount = new_tip_vault.unclaimed_amount;
+            tip_vault.bump = new_tip_vault.bump;
+        } else {
+            // Validate existing tip vault matches recipient and mint
+            require!(
+                tip_vault.owner == ctx.accounts.recipient.key(),
+                ErrorCode::Unauthorized
+            );
+            require!(
+                tip_vault.token_mint == ctx.accounts.token_mint.key(),
+                ErrorCode::Unauthorized
+            );
+        }
+
+        // Transfer from sender's vault to tip vault
+        let vault_bump = ctx.bumps.vault_authority;
+        let vault_authority_seeds: &[&[&[u8]]] = &[&[VAULT_AUTHORITY_SEED, &[vault_bump]]];
+
+        let cpi_accounts = anchor_spl::token::Transfer {
+            from: ctx
+                .accounts
+                .sender_user_vault_token_account
+                .to_account_info(),
+            to: ctx.accounts.tip_vault_token_account.to_account_info(),
+            authority: ctx.accounts.vault_authority.to_account_info(),
+        };
+        let cpi_ctx = CpiContext::new_with_signer(
+            ctx.accounts.token_program.to_account_info(),
+            cpi_accounts,
+            vault_authority_seeds,
+        );
+        anchor_spl::token::transfer(cpi_ctx, amount)?;
+
+        // Increment unclaimed_amount
+        tip_vault.unclaimed_amount = tip_vault
+            .unclaimed_amount
+            .checked_add(amount)
+            .ok_or(ErrorCode::MathOverflow)?;
+
+        // Emit event
+        emit!(TipReceived {
+            owner: tip_vault.owner,
+            sender: ctx.accounts.sender_user_account.user,
+            token_mint: ctx.accounts.token_mint.key(),
+            amount,
+            vault_balance: ctx.accounts.tip_vault_token_account.amount,
+        });
+
+        Ok(())
+    }
+    /// Claim all tips from tip vault to owner's main vault.
+    /// All-or-nothing: claims entire vault balance.
+    pub fn claim_tips(ctx: Context<ClaimTips>) -> Result<()> {
+        let clock = Clock::get()?;
+        let now = clock.unix_timestamp;
+
+        // Determine actual signer (could be owner wallet or session key)
+        let signer = ctx.accounts.owner.key();
+
+        // Auth: session or wallet
+        assert_session_or_wallet(
+            &signer,
+            &ctx.accounts.user_account.user,
+            Some(&ctx.accounts.session_authority),
+            now,
+        )?;
+
+        let tip_vault = &mut ctx.accounts.tip_vault;
+
+        // Validate tip vault owner matches
+        require!(
+            tip_vault.owner == ctx.accounts.user_account.user,
+            ErrorCode::Unauthorized
+        );
+        require!(
+            tip_vault.token_mint == ctx.accounts.token_mint.key(),
+            ErrorCode::Unauthorized
+        );
+
+        // Read vault balance (source of truth)
+        let claim_amount = ctx.accounts.tip_vault_token_account.amount;
+        require!(claim_amount > 0, ErrorCode::NoTipsToClaim);
+
+        // Transfer from tip vault to owner's main vault
+        let vault_bump = ctx.bumps.vault_authority;
+        let vault_authority_seeds: &[&[&[u8]]] = &[&[VAULT_AUTHORITY_SEED, &[vault_bump]]];
+
+        let cpi_accounts = anchor_spl::token::Transfer {
+            from: ctx.accounts.tip_vault_token_account.to_account_info(),
+            to: ctx
+                .accounts
+                .owner_user_vault_token_account
+                .to_account_info(),
+            authority: ctx.accounts.vault_authority.to_account_info(),
+        };
+        let cpi_ctx = CpiContext::new_with_signer(
+            ctx.accounts.token_program.to_account_info(),
+            cpi_accounts,
+            vault_authority_seeds,
+        );
+        anchor_spl::token::transfer(cpi_ctx, claim_amount)?;
+
+        // Reset unclaimed_amount
+        tip_vault.unclaimed_amount = 0;
+
+        // Emit event
+        emit!(TipsClaimed {
+            owner: tip_vault.owner,
+            token_mint: ctx.accounts.token_mint.key(),
+            amount: claim_amount,
+        });
+
+        Ok(())
+    }
+
+    /// Send tokens from sender's user vault to recipient's user vault.
+    /// Direct vault-to-vault transfer without intermediate accounts.
+    pub fn send_token(ctx: Context<SendToken>, amount: u64) -> Result<()> {
+        let clock = Clock::get()?;
+        let now = clock.unix_timestamp;
+
+        // Determine actual signer (could be sender wallet or session key)
+        let signer = ctx.accounts.sender.key();
+
+        // Auth: session or wallet
+        assert_session_or_wallet(
+            &signer,
+            &ctx.accounts.sender_user_account.user,
+            Some(&ctx.accounts.session_authority),
+            now,
+        )?;
+
+        // Validate amount
+        require!(amount > 0, ErrorCode::ZeroAmount);
+
+        // Validate recipient != sender
+        require!(
+            ctx.accounts.recipient.key() != ctx.accounts.sender_user_account.user,
+            ErrorCode::CannotSendToSelf
+        );
+
+        // Transfer from sender's vault to recipient's vault
+        let vault_bump = ctx.bumps.vault_authority;
+        let vault_authority_seeds: &[&[&[u8]]] = &[&[VAULT_AUTHORITY_SEED, &[vault_bump]]];
+
+        let cpi_accounts = anchor_spl::token::Transfer {
+            from: ctx
+                .accounts
+                .sender_user_vault_token_account
+                .to_account_info(),
+            to: ctx
+                .accounts
+                .recipient_user_vault_token_account
+                .to_account_info(),
+            authority: ctx.accounts.vault_authority.to_account_info(),
+        };
+        let cpi_ctx = CpiContext::new_with_signer(
+            ctx.accounts.token_program.to_account_info(),
+            cpi_accounts,
+            vault_authority_seeds,
+        );
+        anchor_spl::token::transfer(cpi_ctx, amount)?;
+
+        Ok(())
+    }
+
+    // pub fn charge_vote(
+    //     ctx: Context<ChargeVote>,
+    //     side: Side,
+    //     cost_bling: u64,
+    //     protocol_fee_bps: u16,
+    //     creator_fee_bps: u16,
+    // ) -> Result<()> {
+    //     // 1. Compute splits
+    //     // 2. Convert BLING → token (if needed)
+    //     // 3. Transfer from user vault:
+    //     //    - protocol treasury
+    //     //    - creator vault
+    //     //    - post pot
+    // }
+    // pub fn payout_from_pot(
+    //     ctx: Context<PayoutFromPot>,
+    //     amount: u64,
+    //     destination: Pubkey,
+    // ) -> Result<()> {
+    // }
+}
+
+#[event]
+pub struct TipReceived {
+    pub owner: Pubkey,
+    pub sender: Pubkey,
+    pub token_mint: Pubkey,
+    pub amount: u64,
+    pub vault_balance: u64,
+}
+
+#[event]
+pub struct TipsClaimed {
+    pub owner: Pubkey,
+    pub token_mint: Pubkey,
+    pub amount: u64,
 }

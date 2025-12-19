@@ -12,13 +12,13 @@ use solana_sdk::{
 }; // Add this import
 
 use crate::config::TIME_CONFIG_FAST;
-use crate::utils::phenomena::{
-    test_phenomena_add_valid_payment, test_phenomena_claim_post_reward,
-    test_phenomena_create_answer, test_phenomena_create_post, test_phenomena_create_question,
-    test_phenomena_create_user, test_phenomena_deposit, test_phenomena_settle_post,
-    test_phenomena_tip, test_phenomena_turn_on_withdrawable, test_phenomena_vote_on_post,
-    test_phenomena_withdraw,
-};
+// use crate::utils::phenomena::{
+//     test_phenomena_add_valid_payment, test_phenomena_claim_post_reward,
+//     test_phenomena_create_answer, test_phenomena_create_post, test_phenomena_create_question,
+//     test_phenomena_create_user, test_phenomena_deposit, test_phenomena_settle_post,
+//     test_phenomena_tip, test_phenomena_turn_on_withdrawable, test_phenomena_vote_on_post,
+//     test_phenomena_withdraw,
+// };
 use crate::utils::utils::{
     airdrop_sol_to_users, send_tx, setup_token_mint, setup_token_mint_ata_and_mint_to_many_users,
 };
@@ -114,11 +114,10 @@ async fn test_setup() {
 
     let client = Client::new_with_options(Cluster::Localnet, &payer, CommitmentConfig::confirmed());
 
+    let fed = client.program(fed_program_id).unwrap();
     let opinions_market = client.program(opinions_market_program_id).unwrap();
-
     let persona = client.program(persona_program_id).unwrap();
     let referrals = client.program(referrals_program_id).unwrap();
-    let fed = client.program(fed_program_id).unwrap();
 
     let rpc = opinions_market.rpc();
 
@@ -194,25 +193,25 @@ async fn test_setup() {
     )
     .await;
 
-    let config_pda = Pubkey::find_program_address(&[b"config"], &opinions_market_program_id).0;
+    let config_pda = Pubkey::find_program_address(&[b"config"], &fed_program_id).0;
 
     {
         println!("initializing opinions market engine");
         let protocol_bling_treasury_pda = Pubkey::find_program_address(
             &[PROTOCOL_TREASURY_TOKEN_ACCOUNT_SEED, bling_pubkey.as_ref()],
-            &opinions_market_program_id,
+            &fed_program_id,
         )
         .0;
 
         let valid_payment_pda = Pubkey::find_program_address(
             &[VALID_PAYMENT_SEED, bling_pubkey.as_ref()],
-            &opinions_market_program_id,
+            &fed_program_id,
         )
         .0;
 
-        let initialize_ix = opinions_market
+        let initialize_ix = fed
             .request()
-            .accounts(opinions_market::accounts::Initialize {
+            .accounts(fed::accounts::Initialize {
                 admin: admin_pubkey,
                 payer: payer_pubkey.clone(),
                 config: config_pda,
@@ -223,7 +222,7 @@ async fn test_setup() {
                 system_program: system_program::ID,
                 token_program: spl_token::ID,
             })
-            .args(opinions_market::instruction::Initialize {
+            .args(fed::instruction::Initialize {
                 base_duration_secs: TIME_CONFIG_FAST.base_duration_secs,
                 max_duration_secs: TIME_CONFIG_FAST.max_duration_secs,
                 extension_per_vote_secs: TIME_CONFIG_FAST.extension_per_vote_secs,
@@ -235,408 +234,6 @@ async fn test_setup() {
             .await
             .unwrap();
         println!("initialize tx: {:?}", initialize_tx);
-
-        // make bling withdrawable
-        test_phenomena_turn_on_withdrawable(&rpc, &opinions_market, &payer, &admin, &bling_pubkey)
-            .await;
-
-        test_phenomena_add_valid_payment(&rpc, &opinions_market, &payer, &admin, &usdc_pubkey)
-            .await;
-
-        // Register Stablecoin as a valid payment token
-        test_phenomena_add_valid_payment(
-            &rpc,
-            &opinions_market,
-            &payer,
-            &admin,
-            &stablecoin_pubkey,
-        )
-        .await;
-
-        test_phenomena_create_user(
-            &rpc,
-            &opinions_market,
-            &payer,
-            &user_1,
-            &session_key,
-            &config_pda,
-        )
-        .await;
-        test_phenomena_create_user(
-            &rpc,
-            &opinions_market,
-            &payer,
-            &user_2,
-            &session_key,
-            &config_pda,
-        )
-        .await;
-        test_phenomena_create_user(
-            &rpc,
-            &opinions_market,
-            &payer,
-            &user_3,
-            &session_key,
-            &config_pda,
-        )
-        .await;
-
-        {
-            println!("user 1 depositing 10_000_000 bling to their vault");
-            test_phenomena_deposit(
-                &rpc,
-                &opinions_market,
-                &payer,
-                &user_1,
-                10_000_000 * LAMPORTS_PER_SOL,
-                &bling_pubkey,
-                &tokens,
-                &bling_atas,
-                &config_pda,
-            )
-            .await;
-        }
-
-        {
-            println!("user 2 depositing 1_000 usdc to their vault");
-            test_phenomena_deposit(
-                &rpc,
-                &opinions_market,
-                &payer,
-                &user_2,
-                1_000 * USDC_LAMPORTS_PER_USDC, // 1,000 USDC with 6 decimals
-                &usdc_pubkey,
-                &tokens,
-                &usdc_atas,
-                &config_pda,
-            )
-            .await;
-        }
-        {
-            println!("user 1 withdrawing 9_000_000 bling from their vault to their wallet");
-            test_phenomena_withdraw(
-                &rpc,
-                &opinions_market,
-                &payer,
-                &user_1,
-                9_000_000 * LAMPORTS_PER_SOL,
-                &bling_pubkey,
-                &tokens,
-                &bling_atas,
-            )
-            .await;
-        }
-
-        {
-            println!("user 2 withdrawing 900 usdc from their vault to their wallet");
-            test_phenomena_withdraw(
-                &rpc,
-                &opinions_market,
-                &payer,
-                &user_2,
-                900 * USDC_LAMPORTS_PER_USDC, // 900 USDC with 6 decimals
-                &usdc_pubkey,
-                &tokens,
-                &usdc_atas,
-            )
-            .await;
-        }
-
-        {
-            println!("user 2 depositing 1_000_000 bling to their vault");
-            test_phenomena_deposit(
-                &rpc,
-                &opinions_market,
-                &payer,
-                &user_2,
-                1_000_000 * LAMPORTS_PER_SOL,
-                &bling_pubkey,
-                &tokens,
-                &bling_atas,
-                &config_pda,
-            )
-            .await;
-        }
-
-        {
-            println!("user 1 depositing 1_000_000 usdc to their vault");
-            test_phenomena_deposit(
-                &rpc,
-                &opinions_market,
-                &payer,
-                &user_1,
-                1_000_000 * USDC_LAMPORTS_PER_USDC, // 1,000,000 USDC with 6 decimals
-                &usdc_pubkey,
-                &tokens,
-                &usdc_atas,
-                &config_pda,
-            )
-            .await;
-        }
-        {
-            println!("user 1 depositing 1_000_000 stablecoin to their vault");
-            test_phenomena_deposit(
-                &rpc,
-                &opinions_market,
-                &payer,
-                &user_1,
-                1_000_000 * USDC_LAMPORTS_PER_USDC, // 1,000,000 Stablecoin with 6 decimals
-                &stablecoin_pubkey,
-                &tokens,
-                &stablecoin_atas,
-                &config_pda,
-            )
-            .await;
-        }
-
-        //// ===== CREATING POSTS =====
-        let (post_p1_pda, post_p1_id_hash) = {
-            println!("user 1 creating an original post P1");
-            test_phenomena_create_post(
-                &rpc,
-                &opinions_market,
-                &payer,
-                &user_1,
-                &session_key,
-                &config_pda,
-                None, // Original post
-            )
-            .await
-        };
-
-        let (post_p2_pda, post_p2_id_hash) = {
-            println!("user 2 creates a child post P2 of user 1's post P1");
-            test_phenomena_create_post(
-                &rpc,
-                &opinions_market,
-                &payer,
-                &user_2,
-                &session_key,
-                &config_pda,
-                Some(post_p1_pda), // Child post
-            )
-            .await
-        };
-
-        {
-            println!("user 2 upvoting user 1's post P1");
-            test_phenomena_vote_on_post(
-                &rpc,
-                &opinions_market,
-                &payer,
-                &user_2,
-                &session_key,
-                &post_p1_pda,
-                opinions_market::states::Side::Pump,
-                1,
-                &bling_pubkey,
-                &bling_atas,
-                &config_pda,
-            )
-            .await;
-        }
-
-        {
-            println!("user 1 downvoting user 2's post P2");
-            test_phenomena_vote_on_post(
-                &rpc,
-                &opinions_market,
-                &payer,
-                &user_1,
-                &session_key,
-                &post_p2_pda,
-                opinions_market::states::Side::Smack,
-                2,
-                &bling_pubkey,
-                &bling_atas,
-                &config_pda,
-            )
-            .await;
-        }
-
-        {
-            println!("user 1 downvoting user 2's post P2");
-            test_phenomena_vote_on_post(
-                &rpc,
-                &opinions_market,
-                &payer,
-                &user_1,
-                &session_key,
-                &post_p2_pda,
-                opinions_market::states::Side::Smack,
-                1,
-                &bling_pubkey,
-                &bling_atas,
-                &config_pda,
-            )
-            .await;
-        }
-
-        {
-            println!("user 1 downvoting user 2's child post");
-            // Note: This is the same as the previous vote since P2 is already a child post
-            // If you meant a different child post, we'd need to create another one first
-            test_phenomena_vote_on_post(
-                &rpc,
-                &opinions_market,
-                &payer,
-                &user_1,
-                &session_key,
-                &post_p2_pda,
-                opinions_market::states::Side::Smack,
-                1,
-                &bling_pubkey,
-                &bling_atas,
-                &config_pda,
-            )
-            .await;
-        }
-
-        {
-            println!("user 1 upvoting user 2's child post with USDC");
-            // Note: This is the same as the previous vote since P2 is already a child post
-            // If you meant a different child post, we'd need to create another one first
-            test_phenomena_vote_on_post(
-                &rpc,
-                &opinions_market,
-                &payer,
-                &user_1,
-                &session_key,
-                &post_p2_pda,
-                opinions_market::states::Side::Pump,
-                1,
-                &usdc_pubkey,
-                &bling_atas,
-                &config_pda,
-            )
-            .await;
-        }
-
-        {
-            println!("user 1 upvoting user 2's child post with stablecoin");
-            // Note: This is the same as the previous vote since P2 is already a child post
-            // If you meant a different child post, we'd need to create another one first
-            test_phenomena_vote_on_post(
-                &rpc,
-                &opinions_market,
-                &payer,
-                &user_1,
-                &session_key,
-                &post_p2_pda,
-                opinions_market::states::Side::Pump,
-                1,
-                &stablecoin_pubkey,
-                &stablecoin_atas,
-                &config_pda,
-            )
-            .await;
-        }
-
-        //         Note: In a real test, you'd need to wait for the post to expire before settling
-        // For now, we'll just show the settle function exists
-        {
-            // wait_seconds(TIME_CONFIG_FAST.max_duration_secs as u64).await;
-            println!("Settling post P1");
-            test_phenomena_settle_post(
-                &rpc,
-                &opinions_market,
-                &payer,
-                &post_p1_pda,
-                &tokens,
-                &config_pda,
-            )
-            .await;
-        }
-
-        {
-            println!("\n user 2 claims their reward from user 's post");
-            test_phenomena_claim_post_reward(
-                &rpc,
-                &opinions_market,
-                &payer,
-                &user_2,
-                &session_key,
-                &post_p1_pda,
-                &bling_pubkey,
-                &tokens,
-                &config_pda,
-            )
-            .await;
-        }
-
-        {
-            // question
-            println!("user 1 creating a question post Q1");
-            let (question_post_pda, question_post_id_hash) = test_phenomena_create_question(
-                &rpc,
-                &opinions_market,
-                &payer,
-                &user_1,
-                &session_key,
-                &config_pda,
-            )
-            .await;
-
-            let (answer_post_pda, answer_post_id_hash) = test_phenomena_create_answer(
-                &rpc,
-                &opinions_market,
-                &payer,
-                &user_1,
-                &session_key,
-                &config_pda,
-                question_post_pda,
-                question_post_id_hash,
-            )
-            .await;
-
-            println!("user 2 upvoting user 1's question post Q1");
-            test_phenomena_vote_on_post(
-                &rpc,
-                &opinions_market,
-                &payer,
-                &user_2,
-                &session_key,
-                &question_post_pda,
-                opinions_market::states::Side::Pump,
-                1,
-                &bling_pubkey,
-                &bling_atas,
-                &config_pda,
-            )
-            .await;
-
-            println!("user 2 upvoting user 1's answer post A1");
-            test_phenomena_vote_on_post(
-                &rpc,
-                &opinions_market,
-                &payer,
-                &user_2,
-                &session_key,
-                &answer_post_pda,
-                opinions_market::states::Side::Pump,
-                1,
-                &bling_pubkey,
-                &bling_atas,
-                &config_pda,
-            )
-            .await;
-        };
-
-        {
-            println!("user 1 tipping user 2 100 bling");
-            test_phenomena_tip(
-                &rpc,
-                &opinions_market,
-                &payer,
-                &user_1,
-                &session_key,
-                &user_2,
-                100 * LAMPORTS_PER_SOL,
-                &bling_pubkey,
-                &tokens,
-            )
-            .await;
-        }
         {
             println!("\n\n");
             println!(" 🟪🟪🟪🟪🟪🟪🟪🟪🟪🟪🟪🟪🟪🟪🟪🟪🟪");
@@ -645,18 +242,420 @@ async fn test_setup() {
             panic!();
         }
 
-        // {
-        //     println!("user 3 trying to make a post");
-        //     // This would Cause an error because user 3 is not a user in the system
-        //     test_phenomena_create_post(
+        //     // make bling withdrawable
+        //     test_phenomena_turn_on_withdrawable(&rpc, &opinions_market, &payer, &admin, &bling_pubkey)
+        //         .await;
+
+        //     test_phenomena_add_valid_payment(&rpc, &opinions_market, &payer, &admin, &usdc_pubkey)
+        //         .await;
+
+        //     // Register Stablecoin as a valid payment token
+        //     test_phenomena_add_valid_payment(
+        //         &rpc,
+        //         &opinions_market,
+        //         &payer,
+        //         &admin,
+        //         &stablecoin_pubkey,
+        //     )
+        //     .await;
+
+        //     test_phenomena_create_user(
+        //         &rpc,
+        //         &opinions_market,
+        //         &payer,
+        //         &user_1,
+        //         &session_key,
+        //         &config_pda,
+        //     )
+        //     .await;
+        //     test_phenomena_create_user(
+        //         &rpc,
+        //         &opinions_market,
+        //         &payer,
+        //         &user_2,
+        //         &session_key,
+        //         &config_pda,
+        //     )
+        //     .await;
+        //     test_phenomena_create_user(
         //         &rpc,
         //         &opinions_market,
         //         &payer,
         //         &user_3,
-        //         &bling_pubkey,
+        //         &session_key,
         //         &config_pda,
         //     )
         //     .await;
-        // }
+
+        //     {
+        //         println!("user 1 depositing 10_000_000 bling to their vault");
+        //         test_phenomena_deposit(
+        //             &rpc,
+        //             &opinions_market,
+        //             &payer,
+        //             &user_1,
+        //             10_000_000 * LAMPORTS_PER_SOL,
+        //             &bling_pubkey,
+        //             &tokens,
+        //             &bling_atas,
+        //             &config_pda,
+        //         )
+        //         .await;
+        //     }
+
+        //     {
+        //         println!("user 2 depositing 1_000 usdc to their vault");
+        //         test_phenomena_deposit(
+        //             &rpc,
+        //             &opinions_market,
+        //             &payer,
+        //             &user_2,
+        //             1_000 * USDC_LAMPORTS_PER_USDC, // 1,000 USDC with 6 decimals
+        //             &usdc_pubkey,
+        //             &tokens,
+        //             &usdc_atas,
+        //             &config_pda,
+        //         )
+        //         .await;
+        //     }
+        //     {
+        //         println!("user 1 withdrawing 9_000_000 bling from their vault to their wallet");
+        //         test_phenomena_withdraw(
+        //             &rpc,
+        //             &opinions_market,
+        //             &payer,
+        //             &user_1,
+        //             9_000_000 * LAMPORTS_PER_SOL,
+        //             &bling_pubkey,
+        //             &tokens,
+        //             &bling_atas,
+        //         )
+        //         .await;
+        //     }
+
+        //     {
+        //         println!("user 2 withdrawing 900 usdc from their vault to their wallet");
+        //         test_phenomena_withdraw(
+        //             &rpc,
+        //             &opinions_market,
+        //             &payer,
+        //             &user_2,
+        //             900 * USDC_LAMPORTS_PER_USDC, // 900 USDC with 6 decimals
+        //             &usdc_pubkey,
+        //             &tokens,
+        //             &usdc_atas,
+        //         )
+        //         .await;
+        //     }
+
+        //     {
+        //         println!("user 2 depositing 1_000_000 bling to their vault");
+        //         test_phenomena_deposit(
+        //             &rpc,
+        //             &opinions_market,
+        //             &payer,
+        //             &user_2,
+        //             1_000_000 * LAMPORTS_PER_SOL,
+        //             &bling_pubkey,
+        //             &tokens,
+        //             &bling_atas,
+        //             &config_pda,
+        //         )
+        //         .await;
+        //     }
+
+        //     {
+        //         println!("user 1 depositing 1_000_000 usdc to their vault");
+        //         test_phenomena_deposit(
+        //             &rpc,
+        //             &opinions_market,
+        //             &payer,
+        //             &user_1,
+        //             1_000_000 * USDC_LAMPORTS_PER_USDC, // 1,000,000 USDC with 6 decimals
+        //             &usdc_pubkey,
+        //             &tokens,
+        //             &usdc_atas,
+        //             &config_pda,
+        //         )
+        //         .await;
+        //     }
+        //     {
+        //         println!("user 1 depositing 1_000_000 stablecoin to their vault");
+        //         test_phenomena_deposit(
+        //             &rpc,
+        //             &opinions_market,
+        //             &payer,
+        //             &user_1,
+        //             1_000_000 * USDC_LAMPORTS_PER_USDC, // 1,000,000 Stablecoin with 6 decimals
+        //             &stablecoin_pubkey,
+        //             &tokens,
+        //             &stablecoin_atas,
+        //             &config_pda,
+        //         )
+        //         .await;
+        //     }
+
+        //     //// ===== CREATING POSTS =====
+        //     let (post_p1_pda, post_p1_id_hash) = {
+        //         println!("user 1 creating an original post P1");
+        //         test_phenomena_create_post(
+        //             &rpc,
+        //             &opinions_market,
+        //             &payer,
+        //             &user_1,
+        //             &session_key,
+        //             &config_pda,
+        //             None, // Original post
+        //         )
+        //         .await
+        //     };
+
+        //     let (post_p2_pda, post_p2_id_hash) = {
+        //         println!("user 2 creates a child post P2 of user 1's post P1");
+        //         test_phenomena_create_post(
+        //             &rpc,
+        //             &opinions_market,
+        //             &payer,
+        //             &user_2,
+        //             &session_key,
+        //             &config_pda,
+        //             Some(post_p1_pda), // Child post
+        //         )
+        //         .await
+        //     };
+
+        //     {
+        //         println!("user 2 upvoting user 1's post P1");
+        //         test_phenomena_vote_on_post(
+        //             &rpc,
+        //             &opinions_market,
+        //             &payer,
+        //             &user_2,
+        //             &session_key,
+        //             &post_p1_pda,
+        //             opinions_market::states::Side::Pump,
+        //             1,
+        //             &bling_pubkey,
+        //             &bling_atas,
+        //             &config_pda,
+        //         )
+        //         .await;
+        //     }
+
+        //     {
+        //         println!("user 1 downvoting user 2's post P2");
+        //         test_phenomena_vote_on_post(
+        //             &rpc,
+        //             &opinions_market,
+        //             &payer,
+        //             &user_1,
+        //             &session_key,
+        //             &post_p2_pda,
+        //             opinions_market::states::Side::Smack,
+        //             2,
+        //             &bling_pubkey,
+        //             &bling_atas,
+        //             &config_pda,
+        //         )
+        //         .await;
+        //     }
+
+        //     {
+        //         println!("user 1 downvoting user 2's post P2");
+        //         test_phenomena_vote_on_post(
+        //             &rpc,
+        //             &opinions_market,
+        //             &payer,
+        //             &user_1,
+        //             &session_key,
+        //             &post_p2_pda,
+        //             opinions_market::states::Side::Smack,
+        //             1,
+        //             &bling_pubkey,
+        //             &bling_atas,
+        //             &config_pda,
+        //         )
+        //         .await;
+        //     }
+
+        //     {
+        //         println!("user 1 downvoting user 2's child post");
+        //         // Note: This is the same as the previous vote since P2 is already a child post
+        //         // If you meant a different child post, we'd need to create another one first
+        //         test_phenomena_vote_on_post(
+        //             &rpc,
+        //             &opinions_market,
+        //             &payer,
+        //             &user_1,
+        //             &session_key,
+        //             &post_p2_pda,
+        //             opinions_market::states::Side::Smack,
+        //             1,
+        //             &bling_pubkey,
+        //             &bling_atas,
+        //             &config_pda,
+        //         )
+        //         .await;
+        //     }
+
+        //     {
+        //         println!("user 1 upvoting user 2's child post with USDC");
+        //         // Note: This is the same as the previous vote since P2 is already a child post
+        //         // If you meant a different child post, we'd need to create another one first
+        //         test_phenomena_vote_on_post(
+        //             &rpc,
+        //             &opinions_market,
+        //             &payer,
+        //             &user_1,
+        //             &session_key,
+        //             &post_p2_pda,
+        //             opinions_market::states::Side::Pump,
+        //             1,
+        //             &usdc_pubkey,
+        //             &bling_atas,
+        //             &config_pda,
+        //         )
+        //         .await;
+        //     }
+
+        //     {
+        //         println!("user 1 upvoting user 2's child post with stablecoin");
+        //         // Note: This is the same as the previous vote since P2 is already a child post
+        //         // If you meant a different child post, we'd need to create another one first
+        //         test_phenomena_vote_on_post(
+        //             &rpc,
+        //             &opinions_market,
+        //             &payer,
+        //             &user_1,
+        //             &session_key,
+        //             &post_p2_pda,
+        //             opinions_market::states::Side::Pump,
+        //             1,
+        //             &stablecoin_pubkey,
+        //             &stablecoin_atas,
+        //             &config_pda,
+        //         )
+        //         .await;
+        //     }
+
+        //     //         Note: In a real test, you'd need to wait for the post to expire before settling
+        //     // For now, we'll just show the settle function exists
+        //     {
+        //         // wait_seconds(TIME_CONFIG_FAST.max_duration_secs as u64).await;
+        //         println!("Settling post P1");
+        //         test_phenomena_settle_post(
+        //             &rpc,
+        //             &opinions_market,
+        //             &payer,
+        //             &post_p1_pda,
+        //             &tokens,
+        //             &config_pda,
+        //         )
+        //         .await;
+        //     }
+
+        //     {
+        //         println!("\n user 2 claims their reward from user 's post");
+        //         test_phenomena_claim_post_reward(
+        //             &rpc,
+        //             &opinions_market,
+        //             &payer,
+        //             &user_2,
+        //             &session_key,
+        //             &post_p1_pda,
+        //             &bling_pubkey,
+        //             &tokens,
+        //             &config_pda,
+        //         )
+        //         .await;
+        //     }
+
+        //     {
+        //         // question
+        //         println!("user 1 creating a question post Q1");
+        //         let (question_post_pda, question_post_id_hash) = test_phenomena_create_question(
+        //             &rpc,
+        //             &opinions_market,
+        //             &payer,
+        //             &user_1,
+        //             &session_key,
+        //             &config_pda,
+        //         )
+        //         .await;
+
+        //         let (answer_post_pda, answer_post_id_hash) = test_phenomena_create_answer(
+        //             &rpc,
+        //             &opinions_market,
+        //             &payer,
+        //             &user_1,
+        //             &session_key,
+        //             &config_pda,
+        //             question_post_pda,
+        //             question_post_id_hash,
+        //         )
+        //         .await;
+
+        //         println!("user 2 upvoting user 1's question post Q1");
+        //         test_phenomena_vote_on_post(
+        //             &rpc,
+        //             &opinions_market,
+        //             &payer,
+        //             &user_2,
+        //             &session_key,
+        //             &question_post_pda,
+        //             opinions_market::states::Side::Pump,
+        //             1,
+        //             &bling_pubkey,
+        //             &bling_atas,
+        //             &config_pda,
+        //         )
+        //         .await;
+
+        //         println!("user 2 upvoting user 1's answer post A1");
+        //         test_phenomena_vote_on_post(
+        //             &rpc,
+        //             &opinions_market,
+        //             &payer,
+        //             &user_2,
+        //             &session_key,
+        //             &answer_post_pda,
+        //             opinions_market::states::Side::Pump,
+        //             1,
+        //             &bling_pubkey,
+        //             &bling_atas,
+        //             &config_pda,
+        //         )
+        //         .await;
+        //     };
+
+        //     {
+        //         println!("user 1 tipping user 2 100 bling");
+        //         test_phenomena_tip(
+        //             &rpc,
+        //             &opinions_market,
+        //             &payer,
+        //             &user_1,
+        //             &session_key,
+        //             &user_2,
+        //             100 * LAMPORTS_PER_SOL,
+        //             &bling_pubkey,
+        //             &tokens,
+        //         )
+        //         .await;
+        //     }
+
+        //     // {
+        //     //     println!("user 3 trying to make a post");
+        //     //     // This would Cause an error because user 3 is not a user in the system
+        //     //     test_phenomena_create_post(
+        //     //         &rpc,
+        //     //         &opinions_market,
+        //     //         &payer,
+        //     //         &user_3,
+        //     //         &bling_pubkey,
+        //     //         &config_pda,
+        //     //     )
+        //     //     .await;
+        //     // }
     }
 }
