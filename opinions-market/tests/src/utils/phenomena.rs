@@ -209,113 +209,108 @@ pub async fn test_phenomena_add_valid_payment(
     );
 }
 
-// pub async fn test_phenomena_create_user(
-//     rpc: &RpcClient,
-//     opinions_market: &Program<&Keypair>,
-//     payer: &Keypair,
-//     user: &Keypair,
-//     session_key: &Keypair,
-//     config_pda: &Pubkey,
-// ) {
-//     println!("creating user {:}", user.pubkey());
-//     let user_account_pda = Pubkey::find_program_address(
-//         &[USER_ACCOUNT_SEED, user.pubkey().as_ref()],
-//         &opinions_market.id(),
-//     )
-//     .0;
+pub async fn test_phenomena_create_user(
+    rpc: &RpcClient,
+    persona: &Program<&Keypair>,
+    payer: &Keypair,
+    user: &Keypair,
+    session_key: &Keypair,
+) {
+    println!("creating user {:}", user.pubkey());
+    let user_account_pda =
+        Pubkey::find_program_address(&[USER_ACCOUNT_SEED, user.pubkey().as_ref()], &persona.id()).0;
 
-//     let create_user_ix = opinions_market
-//         .request()
-//         .accounts(opinions_market::accounts::CreateUser {
-//             user: user.pubkey(),
-//             payer: payer.pubkey(),
-//             user_account: user_account_pda,
-//             config: *config_pda,
+    let create_user_ix = persona
+        .request()
+        .accounts(persona::accounts::CreateUser {
+            user: user.pubkey(),
+            payer: payer.pubkey(),
+            user_account: user_account_pda,
 
-//             system_program: system_program::ID,
-//         })
-//         .args(opinions_market::instruction::CreateUser {})
-//         .instructions()
-//         .unwrap();
+            system_program: system_program::ID,
+        })
+        .args(persona::instruction::CreateUser {})
+        .instructions()
+        .unwrap();
 
-//     let create_user_tx = send_tx(&rpc, create_user_ix, &payer.pubkey(), &[&payer])
-//         .await
-//         .unwrap();
-//     println!("create user tx: {:?}", create_user_tx);
+    let create_user_tx = send_tx(&rpc, create_user_ix, &payer.pubkey(), &[&payer])
+        .await
+        .unwrap();
+    println!("create user tx: {:?}", create_user_tx);
 
-//     // Verify user account was created
-//     let user_account = opinions_market
-//         .account::<opinions_market::states::UserAccount>(user_account_pda)
-//         .await
-//         .unwrap();
+    // Verify user account was created
+    let user_account = persona
+        .account::<persona::states::UserAccount>(user_account_pda)
+        .await
+        .unwrap();
 
-//     assert_eq!(
-//         user_account.user,
-//         user.pubkey(),
-//         "User account should store the wallet pubkey"
-//     );
+    assert_eq!(
+        user_account.user,
+        user.pubkey(),
+        "User account should store the wallet pubkey"
+    );
 
-//     println!("✅ User account created successfully");
+    println!("✅ User account created successfully");
 
-//     // regisaer session
-//     // let now = Clock::get().unwrap().unix_timestamp;
-//     // user signs (for verification purposes, though ed25519_ix will re-sign)
-//     let _signature_bytes = sign_message_for_session_registration(user, &session_key.pubkey());
-//     // --------------------------
-//     // ED25519 VERIFY IX
-//     // --------------------------
-//     let ed25519_ix = create_ed25519_instruction_for_session(user, &session_key.pubkey());
+    // regisaer session
+    // let now = Clock::get().unwrap().unix_timestamp;
+    // user signs (for verification purposes, though ed25519_ix will re-sign)
+    let _signature_bytes = sign_message_for_session_registration(user, &session_key.pubkey());
+    // --------------------------
+    // ED25519 VERIFY IX
+    // --------------------------
+    let ed25519_ix = create_ed25519_instruction_for_session(user, &session_key.pubkey());
 
-//     // Derive session authority PDA
-//     let (session_authority_pda, _) = Pubkey::find_program_address(
-//         &[
-//             SESSION_AUTHORITY_SEED,
-//             user.pubkey().as_ref(),
-//             session_key.pubkey().as_ref(),
-//         ],
-//         &opinions_market.id(),
-//     );
+    // Derive session authority PDA
+    let (session_authority_pda, _) = Pubkey::find_program_address(
+        &[
+            SESSION_AUTHORITY_SEED,
+            user.pubkey().as_ref(),
+            session_key.pubkey().as_ref(),
+        ],
+        &persona.id(),
+    );
 
-//     // Instructions sysvar ID
-//     let instructions_sysvar = solana_sdk::sysvar::instructions::ID;
+    // Instructions sysvar ID
+    let instructions_sysvar = solana_sdk::sysvar::instructions::ID;
 
-//     let register_session_ix = opinions_market
-//         .request()
-//         .accounts(opinions_market::accounts::RegisterSession {
-//             payer: payer.pubkey(),
-//             user: user.pubkey(),
-//             session_key: session_key.pubkey(),
-//             session_authority: session_authority_pda,
-//             instructions_sysvar,
-//             system_program: system_program::ID,
-//         })
-//         .args(opinions_market::instruction::RegisterSession { expected_index: 0 })
-//         .instructions()
-//         .unwrap();
+    let register_session_ix = persona
+        .request()
+        .accounts(persona::accounts::RegisterSession {
+            payer: payer.pubkey(),
+            user: user.pubkey(),
+            session_key: session_key.pubkey(),
+            session_authority: session_authority_pda,
+            instructions_sysvar,
+            system_program: system_program::ID,
+        })
+        .args(persona::instruction::RegisterSession { expected_index: 0 })
+        .instructions()
+        .unwrap();
 
-//     // Build Vec<Instruction> with ed25519 first, then register_session
-//     let mut ed25519_and_register_session_ix = vec![ed25519_ix];
-//     ed25519_and_register_session_ix.extend(register_session_ix);
+    // Build Vec<Instruction> with ed25519 first, then register_session
+    let mut ed25519_and_register_session_ix = vec![ed25519_ix];
+    ed25519_and_register_session_ix.extend(register_session_ix);
 
-//     let ed25519_and_register_session_tx = send_tx(
-//         &rpc,
-//         ed25519_and_register_session_ix,
-//         &payer.pubkey(),
-//         &[&payer],
-//     )
-//     .await
-//     .unwrap();
-//     println!("register session tx: {:?}", ed25519_and_register_session_tx);
+    let ed25519_and_register_session_tx = send_tx(
+        &rpc,
+        ed25519_and_register_session_ix,
+        &payer.pubkey(),
+        &[&payer],
+    )
+    .await
+    .unwrap();
+    println!("register session tx: {:?}", ed25519_and_register_session_tx);
 
-//     // verify session was registered
-//     let session_authority = opinions_market
-//         .account::<opinions_market::states::SessionAuthority>(session_authority_pda)
-//         .await
-//         .unwrap();
+    // verify session was registered
+    let session_authority = persona
+        .account::<persona::states::SessionAuthority>(session_authority_pda)
+        .await
+        .unwrap();
 
-//     assert_eq!(session_authority.user, user.pubkey());
-//     assert_eq!(session_authority.session_key, session_key.pubkey());
-// }
+    assert_eq!(session_authority.user, user.pubkey());
+    assert_eq!(session_authority.session_key, session_key.pubkey());
+}
 
 // pub async fn test_phenomena_deposit(
 //     rpc: &RpcClient,

@@ -111,7 +111,6 @@ pub mod persona {
 
     // when the user first signs in, we will need the user to create a user, which will create their deposit vault
     pub fn create_user(ctx: Context<CreateUser>) -> Result<()> {
-        let config = &mut ctx.accounts.config;
         let user_account = &mut ctx.accounts.user_account;
         let new_user_account = UserAccount::new(ctx.accounts.user.key(), ctx.bumps.user_account);
 

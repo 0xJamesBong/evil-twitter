@@ -26,11 +26,6 @@ pub struct Initialize<'info> {
 // This initializes the UserAccount PDA only
 #[derive(Accounts)]
 pub struct CreateUser<'info> {
-    #[account(mut,
-        seeds = [CONFIG_SEED],
-        bump,
-    )]
-    pub config: Account<'info, Config>,
     // This is the only case where the user remains a signer - keeps it real bro.
     /// CHECK: User is marked as an UncheckedAccount to allow for dual signing patterns
     #[account(mut)]

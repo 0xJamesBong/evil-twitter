@@ -14,12 +14,14 @@ use solana_sdk::{
 use crate::config::TIME_CONFIG_FAST;
 use crate::utils::phenomena::{
     test_phenomena_add_valid_payment,
-    test_phenomena_turn_on_withdrawable,
     // test_phenomena_claim_post_reward,
     // test_phenomena_create_answer, test_phenomena_create_post, test_phenomena_create_question,
-    // test_phenomena_create_user, test_phenomena_deposit, test_phenomena_settle_post,
+    test_phenomena_create_user,
+    // test_phenomena_deposit,
+    // test_phenomena_settle_post,
     // test_phenomena_tip, test_phenomena_turn_on_withdrawable, test_phenomena_vote_on_post,
     // test_phenomena_withdraw,
+    test_phenomena_turn_on_withdrawable,
 };
 use crate::utils::utils::{
     airdrop_sol_to_users, send_tx, setup_token_mint, setup_token_mint_ata_and_mint_to_many_users,
@@ -245,6 +247,10 @@ async fn test_setup() {
         // Register Stablecoin as a valid payment token
         test_phenomena_add_valid_payment(&rpc, &fed, &payer, &admin, &stablecoin_pubkey).await;
 
+        test_phenomena_create_user(&rpc, &persona, &payer, &user_1, &session_key).await;
+        test_phenomena_create_user(&rpc, &persona, &payer, &user_2, &session_key).await;
+        test_phenomena_create_user(&rpc, &persona, &payer, &user_3, &session_key).await;
+
         {
             println!("\n\n");
             println!(" 🟪🟪🟪🟪🟪🟪🟪🟪🟪🟪🟪🟪🟪🟪🟪🟪🟪");
@@ -252,34 +258,6 @@ async fn test_setup() {
             println!(" 🟪🟪🟪🟪🟪🟪🟪🟪🟪🟪🟪🟪🟪🟪🟪🟪🟪");
             panic!();
         }
-
-        //     test_phenomena_create_user(
-        //         &rpc,
-        //         &opinions_market,
-        //         &payer,
-        //         &user_1,
-        //         &session_key,
-        //         &config_pda,
-        //     )
-        //     .await;
-        //     test_phenomena_create_user(
-        //         &rpc,
-        //         &opinions_market,
-        //         &payer,
-        //         &user_2,
-        //         &session_key,
-        //         &config_pda,
-        //     )
-        //     .await;
-        //     test_phenomena_create_user(
-        //         &rpc,
-        //         &opinions_market,
-        //         &payer,
-        //         &user_3,
-        //         &session_key,
-        //         &config_pda,
-        //     )
-        //     .await;
 
         //     {
         //         println!("user 1 depositing 10_000_000 bling to their vault");
