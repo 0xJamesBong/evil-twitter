@@ -384,88 +384,85 @@ pub async fn test_phenomena_deposit(
     );
 }
 
-// pub async fn test_phenomena_withdraw(
-//     rpc: &RpcClient,
-//     opinions_market: &Program<&Keypair>,
-//     payer: &Keypair,
-//     user: &Keypair,
-//     amount: u64,
-//     token_mint: &Pubkey,
-//     tokens: &HashMap<Pubkey, String>,
-//     token_atas: &HashMap<Pubkey, Pubkey>,
-// ) {
-//     let token_name = tokens.get(token_mint).unwrap();
-//     println!(
-//         "withdrawing {:} {:} from their vault to their wallet",
-//         amount, token_name
-//     );
+pub async fn test_phenomena_withdraw(
+    rpc: &RpcClient,
+    fed: &Program<&Keypair>,
+    persona: &Program<&Keypair>,
+    payer: &Keypair,
+    user: &Keypair,
+    amount: u64,
+    token_mint: &Pubkey,
+    tokens: &HashMap<Pubkey, String>,
+    token_atas: &HashMap<Pubkey, Pubkey>,
+) {
+    let token_name = tokens.get(token_mint).unwrap();
+    println!(
+        "withdrawing {:} {:} from their vault to their wallet",
+        amount, token_name
+    );
 
-//     let user_account_pda = Pubkey::find_program_address(
-//         &[USER_ACCOUNT_SEED, user.pubkey().as_ref()],
-//         &opinions_market.id(),
-//     )
-//     .0;
+    let user_account_pda =
+        Pubkey::find_program_address(&[USER_ACCOUNT_SEED, user.pubkey().as_ref()], &persona.id()).0;
 
-//     let vault_authority_pda =
-//         Pubkey::find_program_address(&[VAULT_AUTHORITY_SEED], &opinions_market.id()).0;
+    let vault_authority_pda = Pubkey::find_program_address(&[VAULT_AUTHORITY_SEED], &fed.id()).0;
 
-//     let vault_token_account_pda = Pubkey::find_program_address(
-//         &[
-//             USER_VAULT_TOKEN_ACCOUNT_SEED,
-//             user.pubkey().as_ref(),
-//             token_mint.as_ref(),
-//         ],
-//         &opinions_market.id(),
-//     )
-//     .0;
+    let vault_token_account_pda = Pubkey::find_program_address(
+        &[
+            USER_VAULT_TOKEN_ACCOUNT_SEED,
+            user.pubkey().as_ref(),
+            token_mint.as_ref(),
+        ],
+        &fed.id(),
+    )
+    .0;
 
-//     let vault_balance_original = opinions_market
-//         .account::<anchor_spl::token::TokenAccount>(vault_token_account_pda)
-//         .await
-//         .unwrap()
-//         .amount;
+    let vault_balance_original = fed
+        .account::<anchor_spl::token::TokenAccount>(vault_token_account_pda)
+        .await
+        .unwrap()
+        .amount;
 
-//     let user_token_ata = token_atas.get(&user.pubkey()).unwrap();
+    let user_token_ata = token_atas.get(&user.pubkey()).unwrap();
 
-//     let withdraw_ix = opinions_market
-//         .request()
-//         .accounts(opinions_market::accounts::Withdraw {
-//             user: user.pubkey(),
-//             payer: payer.pubkey(),
-//             user_account: user_account_pda,
-//             token_mint: token_mint.clone(),
-//             user_token_dest_ata: *user_token_ata,
-//             user_vault_token_account: vault_token_account_pda,
-//             vault_authority: vault_authority_pda,
-//             token_program: spl_token::ID,
-//         })
-//         .args(opinions_market::instruction::Withdraw { amount })
-//         .instructions()
-//         .unwrap();
+    let withdraw_ix = fed
+        .request()
+        .accounts(fed::accounts::Withdraw {
+            user: user.pubkey(),
+            payer: payer.pubkey(),
+            user_account: user_account_pda,
+            token_mint: token_mint.clone(),
+            user_token_dest_ata: *user_token_ata,
+            user_vault_token_account: vault_token_account_pda,
+            vault_authority: vault_authority_pda,
+            token_program: spl_token::ID,
+        })
+        .args(fed::instruction::Withdraw { amount })
+        .instructions()
+        .unwrap();
 
-//     let withdraw_tx = send_tx(&rpc, withdraw_ix, &payer.pubkey(), &[&payer, &user])
-//         .await
-//         .unwrap();
-//     println!("withdraw tx: {:?}", withdraw_tx);
+    let withdraw_tx = send_tx(&rpc, withdraw_ix, &payer.pubkey(), &[&payer, &user])
+        .await
+        .unwrap();
+    println!("withdraw tx: {:?}", withdraw_tx);
 
-//     // Verify vault balance decreased
-//     let vault_balance = opinions_market
-//         .account::<anchor_spl::token::TokenAccount>(vault_token_account_pda)
-//         .await
-//         .unwrap();
-//     assert_eq!(vault_balance.amount, vault_balance_original - amount);
-//     println!(
-//         "✅ Withdraw successful. Vault balance: {}",
-//         vault_balance.amount
-//     );
+    // Verify vault balance decreased
+    let vault_balance = fed
+        .account::<anchor_spl::token::TokenAccount>(vault_token_account_pda)
+        .await
+        .unwrap();
+    assert_eq!(vault_balance.amount, vault_balance_original - amount);
+    println!(
+        "✅ Withdraw successful. Vault balance: {}",
+        vault_balance.amount
+    );
 
-//     // Verify user wallet balance increased
-//     let user_balance = opinions_market
-//         .account::<anchor_spl::token::TokenAccount>(*user_token_ata)
-//         .await
-//         .unwrap();
-//     println!("✅ User wallet balance: {}", user_balance.amount);
-// }
+    // Verify user wallet balance increased
+    let user_balance = fed
+        .account::<anchor_spl::token::TokenAccount>(*user_token_ata)
+        .await
+        .unwrap();
+    println!("✅ User wallet balance: {}", user_balance.amount);
+}
 
 // pub async fn test_phenomena_create_post(
 //     rpc: &RpcClient,
@@ -1087,8 +1084,8 @@ pub async fn test_phenomena_deposit(
 //         initial_position_upvotes, initial_position_downvotes
 //     );
 
-//     let vault_authority_pda =
-//         Pubkey::find_program_address(&[VAULT_AUTHORITY_SEED], &opinions_market.id()).0;
+// let vault_authority_pda =
+//     Pubkey::find_program_address(&[VAULT_AUTHORITY_SEED], &opinions_market.id()).0;
 
 //     let creator_user = post_account_before.creator_user; // this is a wallet pubkey
 

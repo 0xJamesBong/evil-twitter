@@ -131,7 +131,6 @@ pub struct Deposit<'info> {
     #[account(owner = persona::ID)]
     pub user_account: AccountInfo<'info>,
 
-
     pub token_mint: Account<'info, Mint>,
 
     #[account(
@@ -180,8 +179,6 @@ pub struct Withdraw<'info> {
     /// We only check ownership + PDA derivation
     #[account(
         owner = persona::ID,
-        seeds = [USER_ACCOUNT_SEED, user.key().as_ref()],
-        bump,
     )]
     pub user_account: AccountInfo<'info>,
     pub token_mint: Account<'info, Mint>,
