@@ -167,15 +167,30 @@ pub mod fed {
         valid_payment.withdrawable = withdrawable;
         Ok(())
     }
-    /// User deposits from their wallet into the program-controlled vault.
+    // /// User deposits from their wallet into the program-controlled vault.
+    // pub fn deposit(ctx: Context<Deposit>, amount: u64) -> Result<()> {
+    //     // No logic needed—Anchor already checked mint is allowed.
+    //     let cpi_accounts = anchor_spl::token::Transfer {
+    //         from: ctx.accounts.user_token_ata.to_account_info(),
+    //         to: ctx.accounts.user_vault_token_account.to_account_info(),
+    //         authority: ctx.accounts.user.to_account_info(),
+    //     };
+    //     let cpi_ctx = CpiContext::new(ctx.accounts.token_program.to_account_info(), cpi_accounts);
+    //     anchor_spl::token::transfer(cpi_ctx, amount)?;
+    //     Ok(())
+    // }
+
     pub fn deposit(ctx: Context<Deposit>, amount: u64) -> Result<()> {
-        // No logic needed—Anchor already checked mint is allowed.
+        require!(amount > 0, ErrorCode::ZeroAmount);
+
         let cpi_accounts = anchor_spl::token::Transfer {
             from: ctx.accounts.user_token_ata.to_account_info(),
             to: ctx.accounts.user_vault_token_account.to_account_info(),
             authority: ctx.accounts.user.to_account_info(),
         };
+
         let cpi_ctx = CpiContext::new(ctx.accounts.token_program.to_account_info(), cpi_accounts);
+
         anchor_spl::token::transfer(cpi_ctx, amount)?;
         Ok(())
     }

@@ -2,6 +2,8 @@ use crate::pda_seeds::*;
 use crate::states::*;
 use anchor_lang::prelude::*;
 use anchor_lang::solana_program::sysvar::instructions;
+
+use common::*;
 use anchor_spl::token::{Mint, Token, TokenAccount};
 use crate::ErrorCode;
 
@@ -123,11 +125,12 @@ pub struct Deposit<'info> {
     #[account(mut)]
     pub payer: Signer<'info>,
 
-    #[account(
-        seeds = [USER_ACCOUNT_SEED, user.key().as_ref()],
-        bump,
-    )]
-    pub user_account: Account<'info, UserAccount>,
+    /// CHECK: persona-owned user account
+      /// Persona-owned user account (OPAQUE)
+    /// We only check ownership + PDA derivation
+    #[account(owner = persona::ID)]
+    pub user_account: AccountInfo<'info>,
+
 
     pub token_mint: Account<'info, Mint>,
 
@@ -172,12 +175,15 @@ pub struct Withdraw<'info> {
     #[account(mut)]
     pub payer: Signer<'info>,
 
+    /// CHECK: persona-owned user account
+      /// Persona-owned user account (OPAQUE)
+    /// We only check ownership + PDA derivation
     #[account(
+        owner = persona::ID,
         seeds = [USER_ACCOUNT_SEED, user.key().as_ref()],
         bump,
     )]
-    pub user_account: Account<'info, UserAccount>,
-
+    pub user_account: AccountInfo<'info>,
     pub token_mint: Account<'info, Mint>,
 
     // user’s personal wallet ATA for this mint

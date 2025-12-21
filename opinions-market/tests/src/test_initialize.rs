@@ -17,7 +17,7 @@ use crate::utils::phenomena::{
     // test_phenomena_claim_post_reward,
     // test_phenomena_create_answer, test_phenomena_create_post, test_phenomena_create_question,
     test_phenomena_create_user,
-    // test_phenomena_deposit,
+    test_phenomena_deposit,
     // test_phenomena_settle_post,
     // test_phenomena_tip, test_phenomena_turn_on_withdrawable, test_phenomena_vote_on_post,
     // test_phenomena_withdraw,
@@ -200,7 +200,7 @@ async fn test_setup() {
     let config_pda = Pubkey::find_program_address(&[b"config"], &fed_program_id).0;
 
     {
-        println!("initializing opinions market engine");
+        println!("initializing fed engine");
         let protocol_bling_treasury_pda = Pubkey::find_program_address(
             &[PROTOCOL_TREASURY_TOKEN_ACCOUNT_SEED, bling_pubkey.as_ref()],
             &fed_program_id,
@@ -252,28 +252,28 @@ async fn test_setup() {
         test_phenomena_create_user(&rpc, &persona, &payer, &user_3, &session_key).await;
 
         {
+            println!("user 1 depositing 10_000_000 bling to their vault");
+            test_phenomena_deposit(
+                &rpc,
+                &fed,
+                &persona,
+                &payer,
+                &user_1,
+                10_000_000 * LAMPORTS_PER_SOL,
+                &bling_pubkey,
+                &tokens,
+                &bling_atas,
+                &config_pda,
+            )
+            .await;
+        }
+        {
             println!("\n\n");
             println!(" 🟪🟪🟪🟪🟪🟪🟪🟪🟪🟪🟪🟪🟪🟪🟪🟪🟪");
             println!(" 🟪 🟪 🟪 🟪 GOD LOVES ME 🟪 🟪 🟪 🟪");
             println!(" 🟪🟪🟪🟪🟪🟪🟪🟪🟪🟪🟪🟪🟪🟪🟪🟪🟪");
             panic!();
         }
-
-        //     {
-        //         println!("user 1 depositing 10_000_000 bling to their vault");
-        //         test_phenomena_deposit(
-        //             &rpc,
-        //             &opinions_market,
-        //             &payer,
-        //             &user_1,
-        //             10_000_000 * LAMPORTS_PER_SOL,
-        //             &bling_pubkey,
-        //             &tokens,
-        //             &bling_atas,
-        //             &config_pda,
-        //         )
-        //         .await;
-        //     }
 
         //     {
         //         println!("user 2 depositing 1_000 usdc to their vault");

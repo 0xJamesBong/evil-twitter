@@ -312,83 +312,77 @@ pub async fn test_phenomena_create_user(
     assert_eq!(session_authority.session_key, session_key.pubkey());
 }
 
-// pub async fn test_phenomena_deposit(
-//     rpc: &RpcClient,
-//     opinions_market: &Program<&Keypair>,
-//     payer: &Keypair,
-//     user: &Keypair,
-//     amount: u64,
-//     token_mint: &Pubkey,
-//     tokens: &HashMap<Pubkey, String>,
-//     token_atas: &HashMap<Pubkey, Pubkey>,
-//     _config_pda: &Pubkey,
-// ) {
-//     let token_name = tokens.get(token_mint).unwrap();
-//     println!("depositing {:} {:} to their vault", amount, token_name);
+pub async fn test_phenomena_deposit(
+    rpc: &RpcClient,
+    fed: &Program<&Keypair>,
+    persona: &Program<&Keypair>,
+    payer: &Keypair,
+    user: &Keypair,
+    amount: u64,
+    token_mint: &Pubkey,
+    tokens: &HashMap<Pubkey, String>,
+    token_atas: &HashMap<Pubkey, Pubkey>,
+    _config_pda: &Pubkey,
+) {
+    let token_name = tokens.get(token_mint).unwrap();
+    println!("depositing {:} {:} to their vault", amount, token_name);
 
-//     let user_account_pda = Pubkey::find_program_address(
-//         &[USER_ACCOUNT_SEED, user.pubkey().as_ref()],
-//         &opinions_market.id(),
-//     )
-//     .0;
+    let user_account_pda =
+        Pubkey::find_program_address(&[USER_ACCOUNT_SEED, user.pubkey().as_ref()], &persona.id()).0;
 
-//     let vault_authority_pda =
-//         Pubkey::find_program_address(&[VAULT_AUTHORITY_SEED], &opinions_market.id()).0;
+    let vault_authority_pda = Pubkey::find_program_address(&[VAULT_AUTHORITY_SEED], &fed.id()).0;
 
-//     let vault_token_account_pda = Pubkey::find_program_address(
-//         &[
-//             USER_VAULT_TOKEN_ACCOUNT_SEED,
-//             user.pubkey().as_ref(),
-//             token_mint.as_ref(),
-//         ],
-//         &opinions_market.id(),
-//     )
-//     .0;
+    let vault_token_account_pda = Pubkey::find_program_address(
+        &[
+            USER_VAULT_TOKEN_ACCOUNT_SEED,
+            user.pubkey().as_ref(),
+            token_mint.as_ref(),
+        ],
+        &fed.id(),
+    )
+    .0;
 
-//     let valid_payment_pda = Pubkey::find_program_address(
-//         &[VALID_PAYMENT_SEED, token_mint.as_ref()],
-//         &opinions_market.id(),
-//     )
-//     .0;
+    let valid_payment_pda =
+        Pubkey::find_program_address(&[VALID_PAYMENT_SEED, token_mint.as_ref()], &fed.id()).0;
 
-//     let user_bling_ata = token_atas.get(&user.pubkey()).unwrap();
+    let user_bling_ata = token_atas.get(&user.pubkey()).unwrap();
 
-//     // For BLING deposits, accepted_valid_payment can be a dummy account
-//     // (the function will skip validation for BLING)
-//     let deposit_ix = opinions_market
-//         .request()
-//         .accounts(opinions_market::accounts::Deposit {
-//             user: user.pubkey(),
-//             payer: payer.pubkey(),
-//             user_account: user_account_pda,
-//             token_mint: token_mint.clone(),
-//             valid_payment: valid_payment_pda,
-//             user_token_ata: *user_bling_ata,
-//             vault_authority: vault_authority_pda,
-//             user_vault_token_account: vault_token_account_pda,
-//             token_program: spl_token::ID,
-//             system_program: system_program::ID,
-//         })
-//         .args(opinions_market::instruction::Deposit { amount: amount })
-//         .instructions()
-//         .unwrap();
+    // For BLING deposits, accepted_valid_payment can be a dummy account
+    // (the function will skip validation for BLING)
+    let deposit_ix = fed
+        .request()
+        .accounts(fed::accounts::Deposit {
+            user: user.pubkey(),
+            payer: payer.pubkey(),
+            user_account: user_account_pda,
+            token_mint: token_mint.clone(),
+            valid_payment: valid_payment_pda,
+            user_token_ata: *user_bling_ata,
+            vault_authority: vault_authority_pda,
+            user_vault_token_account: vault_token_account_pda,
+            token_program: spl_token::ID,
+            system_program: system_program::ID,
+        })
+        .args(fed::instruction::Deposit { amount: amount })
+        .instructions()
+        .unwrap();
 
-//     let deposit_tx = send_tx(&rpc, deposit_ix, &payer.pubkey(), &[&payer, &user])
-//         .await
-//         .unwrap();
-//     println!("deposit tx: {:?}", deposit_tx);
+    let deposit_tx = send_tx(&rpc, deposit_ix, &payer.pubkey(), &[&payer, &user])
+        .await
+        .unwrap();
+    println!("deposit tx: {:?}", deposit_tx);
 
-//     // Verify vault balance
-//     let vault_balance = opinions_market
-//         .account::<anchor_spl::token::TokenAccount>(vault_token_account_pda)
-//         .await
-//         .unwrap();
-//     assert_eq!(vault_balance.amount, amount);
-//     println!(
-//         "✅ Deposit successful. Vault balance: {}",
-//         vault_balance.amount
-//     );
-// }
+    // Verify vault balance
+    let vault_balance = fed
+        .account::<anchor_spl::token::TokenAccount>(vault_token_account_pda)
+        .await
+        .unwrap();
+    assert_eq!(vault_balance.amount, amount);
+    println!(
+        "✅ Deposit successful. Vault balance: {}",
+        vault_balance.amount
+    );
+}
 
 // pub async fn test_phenomena_withdraw(
 //     rpc: &RpcClient,
