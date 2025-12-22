@@ -402,20 +402,20 @@ async fn test_setup() {
             panic!();
         }
 
-        //     //// ===== CREATING POSTS =====
-        //     let (post_p1_pda, post_p1_id_hash) = {
-        //         println!("user 1 creating an original post P1");
-        //         test_phenomena_create_post(
-        //             &rpc,
-        //             &opinions_market,
-        //             &payer,
-        //             &user_1,
-        //             &session_key,
-        //             &config_pda,
-        //             None, // Original post
-        //         )
-        //         .await
-        //     };
+        //// ===== CREATING POSTS =====
+        let (post_p1_pda, post_p1_id_hash) = {
+            println!("user 1 creating an original post P1");
+            test_phenomena_create_post(
+                &rpc,
+                &opinions_market,
+                &payer,
+                &user_1,
+                &session_key,
+                &config_pda,
+                None, // Original post
+            )
+            .await
+        };
 
         //     let (post_p2_pda, post_p2_id_hash) = {
         //         println!("user 2 creates a child post P2 of user 1's post P1");

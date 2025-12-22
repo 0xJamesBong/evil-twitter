@@ -496,184 +496,717 @@ pub async fn test_phenomena_withdraw(
     println!("✅ User wallet balance: {}", user_balance.amount);
 }
 
-// pub async fn test_phenomena_create_post(
-//     rpc: &RpcClient,
-//     opinions_market: &Program<&Keypair>,
-//     payer: &Keypair,
-//     creator: &Keypair,
-//     session_key: &Keypair,
-//     config_pda: &Pubkey,
+pub async fn test_phenomena_tip(
+    rpc: &RpcClient,
+    fed: &Program<&Keypair>,
+    persona: &Program<&Keypair>,
+    payer: &Keypair,
+    sender: &Keypair,
+    session_key: &Keypair,
+    recipient: &Keypair,
+    amount: u64,
+    token_mint: &Pubkey,
+    tokens: &HashMap<Pubkey, String>,
+) {
+    let token_name = tokens.get(token_mint).unwrap();
+    println!(
+        "User {:?} tipping {:?} {} {}",
+        sender.pubkey(),
+        recipient.pubkey(),
+        amount,
+        token_name
+    );
 
-//     parent_post_pda: Option<Pubkey>,
-// ) -> (Pubkey, [u8; 32]) {
-//     let post_type_str = if parent_post_pda.is_some() {
-//         "child post"
-//     } else {
-//         "original post"
-//     };
-//     println!("{:} makes a {}", creator.pubkey(), post_type_str);
+    // Derive PDAs
+    let sender_user_account_pda = Pubkey::find_program_address(
+        &[
+            persona::pda_seeds::USER_ACCOUNT_SEED,
+            sender.pubkey().as_ref(),
+        ],
+        &persona.id(),
+    )
+    .0;
 
-//     // Generate a unique post_id_hash
-//     let hash = crate::utils::utils::generate_post_id_hash();
+    let sender_vault_token_account_pda = Pubkey::find_program_address(
+        &[
+            fed::pda_seeds::USER_VAULT_TOKEN_ACCOUNT_SEED,
+            sender.pubkey().as_ref(),
+            token_mint.as_ref(),
+        ],
+        &fed.id(),
+    )
+    .0;
 
-//     let user_account_pda = Pubkey::find_program_address(
-//         &[USER_ACCOUNT_SEED, creator.pubkey().as_ref()],
-//         &opinions_market.id(),
-//     )
-//     .0;
+    let tip_vault_pda = Pubkey::find_program_address(
+        &[
+            fed::pda_seeds::TIP_VAULT_SEED,
+            recipient.pubkey().as_ref(),
+            token_mint.as_ref(),
+        ],
+        &fed.id(),
+    )
+    .0;
 
-//     let post_pda =
-//         Pubkey::find_program_address(&[POST_ACCOUNT_SEED, hash.as_ref()], &opinions_market.id()).0;
-//     let session_authority_pda = Pubkey::find_program_address(
-//         &[
-//             SESSION_AUTHORITY_SEED,
-//             creator.pubkey().as_ref(),
-//             session_key.pubkey().as_ref(),
-//         ],
-//         &opinions_market.id(),
-//     )
-//     .0;
-//     let create_post_ix = opinions_market
-//         .request()
-//         .accounts(opinions_market::accounts::CreatePost {
-//             config: *config_pda,
-//             user: creator.pubkey(),
-//             payer: payer.pubkey(),
-//             session_key: session_key.pubkey(),
-//             session_authority: session_authority_pda,
-//             user_account: user_account_pda,
-//             post: post_pda,
-//             system_program: system_program::ID,
-//         })
-//         .args(opinions_market::instruction::CreatePost {
-//             post_id_hash: hash,
-//             parent_post_pda,
-//         })
-//         .instructions()
-//         .unwrap();
+    let tip_vault_token_account_pda = Pubkey::find_program_address(
+        &[
+            fed::pda_seeds::TIP_VAULT_TOKEN_ACCOUNT_SEED,
+            recipient.pubkey().as_ref(),
+            token_mint.as_ref(),
+        ],
+        &fed.id(),
+    )
+    .0;
 
-//     // Both payer and creator (user) must sign
-//     let create_post_tx = send_tx(&rpc, create_post_ix, &payer.pubkey(), &[&payer])
-//         .await
-//         .unwrap();
-//     println!("create post tx: {:?}", create_post_tx);
+    let vault_authority_pda =
+        Pubkey::find_program_address(&[fed::pda_seeds::VAULT_AUTHORITY_SEED], &fed.id()).0;
 
-//     // Verify post was created and all fields are correct
-//     let post_account = opinions_market
-//         .account::<opinions_market::states::PostAccount>(post_pda)
-//         .await
-//         .unwrap();
+    let valid_payment_pda = Pubkey::find_program_address(
+        &[fed::pda_seeds::VALID_PAYMENT_SEED, token_mint.as_ref()],
+        &fed.id(),
+    )
+    .0;
 
-//     // Verify creator
-//     assert_eq!(
-//         post_account.creator_user,
-//         creator.pubkey(),
-//         "Post creator_user should match creator wallet"
-//     );
+    let session_authority_pda = Pubkey::find_program_address(
+        &[
+            persona::pda_seeds::SESSION_AUTHORITY_SEED,
+            sender.pubkey().as_ref(),
+            session_key.pubkey().as_ref(),
+        ],
+        &persona.id(),
+    )
+    .0;
 
-//     // Verify post_id_hash
-//     assert_eq!(
-//         post_account.post_id_hash, hash,
-//         "Post post_id_hash should match generated hash"
-//     );
+    // Get initial balances
+    let sender_vault_before = fed
+        .account::<anchor_spl::token::TokenAccount>(sender_vault_token_account_pda)
+        .await
+        .unwrap();
 
-//     // Verify state is Open
-//     assert_eq!(post_account.state, opinions_market::states::PostState::Open);
-//     println!("✅ Post state is Open");
+    // Check if tip vault exists (may not exist yet)
+    let tip_vault_before_result = fed.account::<fed::states::TipVault>(tip_vault_pda).await;
 
-//     // Verify initial vote counts
-//     assert_eq!(post_account.upvotes, 0, "New post should have 0 upvotes");
-//     assert_eq!(
-//         post_account.downvotes, 0,
-//         "New post should have 0 downvotes"
-//     );
+    let tip_vault_token_before_result = fed
+        .account::<anchor_spl::token::TokenAccount>(tip_vault_token_account_pda)
+        .await;
 
-//     // Verify winning_side is None for new post
-//     assert_eq!(
-//         post_account.winning_side, None,
-//         "New post should not have a winning_side"
-//     );
-//     println!("✅ Post winning_side is None (correct for new post)");
+    let tip_vault_token_before = match tip_vault_token_before_result {
+        Ok(account) => account.amount,
+        Err(_) => 0,
+    };
 
-//     // Verify timestamps are set correctly
-//     // start_time should be a valid timestamp (greater than 0 and reasonable)
-//     assert!(
-//         post_account.start_time > 0,
-//         "Post start_time should be set to a valid timestamp"
-//     );
+    let unclaimed_before = match &tip_vault_before_result {
+        Ok(vault) => vault.unclaimed_amount,
+        Err(_) => 0,
+    };
 
-//     // Verify end_time is start_time + base_duration_secs
-//     let expected_end_time = post_account.start_time + (TIME_CONFIG_FAST.base_duration_secs) as i64;
-//     assert_eq!(
-//         post_account.end_time, expected_end_time,
-//         "Post end_time should be start_time + {} seconds (base_duration_secs)",
-//         TIME_CONFIG_FAST.base_duration_secs
-//     );
+    println!("📊 Before tip:");
+    println!("   - Sender vault: {}", sender_vault_before.amount);
+    println!("   - Tip vault token account: {}", tip_vault_token_before);
+    println!("   - Unclaimed amount: {}", unclaimed_before);
 
-//     // Verify end_time is after start_time
-//     assert!(
-//         post_account.end_time > post_account.start_time,
-//         "Post end_time should be after start_time"
-//     );
+    // Create tip instruction
+    let tip_ix = fed
+        .request()
+        .accounts(fed::accounts::Tip {
+            sender: sender.pubkey(),
+            payer: payer.pubkey(),
+            recipient: recipient.pubkey(),
+            session_key: session_key.pubkey(),
+            session_authority: session_authority_pda,
+            sender_user_account: sender_user_account_pda,
+            token_mint: *token_mint,
+            valid_payment: valid_payment_pda,
+            sender_user_vault_token_account: sender_vault_token_account_pda,
+            vault_authority: vault_authority_pda,
+            tip_vault: tip_vault_pda,
+            tip_vault_token_account: tip_vault_token_account_pda,
+            persona_program: persona.id(),
+            token_program: spl_token::ID,
+            system_program: system_program::ID,
+        })
+        .args(fed::instruction::Tip { amount })
+        .instructions()
+        .unwrap();
 
-//     // Verify post relation and function
-//     match parent_post_pda {
-//         Some(parent) => {
-//             // Child posts should be Normal function with Reply relation
-//             assert_eq!(
-//                 post_account.function,
-//                 opinions_market::states::PostFunction::Normal,
-//                 "Child post should have Normal function"
-//             );
-//             if let opinions_market::states::PostRelation::Reply {
-//                 parent: stored_parent,
-//             } = &post_account.relation
-//             {
-//                 assert_eq!(
-//                     *stored_parent, parent,
-//                     "Child post parent PDA should match provided parent"
-//                 );
-//                 println!("✅ Post relation is Reply with correct parent");
-//             } else {
-//                 panic!(
-//                     "Post relation mismatch: expected Reply but got {:?}",
-//                     post_account.relation
-//                 );
-//             }
-//         }
-//         None => {
-//             // Root posts should be Normal function with Root relation
-//             assert_eq!(
-//                 post_account.function,
-//                 opinions_market::states::PostFunction::Normal,
-//                 "Root post should have Normal function"
-//             );
-//             assert_eq!(
-//                 post_account.relation,
-//                 opinions_market::states::PostRelation::Root,
-//                 "Post relation should be Root when no parent is provided"
-//             );
-//             println!("✅ Post relation is Root");
-//         }
-//     }
+    let tip_tx = send_tx(&rpc, tip_ix, &payer.pubkey(), &[&payer])
+        .await
+        .unwrap();
+    println!("tip tx: {:?}", tip_tx);
 
-//     println!(
-//         "✅ {} created successfully with all fields verified",
-//         post_type_str
-//     );
-//     println!("   - Creator: {}", post_account.creator_user);
-//     println!("   - State: Open");
-//     println!("   - Start time: {}", post_account.start_time);
-//     println!("   - End time: {}", post_account.end_time);
-//     println!(
-//         "   - Upvotes: {}, Downvotes: {}",
-//         post_account.upvotes, post_account.downvotes
-//     );
-//     println!("post_pda: {}", post_pda);
-//     println!("post_id_hash: {:?}", hex::encode(hash));
+    // Verify balances after tip
+    let sender_vault_after = fed
+        .account::<anchor_spl::token::TokenAccount>(sender_vault_token_account_pda)
+        .await
+        .unwrap();
 
-//     (post_pda, hash)
-// }
+    let tip_vault_token_after = fed
+        .account::<anchor_spl::token::TokenAccount>(tip_vault_token_account_pda)
+        .await
+        .unwrap();
+
+    let tip_vault_after = fed
+        .account::<fed::states::TipVault>(tip_vault_pda)
+        .await
+        .unwrap();
+
+    println!("📊 After tip:");
+    println!("   - Sender vault: {}", sender_vault_after.amount);
+    println!(
+        "   - Tip vault token account: {}",
+        tip_vault_token_after.amount
+    );
+    println!(
+        "   - Unclaimed amount: {}",
+        tip_vault_after.unclaimed_amount
+    );
+
+    // Verify sender vault decreased
+    assert_eq!(
+        sender_vault_after.amount,
+        sender_vault_before.amount.checked_sub(amount).unwrap(),
+        "Sender vault should decrease by tip amount"
+    );
+
+    // Verify tip vault token account increased
+    assert_eq!(
+        tip_vault_token_after.amount,
+        tip_vault_token_before.checked_add(amount).unwrap(),
+        "Tip vault token account should increase by tip amount"
+    );
+
+    // Verify unclaimed_amount increased
+    assert_eq!(
+        tip_vault_after.unclaimed_amount,
+        unclaimed_before.checked_add(amount).unwrap(),
+        "Unclaimed amount should increase by tip amount"
+    );
+
+    // Verify tip vault owner and mint
+    assert_eq!(
+        tip_vault_after.owner,
+        recipient.pubkey(),
+        "Tip vault owner should be recipient"
+    );
+    assert_eq!(
+        tip_vault_after.token_mint, *token_mint,
+        "Tip vault token mint should match"
+    );
+
+    println!("✅ Tip successful");
+}
+
+pub async fn test_phenomena_claim_tips(
+    rpc: &RpcClient,
+    fed: &Program<&Keypair>,
+    persona: &Program<&Keypair>,
+    payer: &Keypair,
+    owner: &Keypair,
+    session_key: &Keypair,
+    token_mint: &Pubkey,
+    tokens: &HashMap<Pubkey, String>,
+) {
+    let token_name = tokens.get(token_mint).unwrap();
+    println!(
+        "User {:?} claiming tips for token {}",
+        owner.pubkey(),
+        token_name
+    );
+
+    // Derive PDAs
+    let user_account_pda = Pubkey::find_program_address(
+        &[
+            persona::pda_seeds::USER_ACCOUNT_SEED,
+            owner.pubkey().as_ref(),
+        ],
+        &persona.id(),
+    )
+    .0;
+
+    let tip_vault_pda = Pubkey::find_program_address(
+        &[
+            fed::pda_seeds::TIP_VAULT_SEED,
+            owner.pubkey().as_ref(),
+            token_mint.as_ref(),
+        ],
+        &fed.id(),
+    )
+    .0;
+
+    let tip_vault_token_account_pda = Pubkey::find_program_address(
+        &[
+            fed::pda_seeds::TIP_VAULT_TOKEN_ACCOUNT_SEED,
+            owner.pubkey().as_ref(),
+            token_mint.as_ref(),
+        ],
+        &fed.id(),
+    )
+    .0;
+
+    let owner_vault_token_account_pda = Pubkey::find_program_address(
+        &[
+            fed::pda_seeds::USER_VAULT_TOKEN_ACCOUNT_SEED,
+            owner.pubkey().as_ref(),
+            token_mint.as_ref(),
+        ],
+        &fed.id(),
+    )
+    .0;
+
+    let vault_authority_pda =
+        Pubkey::find_program_address(&[fed::pda_seeds::VAULT_AUTHORITY_SEED], &fed.id()).0;
+
+    let session_authority_pda = Pubkey::find_program_address(
+        &[
+            persona::pda_seeds::SESSION_AUTHORITY_SEED,
+            owner.pubkey().as_ref(),
+            session_key.pubkey().as_ref(),
+        ],
+        &persona.id(),
+    )
+    .0;
+
+    // Get initial balances
+    let tip_vault_token_before_result = fed
+        .account::<anchor_spl::token::TokenAccount>(tip_vault_token_account_pda)
+        .await;
+
+    let claim_amount = match tip_vault_token_before_result {
+        Ok(account) => account.amount,
+        Err(_) => {
+            println!("⚠️  No tip vault token account found, nothing to claim");
+            return;
+        }
+    };
+
+    if claim_amount == 0 {
+        println!("⚠️  Tip vault has zero balance, nothing to claim");
+        return;
+    }
+
+    let tip_vault_before = fed
+        .account::<fed::states::TipVault>(tip_vault_pda)
+        .await
+        .unwrap();
+
+    let owner_vault_before = fed
+        .account::<anchor_spl::token::TokenAccount>(owner_vault_token_account_pda)
+        .await
+        .unwrap();
+
+    println!("📊 Before claim:");
+    println!("   - Tip vault token account: {}", claim_amount);
+    println!(
+        "   - Unclaimed amount: {}",
+        tip_vault_before.unclaimed_amount
+    );
+    println!("   - Owner vault: {}", owner_vault_before.amount);
+
+    // Create claim_tips instruction
+    let claim_ix = fed
+        .request()
+        .accounts(fed::accounts::ClaimTips {
+            owner: owner.pubkey(),
+            payer: payer.pubkey(),
+            session_key: session_key.pubkey(),
+            session_authority: session_authority_pda,
+            user_account: user_account_pda,
+            token_mint: *token_mint,
+            tip_vault: tip_vault_pda,
+            tip_vault_token_account: tip_vault_token_account_pda,
+            vault_authority: vault_authority_pda,
+            owner_user_vault_token_account: owner_vault_token_account_pda,
+            persona_program: persona.id(),
+            token_program: spl_token::ID,
+            system_program: system_program::ID,
+        })
+        .args(fed::instruction::ClaimTips {})
+        .instructions()
+        .unwrap();
+
+    let claim_tx = send_tx(&rpc, claim_ix, &payer.pubkey(), &[&payer])
+        .await
+        .unwrap();
+    println!("claim tips tx: {:?}", claim_tx);
+
+    // Verify balances after claim
+    let tip_vault_token_after = fed
+        .account::<anchor_spl::token::TokenAccount>(tip_vault_token_account_pda)
+        .await
+        .unwrap();
+
+    let tip_vault_after = fed
+        .account::<fed::states::TipVault>(tip_vault_pda)
+        .await
+        .unwrap();
+
+    let owner_vault_after = fed
+        .account::<anchor_spl::token::TokenAccount>(owner_vault_token_account_pda)
+        .await
+        .unwrap();
+
+    println!("📊 After claim:");
+    println!(
+        "   - Tip vault token account: {}",
+        tip_vault_token_after.amount
+    );
+    println!(
+        "   - Unclaimed amount: {}",
+        tip_vault_after.unclaimed_amount
+    );
+    println!("   - Owner vault: {}", owner_vault_after.amount);
+
+    // Verify tip vault token account is now empty
+    assert_eq!(
+        tip_vault_token_after.amount, 0,
+        "Tip vault token account should be empty after claim"
+    );
+
+    // Verify unclaimed_amount is reset to 0
+    assert_eq!(
+        tip_vault_after.unclaimed_amount, 0,
+        "Unclaimed amount should be reset to 0 after claim"
+    );
+
+    // Verify owner vault increased by claim amount
+    assert_eq!(
+        owner_vault_after.amount,
+        owner_vault_before.amount.checked_add(claim_amount).unwrap(),
+        "Owner vault should increase by claim amount"
+    );
+
+    println!("✅ Tips claimed successfully");
+}
+
+pub async fn test_phenomena_send_token(
+    rpc: &RpcClient,
+    fed: &Program<&Keypair>,
+    persona: &Program<&Keypair>,
+    payer: &Keypair,
+    sender: &Keypair,
+    session_key: &Keypair,
+    recipient: &Keypair,
+    amount: u64,
+    token_mint: &Pubkey,
+    tokens: &HashMap<Pubkey, String>,
+) {
+    let token_name = tokens.get(token_mint).unwrap();
+    println!(
+        "User {:?} sending {} {} to {:?}",
+        sender.pubkey(),
+        amount,
+        token_name,
+        recipient.pubkey()
+    );
+
+    // Derive PDAs
+    let sender_user_account_pda = Pubkey::find_program_address(
+        &[
+            persona::pda_seeds::USER_ACCOUNT_SEED,
+            sender.pubkey().as_ref(),
+        ],
+        &persona.id(),
+    )
+    .0;
+
+    let sender_vault_token_account_pda = Pubkey::find_program_address(
+        &[
+            fed::pda_seeds::USER_VAULT_TOKEN_ACCOUNT_SEED,
+            sender.pubkey().as_ref(),
+            token_mint.as_ref(),
+        ],
+        &fed.id(),
+    )
+    .0;
+
+    let recipient_vault_token_account_pda = Pubkey::find_program_address(
+        &[
+            fed::pda_seeds::USER_VAULT_TOKEN_ACCOUNT_SEED,
+            recipient.pubkey().as_ref(),
+            token_mint.as_ref(),
+        ],
+        &fed.id(),
+    )
+    .0;
+
+    let vault_authority_pda =
+        Pubkey::find_program_address(&[fed::pda_seeds::VAULT_AUTHORITY_SEED], &fed.id()).0;
+
+    let valid_payment_pda = Pubkey::find_program_address(
+        &[fed::pda_seeds::VALID_PAYMENT_SEED, token_mint.as_ref()],
+        &fed.id(),
+    )
+    .0;
+
+    let session_authority_pda = Pubkey::find_program_address(
+        &[
+            persona::pda_seeds::SESSION_AUTHORITY_SEED,
+            sender.pubkey().as_ref(),
+            session_key.pubkey().as_ref(),
+        ],
+        &persona.id(),
+    )
+    .0;
+
+    // Get initial balances
+    let sender_vault_before = fed
+        .account::<anchor_spl::token::TokenAccount>(sender_vault_token_account_pda)
+        .await
+        .unwrap();
+
+    // Check if recipient vault exists (may not exist yet)
+    let recipient_vault_before_result = fed
+        .account::<anchor_spl::token::TokenAccount>(recipient_vault_token_account_pda)
+        .await;
+
+    let recipient_vault_before = match recipient_vault_before_result {
+        Ok(account) => account.amount,
+        Err(_) => 0,
+    };
+
+    println!("📊 Before send:");
+    println!("   - Sender vault: {}", sender_vault_before.amount);
+    println!("   - Recipient vault: {}", recipient_vault_before);
+
+    // Create send_token instruction
+    let send_token_ix = fed
+        .request()
+        .accounts(fed::accounts::SendToken {
+            sender: sender.pubkey(),
+            payer: payer.pubkey(),
+            recipient: recipient.pubkey(),
+            session_key: session_key.pubkey(),
+            session_authority: session_authority_pda,
+            sender_user_account: sender_user_account_pda,
+            token_mint: *token_mint,
+            valid_payment: valid_payment_pda,
+            sender_user_vault_token_account: sender_vault_token_account_pda,
+            vault_authority: vault_authority_pda,
+            recipient_user_vault_token_account: recipient_vault_token_account_pda,
+            persona_program: persona.id(),
+            token_program: spl_token::ID,
+            system_program: system_program::ID,
+        })
+        .args(fed::instruction::SendToken { amount })
+        .instructions()
+        .unwrap();
+
+    let send_token_tx = send_tx(&rpc, send_token_ix, &payer.pubkey(), &[&payer])
+        .await
+        .unwrap();
+    println!("send token tx: {:?}", send_token_tx);
+
+    // Verify balances after send
+    let sender_vault_after = fed
+        .account::<anchor_spl::token::TokenAccount>(sender_vault_token_account_pda)
+        .await
+        .unwrap();
+
+    let recipient_vault_after = fed
+        .account::<anchor_spl::token::TokenAccount>(recipient_vault_token_account_pda)
+        .await
+        .unwrap();
+
+    println!("📊 After send:");
+    println!("   - Sender vault: {}", sender_vault_after.amount);
+    println!("   - Recipient vault: {}", recipient_vault_after.amount);
+
+    // Verify sender vault decreased
+    assert_eq!(
+        sender_vault_after.amount,
+        sender_vault_before.amount.checked_sub(amount).unwrap(),
+        "Sender vault should decrease by send amount"
+    );
+
+    // Verify recipient vault increased
+    assert_eq!(
+        recipient_vault_after.amount,
+        recipient_vault_before.checked_add(amount).unwrap(),
+        "Recipient vault should increase by send amount"
+    );
+
+    println!("✅ Send token successful");
+}
+
+// Opinions Market phenomena
+
+pub async fn test_phenomena_create_post(
+    rpc: &RpcClient,
+    opinions_market: &Program<&Keypair>,
+    payer: &Keypair,
+    creator: &Keypair,
+    session_key: &Keypair,
+    config_pda: &Pubkey,
+
+    parent_post_pda: Option<Pubkey>,
+) -> (Pubkey, [u8; 32]) {
+    let post_type_str = if parent_post_pda.is_some() {
+        "child post"
+    } else {
+        "original post"
+    };
+    println!("{:} makes a {}", creator.pubkey(), post_type_str);
+
+    // Generate a unique post_id_hash
+    let hash = crate::utils::utils::generate_post_id_hash();
+
+    let user_account_pda = Pubkey::find_program_address(
+        &[USER_ACCOUNT_SEED, creator.pubkey().as_ref()],
+        &opinions_market.id(),
+    )
+    .0;
+
+    let post_pda =
+        Pubkey::find_program_address(&[POST_ACCOUNT_SEED, hash.as_ref()], &opinions_market.id()).0;
+    let session_authority_pda = Pubkey::find_program_address(
+        &[
+            SESSION_AUTHORITY_SEED,
+            creator.pubkey().as_ref(),
+            session_key.pubkey().as_ref(),
+        ],
+        &opinions_market.id(),
+    )
+    .0;
+    let create_post_ix = opinions_market
+        .request()
+        .accounts(opinions_market::accounts::CreatePost {
+            config: *config_pda,
+            user: creator.pubkey(),
+            payer: payer.pubkey(),
+            session_key: session_key.pubkey(),
+            session_authority: session_authority_pda,
+            user_account: user_account_pda,
+            post: post_pda,
+            system_program: system_program::ID,
+        })
+        .args(opinions_market::instruction::CreatePost {
+            post_id_hash: hash,
+            parent_post_pda,
+        })
+        .instructions()
+        .unwrap();
+
+    // Both payer and creator (user) must sign
+    let create_post_tx = send_tx(&rpc, create_post_ix, &payer.pubkey(), &[&payer])
+        .await
+        .unwrap();
+    println!("create post tx: {:?}", create_post_tx);
+
+    // Verify post was created and all fields are correct
+    let post_account = opinions_market
+        .account::<opinions_market::states::PostAccount>(post_pda)
+        .await
+        .unwrap();
+
+    // Verify creator
+    assert_eq!(
+        post_account.creator_user,
+        creator.pubkey(),
+        "Post creator_user should match creator wallet"
+    );
+
+    // Verify post_id_hash
+    assert_eq!(
+        post_account.post_id_hash, hash,
+        "Post post_id_hash should match generated hash"
+    );
+
+    // Verify state is Open
+    assert_eq!(post_account.state, opinions_market::states::PostState::Open);
+    println!("✅ Post state is Open");
+
+    // Verify initial vote counts
+    assert_eq!(post_account.upvotes, 0, "New post should have 0 upvotes");
+    assert_eq!(
+        post_account.downvotes, 0,
+        "New post should have 0 downvotes"
+    );
+
+    // Verify winning_side is None for new post
+    assert_eq!(
+        post_account.winning_side, None,
+        "New post should not have a winning_side"
+    );
+    println!("✅ Post winning_side is None (correct for new post)");
+
+    // Verify timestamps are set correctly
+    // start_time should be a valid timestamp (greater than 0 and reasonable)
+    assert!(
+        post_account.start_time > 0,
+        "Post start_time should be set to a valid timestamp"
+    );
+
+    // Verify end_time is start_time + base_duration_secs
+    let expected_end_time = post_account.start_time + (TIME_CONFIG_FAST.base_duration_secs) as i64;
+    assert_eq!(
+        post_account.end_time, expected_end_time,
+        "Post end_time should be start_time + {} seconds (base_duration_secs)",
+        TIME_CONFIG_FAST.base_duration_secs
+    );
+
+    // Verify end_time is after start_time
+    assert!(
+        post_account.end_time > post_account.start_time,
+        "Post end_time should be after start_time"
+    );
+
+    // Verify post relation and function
+    match parent_post_pda {
+        Some(parent) => {
+            // Child posts should be Normal function with Reply relation
+            assert_eq!(
+                post_account.function,
+                opinions_market::states::PostFunction::Normal,
+                "Child post should have Normal function"
+            );
+            if let opinions_market::states::PostRelation::Reply {
+                parent: stored_parent,
+            } = &post_account.relation
+            {
+                assert_eq!(
+                    *stored_parent, parent,
+                    "Child post parent PDA should match provided parent"
+                );
+                println!("✅ Post relation is Reply with correct parent");
+            } else {
+                panic!(
+                    "Post relation mismatch: expected Reply but got {:?}",
+                    post_account.relation
+                );
+            }
+        }
+        None => {
+            // Root posts should be Normal function with Root relation
+            assert_eq!(
+                post_account.function,
+                opinions_market::states::PostFunction::Normal,
+                "Root post should have Normal function"
+            );
+            assert_eq!(
+                post_account.relation,
+                opinions_market::states::PostRelation::Root,
+                "Post relation should be Root when no parent is provided"
+            );
+            println!("✅ Post relation is Root");
+        }
+    }
+
+    println!(
+        "✅ {} created successfully with all fields verified",
+        post_type_str
+    );
+    println!("   - Creator: {}", post_account.creator_user);
+    println!("   - State: Open");
+    println!("   - Start time: {}", post_account.start_time);
+    println!("   - End time: {}", post_account.end_time);
+    println!(
+        "   - Upvotes: {}, Downvotes: {}",
+        post_account.upvotes, post_account.downvotes
+    );
+    println!("post_pda: {}", post_pda);
+    println!("post_id_hash: {:?}", hex::encode(hash));
+
+    (post_pda, hash)
+}
 
 // pub async fn test_phenomena_create_question(
 //     rpc: &RpcClient,
@@ -1864,534 +2397,3 @@ pub async fn test_phenomena_withdraw(
 
 //     println!("✅ Post reward claimed successfully");
 // }
-
-pub async fn test_phenomena_tip(
-    rpc: &RpcClient,
-    fed: &Program<&Keypair>,
-    persona: &Program<&Keypair>,
-    payer: &Keypair,
-    sender: &Keypair,
-    session_key: &Keypair,
-    recipient: &Keypair,
-    amount: u64,
-    token_mint: &Pubkey,
-    tokens: &HashMap<Pubkey, String>,
-) {
-    let token_name = tokens.get(token_mint).unwrap();
-    println!(
-        "User {:?} tipping {:?} {} {}",
-        sender.pubkey(),
-        recipient.pubkey(),
-        amount,
-        token_name
-    );
-
-    // Derive PDAs
-    let sender_user_account_pda = Pubkey::find_program_address(
-        &[
-            persona::pda_seeds::USER_ACCOUNT_SEED,
-            sender.pubkey().as_ref(),
-        ],
-        &persona.id(),
-    )
-    .0;
-
-    let sender_vault_token_account_pda = Pubkey::find_program_address(
-        &[
-            fed::pda_seeds::USER_VAULT_TOKEN_ACCOUNT_SEED,
-            sender.pubkey().as_ref(),
-            token_mint.as_ref(),
-        ],
-        &fed.id(),
-    )
-    .0;
-
-    let tip_vault_pda = Pubkey::find_program_address(
-        &[
-            fed::pda_seeds::TIP_VAULT_SEED,
-            recipient.pubkey().as_ref(),
-            token_mint.as_ref(),
-        ],
-        &fed.id(),
-    )
-    .0;
-
-    let tip_vault_token_account_pda = Pubkey::find_program_address(
-        &[
-            fed::pda_seeds::TIP_VAULT_TOKEN_ACCOUNT_SEED,
-            recipient.pubkey().as_ref(),
-            token_mint.as_ref(),
-        ],
-        &fed.id(),
-    )
-    .0;
-
-    let vault_authority_pda =
-        Pubkey::find_program_address(&[fed::pda_seeds::VAULT_AUTHORITY_SEED], &fed.id()).0;
-
-    let valid_payment_pda = Pubkey::find_program_address(
-        &[fed::pda_seeds::VALID_PAYMENT_SEED, token_mint.as_ref()],
-        &fed.id(),
-    )
-    .0;
-
-    let session_authority_pda = Pubkey::find_program_address(
-        &[
-            persona::pda_seeds::SESSION_AUTHORITY_SEED,
-            sender.pubkey().as_ref(),
-            session_key.pubkey().as_ref(),
-        ],
-        &persona.id(),
-    )
-    .0;
-
-    // Get initial balances
-    let sender_vault_before = fed
-        .account::<anchor_spl::token::TokenAccount>(sender_vault_token_account_pda)
-        .await
-        .unwrap();
-
-    // Check if tip vault exists (may not exist yet)
-    let tip_vault_before_result = fed.account::<fed::states::TipVault>(tip_vault_pda).await;
-
-    let tip_vault_token_before_result = fed
-        .account::<anchor_spl::token::TokenAccount>(tip_vault_token_account_pda)
-        .await;
-
-    let tip_vault_token_before = match tip_vault_token_before_result {
-        Ok(account) => account.amount,
-        Err(_) => 0,
-    };
-
-    let unclaimed_before = match &tip_vault_before_result {
-        Ok(vault) => vault.unclaimed_amount,
-        Err(_) => 0,
-    };
-
-    println!("📊 Before tip:");
-    println!("   - Sender vault: {}", sender_vault_before.amount);
-    println!("   - Tip vault token account: {}", tip_vault_token_before);
-    println!("   - Unclaimed amount: {}", unclaimed_before);
-
-    // Create tip instruction
-    let tip_ix = fed
-        .request()
-        .accounts(fed::accounts::Tip {
-            sender: sender.pubkey(),
-            payer: payer.pubkey(),
-            recipient: recipient.pubkey(),
-            session_key: session_key.pubkey(),
-            session_authority: session_authority_pda,
-            sender_user_account: sender_user_account_pda,
-            token_mint: *token_mint,
-            valid_payment: valid_payment_pda,
-            sender_user_vault_token_account: sender_vault_token_account_pda,
-            vault_authority: vault_authority_pda,
-            tip_vault: tip_vault_pda,
-            tip_vault_token_account: tip_vault_token_account_pda,
-            persona_program: persona.id(),
-            token_program: spl_token::ID,
-            system_program: system_program::ID,
-        })
-        .args(fed::instruction::Tip { amount })
-        .instructions()
-        .unwrap();
-
-    let tip_tx = send_tx(&rpc, tip_ix, &payer.pubkey(), &[&payer])
-        .await
-        .unwrap();
-    println!("tip tx: {:?}", tip_tx);
-
-    // Verify balances after tip
-    let sender_vault_after = fed
-        .account::<anchor_spl::token::TokenAccount>(sender_vault_token_account_pda)
-        .await
-        .unwrap();
-
-    let tip_vault_token_after = fed
-        .account::<anchor_spl::token::TokenAccount>(tip_vault_token_account_pda)
-        .await
-        .unwrap();
-
-    let tip_vault_after = fed
-        .account::<fed::states::TipVault>(tip_vault_pda)
-        .await
-        .unwrap();
-
-    println!("📊 After tip:");
-    println!("   - Sender vault: {}", sender_vault_after.amount);
-    println!(
-        "   - Tip vault token account: {}",
-        tip_vault_token_after.amount
-    );
-    println!(
-        "   - Unclaimed amount: {}",
-        tip_vault_after.unclaimed_amount
-    );
-
-    // Verify sender vault decreased
-    assert_eq!(
-        sender_vault_after.amount,
-        sender_vault_before.amount.checked_sub(amount).unwrap(),
-        "Sender vault should decrease by tip amount"
-    );
-
-    // Verify tip vault token account increased
-    assert_eq!(
-        tip_vault_token_after.amount,
-        tip_vault_token_before.checked_add(amount).unwrap(),
-        "Tip vault token account should increase by tip amount"
-    );
-
-    // Verify unclaimed_amount increased
-    assert_eq!(
-        tip_vault_after.unclaimed_amount,
-        unclaimed_before.checked_add(amount).unwrap(),
-        "Unclaimed amount should increase by tip amount"
-    );
-
-    // Verify tip vault owner and mint
-    assert_eq!(
-        tip_vault_after.owner,
-        recipient.pubkey(),
-        "Tip vault owner should be recipient"
-    );
-    assert_eq!(
-        tip_vault_after.token_mint, *token_mint,
-        "Tip vault token mint should match"
-    );
-
-    println!("✅ Tip successful");
-}
-
-pub async fn test_phenomena_claim_tips(
-    rpc: &RpcClient,
-    fed: &Program<&Keypair>,
-    persona: &Program<&Keypair>,
-    payer: &Keypair,
-    owner: &Keypair,
-    session_key: &Keypair,
-    token_mint: &Pubkey,
-    tokens: &HashMap<Pubkey, String>,
-) {
-    let token_name = tokens.get(token_mint).unwrap();
-    println!(
-        "User {:?} claiming tips for token {}",
-        owner.pubkey(),
-        token_name
-    );
-
-    // Derive PDAs
-    let user_account_pda = Pubkey::find_program_address(
-        &[
-            persona::pda_seeds::USER_ACCOUNT_SEED,
-            owner.pubkey().as_ref(),
-        ],
-        &persona.id(),
-    )
-    .0;
-
-    let tip_vault_pda = Pubkey::find_program_address(
-        &[
-            fed::pda_seeds::TIP_VAULT_SEED,
-            owner.pubkey().as_ref(),
-            token_mint.as_ref(),
-        ],
-        &fed.id(),
-    )
-    .0;
-
-    let tip_vault_token_account_pda = Pubkey::find_program_address(
-        &[
-            fed::pda_seeds::TIP_VAULT_TOKEN_ACCOUNT_SEED,
-            owner.pubkey().as_ref(),
-            token_mint.as_ref(),
-        ],
-        &fed.id(),
-    )
-    .0;
-
-    let owner_vault_token_account_pda = Pubkey::find_program_address(
-        &[
-            fed::pda_seeds::USER_VAULT_TOKEN_ACCOUNT_SEED,
-            owner.pubkey().as_ref(),
-            token_mint.as_ref(),
-        ],
-        &fed.id(),
-    )
-    .0;
-
-    let vault_authority_pda =
-        Pubkey::find_program_address(&[fed::pda_seeds::VAULT_AUTHORITY_SEED], &fed.id()).0;
-
-    let session_authority_pda = Pubkey::find_program_address(
-        &[
-            persona::pda_seeds::SESSION_AUTHORITY_SEED,
-            owner.pubkey().as_ref(),
-            session_key.pubkey().as_ref(),
-        ],
-        &persona.id(),
-    )
-    .0;
-
-    // Get initial balances
-    let tip_vault_token_before_result = fed
-        .account::<anchor_spl::token::TokenAccount>(tip_vault_token_account_pda)
-        .await;
-
-    let claim_amount = match tip_vault_token_before_result {
-        Ok(account) => account.amount,
-        Err(_) => {
-            println!("⚠️  No tip vault token account found, nothing to claim");
-            return;
-        }
-    };
-
-    if claim_amount == 0 {
-        println!("⚠️  Tip vault has zero balance, nothing to claim");
-        return;
-    }
-
-    let tip_vault_before = fed
-        .account::<fed::states::TipVault>(tip_vault_pda)
-        .await
-        .unwrap();
-
-    let owner_vault_before = fed
-        .account::<anchor_spl::token::TokenAccount>(owner_vault_token_account_pda)
-        .await
-        .unwrap();
-
-    println!("📊 Before claim:");
-    println!("   - Tip vault token account: {}", claim_amount);
-    println!(
-        "   - Unclaimed amount: {}",
-        tip_vault_before.unclaimed_amount
-    );
-    println!("   - Owner vault: {}", owner_vault_before.amount);
-
-    // Create claim_tips instruction
-    let claim_ix = fed
-        .request()
-        .accounts(fed::accounts::ClaimTips {
-            owner: owner.pubkey(),
-            payer: payer.pubkey(),
-            session_key: session_key.pubkey(),
-            session_authority: session_authority_pda,
-            user_account: user_account_pda,
-            token_mint: *token_mint,
-            tip_vault: tip_vault_pda,
-            tip_vault_token_account: tip_vault_token_account_pda,
-            vault_authority: vault_authority_pda,
-            owner_user_vault_token_account: owner_vault_token_account_pda,
-            persona_program: persona.id(),
-            token_program: spl_token::ID,
-            system_program: system_program::ID,
-        })
-        .args(fed::instruction::ClaimTips {})
-        .instructions()
-        .unwrap();
-
-    let claim_tx = send_tx(&rpc, claim_ix, &payer.pubkey(), &[&payer])
-        .await
-        .unwrap();
-    println!("claim tips tx: {:?}", claim_tx);
-
-    // Verify balances after claim
-    let tip_vault_token_after = fed
-        .account::<anchor_spl::token::TokenAccount>(tip_vault_token_account_pda)
-        .await
-        .unwrap();
-
-    let tip_vault_after = fed
-        .account::<fed::states::TipVault>(tip_vault_pda)
-        .await
-        .unwrap();
-
-    let owner_vault_after = fed
-        .account::<anchor_spl::token::TokenAccount>(owner_vault_token_account_pda)
-        .await
-        .unwrap();
-
-    println!("📊 After claim:");
-    println!(
-        "   - Tip vault token account: {}",
-        tip_vault_token_after.amount
-    );
-    println!(
-        "   - Unclaimed amount: {}",
-        tip_vault_after.unclaimed_amount
-    );
-    println!("   - Owner vault: {}", owner_vault_after.amount);
-
-    // Verify tip vault token account is now empty
-    assert_eq!(
-        tip_vault_token_after.amount, 0,
-        "Tip vault token account should be empty after claim"
-    );
-
-    // Verify unclaimed_amount is reset to 0
-    assert_eq!(
-        tip_vault_after.unclaimed_amount, 0,
-        "Unclaimed amount should be reset to 0 after claim"
-    );
-
-    // Verify owner vault increased by claim amount
-    assert_eq!(
-        owner_vault_after.amount,
-        owner_vault_before.amount.checked_add(claim_amount).unwrap(),
-        "Owner vault should increase by claim amount"
-    );
-
-    println!("✅ Tips claimed successfully");
-}
-
-pub async fn test_phenomena_send_token(
-    rpc: &RpcClient,
-    fed: &Program<&Keypair>,
-    persona: &Program<&Keypair>,
-    payer: &Keypair,
-    sender: &Keypair,
-    session_key: &Keypair,
-    recipient: &Keypair,
-    amount: u64,
-    token_mint: &Pubkey,
-    tokens: &HashMap<Pubkey, String>,
-) {
-    let token_name = tokens.get(token_mint).unwrap();
-    println!(
-        "User {:?} sending {} {} to {:?}",
-        sender.pubkey(),
-        amount,
-        token_name,
-        recipient.pubkey()
-    );
-
-    // Derive PDAs
-    let sender_user_account_pda = Pubkey::find_program_address(
-        &[
-            persona::pda_seeds::USER_ACCOUNT_SEED,
-            sender.pubkey().as_ref(),
-        ],
-        &persona.id(),
-    )
-    .0;
-
-    let sender_vault_token_account_pda = Pubkey::find_program_address(
-        &[
-            fed::pda_seeds::USER_VAULT_TOKEN_ACCOUNT_SEED,
-            sender.pubkey().as_ref(),
-            token_mint.as_ref(),
-        ],
-        &fed.id(),
-    )
-    .0;
-
-    let recipient_vault_token_account_pda = Pubkey::find_program_address(
-        &[
-            fed::pda_seeds::USER_VAULT_TOKEN_ACCOUNT_SEED,
-            recipient.pubkey().as_ref(),
-            token_mint.as_ref(),
-        ],
-        &fed.id(),
-    )
-    .0;
-
-    let vault_authority_pda =
-        Pubkey::find_program_address(&[fed::pda_seeds::VAULT_AUTHORITY_SEED], &fed.id()).0;
-
-    let valid_payment_pda = Pubkey::find_program_address(
-        &[fed::pda_seeds::VALID_PAYMENT_SEED, token_mint.as_ref()],
-        &fed.id(),
-    )
-    .0;
-
-    let session_authority_pda = Pubkey::find_program_address(
-        &[
-            persona::pda_seeds::SESSION_AUTHORITY_SEED,
-            sender.pubkey().as_ref(),
-            session_key.pubkey().as_ref(),
-        ],
-        &persona.id(),
-    )
-    .0;
-
-    // Get initial balances
-    let sender_vault_before = fed
-        .account::<anchor_spl::token::TokenAccount>(sender_vault_token_account_pda)
-        .await
-        .unwrap();
-
-    // Check if recipient vault exists (may not exist yet)
-    let recipient_vault_before_result = fed
-        .account::<anchor_spl::token::TokenAccount>(recipient_vault_token_account_pda)
-        .await;
-
-    let recipient_vault_before = match recipient_vault_before_result {
-        Ok(account) => account.amount,
-        Err(_) => 0,
-    };
-
-    println!("📊 Before send:");
-    println!("   - Sender vault: {}", sender_vault_before.amount);
-    println!("   - Recipient vault: {}", recipient_vault_before);
-
-    // Create send_token instruction
-    let send_token_ix = fed
-        .request()
-        .accounts(fed::accounts::SendToken {
-            sender: sender.pubkey(),
-            payer: payer.pubkey(),
-            recipient: recipient.pubkey(),
-            session_key: session_key.pubkey(),
-            session_authority: session_authority_pda,
-            sender_user_account: sender_user_account_pda,
-            token_mint: *token_mint,
-            valid_payment: valid_payment_pda,
-            sender_user_vault_token_account: sender_vault_token_account_pda,
-            vault_authority: vault_authority_pda,
-            recipient_user_vault_token_account: recipient_vault_token_account_pda,
-            persona_program: persona.id(),
-            token_program: spl_token::ID,
-            system_program: system_program::ID,
-        })
-        .args(fed::instruction::SendToken { amount })
-        .instructions()
-        .unwrap();
-
-    let send_token_tx = send_tx(&rpc, send_token_ix, &payer.pubkey(), &[&payer])
-        .await
-        .unwrap();
-    println!("send token tx: {:?}", send_token_tx);
-
-    // Verify balances after send
-    let sender_vault_after = fed
-        .account::<anchor_spl::token::TokenAccount>(sender_vault_token_account_pda)
-        .await
-        .unwrap();
-
-    let recipient_vault_after = fed
-        .account::<anchor_spl::token::TokenAccount>(recipient_vault_token_account_pda)
-        .await
-        .unwrap();
-
-    println!("📊 After send:");
-    println!("   - Sender vault: {}", sender_vault_after.amount);
-    println!("   - Recipient vault: {}", recipient_vault_after.amount);
-
-    // Verify sender vault decreased
-    assert_eq!(
-        sender_vault_after.amount,
-        sender_vault_before.amount.checked_sub(amount).unwrap(),
-        "Sender vault should decrease by send amount"
-    );
-
-    // Verify recipient vault increased
-    assert_eq!(
-        recipient_vault_after.amount,
-        recipient_vault_before.checked_add(amount).unwrap(),
-        "Recipient vault should increase by send amount"
-    );
-
-    println!("✅ Send token successful");
-}
