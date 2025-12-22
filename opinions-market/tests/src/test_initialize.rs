@@ -13,16 +13,8 @@ use solana_sdk::{
 
 use crate::config::TIME_CONFIG_FAST;
 use crate::utils::phenomena::{
-    test_phenomena_add_valid_payment,
-    // test_phenomena_claim_post_reward,
-    // test_phenomena_create_answer, test_phenomena_create_post, test_phenomena_create_question,
-    test_phenomena_create_user,
-    test_phenomena_deposit,
-    // test_phenomena_settle_post,
-    test_phenomena_tip,
-    test_phenomena_turn_on_withdrawable,
-
-    // test_phenomena_vote_on_post,
+    test_phenomena_add_valid_payment, test_phenomena_create_user, test_phenomena_deposit,
+    test_phenomena_send_token, test_phenomena_tip, test_phenomena_turn_on_withdrawable,
     test_phenomena_withdraw,
 };
 use crate::utils::utils::{
@@ -373,6 +365,22 @@ async fn test_setup() {
         {
             println!("user 1 tipping user 2 100 bling");
             test_phenomena_tip(
+                &rpc,
+                &fed,
+                &persona,
+                &payer,
+                &user_1,
+                &session_key,
+                &user_2,
+                100 * LAMPORTS_PER_SOL,
+                &bling_pubkey,
+                &tokens,
+            )
+            .await;
+        }
+        {
+            println!("user 1 sending 100 bling to user 2");
+            test_phenomena_send_token(
                 &rpc,
                 &fed,
                 &persona,

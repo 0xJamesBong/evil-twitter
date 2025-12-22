@@ -2097,7 +2097,7 @@ pub async fn test_phenomena_claim_tips(
             owner.pubkey().as_ref(),
             token_mint.as_ref(),
         ],
-        &persona.id(),
+        &fed.id(),
     )
     .0;
 
@@ -2107,7 +2107,7 @@ pub async fn test_phenomena_claim_tips(
             owner.pubkey().as_ref(),
             token_mint.as_ref(),
         ],
-        &persona.id(),
+        &fed.id(),
     )
     .0;
 
@@ -2117,12 +2117,12 @@ pub async fn test_phenomena_claim_tips(
             owner.pubkey().as_ref(),
             token_mint.as_ref(),
         ],
-        &persona.id(),
+        &fed.id(),
     )
     .0;
 
     let vault_authority_pda =
-        Pubkey::find_program_address(&[fed::pda_seeds::VAULT_AUTHORITY_SEED], &persona.id()).0;
+        Pubkey::find_program_address(&[fed::pda_seeds::VAULT_AUTHORITY_SEED], &fed.id()).0;
 
     let session_authority_pda = Pubkey::find_program_address(
         &[
@@ -2152,12 +2152,12 @@ pub async fn test_phenomena_claim_tips(
         return;
     }
 
-    let tip_vault_before = persona
-        .account::<opinions_market::states::TipVault>(tip_vault_pda)
+    let tip_vault_before = fed
+        .account::<fed::states::TipVault>(tip_vault_pda)
         .await
         .unwrap();
 
-    let owner_vault_before = persona
+    let owner_vault_before = fed
         .account::<anchor_spl::token::TokenAccount>(owner_vault_token_account_pda)
         .await
         .unwrap();
@@ -2171,7 +2171,7 @@ pub async fn test_phenomena_claim_tips(
     println!("   - Owner vault: {}", owner_vault_before.amount);
 
     // Create claim_tips instruction
-    let claim_ix = persona
+    let claim_ix = fed
         .request()
         .accounts(fed::accounts::ClaimTips {
             owner: owner.pubkey(),
@@ -2198,17 +2198,17 @@ pub async fn test_phenomena_claim_tips(
     println!("claim tips tx: {:?}", claim_tx);
 
     // Verify balances after claim
-    let tip_vault_token_after = persona
+    let tip_vault_token_after = fed
         .account::<anchor_spl::token::TokenAccount>(tip_vault_token_account_pda)
         .await
         .unwrap();
 
-    let tip_vault_after = persona
-        .account::<opinions_market::states::TipVault>(tip_vault_pda)
+    let tip_vault_after = fed
+        .account::<fed::states::TipVault>(tip_vault_pda)
         .await
         .unwrap();
 
-    let owner_vault_after = persona
+    let owner_vault_after = fed
         .account::<anchor_spl::token::TokenAccount>(owner_vault_token_account_pda)
         .await
         .unwrap();

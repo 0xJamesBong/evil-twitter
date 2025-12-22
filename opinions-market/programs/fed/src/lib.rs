@@ -309,15 +309,12 @@ pub mod fed {
         let clock = Clock::get()?;
         let now = clock.unix_timestamp;
 
-        // Determine actual signer (could be owner wallet or session key)
-        let signer = ctx.accounts.owner.key();
-
         // Auth: session or wallet via CPI
         persona::cpi::check_session_or_wallet(
             CpiContext::new(
                 ctx.accounts.persona_program.to_account_info(),
                 persona::cpi::accounts::CheckSessionOrWallet {
-                    user: ctx.accounts.user_account.to_account_info(),
+                    user: ctx.accounts.owner.to_account_info(),
                     session_key: ctx.accounts.session_key.to_account_info(),
                     session_authority: ctx.accounts.session_authority.to_account_info(),
                 },
