@@ -413,3 +413,23 @@ pub struct SendToken<'info> {
     pub token_program: Program<'info, Token>,
     pub system_program: Program<'info, System>,
 }
+
+/// Simple transfer from one token account to another using vault_authority.
+/// Used for user vault transfers (vault → vault, vault → treasury, etc.)
+/// This is a dumb token API with no domain knowledge.
+#[derive(Accounts)]
+pub struct Transfer<'info> {
+    #[account(mut)]
+    pub from: Account<'info, TokenAccount>,
+    #[account(mut)]
+    pub to: Account<'info, TokenAccount>,
+
+    /// CHECK: Vault authority PDA (Fed-owned, for user vaults)
+    #[account(
+        seeds = [VAULT_AUTHORITY_SEED],
+        bump,
+    )]
+    pub vault_authority: UncheckedAccount<'info>,
+
+    pub token_program: Program<'info, Token>,
+}

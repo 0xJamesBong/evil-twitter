@@ -19,3 +19,7 @@ pub const PROTOCOL_TREASURY_TOKEN_ACCOUNT_SEED: &[u8] = b"protocol_treasury_toke
 
 pub const TIP_VAULT_SEED: &[u8] = b"tip_vault";
 pub const TIP_VAULT_TOKEN_ACCOUNT_SEED: &[u8] = b"tip_vault_token_account";
+
+// Note: POST_POT_AUTHORITY_SEED is owned by Opinions Market, not Fed
+// This is only here for reference if Fed needs to verify post pot authority
+// pub const POST_POT_AUTHORITY_SEED: &[u8] = b"post_pot_authority";

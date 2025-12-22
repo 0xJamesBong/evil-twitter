@@ -44,19 +44,33 @@ impl UserAccountAttackSurface {
 
 #[account]
 #[derive(InitSpace, Copy, PartialEq, Eq, Debug)]
-pub struct UserAccount {
+pub struct UserKarma {
     pub user: Pubkey,      // user wallet pubkey
     pub social_score: i64, // can drive withdraw penalty etc.
     pub attack_surface: UserAccountAttackSurface,
     pub bump: u8,
 }
 
-impl UserAccount {
-    pub fn new(user: Pubkey, bump: u8) -> Self {
+impl UserKarma {
+    pub fn default(user: Pubkey, bump: u8) -> Self {
         Self {
             user,
             social_score: PARAMS.user_initial_social_score,
             attack_surface: UserAccountAttackSurface::new(true),
+            bump,
+        }
+    }
+
+    pub fn new(
+        user: Pubkey,
+        social_score: i64,
+        attack_surface: UserAccountAttackSurface,
+        bump: u8,
+    ) -> Self {
+        Self {
+            user,
+            social_score,
+            attack_surface,
             bump,
         }
     }
@@ -124,26 +138,6 @@ impl UserPostMintClaim {
             post,
             mint,
             claimed: false,
-            bump,
-        }
-    }
-}
-
-#[account]
-#[derive(InitSpace, Copy, PartialEq, Eq, Debug)]
-pub struct TipVault {
-    pub owner: Pubkey,
-    pub token_mint: Pubkey,
-    pub unclaimed_amount: u64,
-    pub bump: u8,
-}
-
-impl TipVault {
-    pub fn new(owner: Pubkey, token_mint: Pubkey, bump: u8) -> Self {
-        Self {
-            owner,
-            token_mint,
-            unclaimed_amount: 0,
             bump,
         }
     }

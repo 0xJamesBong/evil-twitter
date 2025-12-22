@@ -1,5 +1,5 @@
 use crate::constants::{MAX_VOTE_COUNT_CAP, PARAMS, SMACK_TO_PUMP_PRICE_RATIO};
-use crate::states::{PostRelation, Side, UserAccount};
+use crate::states::{PostRelation, Side, UserKarma};
 use crate::ErrorCode;
 use anchor_lang::prelude::*;
 
@@ -10,7 +10,7 @@ use anchor_lang::prelude::*;
 /// - score 10000 → 10_000 BPS (100% = 1.0x multiplier)
 /// - score 0 → 20_000 BPS (200% = 2.0x multiplier)
 /// - score -100 → 5_000 BPS (50% = 0.5x multiplier)
-pub fn social_score_multiplier(user_account: &UserAccount) -> Result<u64> {
+pub fn social_score_multiplier(user_account: &UserKarma) -> Result<u64> {
     let score = user_account.social_score;
 
     let mult_bps = if score >= 0 {
@@ -41,12 +41,7 @@ pub fn social_score_multiplier(user_account: &UserAccount) -> Result<u64> {
 /// - prev: Previous votes on this side (for this user on this post)
 /// - side: Pump or Smack
 /// - user_account: User account for social score
-pub fn base_user_cost(
-    votes: u64,
-    prev: u64,
-    side: Side,
-    user_account: &UserAccount,
-) -> Result<u64> {
+pub fn base_user_cost(votes: u64, prev: u64, side: Side, user_account: &UserKarma) -> Result<u64> {
     // ---- FIXED CAPS (core overflow prevention) ----
     let votes = votes.min(MAX_VOTE_COUNT_CAP);
     let prev = prev.min(MAX_VOTE_COUNT_CAP);

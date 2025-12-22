@@ -95,7 +95,7 @@ pub mod opinions_market {
             CpiContext::new(
                 ctx.accounts.persona_program.to_account_info(),
                 persona::cpi::accounts::CheckSessionOrWallet {
-                    user: ctx.accounts.sender.to_account_info(),
+                    user: ctx.accounts.user.to_account_info(),
                     session_key: ctx.accounts.session_key.to_account_info(),
                     session_authority: ctx.accounts.session_authority.to_account_info(),
                 },
@@ -149,7 +149,7 @@ pub mod opinions_market {
             CpiContext::new(
                 ctx.accounts.persona_program.to_account_info(),
                 persona::cpi::accounts::CheckSessionOrWallet {
-                    user: ctx.accounts.sender.to_account_info(),
+                    user: ctx.accounts.user.to_account_info(),
                     session_key: ctx.accounts.session_key.to_account_info(),
                     session_authority: ctx.accounts.session_authority.to_account_info(),
                 },
@@ -212,7 +212,7 @@ pub mod opinions_market {
             CpiContext::new(
                 ctx.accounts.persona_program.to_account_info(),
                 persona::cpi::accounts::CheckSessionOrWallet {
-                    user: ctx.accounts.sender.to_account_info(),
+                    user: ctx.accounts.user.to_account_info(),
                     session_key: ctx.accounts.session_key.to_account_info(),
                     session_authority: ctx.accounts.session_authority.to_account_info(),
                 },
@@ -284,11 +284,16 @@ pub mod opinions_market {
         require!(votes > 0, ErrorCode::ZeroVotes);
         let clock = Clock::get()?;
         let now = clock.unix_timestamp;
-
-        assert_session_or_wallet(
-            &ctx.accounts.voter.key(),
-            &ctx.accounts.session_authority.user,
-            Some(&ctx.accounts.session_authority),
+        // todo: replace with CPI to persona::cpi::check_session_or_wallet
+        persona::cpi::check_session_or_wallet(
+            CpiContext::new(
+                ctx.accounts.persona_program.to_account_info(),
+                persona::cpi::accounts::CheckSessionOrWallet {
+                    user: ctx.accounts.voter.to_account_info(),
+                    session_key: ctx.accounts.session_key.to_account_info(),
+                    session_authority: ctx.accounts.session_authority.to_account_info(),
+                },
+            ),
             now,
         )?;
 
@@ -330,7 +335,10 @@ pub mod opinions_market {
         //
 
         let vote = Vote::new(side, valid_votes, ctx.accounts.voter.key(), post.key());
-        let cost_bling = vote.compute_cost_in_bling(post, pos, &ctx.accounts.voter_user_account)?;
+        // get karma from persona
+        todo!();
+        // let user_karma = &mut ctx.accounts.voter_user_karma;
+        // let cost_bling = vote.compute_cost_in_bling(post, pos, &ctx.accounts.voter_user_account)?;
 
         msg!("cost_bling: {}", cost_bling);
         msg!("post.upvotes BEFORE: {}", post.upvotes);
@@ -377,75 +385,68 @@ pub mod opinions_market {
         msg!("pot_increment_token: {}", pot_increment_token);
 
         //
-        // ---- 3. TRANSFERS (IN token_mint) ----
+        // ---- 2. TRANSFERS via Fed (all in BLING) ----
         //
 
-        let vault_bump = ctx.bumps.vault_authority;
-        let user_authority_seeds: &[&[&[u8]]] = &[&[VAULT_AUTHORITY_SEED, &[vault_bump]]];
-
-        // protocol fee
-        if protocol_fee_token > 0 {
-            // TODO: CPI to Fed::charge_vote(...)
-            panic!("SPL transfers must go through Fed");
-
-            // anchor_spl::token::transfer(
-            //     CpiContext::new_with_signer(
-            //         ctx.accounts.token_program.to_account_info(),
-            //         anchor_spl::token::Transfer {
-            //             from: ctx
-            //                 .accounts
-            //                 .voter_user_vault_token_account
-            //                 .to_account_info(),
-            //             to: ctx
-            //                 .accounts
-            //                 .protocol_token_treasury_token_account
-            //                 .to_account_info(),
-            //             authority: ctx.accounts.vault_authority.to_account_info(),
-            //         },
-            //         user_authority_seeds,
-            //     ),
-            //     protocol_fee_token,
-            // )?;
+        // Protocol fee transfer
+        if protocol_fee > 0 {
+            fed::cpi::transfer(
+                CpiContext::new(
+                    ctx.accounts.fed_program.to_account_info(),
+                    fed::cpi::accounts::Transfer {
+                        from: ctx
+                            .accounts
+                            .voter_user_vault_token_account
+                            .to_account_info(),
+                        to: ctx
+                            .accounts
+                            .protocol_token_treasury_token_account
+                            .to_account_info(),
+                        vault_authority: ctx.accounts.vault_authority.to_account_info(),
+                        token_program: ctx.accounts.token_program.to_account_info(),
+                    },
+                ),
+                protocol_fee,
+            )?;
         }
 
-        // creator fee
-        if creator_pump_fee_token > 0 {
-            // TODO: CPI to Fed::charge_vote(...)
-            panic!("SPL transfers must go through Fed");
-
-            // anchor_spl::token::transfer(
-            //     CpiContext::new_with_signer(
-            //         ctx.accounts.token_program.to_account_info(),
-            //         anchor_spl::token::Transfer {
-            //             from: ctx
-            //                 .accounts
-            //                 .voter_user_vault_token_account
-            //                 .to_account_info(),
-            //             to: ctx.accounts.creator_vault_token_account.to_account_info(),
-            //             authority: ctx.accounts.vault_authority.to_account_info(),
-            //         },
-            //         user_authority_seeds,
-            //     ),
-            //     creator_pump_fee_token,
-            // )?;
+        // Creator fee transfer (if > 0)
+        if creator_pump_fee > 0 {
+            fed::cpi::transfer(
+                CpiContext::new(
+                    ctx.accounts.fed_program.to_account_info(),
+                    fed::cpi::accounts::Transfer {
+                        from: ctx
+                            .accounts
+                            .voter_user_vault_token_account
+                            .to_account_info(),
+                        to: ctx.accounts.creator_vault_token_account.to_account_info(),
+                        vault_authority: ctx.accounts.vault_authority.to_account_info(),
+                        token_program: ctx.accounts.token_program.to_account_info(),
+                    },
+                ),
+                creator_pump_fee,
+            )?;
         }
 
-        // pot increment
-        anchor_spl::token::transfer(
-            CpiContext::new_with_signer(
-                ctx.accounts.token_program.to_account_info(),
-                anchor_spl::token::Transfer {
-                    from: ctx
-                        .accounts
-                        .voter_user_vault_token_account
-                        .to_account_info(),
-                    to: ctx.accounts.post_pot_token_account.to_account_info(),
-                    authority: ctx.accounts.vault_authority.to_account_info(),
-                },
-                user_authority_seeds,
-            ),
-            pot_increment_token,
-        )?;
+        // Pot increment transfer (from user vault, so use Fed::transfer)
+        if pot_increment_token > 0 {
+            fed::cpi::transfer(
+                CpiContext::new(
+                    ctx.accounts.fed_program.to_account_info(),
+                    fed::cpi::accounts::Transfer {
+                        from: ctx
+                            .accounts
+                            .voter_user_vault_token_account
+                            .to_account_info(),
+                        to: ctx.accounts.post_pot_token_account.to_account_info(),
+                        vault_authority: ctx.accounts.vault_authority.to_account_info(),
+                        token_program: ctx.accounts.token_program.to_account_info(),
+                    },
+                ),
+                pot_increment_token,
+            )?;
+        }
 
         //
         // ---- 4. UPDATE COUNTERS ----
@@ -645,20 +646,23 @@ pub mod opinions_market {
         }
 
         msg!("Distributing creator fee: {}", creator_fee);
-        // TODO: CPI to Fed::charge_vote(...)
-        panic!("SPL transfers must go through Fed");
 
-        // {
-        //     let post_key = ctx.accounts.post.key();
-        //     let (_, bump) = Pubkey::find_program_address(
-        //         &[POST_POT_AUTHORITY_SEED, post_key.as_ref()],
-        //         ctx.program_id,
-        //     );
+        // Transfer from post pot to creator vault (post pot is owned by OM, so handle directly)
+        let post_key = ctx.accounts.post.key();
+        let (_, post_pot_bump) = Pubkey::find_program_address(
+            &[POST_POT_AUTHORITY_SEED, post_key.as_ref()],
+            ctx.program_id,
+        );
+        let post_pot_authority_seeds: &[&[&[u8]]] =
+            &[&[POST_POT_AUTHORITY_SEED, post_key.as_ref(), &[post_pot_bump]]];
 
-        //     let bump_array = [bump];
-        //     let seeds_array = [POST_POT_AUTHORITY_SEED, post_key.as_ref(), &bump_array];
-        //     let seeds: &[&[&[u8]]] = &[&seeds_array];
-
+        fed::cpi::transfer(CpiContext::new(
+            ctx.accounts.fed_program.to_account_info(),
+            fed::cpi::accounts::Transfer {
+                from: ctx.accounts.post_pot_token_account.to_account_info(),
+                to: ctx.accounts.creator_vault_token_account.to_account_info(),
+            },
+        ))?;
         //     let cpi = CpiContext::new_with_signer(
         //         ctx.accounts.token_program.to_account_info(),
         //         anchor_spl::token::Transfer {
@@ -669,8 +673,6 @@ pub mod opinions_market {
         //         seeds,
         //     );
 
-        //     anchor_spl::token::transfer(cpi, creator_fee)?;
-        // }
         msg!("✅ Creator reward distributed successfully");
 
         Ok(())
@@ -692,35 +694,31 @@ pub mod opinions_market {
         }
 
         msg!("Distributing protocol fee: {}", protocol_fee);
-        // TODO: CPI to Fed::charge_vote(...)
-        panic!("SPL transfers must go through Fed");
 
-        // {
-        //     let post_key = ctx.accounts.post.key();
-        //     let (_, bump) = Pubkey::find_program_address(
-        //         &[POST_POT_AUTHORITY_SEED, post_key.as_ref()],
-        //         ctx.program_id,
-        //     );
+        // Transfer from post pot to protocol treasury (post pot is owned by OM, so handle directly)
+        let post_key = ctx.accounts.post.key();
+        let (_, post_pot_bump) = Pubkey::find_program_address(
+            &[POST_POT_AUTHORITY_SEED, post_key.as_ref()],
+            ctx.program_id,
+        );
+        let post_pot_authority_seeds: &[&[&[u8]]] =
+            &[&[POST_POT_AUTHORITY_SEED, post_key.as_ref(), &[post_pot_bump]]];
 
-        //     let bump_array = [bump];
-        //     let seeds_array = [POST_POT_AUTHORITY_SEED, post_key.as_ref(), &bump_array];
-        //     let seeds: &[&[&[u8]]] = &[&seeds_array];
-
-        //     let cpi = CpiContext::new_with_signer(
-        //         ctx.accounts.token_program.to_account_info(),
-        //         anchor_spl::token::Transfer {
-        //             from: ctx.accounts.post_pot_token_account.to_account_info(),
-        //             to: ctx
-        //                 .accounts
-        //                 .protocol_token_treasury_token_account
-        //                 .to_account_info(),
-        //             authority: ctx.accounts.post_pot_authority.to_account_info(),
-        //         },
-        //         seeds,
-        //     );
-
-        //     anchor_spl::token::transfer(cpi, protocol_fee)?
-        // };
+        anchor_spl::token::transfer(
+            CpiContext::new_with_signer(
+                ctx.accounts.token_program.to_account_info(),
+                anchor_spl::token::Transfer {
+                    from: ctx.accounts.post_pot_token_account.to_account_info(),
+                    to: ctx
+                        .accounts
+                        .protocol_token_treasury_token_account
+                        .to_account_info(),
+                    authority: ctx.accounts.post_pot_authority.to_account_info(),
+                },
+                post_pot_authority_seeds,
+            ),
+            protocol_fee,
+        )?;
 
         msg!("✅ Protocol fee distributed successfully");
 
@@ -748,33 +746,27 @@ pub mod opinions_market {
             mother_fee,
             parent_post.key()
         );
-        // TODO: CPI to Fed::charge_vote(...)
-        panic!("SPL transfers must go through Fed");
+        // Transfer from child post pot to parent post pot (post pots are owned by OM, so handle directly)
+        let post_key = ctx.accounts.post.key();
+        let (_, post_pot_bump) = Pubkey::find_program_address(
+            &[POST_POT_AUTHORITY_SEED, post_key.as_ref()],
+            ctx.program_id,
+        );
+        let post_pot_authority_seeds: &[&[&[u8]]] =
+            &[&[POST_POT_AUTHORITY_SEED, post_key.as_ref(), &[post_pot_bump]]];
 
-        // {
-        //     // Transfer from child post pot to parent post pot
-        //     let post_key = ctx.accounts.post.key();
-        //     let (_, bump) = Pubkey::find_program_address(
-        //         &[POST_POT_AUTHORITY_SEED, post_key.as_ref()],
-        //         ctx.program_id,
-        //     );
-
-        //     let bump_array = [bump];
-        //     let seeds_array = [POST_POT_AUTHORITY_SEED, post_key.as_ref(), &bump_array];
-        //     let seeds: &[&[&[u8]]] = &[&seeds_array];
-
-        //     let cpi = CpiContext::new_with_signer(
-        //         ctx.accounts.token_program.to_account_info(),
-        //         anchor_spl::token::Transfer {
-        //             from: ctx.accounts.post_pot_token_account.to_account_info(),
-        //             to: ctx.accounts.parent_post_pot_token_account.to_account_info(),
-        //             authority: ctx.accounts.post_pot_authority.to_account_info(),
-        //         },
-        //         seeds,
-        //     );
-
-        //     anchor_spl::token::transfer(cpi, mother_fee)?;
-        // }
+        anchor_spl::token::transfer(
+            CpiContext::new_with_signer(
+                ctx.accounts.token_program.to_account_info(),
+                anchor_spl::token::Transfer {
+                    from: ctx.accounts.post_pot_token_account.to_account_info(),
+                    to: ctx.accounts.parent_post_pot_token_account.to_account_info(),
+                    authority: ctx.accounts.post_pot_authority.to_account_info(),
+                },
+                post_pot_authority_seeds,
+            ),
+            mother_fee,
+        )?;
 
         msg!("✅ Parent post share distributed successfully");
 
@@ -790,7 +782,7 @@ pub mod opinions_market {
             CpiContext::new(
                 ctx.accounts.persona_program.to_account_info(),
                 persona::cpi::accounts::CheckSessionOrWallet {
-                    user: ctx.accounts.sender.to_account_info(),
+                    user: ctx.accounts.user.to_account_info(),
                     session_key: ctx.accounts.session_key.to_account_info(),
                     session_authority: ctx.accounts.session_authority.to_account_info(),
                 },
@@ -832,8 +824,27 @@ pub mod opinions_market {
             return Ok(()); // too small to matter, claim and exit
         }
 
-        // TODO: CPI to Fed::charge_vote(...)
-        panic!("SPL transfers must go through Fed");
+        // Transfer from post pot to user vault (post pot is owned by OM, so handle directly)
+        let post_key = post.key();
+        let (_, post_pot_bump) = Pubkey::find_program_address(
+            &[POST_POT_AUTHORITY_SEED, post_key.as_ref()],
+            ctx.program_id,
+        );
+        let post_pot_authority_seeds: &[&[&[u8]]] =
+            &[&[POST_POT_AUTHORITY_SEED, post_key.as_ref(), &[post_pot_bump]]];
+
+        anchor_spl::token::transfer(
+            CpiContext::new_with_signer(
+                ctx.accounts.token_program.to_account_info(),
+                anchor_spl::token::Transfer {
+                    from: ctx.accounts.post_pot_token_account.to_account_info(),
+                    to: ctx.accounts.user_vault_token_account.to_account_info(),
+                    authority: ctx.accounts.post_pot_authority.to_account_info(),
+                },
+                post_pot_authority_seeds,
+            ),
+            reward,
+        )?;
 
         // {
         //     // Transfer reward

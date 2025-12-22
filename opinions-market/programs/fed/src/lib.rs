@@ -68,19 +68,12 @@ pub enum ErrorCode {
     TokenNotWithdrawable,
 }
 
-#[derive(Accounts)]
-pub struct Ping {}
-
 #[program]
 pub mod fed {
 
     use super::*;
     // Don't import from instructions module - use re-exports from crate root
-    pub fn ping(ctx: Context<Ping>) -> Result<()> {
-        msg!("Greetings from: {:?}", ctx.program_id);
-        panic!("SHIT");
-        Ok(())
-    }
+
     pub fn initialize(
         ctx: Context<Initialize>,
 
@@ -422,26 +415,29 @@ pub mod fed {
         Ok(())
     }
 
-    // pub fn charge_vote(
-    //     ctx: Context<ChargeVote>,
-    //     side: Side,
-    //     cost_bling: u64,
-    //     protocol_fee_bps: u16,
-    //     creator_fee_bps: u16,
-    // ) -> Result<()> {
-    //     // 1. Compute splits
-    //     // 2. Convert BLING → token (if needed)
-    //     // 3. Transfer from user vault:
-    //     //    - protocol treasury
-    //     //    - creator vault
-    //     //    - post pot
-    // }
-    // pub fn payout_from_pot(
-    //     ctx: Context<PayoutFromPot>,
-    //     amount: u64,
-    //     destination: Pubkey,
-    // ) -> Result<()> {
-    // }
+    /// Simple BLING transfer from one token account to another.
+    /// No domain knowledge - just moves tokens.
+    /// Authority must be provided and will be used to sign the transfer.
+    pub fn transfer(ctx: Context<Transfer>, amount: u64) -> Result<()> {
+        require!(amount > 0, ErrorCode::ZeroAmount);
+
+        let authority_bump = ctx.bumps.vault_authority;
+        let authority_seeds: &[&[&[u8]]] = &[&[VAULT_AUTHORITY_SEED, &[authority_bump]]];
+
+        let cpi_accounts = anchor_spl::token::Transfer {
+            from: ctx.accounts.from.to_account_info(),
+            to: ctx.accounts.to.to_account_info(),
+            authority: ctx.accounts.vault_authority.to_account_info(),
+        };
+        let cpi_ctx = CpiContext::new_with_signer(
+            ctx.accounts.token_program.to_account_info(),
+            cpi_accounts,
+            authority_seeds,
+        );
+        anchor_spl::token::transfer(cpi_ctx, amount)?;
+
+        Ok(())
+    }
 }
 
 #[event]

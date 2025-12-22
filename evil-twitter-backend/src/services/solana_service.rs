@@ -234,12 +234,12 @@ impl SolanaService {
     pub async fn get_user_account(
         &self,
         user_wallet: &Pubkey,
-    ) -> anyhow::Result<Option<opinions_market::states::UserAccount>> {
+    ) -> anyhow::Result<Option<opinions_market::states::UserKarma>> {
         let opinions_market = self.opinions_market_program();
         let (user_account_pda, _) = get_user_account_pda(&self.program_id, user_wallet);
 
         match opinions_market
-            .account::<opinions_market::states::UserAccount>(user_account_pda)
+            .account::<opinions_market::states::UserKarma>(user_account_pda)
             .await
         {
             Ok(user_account) => Ok(Some(user_account)),
@@ -1416,7 +1416,7 @@ impl SolanaService {
         let (user_account_pda, _) = get_user_account_pda(&program_id, user_wallet);
 
         // Fetch UserAccount
-        let user_account: opinions_market::states::UserAccount =
+        let user_account: opinions_market::states::UserKarma =
             program.account(user_account_pda).await.map_err(|e| {
                 anyhow::anyhow!(
                     "Failed to fetch UserAccount PDA {}: {}",

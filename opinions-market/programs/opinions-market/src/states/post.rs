@@ -1,5 +1,5 @@
 use super::tools::Config;
-use super::user::{UserAccount, UserPostPosition};
+use super::user::{UserKarma, UserPostPosition};
 use crate::math::vote_cost::{base_user_cost, cost_in_bling, post_curve_cost};
 use anchor_lang::prelude::*;
 
@@ -193,6 +193,7 @@ impl Vote {
             post_pubkey,
         }
     }
+
     // -------------------------------------------------------------------------
     // FINAL COST = user-adjusted cost → post-adjusted cost → scaled to BLING
     // Uses shared pricing module for consistency
@@ -201,7 +202,7 @@ impl Vote {
         &self,
         post: &PostAccount,
         user_position: &UserPostPosition,
-        user_account: &UserAccount,
+        user_account: &UserKarma,
     ) -> Result<u64> {
         // Calculate base user-adjusted cost
         let prev = match self.side {
