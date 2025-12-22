@@ -20,7 +20,7 @@ idl-build = ["anchor-lang/idl-build", "anchor-spl/idl-build"]
 [dependencies]
 anchor-lang = { workspace = true, features = ["init-if-needed"] }
 anchor-spl = { workspace = true, features = ["token_2022_extensions"] }
-persona = { path = "../persona", features = ["no-entrypoint"] }
+persona = { path = "../persona", features = ["cpi"] }
 
 
 spl-tlv-account-resolution = "0.10.0"

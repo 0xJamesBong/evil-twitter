@@ -4,7 +4,6 @@ use anchor_lang::solana_program::pubkey::Pubkey;
 pub mod constants;
 pub mod instructions;
 pub mod math;
-pub mod middleware;
 pub mod pda_seeds;
 pub mod states;
 use constants::*;
@@ -74,11 +73,6 @@ pub struct Ping {}
 
 #[program]
 pub mod fed {
-
-    use anchor_lang::solana_program::{ed25519_program, program::invoke};
-
-    use crate::middleware::session::{assert_session_or_wallet, validate_session_signature};
-    use anchor_lang::solana_program::sysvar::instructions::load_instruction_at_checked;
 
     use super::*;
     // Don't import from instructions module - use re-exports from crate root
@@ -225,14 +219,16 @@ pub mod fed {
         let clock = Clock::get()?;
         let now = clock.unix_timestamp;
 
-        // Determine actual signer (could be sender wallet or session key)
-        let signer = ctx.accounts.sender.key();
-
-        // Auth: session or wallet
-        assert_session_or_wallet(
-            &signer,
-            &ctx.accounts.sender_user_account.user,
-            Some(&ctx.accounts.session_authority),
+        // Auth: session or wallet via CPI
+        persona::cpi::check_session_or_wallet(
+            CpiContext::new(
+                ctx.accounts.persona_program.to_account_info(),
+                persona::cpi::accounts::CheckSessionOrWallet {
+                    user: ctx.accounts.sender.to_account_info(),
+                    session_key: ctx.accounts.session_key.to_account_info(),
+                    session_authority: ctx.accounts.session_authority.to_account_info(),
+                },
+            ),
             now,
         )?;
 
@@ -241,7 +237,7 @@ pub mod fed {
 
         // Validate recipient != sender
         require!(
-            ctx.accounts.recipient.key() != ctx.accounts.sender_user_account.user,
+            ctx.accounts.recipient.key() != ctx.accounts.sender_user_account.key(),
             ErrorCode::CannotTipSelf
         );
 
@@ -299,7 +295,7 @@ pub mod fed {
         // Emit event
         emit!(TipReceived {
             owner: tip_vault.owner,
-            sender: ctx.accounts.sender_user_account.user,
+            sender: ctx.accounts.sender_user_account.key(),
             token_mint: ctx.accounts.token_mint.key(),
             amount,
             vault_balance: ctx.accounts.tip_vault_token_account.amount,
@@ -316,11 +312,16 @@ pub mod fed {
         // Determine actual signer (could be owner wallet or session key)
         let signer = ctx.accounts.owner.key();
 
-        // Auth: session or wallet
-        assert_session_or_wallet(
-            &signer,
-            &ctx.accounts.user_account.user,
-            Some(&ctx.accounts.session_authority),
+        // Auth: session or wallet via CPI
+        persona::cpi::check_session_or_wallet(
+            CpiContext::new(
+                ctx.accounts.persona_program.to_account_info(),
+                persona::cpi::accounts::CheckSessionOrWallet {
+                    user: ctx.accounts.user_account.to_account_info(),
+                    session_key: ctx.accounts.session_key.to_account_info(),
+                    session_authority: ctx.accounts.session_authority.to_account_info(),
+                },
+            ),
             now,
         )?;
 
@@ -328,7 +329,7 @@ pub mod fed {
 
         // Validate tip vault owner matches
         require!(
-            tip_vault.owner == ctx.accounts.user_account.user,
+            tip_vault.owner == ctx.accounts.user_account.key(),
             ErrorCode::Unauthorized
         );
         require!(
@@ -378,23 +379,24 @@ pub mod fed {
         let clock = Clock::get()?;
         let now = clock.unix_timestamp;
 
-        // Determine actual signer (could be sender wallet or session key)
-        let signer = ctx.accounts.sender.key();
-
-        // Auth: session or wallet
-        assert_session_or_wallet(
-            &signer,
-            &ctx.accounts.sender_user_account.user,
-            Some(&ctx.accounts.session_authority),
+        // Auth: session or wallet via CPI
+        persona::cpi::check_session_or_wallet(
+            CpiContext::new(
+                ctx.accounts.persona_program.to_account_info(),
+                persona::cpi::accounts::CheckSessionOrWallet {
+                    user: ctx.accounts.sender.to_account_info(),
+                    session_key: ctx.accounts.session_key.to_account_info(),
+                    session_authority: ctx.accounts.session_authority.to_account_info(),
+                },
+            ),
             now,
         )?;
-
         // Validate amount
         require!(amount > 0, ErrorCode::ZeroAmount);
 
         // Validate recipient != sender
         require!(
-            ctx.accounts.recipient.key() != ctx.accounts.sender_user_account.user,
+            ctx.accounts.recipient.key() != ctx.accounts.sender_user_account.key(),
             ErrorCode::CannotSendToSelf
         );
 

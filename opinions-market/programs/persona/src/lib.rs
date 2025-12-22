@@ -9,6 +9,7 @@ pub mod pda_seeds;
 pub mod states;
 use constants::*;
 use instructions::*;
+use middleware::session::assert_session_or_wallet;
 use states::*;
 
 declare_id!("3bE1UxZ4VFKbptUhpFwzA1AdXgdJENhRcLQApj9F9Z1d");
@@ -69,41 +70,12 @@ pub enum ErrorCode {
     TokenNotWithdrawable,
 }
 
-#[event]
-pub struct TipReceived {
-    pub owner: Pubkey,
-    pub sender: Pubkey,
-    pub token_mint: Pubkey,
-    pub amount: u64,
-    pub vault_balance: u64,
-}
-
-#[event]
-pub struct TipsClaimed {
-    pub owner: Pubkey,
-    pub token_mint: Pubkey,
-    pub amount: u64,
-}
-
-#[derive(Accounts)]
-pub struct Ping {}
-
 #[program]
 pub mod persona {
 
-    use anchor_lang::solana_program::{ed25519_program, program::invoke};
-
     use crate::middleware::session::{assert_session_or_wallet, validate_session_signature};
-    use anchor_lang::solana_program::sysvar::instructions::load_instruction_at_checked;
 
     use super::*;
-
-    // Don't import from instructions module - use re-exports from crate root
-    pub fn ping(ctx: Context<Ping>) -> Result<()> {
-        msg!("Greetings from: {:?}", ctx.program_id);
-        panic!("SHIT");
-        Ok(())
-    }
 
     // -------------------------------------------------------------------------
     // USER + VAULTS
@@ -179,6 +151,16 @@ pub mod persona {
         session.privileges_hash = [0u8; 32];
         session.bump = ctx.bumps.session_authority;
 
+        Ok(())
+    }
+
+    pub fn check_session_or_wallet(ctx: Context<CheckSessionOrWallet>, now: i64) -> Result<()> {
+        assert_session_or_wallet(
+            &ctx.accounts.user.key(),
+            &ctx.accounts.session_authority.user,
+            Some(&ctx.accounts.session_authority),
+            now,
+        )?;
         Ok(())
     }
 }

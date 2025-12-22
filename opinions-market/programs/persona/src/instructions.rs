@@ -78,3 +78,19 @@ pub struct RegisterSession<'info> {
 
     pub system_program: Program<'info, System>,
 }
+
+#[derive(Accounts)]
+pub struct CheckSessionOrWallet<'info> {
+    /// CHECK: the user wallet we are delegating authority for
+    pub user: UncheckedAccount<'info>,
+
+    /// CHECK: ephemeral delegated session key
+    pub session_key: UncheckedAccount<'info>,
+
+    /// CHECK: persona-owned session authority (opaque)
+    #[account(
+        seeds = [SESSION_AUTHORITY_SEED, user.key().as_ref(), session_key.key().as_ref()],
+        bump,
+    )]
+    pub session_authority: Account<'info, SessionAuthority>,
+}

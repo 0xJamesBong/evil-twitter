@@ -223,18 +223,15 @@ pub struct Tip<'info> {
     #[account(mut)]
     pub session_key: UncheckedAccount<'info>,
 
-    #[account(
-        mut,
-        seeds = [SESSION_AUTHORITY_SEED, sender_user_account.user.as_ref(), session_key.key().as_ref()],
-        bump,
-    )]
-    pub session_authority: Account<'info, SessionAuthority>,
 
-    #[account(
-        seeds = [USER_ACCOUNT_SEED, sender.key().as_ref()],
-        bump,
-    )]
-    pub sender_user_account: Account<'info, UserAccount>,
+    /// CHECK: persona-owned session authority (opaque)
+    #[account(owner = persona::ID)]
+    pub session_authority: AccountInfo<'info>,
+
+    
+    /// CHECK: persona-owned user account (opaque)
+    #[account(owner = persona::ID)]
+    pub sender_user_account: AccountInfo<'info>,
 
     pub token_mint: Account<'info, Mint>,
 
@@ -280,6 +277,7 @@ pub struct Tip<'info> {
     )]
     pub tip_vault_token_account: Account<'info, TokenAccount>,
 
+    pub persona_program: Program<'info, persona::program::Persona>,
     pub token_program: Program<'info, Token>,
     pub system_program: Program<'info, System>,
 }
@@ -298,18 +296,13 @@ pub struct ClaimTips<'info> {
     #[account(mut)]
     pub session_key: UncheckedAccount<'info>,
 
-    #[account(
-        mut,
-        seeds = [SESSION_AUTHORITY_SEED, owner.key().as_ref(), session_key.key().as_ref()],
-        bump,
-    )]
-    pub session_authority: Account<'info, SessionAuthority>,
+    /// CHECK: persona-owned session authority (opaque)
+    #[account(owner = persona::ID)]
+    pub session_authority: AccountInfo<'info>,
 
-    #[account(
-        seeds = [USER_ACCOUNT_SEED, owner.key().as_ref()],
-        bump,
-    )]
-    pub user_account: Account<'info, UserAccount>,
+    /// CHECK: persona-owned user account (opaque)
+    #[account(owner = persona::ID)]
+    pub user_account: AccountInfo<'info>,
 
     pub token_mint: Account<'info, Mint>,
 
@@ -346,6 +339,9 @@ pub struct ClaimTips<'info> {
     )]
     pub owner_user_vault_token_account: Account<'info, TokenAccount>,
 
+    /// CHECK: Persona program for CPI calls
+    pub persona_program: Program<'info, persona::program::Persona>,
+
     pub token_program: Program<'info, Token>,
     pub system_program: Program<'info, System>,
 }
@@ -367,19 +363,15 @@ pub struct SendToken<'info> {
     #[account(mut)]
     pub session_key: UncheckedAccount<'info>,
 
-    #[account(
-        mut,
-        seeds = [SESSION_AUTHORITY_SEED, sender_user_account.user.as_ref(), session_key.key().as_ref()],
-        bump,
-    )]
-    pub session_authority: Account<'info, SessionAuthority>,
+    /// CHECK: persona-owned session authority (opaque)
+    #[account(owner = persona::ID)]
+    pub session_authority: AccountInfo<'info>,
 
-    #[account(
-        seeds = [USER_ACCOUNT_SEED, sender.key().as_ref()],
-        bump,
-    )]
-    pub sender_user_account: Account<'info, UserAccount>,
+    /// CHECK: persona-owned user account (opaque)
+    #[account(owner = persona::ID)]
+    pub sender_user_account: AccountInfo<'info>,
 
+    
     pub token_mint: Account<'info, Mint>,
 
     #[account(
@@ -414,6 +406,9 @@ pub struct SendToken<'info> {
         token::authority = vault_authority,
     )]
     pub recipient_user_vault_token_account: Account<'info, TokenAccount>,
+
+    /// CHECK: Persona program for CPI calls
+    pub persona_program: Program<'info, persona::program::Persona>,
 
     pub token_program: Program<'info, Token>,
     pub system_program: Program<'info, System>,

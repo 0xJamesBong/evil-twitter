@@ -18,9 +18,11 @@ use crate::utils::phenomena::{
     // test_phenomena_create_answer, test_phenomena_create_post, test_phenomena_create_question,
     test_phenomena_create_user,
     test_phenomena_deposit,
-    test_phenomena_turn_on_withdrawable,
     // test_phenomena_settle_post,
-    // test_phenomena_tip, test_phenomena_turn_on_withdrawable, test_phenomena_vote_on_post,
+    test_phenomena_tip,
+    test_phenomena_turn_on_withdrawable,
+
+    // test_phenomena_vote_on_post,
     test_phenomena_withdraw,
 };
 use crate::utils::utils::{
@@ -202,13 +204,16 @@ async fn test_setup() {
     {
         println!("initializing fed engine");
         let protocol_bling_treasury_pda = Pubkey::find_program_address(
-            &[PROTOCOL_TREASURY_TOKEN_ACCOUNT_SEED, bling_pubkey.as_ref()],
+            &[
+                fed::pda_seeds::PROTOCOL_TREASURY_TOKEN_ACCOUNT_SEED,
+                bling_pubkey.as_ref(),
+            ],
             &fed_program_id,
         )
         .0;
 
         let valid_payment_pda = Pubkey::find_program_address(
-            &[VALID_PAYMENT_SEED, bling_pubkey.as_ref()],
+            &[fed::pda_seeds::VALID_PAYMENT_SEED, bling_pubkey.as_ref()],
             &fed_program_id,
         )
         .0;
@@ -361,6 +366,23 @@ async fn test_setup() {
                 &tokens,
                 &stablecoin_atas,
                 &config_pda,
+            )
+            .await;
+        }
+
+        {
+            println!("user 1 tipping user 2 100 bling");
+            test_phenomena_tip(
+                &rpc,
+                &fed,
+                &persona,
+                &payer,
+                &user_1,
+                &session_key,
+                &user_2,
+                100 * LAMPORTS_PER_SOL,
+                &bling_pubkey,
+                &tokens,
             )
             .await;
         }
@@ -604,22 +626,6 @@ async fn test_setup() {
         //         )
         //         .await;
         //     };
-
-        //     {
-        //         println!("user 1 tipping user 2 100 bling");
-        //         test_phenomena_tip(
-        //             &rpc,
-        //             &opinions_market,
-        //             &payer,
-        //             &user_1,
-        //             &session_key,
-        //             &user_2,
-        //             100 * LAMPORTS_PER_SOL,
-        //             &bling_pubkey,
-        //             &tokens,
-        //         )
-        //         .await;
-        //     }
 
         //     // {
         //     //     println!("user 3 trying to make a post");

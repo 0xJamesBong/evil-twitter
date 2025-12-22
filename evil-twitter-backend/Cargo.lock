@@ -3765,6 +3765,7 @@ dependencies = [
  "anchor-spl",
  "bytemuck",
  "hex",
+ "persona",
  "spl-pod",
  "spl-tlv-account-resolution 0.10.0",
  "spl-transfer-hook-interface 0.10.0",
@@ -3846,6 +3847,20 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "2fd23b938276f14057220b707937bcb42fa76dda7560e57a2da30cb52d557937"
 dependencies = [
  "num",
+]
+
+[[package]]
+name = "persona"
+version = "0.1.0"
+dependencies = [
+ "anchor-lang",
+ "anchor-spl",
+ "bytemuck",
+ "hex",
+ "spl-pod",
+ "spl-tlv-account-resolution 0.10.0",
+ "spl-transfer-hook-interface 0.10.0",
+ "spl-type-length-value 0.8.0",
 ]
 
 [[package]]

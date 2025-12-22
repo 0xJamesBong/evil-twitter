@@ -3050,6 +3050,7 @@ dependencies = [
  "anchor-spl",
  "bytemuck",
  "hex",
+ "persona",
  "spl-pod",
  "spl-tlv-account-resolution 0.10.0",
  "spl-transfer-hook-interface 0.10.0",
