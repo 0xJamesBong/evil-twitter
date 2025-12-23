@@ -190,7 +190,7 @@ pub struct VoteOnPost<'info> {
     pub post_pot_authority: UncheckedAccount<'info>,
 
     // protocol treasury pot for this mint
-    // CHECK: Fed-owned token account (Fed-owned) - let the fed check it 
+    /// CHECK: Fed-owned token account (Fed-owned) - let the fed check it 
     #[account(
         owner = fed::ID
     )]
@@ -202,8 +202,16 @@ pub struct VoteOnPost<'info> {
     #[account(mut, owner = fed::ID)]
     pub creator_vault_token_account: UncheckedAccount<'info>,
 
+    /// CHECK: Fed-owned ValidPayment account - let the fed check it
     #[account(owner = fed::ID)]
     pub valid_payment: UncheckedAccount<'info>,
+
+    /// CHECK: Fed config PDA (authority of treasury token account) - let the fed check it
+    #[account(
+        owner = fed::ID,
+        
+    )]
+    pub fed_config: UncheckedAccount<'info>,
 
     pub token_mint: Account<'info, Mint>,
 
@@ -253,7 +261,7 @@ pub struct SettlePost<'info> {
     )]
     pub post_mint_payout: Account<'info, PostMintPayout>,
 
-    // CHECK: Fed-owned token account (Fed-owned) - let the fed check it 
+    /// CHECK: Fed-owned token account (Fed-owned) - let the fed check it 
     #[account(
         owner = fed::ID
     )]
@@ -353,7 +361,7 @@ pub struct DistributeProtocolFee<'info> {
     )]
     pub post_mint_payout: Account<'info, PostMintPayout>,
 
-    // CHECK: Fed-owned token account (Fed-owned) - let the fed check it 
+    /// CHECK: Fed-owned token account (Fed-owned) - let the fed check it 
     #[account(
         owner = fed::ID
     )]

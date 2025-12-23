@@ -24,9 +24,9 @@ pub async fn test_phenomena_turn_on_withdrawable(
     payer: &Keypair,
     admin: &Keypair,
     token_mint: &Pubkey,
+    fed_config_pda: &Pubkey,
 ) {
     println!("turning on withdrawable for {:}", token_mint);
-    let config_pda = Pubkey::find_program_address(&[b"config"], &fed.id()).0;
 
     let valid_payment_pda = Pubkey::find_program_address(
         &[fed::pda_seeds::VALID_PAYMENT_SEED, token_mint.as_ref()],
@@ -46,7 +46,7 @@ pub async fn test_phenomena_turn_on_withdrawable(
     let update_ix = fed
         .request()
         .accounts(fed::accounts::ModifyAcceptedMint {
-            config: config_pda,
+            fed_config: *fed_config_pda,
             admin: admin.pubkey(),
             mint: token_mint.clone(),
             accepted_mint: valid_payment_pda,
@@ -81,10 +81,11 @@ pub async fn test_phenomena_turn_off_withdrawable(
     fed: &Program<&Keypair>,
     payer: &Keypair,
     admin: &Keypair,
+    fed_config_pda: &Pubkey,
     token_mint: &Pubkey,
 ) {
     println!("turning off withdrawable for {:}", token_mint);
-    let config_pda = Pubkey::find_program_address(&[b"config"], &fed.id()).0;
+    // let config_pda = Pubkey::find_program_address(&[b"config"], &fed.id()).0;
 
     let valid_payment_pda = Pubkey::find_program_address(
         &[fed::pda_seeds::VALID_PAYMENT_SEED, token_mint.as_ref()],
@@ -104,7 +105,7 @@ pub async fn test_phenomena_turn_off_withdrawable(
     let update_ix = fed
         .request()
         .accounts(fed::accounts::ModifyAcceptedMint {
-            config: config_pda,
+            fed_config: *fed_config_pda,
             admin: admin.pubkey(),
             mint: token_mint.clone(),
             accepted_mint: valid_payment_pda,
@@ -141,11 +142,10 @@ pub async fn test_phenomena_add_valid_payment(
     fed: &Program<&Keypair>,
     payer: &Keypair,
     admin: &Keypair,
-
     new_token_mint: &Pubkey,
+    fed_config_pda: &Pubkey,
 ) {
     println!("adding {:} as an valid payment mint", new_token_mint);
-    let config_pda = Pubkey::find_program_address(&[b"config"], &fed.id()).0;
 
     // adding usdc as an valid payment mint
     let valid_payment_pda = Pubkey::find_program_address(
@@ -174,7 +174,7 @@ pub async fn test_phenomena_add_valid_payment(
     let register_valid_payment_ix = fed
         .request()
         .accounts(fed::accounts::RegisterValidPayment {
-            config: config_pda,
+            fed_config: *fed_config_pda,
             admin: admin.pubkey(),
             token_mint: new_token_mint.clone(),
             valid_payment: valid_payment_pda,
@@ -1036,7 +1036,7 @@ pub async fn test_phenomena_create_post(
     payer: &Keypair,
     creator: &Keypair,
     session_key: &Keypair,
-    config_pda: &Pubkey,
+    om_config_pda: &Pubkey,
     parent_post_pda: Option<Pubkey>,
 ) -> (Pubkey, [u8; 32]) {
     let post_type_str = if parent_post_pda.is_some() {
@@ -1078,7 +1078,7 @@ pub async fn test_phenomena_create_post(
     let create_post_ix = opinions_market
         .request()
         .accounts(opinions_market::accounts::CreatePost {
-            config: *config_pda,
+            om_config: *om_config_pda,
             user: creator.pubkey(),
             payer: payer.pubkey(),
             session_key: session_key.pubkey(),

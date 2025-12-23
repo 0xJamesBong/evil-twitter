@@ -21,7 +21,6 @@ use crate::utils::utils::{
     airdrop_sol_to_users, send_tx, setup_token_mint, setup_token_mint_ata_and_mint_to_many_users,
 };
 use opinions_market::constants::USDC_LAMPORTS_PER_USDC;
-use opinions_market::pda_seeds::*;
 use std::collections::HashMap;
 
 // #[tokio::test]
@@ -191,7 +190,13 @@ async fn test_setup() {
     )
     .await;
 
-    let config_pda = Pubkey::find_program_address(&[b"config"], &fed_program_id).0;
+    let fed_config_pda =
+        Pubkey::find_program_address(&[fed::pda_seeds::FED_CONFIG_SEED], &fed_program_id).0;
+    let om_config_pda = Pubkey::find_program_address(
+        &[opinions_market::pda_seeds::OM_CONFIG_SEED],
+        &opinions_market_program_id,
+    )
+    .0;
 
     {
         println!("initializing fed engine");
@@ -215,7 +220,7 @@ async fn test_setup() {
             .accounts(fed::accounts::Initialize {
                 admin: admin_pubkey,
                 payer: payer_pubkey.clone(),
-                config: config_pda,
+                fed_config: fed_config_pda,
                 bling_mint: bling_pubkey,
                 usdc_mint: usdc_pubkey,
                 protocol_bling_treasury: protocol_bling_treasury_pda,
@@ -237,12 +242,29 @@ async fn test_setup() {
         println!("initialize tx: {:?}", initialize_tx);
 
         // make bling withdrawable
-        test_phenomena_turn_on_withdrawable(&rpc, &fed, &payer, &admin, &bling_pubkey).await;
+        test_phenomena_turn_on_withdrawable(
+            &rpc,
+            &fed,
+            &payer,
+            &admin,
+            &bling_pubkey,
+            &fed_config_pda,
+        )
+        .await;
 
-        test_phenomena_add_valid_payment(&rpc, &fed, &payer, &admin, &usdc_pubkey).await;
+        test_phenomena_add_valid_payment(&rpc, &fed, &payer, &admin, &usdc_pubkey, &fed_config_pda)
+            .await;
 
         // Register Stablecoin as a valid payment token
-        test_phenomena_add_valid_payment(&rpc, &fed, &payer, &admin, &stablecoin_pubkey).await;
+        test_phenomena_add_valid_payment(
+            &rpc,
+            &fed,
+            &payer,
+            &admin,
+            &stablecoin_pubkey,
+            &fed_config_pda,
+        )
+        .await;
 
         test_phenomena_create_user(&rpc, &persona, &payer, &user_1, &session_key).await;
         test_phenomena_create_user(&rpc, &persona, &payer, &user_2, &session_key).await;
@@ -260,7 +282,7 @@ async fn test_setup() {
                 &bling_pubkey,
                 &tokens,
                 &bling_atas,
-                &config_pda,
+                &fed_config_pda,
             )
             .await;
         }
@@ -276,7 +298,7 @@ async fn test_setup() {
                 &usdc_pubkey,
                 &tokens,
                 &usdc_atas,
-                &config_pda,
+                &fed_config_pda,
             )
             .await;
         }
@@ -324,7 +346,7 @@ async fn test_setup() {
                 &bling_pubkey,
                 &tokens,
                 &bling_atas,
-                &config_pda,
+                &fed_config_pda,
             )
             .await;
         }
@@ -341,7 +363,7 @@ async fn test_setup() {
                 &usdc_pubkey,
                 &tokens,
                 &usdc_atas,
-                &config_pda,
+                &fed_config_pda,
             )
             .await;
         }
@@ -357,7 +379,7 @@ async fn test_setup() {
                 &stablecoin_pubkey,
                 &tokens,
                 &stablecoin_atas,
-                &config_pda,
+                &fed_config_pda,
             )
             .await;
         }
@@ -405,7 +427,7 @@ async fn test_setup() {
                 &payer,
                 &user_1,
                 &session_key,
-                &config_pda,
+                &om_config_pda,
                 None, // Original post
             )
             .await

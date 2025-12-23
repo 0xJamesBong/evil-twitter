@@ -1,4 +1,4 @@
-pub const CONFIG_SEED: &[u8] = b"config";
+pub const FED_CONFIG_SEED: &[u8] = b"fed_config";
 
 // pub const SESSION_AUTHORITY_SEED: &[u8] = b"session_authority";
 

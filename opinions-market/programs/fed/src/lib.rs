@@ -77,6 +77,8 @@ pub enum ErrorCode {
 #[program]
 pub mod fed {
 
+    use crate::math::token_conversion::convert_bling_to_token_lamports;
+
     use super::*;
     // Don't import from instructions module - use re-exports from crate root
 
@@ -576,30 +578,95 @@ pub mod fed {
         Ok(())
     }
 
-    /// Convert BLING amount to token amount using ValidPayment price.
-    /// Returns the equivalent token amount in token lamports.
-    ///
-    /// # Arguments
-    /// * `amount` - BLING amount in BLING lamports (9 decimals)
-    ///
-    /// # Returns
-    /// Token amount in token lamports based on ValidPayment's price_in_bling
-    pub fn bling_to_token(ctx: Context<BlingToToken>, amount: u64) -> Result<u64> {
-        require!(amount > 0, ErrorCode::ZeroAmount);
+    /// Convert BLING amount to token and charge from user vault to protocol treasury.
+    /// If bling_amount is 0, no charge is made.
+    pub fn convert_bling_and_charge_to_protocol_treasury(
+        ctx: Context<ConvertBlingAndChargeToProtocolTreasury>,
+        bling_amount: u64,
+    ) -> Result<u64> {
+        // Skip if amount is 0
+        if bling_amount == 0 {
+            return Ok(0);
+        }
 
-        // Get price from ValidPayment
-        let price_in_bling = ctx.accounts.valid_payment.price_in_bling;
-        require!(price_in_bling > 0, ErrorCode::MathOverflow);
-
-        // Get token decimals from mint
-        let token_decimals = ctx.accounts.token_mint.decimals;
-
-        // Convert BLING to token using the conversion function
-        let token_amount = crate::math::token_conversion::convert_bling_to_token_lamports(
-            amount,
-            price_in_bling,
-            token_decimals,
+        // Convert BLING to token
+        let token_amount = convert_bling_to_token_lamports(
+            bling_amount,
+            ctx.accounts.valid_payment.price_in_bling,
+            ctx.accounts.token_mint.decimals,
         )?;
+
+        require!(token_amount > 0, ErrorCode::ZeroAmount);
+
+        // Check user vault has sufficient balance
+        require!(
+            ctx.accounts.from_user_vault_token_account.amount >= token_amount,
+            ErrorCode::MathOverflow // Using MathOverflow as insufficient funds error
+        );
+
+        // Charge (transfer) from user vault to protocol treasury
+        let authority_bump = ctx.bumps.vault_authority;
+        let authority_seeds: &[&[&[u8]]] = &[&[VAULT_AUTHORITY_SEED, &[authority_bump]]];
+
+        let cpi_accounts = anchor_spl::token::Transfer {
+            from: ctx.accounts.from_user_vault_token_account.to_account_info(),
+            to: ctx
+                .accounts
+                .protocol_treasury_token_account
+                .to_account_info(),
+            authority: ctx.accounts.vault_authority.to_account_info(),
+        };
+        let cpi_ctx = CpiContext::new_with_signer(
+            ctx.accounts.token_program.to_account_info(),
+            cpi_accounts,
+            authority_seeds,
+        );
+        anchor_spl::token::transfer(cpi_ctx, token_amount)?;
+
+        Ok(token_amount)
+    }
+
+    /// Convert BLING amount to token and transfer from user vault to external account.
+    /// If bling_amount is 0, no transfer is made.
+    pub fn convert_bling_and_transfer_out_of_fed_user_account(
+        ctx: Context<ConvertBlingAndTransferOutOfFedUserAccount>,
+        bling_amount: u64,
+    ) -> Result<u64> {
+        // Skip if amount is 0
+        if bling_amount == 0 {
+            return Ok(0);
+        }
+
+        // Convert BLING to token
+        let token_amount = convert_bling_to_token_lamports(
+            bling_amount,
+            ctx.accounts.valid_payment.price_in_bling,
+            ctx.accounts.token_mint.decimals,
+        )?;
+
+        require!(token_amount > 0, ErrorCode::ZeroAmount);
+
+        // Check user vault has sufficient balance
+        require!(
+            ctx.accounts.from_user_vault_token_account.amount >= token_amount,
+            ErrorCode::MathOverflow // Using MathOverflow as insufficient funds error
+        );
+
+        // Transfer from user vault to destination
+        let authority_bump = ctx.bumps.vault_authority;
+        let authority_seeds: &[&[&[u8]]] = &[&[VAULT_AUTHORITY_SEED, &[authority_bump]]];
+
+        let cpi_accounts = anchor_spl::token::Transfer {
+            from: ctx.accounts.from_user_vault_token_account.to_account_info(),
+            to: ctx.accounts.to.to_account_info(),
+            authority: ctx.accounts.vault_authority.to_account_info(),
+        };
+        let cpi_ctx = CpiContext::new_with_signer(
+            ctx.accounts.token_program.to_account_info(),
+            cpi_accounts,
+            authority_seeds,
+        );
+        anchor_spl::token::transfer(cpi_ctx, token_amount)?;
 
         Ok(token_amount)
     }

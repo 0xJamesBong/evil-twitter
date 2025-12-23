@@ -313,7 +313,7 @@ pub mod opinions_market {
             },
         ))?;
 
-        let cfg = &ctx.accounts.config;
+        let om_config = &ctx.accounts.om_config;
         let post = &mut ctx.accounts.post;
         let current = match side {
             Side::Pump => post.upvotes,
@@ -379,26 +379,35 @@ pub mod opinions_market {
         let token_decimals = ctx.accounts.token_mint.decimals;
 
         // Convert costs from BLING to selected token if needed
-        let (protocol_fee_token, creator_pump_fee_token, pot_increment_token) =
-            if ctx.accounts.token_mint.key() == ctx.accounts.config.bling_mint {
-                // Already in BLING, no conversion needed
-                (protocol_fee, creator_pump_fee, pot_increment)
-            } else {
-                // Convert from BLING to selected token using ValidPayment price
-                let price_in_bling = ctx.accounts.valid_payment.price_in_bling;
+        // let (protocol_fee_token, creator_pump_fee_token, pot_increment_token) =
+        //     if ctx.accounts.token_mint.key() == ctx.accounts.om_config.bling_mint {
+        //         // Already in BLING, no conversion needed
+        //         (protocol_fee, creator_pump_fee, pot_increment)
+        //     } else {
+        //         // Convert from BLING to selected token using ValidPayment price
+        //         let price_in_bling = fed::cpi::bling_to_token(
+        //             CpiContext::new(
+        //                 ctx.accounts.fed_program.to_account_info(),
+        //                 fed::cpi::accounts::BlingToToken {
+        //                     valid_payment: ctx.accounts.valid_payment.to_account_info(),
+        //                     token_mint: ctx.accounts.token_mint.to_account_info(),
+        //                 },
+        //             ),
+        //             protocol_fee,
+        //         )?;
 
-                convert_bling_fees_to_token(
-                    protocol_fee,
-                    creator_pump_fee,
-                    pot_increment,
-                    price_in_bling,
-                    token_decimals,
-                )?
-            };
+        //         convert_bling_fees_to_token(
+        //             protocol_fee,
+        //             creator_pump_fee,
+        //             pot_increment,
+        //             price_in_bling,
+        //             token_decimals,
+        //         )?
+        //     };
 
-        msg!("protocol_fee_token: {}", protocol_fee_token);
-        msg!("creator_pump_fee_token: {}", creator_pump_fee_token);
-        msg!("pot_increment_token: {}", pot_increment_token);
+        // msg!("protocol_fee_token: {}", protocol_fee_token);
+        // msg!("creator_pump_fee_token: {}", creator_pump_fee_token);
+        // msg!("pot_increment_token: {}", pot_increment_token);
 
         //
         // ---- 2. TRANSFERS via Fed (all in BLING) ----
@@ -406,24 +415,24 @@ pub mod opinions_market {
 
         // Protocol fee transfer (Fed vault → OM treasury)
         if protocol_fee > 0 {
-            fed::cpi::transfer_out_of_fed_user_account(
+            fed::cpi::convert_bling_and_charge_to_protocol_treasury(
                 CpiContext::new(
                     ctx.accounts.fed_program.to_account_info(),
-                    fed::cpi::accounts::TransferOutOfFedUserAccount {
-                        user_from: ctx.accounts.voter.to_account_info(),
+                    fed::cpi::accounts::ConvertBlingAndChargeToProtocolTreasury {
                         user: ctx.accounts.voter.to_account_info(),
                         from_user_vault_token_account: ctx
                             .accounts
                             .voter_user_vault_token_account
                             .to_account_info(),
-                        to: ctx
+                        protocol_treasury_token_account: ctx
                             .accounts
                             .protocol_token_treasury_token_account
                             .to_account_info(),
-                        vault_authority: ctx.accounts.vault_authority.to_account_info(),
-                        token_program: ctx.accounts.token_program.to_account_info(),
                         valid_payment: ctx.accounts.valid_payment.to_account_info(),
                         token_mint: ctx.accounts.token_mint.to_account_info(),
+                        fed_config: ctx.accounts.fed_config.to_account_info(),
+                        vault_authority: ctx.accounts.vault_authority.to_account_info(),
+                        token_program: ctx.accounts.token_program.to_account_info(),
                     },
                 ),
                 protocol_fee,
@@ -432,10 +441,10 @@ pub mod opinions_market {
 
         // Creator fee transfer (Fed vault → Fed creator vault)
         if creator_pump_fee > 0 {
-            fed::cpi::transfer_out_of_fed_user_account(
+            fed::cpi::convert_bling_and_transfer_out_of_fed_user_account(
                 CpiContext::new(
                     ctx.accounts.fed_program.to_account_info(),
-                    fed::cpi::accounts::TransferOutOfFedUserAccount {
+                    fed::cpi::accounts::ConvertBlingAndTransferOutOfFedUserAccount {
                         user_from: ctx.accounts.voter.to_account_info(),
                         user: ctx.accounts.voter.to_account_info(),
                         from_user_vault_token_account: ctx
@@ -443,10 +452,10 @@ pub mod opinions_market {
                             .voter_user_vault_token_account
                             .to_account_info(),
                         to: ctx.accounts.creator_vault_token_account.to_account_info(),
-                        vault_authority: ctx.accounts.vault_authority.to_account_info(),
-                        token_program: ctx.accounts.token_program.to_account_info(),
                         valid_payment: ctx.accounts.valid_payment.to_account_info(),
                         token_mint: ctx.accounts.token_mint.to_account_info(),
+                        vault_authority: ctx.accounts.vault_authority.to_account_info(),
+                        token_program: ctx.accounts.token_program.to_account_info(),
                     },
                 ),
                 creator_pump_fee,
@@ -454,11 +463,12 @@ pub mod opinions_market {
         }
 
         // Pot increment transfer (Fed vault → OM post pot)
-        if pot_increment_token > 0 {
-            fed::cpi::transfer_out_of_fed_user_account(
+        // Note: pot_increment is in BLING, function will convert to token
+        if pot_increment > 0 {
+            fed::cpi::convert_bling_and_transfer_out_of_fed_user_account(
                 CpiContext::new(
                     ctx.accounts.fed_program.to_account_info(),
-                    fed::cpi::accounts::TransferOutOfFedUserAccount {
+                    fed::cpi::accounts::ConvertBlingAndTransferOutOfFedUserAccount {
                         user_from: ctx.accounts.voter.to_account_info(),
                         user: ctx.accounts.voter.to_account_info(),
                         from_user_vault_token_account: ctx
@@ -466,13 +476,13 @@ pub mod opinions_market {
                             .voter_user_vault_token_account
                             .to_account_info(),
                         to: ctx.accounts.post_pot_token_account.to_account_info(),
-                        vault_authority: ctx.accounts.vault_authority.to_account_info(),
-                        token_program: ctx.accounts.token_program.to_account_info(),
                         valid_payment: ctx.accounts.valid_payment.to_account_info(),
                         token_mint: ctx.accounts.token_mint.to_account_info(),
+                        vault_authority: ctx.accounts.vault_authority.to_account_info(),
+                        token_program: ctx.accounts.token_program.to_account_info(),
                     },
                 ),
-                pot_increment_token,
+                pot_increment,
             )?;
         }
 
@@ -492,7 +502,7 @@ pub mod opinions_market {
         }
 
         // Extend post duration
-        post.extend_time_limit(clock.unix_timestamp, valid_votes as u32, cfg)?;
+        post.extend_time_limit(clock.unix_timestamp, valid_votes as u32, om_config)?;
 
         Ok(())
     }
