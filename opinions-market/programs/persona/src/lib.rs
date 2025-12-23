@@ -3,7 +3,6 @@ use anchor_lang::prelude::*;
 use anchor_lang::solana_program::pubkey::Pubkey;
 pub mod constants;
 pub mod instructions;
-pub mod math;
 pub mod middleware;
 pub mod pda_seeds;
 pub mod states;
@@ -88,7 +87,7 @@ pub mod persona {
 
         user_account.user = new_user_account.user;
         user_account.social_score = new_user_account.social_score;
-        user_account.attack_surface = new_user_account.attack_surface;
+        user_account.health = new_user_account.health;
         user_account.bump = new_user_account.bump;
 
         Ok(())

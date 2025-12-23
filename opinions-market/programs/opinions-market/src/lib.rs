@@ -337,8 +337,8 @@ pub mod opinions_market {
         let vote = Vote::new(side, valid_votes, ctx.accounts.voter.key(), post.key());
         // get karma from persona
         todo!();
-        // let user_karma = &mut ctx.accounts.voter_user_karma;
-        // let cost_bling = vote.compute_cost_in_bling(post, pos, &ctx.accounts.voter_user_account)?;
+        let user_karma = &mut ctx.accounts.voter_user_karma;
+        let cost_bling = vote.compute_cost_in_bling(post, pos, &ctx.accounts.voter_account)?;
 
         msg!("cost_bling: {}", cost_bling);
         msg!("post.upvotes BEFORE: {}", post.upvotes);
@@ -632,51 +632,51 @@ pub mod opinions_market {
 
     /// Distribute creator reward from frozen settlement.
     /// Reads creator_fee from PostMintPayout and transfers it to creator's vault.
-    pub fn distribute_creator_reward(
-        ctx: Context<DistributeCreatorReward>,
-        post_id_hash: [u8; 32],
-    ) -> Result<()> {
-        let payout = &ctx.accounts.post_mint_payout;
-        require!(payout.frozen, ErrorCode::PostNotSettled);
+    // pub fn distribute_creator_reward(
+    //     ctx: Context<DistributeCreatorReward>,
+    //     post_id_hash: [u8; 32],
+    // ) -> Result<()> {
+    //     let payout = &ctx.accounts.post_mint_payout;
+    //     require!(payout.frozen, ErrorCode::PostNotSettled);
 
-        let creator_fee = payout.creator_fee;
-        if creator_fee == 0 {
-            msg!("No creator fee to distribute");
-            return Ok(());
-        }
+    //     let creator_fee = payout.creator_fee;
+    //     if creator_fee == 0 {
+    //         msg!("No creator fee to distribute");
+    //         return Ok(());
+    //     }
 
-        msg!("Distributing creator fee: {}", creator_fee);
+    //     msg!("Distributing creator fee: {}", creator_fee);
 
-        // Transfer from post pot to creator vault (post pot is owned by OM, so handle directly)
-        let post_key = ctx.accounts.post.key();
-        let (_, post_pot_bump) = Pubkey::find_program_address(
-            &[POST_POT_AUTHORITY_SEED, post_key.as_ref()],
-            ctx.program_id,
-        );
-        let post_pot_authority_seeds: &[&[&[u8]]] =
-            &[&[POST_POT_AUTHORITY_SEED, post_key.as_ref(), &[post_pot_bump]]];
+    //     // Transfer from post pot to creator vault (post pot is owned by OM, so handle directly)
+    //     let post_key = ctx.accounts.post.key();
+    //     let (_, post_pot_bump) = Pubkey::find_program_address(
+    //         &[POST_POT_AUTHORITY_SEED, post_key.as_ref()],
+    //         ctx.program_id,
+    //     );
+    //     let post_pot_authority_seeds: &[&[&[u8]]] =
+    //         &[&[POST_POT_AUTHORITY_SEED, post_key.as_ref(), &[post_pot_bump]]];
 
-        fed::cpi::transfer(CpiContext::new(
-            ctx.accounts.fed_program.to_account_info(),
-            fed::cpi::accounts::Transfer {
-                from: ctx.accounts.post_pot_token_account.to_account_info(),
-                to: ctx.accounts.creator_vault_token_account.to_account_info(),
-            },
-        ))?;
-        //     let cpi = CpiContext::new_with_signer(
-        //         ctx.accounts.token_program.to_account_info(),
-        //         anchor_spl::token::Transfer {
-        //             from: ctx.accounts.post_pot_token_account.to_account_info(),
-        //             to: ctx.accounts.creator_vault_token_account.to_account_info(),
-        //             authority: ctx.accounts.post_pot_authority.to_account_info(),
-        //         },
-        //         seeds,
-        //     );
+    //     fed::cpi::transfer(CpiContext::new(
+    //         ctx.accounts.fed_program.to_account_info(),
+    //         fed::cpi::accounts::Transfer {
+    //             from: ctx.accounts.post_pot_token_account.to_account_info(),
+    //             to: ctx.accounts.creator_vault_token_account.to_account_info(),
+    //         },
+    //     ))?;
+    //     //     let cpi = CpiContext::new_with_signer(
+    //     //         ctx.accounts.token_program.to_account_info(),
+    //     //         anchor_spl::token::Transfer {
+    //     //             from: ctx.accounts.post_pot_token_account.to_account_info(),
+    //     //             to: ctx.accounts.creator_vault_token_account.to_account_info(),
+    //     //             authority: ctx.accounts.post_pot_authority.to_account_info(),
+    //     //         },
+    //     //         seeds,
+    //     //     );
 
-        msg!("✅ Creator reward distributed successfully");
+    //     msg!("✅ Creator reward distributed successfully");
 
-        Ok(())
-    }
+    //     Ok(())
+    // }
 
     /// Distribute protocol fee from frozen settlement.
     /// Reads protocol_fee from PostMintPayout and transfers it to protocol treasury.

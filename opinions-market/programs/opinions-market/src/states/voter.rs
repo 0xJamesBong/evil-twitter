@@ -1,7 +1,7 @@
 use super::post::PostRelation;
 use super::post::Side;
 use crate::constants::PARAMS;
-use crate::math::vote_cost::{base_user_cost, cost_in_bling, post_curve_cost};
+use crate::math::vote_cost::{base_voter_cost, cost_in_bling, post_curve_cost};
 use anchor_lang::prelude::*;
 
 // -----------------------------------------------------------------------------
@@ -9,7 +9,7 @@ use anchor_lang::prelude::*;
 // -----------------------------------------------------------------------------
 
 #[derive(AnchorSerialize, AnchorDeserialize, InitSpace, Copy, PartialEq, Eq, Debug, Clone)]
-pub struct UserAccountAttackSurface {
+pub struct VoterAccountAttackSurface {
     pub enabled: bool,
     // future:
     pub surface_1: i16,
@@ -24,7 +24,7 @@ pub struct UserAccountAttackSurface {
     pub padding: [u8; 31],
 }
 
-impl UserAccountAttackSurface {
+impl VoterAccountAttackSurface {
     pub fn new(enabled: bool) -> Self {
         Self {
             enabled,
@@ -44,46 +44,46 @@ impl UserAccountAttackSurface {
 
 #[account]
 #[derive(InitSpace, Copy, PartialEq, Eq, Debug)]
-pub struct UserKarma {
-    pub user: Pubkey,      // user wallet pubkey
+pub struct VoterKarma {
+    pub voter: Pubkey,     // voter wallet pubkey
     pub social_score: i64, // can drive withdraw penalty etc.
-    pub attack_surface: UserAccountAttackSurface,
+    pub attack_surface: VoterAccountAttackSurface,
     pub bump: u8,
 }
 
-impl UserKarma {
-    pub fn default(user: Pubkey, bump: u8) -> Self {
+impl VoterKarma {
+    pub fn default(voter: Pubkey, bump: u8) -> Self {
         Self {
-            user,
-            social_score: PARAMS.user_initial_social_score,
-            attack_surface: UserAccountAttackSurface::new(true),
+            voter,
+            social_score: PARAMS.voter_initial_social_score,
+            attack_surface: VoterAccountAttackSurface::new(true),
             bump,
         }
     }
 
     pub fn new(
-        user: Pubkey,
+        voter: Pubkey,
         social_score: i64,
-        attack_surface: UserAccountAttackSurface,
+        attack_surface: VoterAccountAttackSurface,
         bump: u8,
     ) -> Self {
         Self {
-            user,
+            voter,
             social_score,
             attack_surface,
             bump,
         }
     }
 
-    /// Calculate canonical vote cost for this user
+    /// Calculate canonical vote cost for this voter
     /// This is the cost of voting on a "boring" post (0 votes) with no previous votes,
-    /// but using the user's actual social score. This is a pure user attribute.
+    /// but using the voter's actual social score. This is a pure voter attribute.
     pub fn canonical_cost(&self, side: Side) -> Result<u64> {
         // Canonical scenario: 1 vote, no previous votes, boring post (0 votes, original type)
-        let base_cost = base_user_cost(
+        let base_cost = base_voter_cost(
             1, // 1 vote
             0, // no previous votes
-            side, self, // user account (for social score)
+            side, self, // voter account (for social score)
         )?;
 
         // Apply post curve adjustments (for canonical: 0 votes, original type)
@@ -102,17 +102,17 @@ impl UserKarma {
 
 #[account]
 #[derive(InitSpace, Copy, PartialEq, Eq, Debug)]
-pub struct UserPostPosition {
-    pub user: Pubkey,
+pub struct VoterPostPosition {
+    pub voter: Pubkey,
     pub post: Pubkey,
     pub upvotes: u64,
     pub downvotes: u64,
 }
 
-impl UserPostPosition {
-    pub fn new(user: Pubkey, post: Pubkey) -> Self {
+impl VoterPostPosition {
+    pub fn new(voter: Pubkey, post: Pubkey) -> Self {
         Self {
-            user,
+            voter,
             post,
             upvotes: 0,
             downvotes: 0,
@@ -123,18 +123,18 @@ impl UserPostPosition {
 // For reward claims - token mint specific
 #[account]
 #[derive(InitSpace, Copy, PartialEq, Eq, Debug)]
-pub struct UserPostMintClaim {
-    pub user: Pubkey,
+pub struct VoterPostMintClaim {
+    pub voter: Pubkey,
     pub post: Pubkey,
     pub mint: Pubkey,
     pub claimed: bool,
     pub bump: u8,
 }
 
-impl UserPostMintClaim {
-    pub fn new(user: Pubkey, post: Pubkey, mint: Pubkey, bump: u8) -> Self {
+impl VoterPostMintClaim {
+    pub fn new(voter: Pubkey, post: Pubkey, mint: Pubkey, bump: u8) -> Self {
         Self {
-            user,
+            voter,
             post,
             mint,
             claimed: false,

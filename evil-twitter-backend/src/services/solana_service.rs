@@ -1337,7 +1337,7 @@ impl SolanaService {
                 session_key: self.session_key.pubkey(),
                 session_authority: session_authority_pda,
                 post: post_pda,
-                voter_user_account: voter_user_account_pda,
+                voter_account: voter_user_account_pda,
                 voter_user_vault_token_account: voter_user_vault_token_account_pda,
                 position: position_pda,
                 vault_authority: vault_authority_pda,

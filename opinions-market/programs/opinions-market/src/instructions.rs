@@ -34,9 +34,13 @@ pub struct CreatePost<'info> {
     #[account(owner = persona::ID)]
     pub session_authority: AccountInfo<'info>,
 
-    /// CHECK: persona-owned user account (opaque)
+    /// CHECK: persona-owned user account (opaque) - used for checking authentication
     #[account(owner = persona::ID)]
     pub user_account: AccountInfo<'info>,
+
+    /// CHECK: used for vote tallying and karma 
+    #[account(init_if_needed, payer = payer, seeds = [VOTER_ACCOUNT_SEED, user.key().as_ref()], bump, space = 8 + VoterAccount::INIT_SPACE)]
+    pub voter_account: AccountInfo<'info>,
 
     #[account(
         init,
@@ -108,7 +112,7 @@ pub struct VoteOnPost<'info> {
     )]
     pub config: Box<Account<'info, Config>>,
 
-    /// CHECK: real user identity (owner of UserAccount and vaults)
+    /// CHECK: real user identity (owner of UserAccount and vaults) - this is passed for authentication
     #[account(mut)]
     pub voter: UncheckedAccount<'info>,
 
@@ -134,15 +138,22 @@ pub struct VoteOnPost<'info> {
 
     /// CHECK: persona-owned user account (opaque)
     #[account(owner = persona::ID)]
-    pub voter_user_account: AccountInfo<'info>,
+    pub user_account: AccountInfo<'info>,
 
-    #[account(
-        mut,
-        seeds = [USER_VAULT_TOKEN_ACCOUNT_SEED, voter.key().as_ref(), token_mint.key().as_ref()],
-        bump,
-        token::mint = token_mint,
-        token::authority = vault_authority,
-    )]
+    /// CHECK: owned by opinions market - this is the voter data 
+    #[account(init_if_needed, payer = payer, 
+        seeds = [VOTER_ACCOUNT_SEED, voter.key().as_ref()], bump, space = 8 + VoterAccount::INIT_SPACE)]
+    pub voter_account: AccountInfo<'info>,
+
+    // this is the token vault in the fed 
+    // #[account(
+    //     mut,
+    //     seeds = [USER_VAULT_TOKEN_ACCOUNT_SEED, voter.key().as_ref(), token_mint.key().as_ref()],
+    //     bump,
+    //     token::mint = token_mint, 
+    //     token::authority = vault_authority,
+    // )]
+    #[account(owner = fed::ID)]
     pub voter_user_vault_token_account: Box<Account<'info, TokenAccount>>,
 
     #[account(
@@ -150,9 +161,9 @@ pub struct VoteOnPost<'info> {
         payer = payer,
         seeds = [POSITION_SEED, post.key().as_ref(), voter.key().as_ref()],
         bump,
-        space = 8 + UserPostPosition::INIT_SPACE,
+        space = 8 + VoterPostPosition::INIT_SPACE,
     )]
-    pub position: Box<Account<'info, UserPostPosition>>,
+    pub position: Box<Account<'info, VoterPostPosition>>,
 
     /// CHECK: Vault authority PDA derived from seeds
     #[account(
@@ -473,7 +484,7 @@ pub struct ClaimPostReward<'info> {
     )]
     pub post: Account<'info, PostAccount>,
     #[account(mut)]
-    pub position: Account<'info, UserPostPosition>,
+    pub position: Account<'info, VoterPostPosition>,
     #[account(
         init_if_needed,
         payer = payer,
