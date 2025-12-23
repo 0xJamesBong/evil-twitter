@@ -1032,11 +1032,11 @@ pub async fn test_phenomena_send_token(
 pub async fn test_phenomena_create_post(
     rpc: &RpcClient,
     opinions_market: &Program<&Keypair>,
+    persona: &Program<&Keypair>,
     payer: &Keypair,
     creator: &Keypair,
     session_key: &Keypair,
     config_pda: &Pubkey,
-
     parent_post_pda: Option<Pubkey>,
 ) -> (Pubkey, [u8; 32]) {
     let post_type_str = if parent_post_pda.is_some() {
@@ -1050,7 +1050,16 @@ pub async fn test_phenomena_create_post(
     let hash = crate::utils::utils::generate_post_id_hash();
 
     let user_account_pda = Pubkey::find_program_address(
-        &[USER_ACCOUNT_SEED, creator.pubkey().as_ref()],
+        &[
+            persona::pda_seeds::USER_ACCOUNT_SEED,
+            creator.pubkey().as_ref(),
+        ],
+        &persona.id(),
+    )
+    .0;
+
+    let voter_account_pda = Pubkey::find_program_address(
+        &[VOTER_ACCOUNT_SEED, creator.pubkey().as_ref()],
         &opinions_market.id(),
     )
     .0;
@@ -1059,11 +1068,11 @@ pub async fn test_phenomena_create_post(
         Pubkey::find_program_address(&[POST_ACCOUNT_SEED, hash.as_ref()], &opinions_market.id()).0;
     let session_authority_pda = Pubkey::find_program_address(
         &[
-            SESSION_AUTHORITY_SEED,
+            persona::pda_seeds::SESSION_AUTHORITY_SEED,
             creator.pubkey().as_ref(),
             session_key.pubkey().as_ref(),
         ],
-        &opinions_market.id(),
+        &persona.id(),
     )
     .0;
     let create_post_ix = opinions_market
@@ -1075,7 +1084,9 @@ pub async fn test_phenomena_create_post(
             session_key: session_key.pubkey(),
             session_authority: session_authority_pda,
             user_account: user_account_pda,
+            voter_account: voter_account_pda,
             post: post_pda,
+            persona_program: persona.id(),
             system_program: system_program::ID,
         })
         .args(opinions_market::instruction::CreatePost {

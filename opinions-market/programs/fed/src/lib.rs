@@ -66,6 +66,12 @@ pub enum ErrorCode {
     CannotSendToSelf,
     #[msg("Token is not withdrawable")]
     TokenNotWithdrawable,
+    #[msg("Invalid from account - must be Fed-owned for transfer_out_of_fed")]
+    InvalidFrom,
+    #[msg("Invalid vault authority")]
+    BadAuthority,
+    #[msg("Invalid to account - must be Fed-owned for transfer_into_fed")]
+    InvalidTo,
 }
 
 #[program]
@@ -81,16 +87,16 @@ pub mod fed {
         max_duration_secs: u32,
         extension_per_vote_secs: u32,
     ) -> Result<()> {
-        let cfg = &mut ctx.accounts.config;
+        let cfg = &mut ctx.accounts.fed_config;
 
-        let new_cfg = Config::new(
+        let new_cfg = FedConfig::new(
             *ctx.accounts.admin.key,
             ctx.accounts.payer.key(),
             ctx.accounts.bling_mint.key(),
             base_duration_secs,
             max_duration_secs,
             extension_per_vote_secs,
-            ctx.bumps.config,
+            ctx.bumps.fed_config,
             [0; 7],
         );
 
@@ -123,7 +129,7 @@ pub mod fed {
         price_in_bling: u64, // How much is 1 token in BLING -
         withdrawable: bool,  // Whether this token can be withdrawn from vault
     ) -> Result<()> {
-        let cfg = &ctx.accounts.config;
+        let cfg = &ctx.accounts.fed_config;
 
         // Note: Duplicate registration is prevented by the `init` constraint on alternative_payment account.
         // If the account already exists (same PDA seeds), init will fail before this function is called.
@@ -415,17 +421,138 @@ pub mod fed {
         Ok(())
     }
 
-    /// Simple BLING transfer from one token account to another.
-    /// No domain knowledge - just moves tokens.
-    /// Authority must be provided and will be used to sign the transfer.
-    pub fn transfer(ctx: Context<Transfer>, amount: u64) -> Result<()> {
+    /// Transfer tokens INTO Fed treasury custody.
+    /// External account → Fed treasury.
+    ///
+    /// Invariants:
+    /// - `from` is external (not Fed-owned)
+    /// - `to` is Fed treasury (Fed-owned)
+    /// - Mint must be enabled
+    /// - Amount > 0
+    pub fn transfer_into_fed_treasury_account(
+        ctx: Context<TransferIntoFedTreasuryAccount>,
+        amount: u64,
+    ) -> Result<()> {
         require!(amount > 0, ErrorCode::ZeroAmount);
 
+        // 1. From-account must be external (not Fed-owned)
+        require!(ctx.accounts.from.owner != fed::ID, ErrorCode::InvalidFrom);
+
+        // 2. To-account must be Fed-controlled treasury
+        require!(
+            ctx.accounts.protocol_treasury_token_account.owner == fed::ID,
+            ErrorCode::InvalidTo
+        );
+
+        // 3. Mint must be enabled
+        require!(
+            ctx.accounts.valid_payment.enabled,
+            ErrorCode::MintNotEnabled
+        );
+
+        // For transfer_into_fed, the external account owner signs
+        // No treasury authority signer needed - Fed is receiving
+        let cpi_accounts = anchor_spl::token::Transfer {
+            from: ctx.accounts.from.to_account_info(),
+            to: ctx
+                .accounts
+                .protocol_treasury_token_account
+                .to_account_info(),
+            authority: ctx.accounts.from_authority.to_account_info(),
+        };
+        let cpi_ctx = CpiContext::new(ctx.accounts.token_program.to_account_info(), cpi_accounts);
+        anchor_spl::token::transfer(cpi_ctx, amount)?;
+
+        Ok(())
+    }
+
+    /// Transfer tokens INTO Fed custody.
+    /// External account → Fed vault.
+    ///
+    /// Invariants:
+    /// - `from` is external (not Fed-owned)
+    /// - `to` is a Fed vault (Fed-owned)
+    /// - Mint must be enabled
+    /// - Amount > 0
+    pub fn transfer_into_fed_user_account(
+        ctx: Context<TransferIntoFedUserAccount>,
+        amount: u64,
+    ) -> Result<()> {
+        require!(amount > 0, ErrorCode::ZeroAmount);
+
+        // 1. From-account must be external (not Fed-owned)
+        require!(ctx.accounts.from.owner != fed::ID, ErrorCode::InvalidFrom);
+
+        // 2. To-account must be Fed-controlled vault
+        require!(
+            ctx.accounts.to_user_vault_token_account.owner == fed::ID,
+            ErrorCode::InvalidTo
+        );
+
+        // 3. Mint must be enabled
+        require!(
+            ctx.accounts.valid_payment.enabled,
+            ErrorCode::MintNotEnabled
+        );
+
+        // For transfer_into_fed, the external account owner signs
+        // No vault authority signer needed - Fed is receiving
+        let cpi_accounts = anchor_spl::token::Transfer {
+            from: ctx.accounts.from.to_account_info(),
+            to: ctx.accounts.to_user_vault_token_account.to_account_info(),
+            authority: ctx.accounts.from_authority.to_account_info(),
+        };
+        let cpi_ctx = CpiContext::new(ctx.accounts.token_program.to_account_info(), cpi_accounts);
+        anchor_spl::token::transfer(cpi_ctx, amount)?;
+
+        Ok(())
+    }
+
+    /// Transfer tokens OUT OF Fed custody.
+    /// Fed vault → External account.
+    ///
+    /// Invariants:
+    /// - `from` is a Fed vault (Fed-owned)
+    /// - `to` is external (not Fed-owned, or owned by another program like OM)
+    /// - Vault authority must be correct
+    /// - Mint must be enabled
+    /// - Amount > 0
+    pub fn transfer_out_of_fed_user_account(
+        ctx: Context<TransferOutOfFedUserAccount>,
+        amount: u64,
+    ) -> Result<()> {
+        require!(amount > 0, ErrorCode::ZeroAmount);
+
+        // 1. From-account must be Fed-controlled vault
+        require!(
+            ctx.accounts.from_user_vault_token_account.owner == fed::ID,
+            ErrorCode::InvalidFrom
+        );
+
+        // 2. To-account must be external (not Fed-owned)
+        require!(ctx.accounts.to.owner != fed::ID, ErrorCode::InvalidTo);
+
+        // // 3. Vault authority must be the Fed vault authority
+        // // Anchor already verifies the PDA via #[account] constraint, but we double-check
+        // let (expected_authority, _) =
+        //     Pubkey::find_program_address(&[VAULT_AUTHORITY_SEED], &fed::ID);
+        // require!(
+        //     ctx.accounts.vault_authority.key() == expected_authority,
+        //     ErrorCode::BadAuthority
+        // );
+
+        // 4. Mint must be enabled
+        require!(
+            ctx.accounts.valid_payment.enabled,
+            ErrorCode::MintNotEnabled
+        );
+
+        // Transfer using vault authority as signer
         let authority_bump = ctx.bumps.vault_authority;
         let authority_seeds: &[&[&[u8]]] = &[&[VAULT_AUTHORITY_SEED, &[authority_bump]]];
 
         let cpi_accounts = anchor_spl::token::Transfer {
-            from: ctx.accounts.from.to_account_info(),
+            from: ctx.accounts.from_user_vault_token_account.to_account_info(),
             to: ctx.accounts.to.to_account_info(),
             authority: ctx.accounts.vault_authority.to_account_info(),
         };
@@ -437,6 +564,44 @@ pub mod fed {
         anchor_spl::token::transfer(cpi_ctx, amount)?;
 
         Ok(())
+    }
+
+    // for checking validity and monetary economics - no control over accounts
+    pub fn check_transfer(ctx: Context<CheckTransfer>) -> Result<()> {
+        // 3. Mint must be enabled
+        require!(
+            ctx.accounts.valid_payment.enabled,
+            ErrorCode::MintNotEnabled
+        );
+        Ok(())
+    }
+
+    /// Convert BLING amount to token amount using ValidPayment price.
+    /// Returns the equivalent token amount in token lamports.
+    ///
+    /// # Arguments
+    /// * `amount` - BLING amount in BLING lamports (9 decimals)
+    ///
+    /// # Returns
+    /// Token amount in token lamports based on ValidPayment's price_in_bling
+    pub fn bling_to_token(ctx: Context<BlingToToken>, amount: u64) -> Result<u64> {
+        require!(amount > 0, ErrorCode::ZeroAmount);
+
+        // Get price from ValidPayment
+        let price_in_bling = ctx.accounts.valid_payment.price_in_bling;
+        require!(price_in_bling > 0, ErrorCode::MathOverflow);
+
+        // Get token decimals from mint
+        let token_decimals = ctx.accounts.token_mint.decimals;
+
+        // Convert BLING to token using the conversion function
+        let token_amount = crate::math::token_conversion::convert_bling_to_token_lamports(
+            amount,
+            price_in_bling,
+            token_decimals,
+        )?;
+
+        Ok(token_amount)
     }
 }
 

@@ -25,9 +25,9 @@ pub struct Initialize<'info> {
         payer = payer,  
         seeds = [CONFIG_SEED],
         bump,
-        space = 8 + Config::INIT_SPACE,
+        space = 8 + FedConfig::INIT_SPACE,
     )]
-    pub config: Account<'info, Config>,
+    pub fed_config: Account<'info, FedConfig>,
     pub bling_mint: Account<'info, Mint>,
     pub usdc_mint: Account<'info, Mint>,
     
@@ -45,7 +45,7 @@ pub struct Initialize<'info> {
         payer = payer,
         seeds = [PROTOCOL_TREASURY_TOKEN_ACCOUNT_SEED, bling_mint.key().as_ref()],bump,
         token::mint = bling_mint,
-        token::authority = config,
+        token::authority = fed_config,
     )]
     pub protocol_bling_treasury: Account<'info, TokenAccount>,
 
@@ -57,9 +57,9 @@ pub struct Initialize<'info> {
 #[derive(Accounts)]
 pub struct RegisterValidPayment<'info> {
     #[account(mut,
-    constraint = config.admin == admin.key())]
-    pub config: Account<'info, Config>,
-    // we need to require this to be the admin of the config account
+    constraint = fed_config.admin == admin.key())]
+    pub fed_config: Account<'info, FedConfig>,
+    // we need to require this to be the admin of the fed_config account
     #[account(mut)]
     pub admin: Signer<'info>,
     pub token_mint: Account<'info, Mint>,
@@ -69,7 +69,7 @@ pub struct RegisterValidPayment<'info> {
         seeds = [VALID_PAYMENT_SEED, token_mint.key().as_ref()],
         bump,
         space = 8 + ValidPayment::INIT_SPACE,
-        constraint = token_mint.key() != config.bling_mint @ ErrorCode::BlingCannotBeAlternativePayment,
+        constraint = token_mint.key() != fed_config.bling_mint @ ErrorCode::BlingCannotBeAlternativePayment,
     )]
     pub valid_payment: Account<'info, ValidPayment>,
 
@@ -80,7 +80,7 @@ pub struct RegisterValidPayment<'info> {
         seeds = [PROTOCOL_TREASURY_TOKEN_ACCOUNT_SEED, token_mint.key().as_ref()],
         bump,
         token::mint = token_mint,
-        token::authority = config, // <-- SPL owner = config PDA
+        token::authority = fed_config, // <-- SPL owner = fed_config PDA
     )]
     pub protocol_token_treasury_token_account: Account<'info, TokenAccount>,
 
@@ -95,9 +95,9 @@ pub struct ModifyAcceptedMint<'info> {
         mut,
         seeds = [CONFIG_SEED],
         bump,
-        constraint = config.admin == admin.key(),
+        constraint = fed_config.admin == admin.key(),
     )]
-    pub config: Account<'info, Config>,
+    pub fed_config: Account<'info, FedConfig>,
 
     #[account(mut)]
     pub admin: Signer<'info>,
@@ -414,22 +414,186 @@ pub struct SendToken<'info> {
     pub system_program: Program<'info, System>,
 }
 
-/// Simple transfer from one token account to another using vault_authority.
-/// Used for user vault transfers (vault → vault, vault → treasury, etc.)
-/// This is a dumb token API with no domain knowledge.
+/// Transfer tokens INTO Fed custody.
+/// External account → Fed vault.
 #[derive(Accounts)]
-pub struct Transfer<'info> {
+pub struct TransferIntoFedUserAccount<'info> {
+    /// CHECK: External token account (not Fed-owned)
     #[account(mut)]
     pub from: Account<'info, TokenAccount>,
+    
+    /// CHECK: Authority of the `from` account (must sign the transaction)
+    /// The token program will verify the signature
+    pub from_authority: UncheckedAccount<'info>,
+    
+
+    /// CHECK: User pubkey used to derive the destination vault PDA
+    #[account(mut)]
+    pub user: UncheckedAccount<'info>,
+
+    /// CHECK: Fed vault token account (Fed-owned)
+    #[account(
+            init_if_needed,
+            payer = payer,
+    seeds = [
+        USER_VAULT_TOKEN_ACCOUNT_SEED,
+        user.key().as_ref(),
+        token_mint.key().as_ref()
+    ],
+    bump,
+    
+    token::mint = token_mint,
+    token::authority = vault_authority)]
+    pub to_user_vault_token_account: Account<'info, TokenAccount>,
+
+
+    #[account(
+        seeds = [VALID_PAYMENT_SEED, token_mint.key().as_ref()],
+        bump = valid_payment.bump,
+        constraint = valid_payment.enabled @ ErrorCode::MintNotEnabled,
+    )]
+    pub valid_payment: Box<Account<'info, ValidPayment>>,
+    
+    /// CHECK: Vault authority PDA (Fed-owned, signs the transfer)
+    #[account(
+    seeds = [VAULT_AUTHORITY_SEED],
+    bump,
+    )]
+    pub vault_authority: UncheckedAccount<'info>,
+
+    pub token_mint: Account<'info, Mint>,
+    
+    /// CHECK: Payer for account initialization (if needed)
+    #[account(mut)]
+    pub payer: Signer<'info>,
+    
+    pub token_program: Program<'info, Token>,
+    pub system_program: Program<'info, System>,
+}
+
+/// Transfer tokens INTO Fed treasury custody.
+/// External account → Fed treasury.
+#[derive(Accounts)]
+pub struct TransferIntoFedTreasuryAccount<'info> {
+    /// CHECK: External token account (not Fed-owned)
+    #[account(mut)]
+    pub from: Account<'info, TokenAccount>,
+    
+    /// CHECK: Authority of the `from` account (must sign the transaction)
+    /// The token program will verify the signature
+    pub from_authority: UncheckedAccount<'info>,
+    
+    /// CHECK: Fed treasury token account (Fed-owned)
+    #[account(
+        mut,
+        seeds = [
+            PROTOCOL_TREASURY_TOKEN_ACCOUNT_SEED,
+            token_mint.key().as_ref()
+        ],
+        bump,
+        token::mint = token_mint,
+        token::authority = fed_config,
+    )]
+    pub protocol_treasury_token_account: Account<'info, TokenAccount>,
+
+    #[account(
+        seeds = [VALID_PAYMENT_SEED, token_mint.key().as_ref()],
+        bump = valid_payment.bump,
+        constraint = valid_payment.enabled @ ErrorCode::MintNotEnabled,
+    )]
+    pub valid_payment: Box<Account<'info, ValidPayment>>,
+    
+    /// CHECK: Config PDA (authority of treasury token account)
+    #[account(
+        seeds = [CONFIG_SEED],
+        bump,
+    )]
+    pub fed_config: Account<'info, FedConfig>,
+
+    pub token_mint: Account<'info, Mint>,
+    
+    pub token_program: Program<'info, Token>,
+}
+
+/// Transfer tokens OUT OF Fed custody.
+/// Fed vault → External account.
+#[derive(Accounts)]
+pub struct TransferOutOfFedUserAccount<'info> {
+    /// CHECK: User pubkey used to derive the source vault PDA
+    pub user_from: UncheckedAccount<'info>,
+    
+    /// CHECK: User pubkey used to derive the source vault PDA
+    #[account(mut)]
+    pub user: UncheckedAccount<'info>,
+
+    /// CHECK: Fed vault token account (Fed-owned)
+    #[account(
+    mut,
+    seeds = [
+        USER_VAULT_TOKEN_ACCOUNT_SEED,
+        user.key().as_ref(),
+        token_mint.key().as_ref()
+    ],
+    bump,
+    token::mint = token_mint,
+    token::authority = vault_authority)]
+    pub from_user_vault_token_account: Account<'info, TokenAccount>,
+
+    /// CHECK: External token account (not Fed-owned, e.g., OM post pot)
     #[account(mut)]
     pub to: Account<'info, TokenAccount>,
 
-    /// CHECK: Vault authority PDA (Fed-owned, for user vaults)
+    #[account(
+        seeds = [VALID_PAYMENT_SEED, token_mint.key().as_ref()],
+        bump = valid_payment.bump,
+        constraint = valid_payment.enabled @ ErrorCode::MintNotEnabled,
+    )]
+    pub valid_payment: Box<Account<'info, ValidPayment>>,
+
+    pub token_mint: Account<'info, Mint>,
+
+    /// CHECK: Vault authority PDA (Fed-owned, signs the transfer)
     #[account(
         seeds = [VAULT_AUTHORITY_SEED],
         bump,
     )]
     pub vault_authority: UncheckedAccount<'info>,
-
+    
     pub token_program: Program<'info, Token>,
+}
+
+#[derive(Accounts)]
+pub struct CheckTransfer<'info> {
+    #[account(mut
+    ,token::mint = token_mint,
+    
+    )]
+    pub from: Account<'info, TokenAccount>,
+    #[account(mut,token::mint = token_mint,)]
+    pub to: Account<'info, TokenAccount>,
+
+    #[account(
+        seeds = [VALID_PAYMENT_SEED, token_mint.key().as_ref()],
+        bump = valid_payment.bump,
+        constraint = valid_payment.enabled @ ErrorCode::MintNotEnabled,
+    )]
+    pub valid_payment: Box<Account<'info, ValidPayment>>,
+
+    pub token_mint: Account<'info, Mint>,
+    
+}
+
+/// Convert BLING amount to token amount.
+/// Pure calculation function - returns token amount based on ValidPayment price.
+#[derive(Accounts)]
+pub struct BlingToToken<'info> {
+    /// CHECK: Token mint to get decimals
+    pub token_mint: Account<'info, Mint>,
+
+    #[account(
+        seeds = [VALID_PAYMENT_SEED, token_mint.key().as_ref()],
+        bump = valid_payment.bump,
+        constraint = valid_payment.enabled @ ErrorCode::MintNotEnabled,
+    )]
+    pub valid_payment: Account<'info, ValidPayment>,
 }

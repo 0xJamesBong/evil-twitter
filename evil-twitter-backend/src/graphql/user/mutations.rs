@@ -1,7 +1,7 @@
 use async_graphql::{Context, ID, InputObject, Object, Result, SimpleObject};
 use axum::http::HeaderMap;
-use mongodb::{Collection, bson::doc};
 use chrono::Utc;
+use mongodb::{Collection, bson::doc};
 
 use std::str::FromStr;
 use std::sync::Arc;
@@ -79,11 +79,7 @@ impl UserMutation {
     }
 
     /// Update user's script rendering mode for PUA disambiguation
-    async fn update_language(
-        &self,
-        ctx: &Context<'_>,
-        language: Language,
-    ) -> Result<UserNode> {
+    async fn update_language(&self, ctx: &Context<'_>, language: Language) -> Result<UserNode> {
         update_language_resolver(ctx, language).await
     }
 
@@ -108,11 +104,7 @@ impl UserMutation {
     /// Tip a user or post creator
     /// recipient_user_id: ID of the user receiving the tip (required)
     /// post_id: Optional ID of the post being tipped (if provided, tip goes to post creator)
-    async fn tip(
-        &self,
-        ctx: &Context<'_>,
-        input: TipInput,
-    ) -> Result<TipPayload> {
+    async fn tip(&self, ctx: &Context<'_>, input: TipInput) -> Result<TipPayload> {
         tip_resolver(ctx, input).await
     }
 
@@ -1003,10 +995,7 @@ pub async fn update_default_payment_token_resolver(
 }
 
 /// Update user's script rendering mode for PUA disambiguation
-pub async fn update_language_resolver(
-    ctx: &Context<'_>,
-    language: Language,
-) -> Result<UserNode> {
+pub async fn update_language_resolver(ctx: &Context<'_>, language: Language) -> Result<UserNode> {
     let app_state = ctx.data::<Arc<AppState>>()?;
     let headers = ctx
         .data::<HeaderMap>()
@@ -1046,10 +1035,7 @@ pub async fn update_language_resolver(
 }
 
 /// Tip a user or post creator
-pub async fn tip_resolver(
-    ctx: &Context<'_>,
-    input: TipInput,
-) -> Result<TipPayload> {
+pub async fn tip_resolver(ctx: &Context<'_>, input: TipInput) -> Result<TipPayload> {
     let app_state = ctx.data::<Arc<AppState>>()?;
     let headers = ctx
         .data::<HeaderMap>()
@@ -1102,12 +1088,13 @@ pub async fn tip_resolver(
             .map_err(|e| async_graphql::Error::new(format!("Invalid creator wallet: {}", e)))?
     } else {
         // Direct tip to user: recipient_user_id is required
-        let recipient_user_id = input.recipient_user_id
-            .as_ref()
-            .ok_or_else(|| async_graphql::Error::new("recipient_user_id is required when post_id is not provided"))?;
-        
-        let recipient_user_id_oid = mongodb::bson::oid::ObjectId::parse_str(recipient_user_id.as_str())
-            .map_err(|_| async_graphql::Error::new("Invalid recipient user ID"))?;
+        let recipient_user_id = input.recipient_user_id.as_ref().ok_or_else(|| {
+            async_graphql::Error::new("recipient_user_id is required when post_id is not provided")
+        })?;
+
+        let recipient_user_id_oid =
+            mongodb::bson::oid::ObjectId::parse_str(recipient_user_id.as_str())
+                .map_err(|_| async_graphql::Error::new("Invalid recipient user ID"))?;
 
         let recipient_user = app_state
             .mongo_service
@@ -1131,7 +1118,7 @@ pub async fn tip_resolver(
         let config_account = app_state
             .solana_service
             .opinions_market_program()
-            .account::<opinions_market::states::Config>(config_pda)
+            .account::<opinions_market::states::OMConfig>(config_pda)
             .await
             .map_err(|e| async_graphql::Error::new(format!("Failed to get config: {}", e)))?;
         config_account.bling_mint
@@ -1145,7 +1132,7 @@ pub async fn tip_resolver(
         6 // USDC and stablecoin have 6 decimals
     };
     let amount_lamports = (input.amount * 10_f64.powi(token_decimals)) as u64;
-    
+
     // Validate minimum tip: at least 1 token
     let min_amount_lamports = 10_u64.pow(token_decimals as u32);
     if amount_lamports < min_amount_lamports {
@@ -1192,7 +1179,8 @@ pub async fn tip_resolver(
     // Determine recipient_user_id for response
     // For post tips, we don't have recipient_user_id in input (backend determined it from post)
     // For direct user tips, use the provided recipient_user_id
-    let response_recipient_user_id = input.recipient_user_id
+    let response_recipient_user_id = input
+        .recipient_user_id
         .clone()
         .unwrap_or_else(|| ID::from(""));
 
@@ -1247,7 +1235,7 @@ pub async fn claim_tips_resolver(
         let config_account = app_state
             .solana_service
             .opinions_market_program()
-            .account::<opinions_market::states::Config>(config_pda)
+            .account::<opinions_market::states::OMConfig>(config_pda)
             .await
             .map_err(|e| async_graphql::Error::new(format!("Failed to get config: {}", e)))?;
         config_account.bling_mint
@@ -1255,11 +1243,8 @@ pub async fn claim_tips_resolver(
 
     // Get tip vault balance before claiming
     let program_id = app_state.solana_service.opinions_market_program().id();
-    let (tip_vault_token_account_pda, _) = crate::solana::get_tip_vault_token_account_pda(
-        &program_id,
-        &owner_wallet,
-        &token_mint,
-    );
+    let (tip_vault_token_account_pda, _) =
+        crate::solana::get_tip_vault_token_account_pda(&program_id, &owner_wallet, &token_mint);
 
     let tip_vault_before = app_state
         .solana_service
@@ -1268,9 +1253,7 @@ pub async fn claim_tips_resolver(
         .await
         .ok();
 
-    let amount_claimed = tip_vault_before
-        .map(|account| account.amount)
-        .unwrap_or(0);
+    let amount_claimed = tip_vault_before.map(|account| account.amount).unwrap_or(0);
 
     // Call Solana service to claim tips
     let signature = app_state
@@ -1319,8 +1302,9 @@ pub async fn send_token_resolver(
         .map_err(|e| async_graphql::Error::new(format!("Invalid sender wallet: {}", e)))?;
 
     // Get recipient user
-    let recipient_user_id = mongodb::bson::oid::ObjectId::parse_str(input.recipient_user_id.as_str())
-        .map_err(|_| async_graphql::Error::new("Invalid recipient user ID"))?;
+    let recipient_user_id =
+        mongodb::bson::oid::ObjectId::parse_str(input.recipient_user_id.as_str())
+            .map_err(|_| async_graphql::Error::new("Invalid recipient user ID"))?;
 
     let recipient_user = app_state
         .mongo_service
@@ -1343,7 +1327,7 @@ pub async fn send_token_resolver(
         let config_account = app_state
             .solana_service
             .opinions_market_program()
-            .account::<opinions_market::states::Config>(config_pda)
+            .account::<opinions_market::states::OMConfig>(config_pda)
             .await
             .map_err(|e| async_graphql::Error::new(format!("Failed to get config: {}", e)))?;
         config_account.bling_mint
@@ -1357,7 +1341,7 @@ pub async fn send_token_resolver(
         6 // USDC and stablecoin have 6 decimals
     };
     let amount_lamports = (input.amount * 10_f64.powi(token_decimals)) as u64;
-    
+
     // Validate minimum amount: at least 1 token
     let min_amount_lamports = 10_u64.pow(token_decimals as u32);
     if amount_lamports < min_amount_lamports {
@@ -1370,7 +1354,12 @@ pub async fn send_token_resolver(
     // Call Solana service to send tokens
     let signature = app_state
         .solana_service
-        .send_token(&sender_wallet, &recipient_wallet, amount_lamports, &token_mint)
+        .send_token(
+            &sender_wallet,
+            &recipient_wallet,
+            amount_lamports,
+            &token_mint,
+        )
         .await
         .map_err(|e| async_graphql::Error::new(format!("Failed to send tokens: {}", e)))?;
 

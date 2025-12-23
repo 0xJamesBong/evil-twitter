@@ -6,7 +6,7 @@ use anchor_lang::prelude::*;
 
 #[account]
 #[derive(InitSpace, Copy, PartialEq, Eq, Debug)]
-pub struct Config {
+pub struct FedConfig {
     pub admin: Pubkey,
     pub payer_authroity: Pubkey,
     pub bling_mint: Pubkey,
@@ -19,7 +19,7 @@ pub struct Config {
     pub padding: [u8; 7], // 7
 }
 
-impl Config {
+impl FedConfig {
     pub fn new(
         admin: Pubkey,
         payer_authroity: Pubkey,

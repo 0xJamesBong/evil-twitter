@@ -1,6 +1,6 @@
-use super::tools::Config;
-use super::user::{UserKarma, UserPostPosition};
-use crate::math::vote_cost::{base_user_cost, cost_in_bling, post_curve_cost};
+use super::tools::OMConfig;
+use super::voter::{VoterAccount, VoterPostPosition};
+use crate::math::vote_cost::{base_voter_cost, cost_in_bling, post_curve_cost};
 use anchor_lang::prelude::*;
 
 // -----------------------------------------------------------------------------
@@ -86,10 +86,10 @@ impl PostAccount {
         relation: PostRelation,
 
         now: i64,
-        config: &Config,
+        om_config: &OMConfig,
         bump: u8,
     ) -> Self {
-        let end_time = now + config.base_duration_secs as i64;
+        let end_time = now + om_config.base_duration_secs as i64;
         Self {
             creator_user,
             post_id_hash,
@@ -111,13 +111,13 @@ impl PostAccount {
         &mut self,
         current_time: i64,
         votes: u32,
-        config: &Config,
+        om_config: &OMConfig,
     ) -> Result<i64> {
-        let naive_new_end =
-            self.end_time.max(current_time) + config.extension_per_vote_secs as i64 * votes as i64;
+        let naive_new_end = self.end_time.max(current_time)
+            + om_config.extension_per_vote_secs as i64 * votes as i64;
 
         // Cap it so it's never more than max_duration_secs from *now*
-        let cap = current_time + config.max_duration_secs as i64;
+        let cap = current_time + om_config.max_duration_secs as i64;
 
         let new_end = naive_new_end.min(cap);
 
@@ -201,8 +201,8 @@ impl Vote {
     pub fn compute_cost_in_bling(
         &self,
         post: &PostAccount,
-        user_position: &UserPostPosition,
-        user_account: &UserKarma,
+        user_position: &VoterPostPosition,
+        voter_account: &VoterAccount,
     ) -> Result<u64> {
         // Calculate base user-adjusted cost
         let prev = match self.side {
@@ -210,7 +210,7 @@ impl Vote {
             Side::Smack => user_position.downvotes as u64,
         };
 
-        let base_cost = base_user_cost(self.votes as u64, prev, self.side, user_account)?;
+        let base_cost = base_voter_cost(self.votes as u64, prev, self.side, voter_account)?;
 
         // Apply post curve adjustments
         let post_cost = post_curve_cost(

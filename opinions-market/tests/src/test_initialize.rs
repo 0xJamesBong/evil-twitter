@@ -13,9 +13,9 @@ use solana_sdk::{
 
 use crate::config::TIME_CONFIG_FAST;
 use crate::utils::phenomena::{
-    test_phenomena_add_valid_payment, test_phenomena_create_user, test_phenomena_deposit,
-    test_phenomena_send_token, test_phenomena_tip, test_phenomena_turn_on_withdrawable,
-    test_phenomena_withdraw,
+    test_phenomena_add_valid_payment, test_phenomena_create_post, test_phenomena_create_user,
+    test_phenomena_deposit, test_phenomena_send_token, test_phenomena_tip,
+    test_phenomena_turn_on_withdrawable, test_phenomena_withdraw,
 };
 use crate::utils::utils::{
     airdrop_sol_to_users, send_tx, setup_token_mint, setup_token_mint_ata_and_mint_to_many_users,
@@ -394,13 +394,6 @@ async fn test_setup() {
             )
             .await;
         }
-        {
-            println!("\n\n");
-            println!(" 🟪🟪🟪🟪🟪🟪🟪🟪🟪🟪🟪🟪🟪🟪🟪🟪🟪");
-            println!(" 🟪 🟪 🟪 🟪 GOD LOVES ME 🟪 🟪 🟪 🟪");
-            println!(" 🟪🟪🟪🟪🟪🟪🟪🟪🟪🟪🟪🟪🟪🟪🟪🟪🟪");
-            panic!();
-        }
 
         //// ===== CREATING POSTS =====
         let (post_p1_pda, post_p1_id_hash) = {
@@ -408,6 +401,7 @@ async fn test_setup() {
             test_phenomena_create_post(
                 &rpc,
                 &opinions_market,
+                &persona,
                 &payer,
                 &user_1,
                 &session_key,
@@ -416,6 +410,14 @@ async fn test_setup() {
             )
             .await
         };
+
+        {
+            println!("\n\n");
+            println!(" 🟪🟪🟪🟪🟪🟪🟪🟪🟪🟪🟪🟪🟪🟪🟪🟪🟪");
+            println!(" 🟪 🟪 🟪 🟪 GOD LOVES ME 🟪 🟪 🟪 🟪");
+            println!(" 🟪🟪🟪🟪🟪🟪🟪🟪🟪🟪🟪🟪🟪🟪🟪🟪🟪");
+            panic!();
+        }
 
         //     let (post_p2_pda, post_p2_id_hash) = {
         //         println!("user 2 creates a child post P2 of user 1's post P1");

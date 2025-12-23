@@ -44,14 +44,14 @@ impl VoterAccountAttackSurface {
 
 #[account]
 #[derive(InitSpace, Copy, PartialEq, Eq, Debug)]
-pub struct VoterKarma {
+pub struct VoterAccount {
     pub voter: Pubkey,     // voter wallet pubkey
     pub social_score: i64, // can drive withdraw penalty etc.
     pub attack_surface: VoterAccountAttackSurface,
     pub bump: u8,
 }
 
-impl VoterKarma {
+impl VoterAccount {
     pub fn default(voter: Pubkey, bump: u8) -> Self {
         Self {
             voter,

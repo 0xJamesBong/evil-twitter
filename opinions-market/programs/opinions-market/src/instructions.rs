@@ -14,10 +14,10 @@ use anchor_spl::token::{Mint, Token, TokenAccount};
 #[instruction(post_id_hash: [u8; 32])]
 pub struct CreatePost<'info> {
     #[account(mut,
-        seeds = [CONFIG_SEED],
+        seeds = [OM_CONFIG_SEED],
         bump,
     )]
-    pub config: Account<'info, Config>,
+    pub om_config: Account<'info, OMConfig>,
     /// CHECK: real user identity (owner of UserAccount and vaults)
     #[account(mut)]
     pub user: UncheckedAccount<'info>,
@@ -58,10 +58,10 @@ pub struct CreatePost<'info> {
 #[instruction(answer_post_id_hash: [u8; 32], question_post_id_hash: [u8; 32])]
 pub struct CreateAnswer<'info> {
     #[account(mut,
-        seeds = [CONFIG_SEED],
+        seeds = [OM_CONFIG_SEED],
         bump,
     )]
-    pub config: Account<'info, Config>,
+    pub om_config: Account<'info, OMConfig>,
     /// CHECK: real user identity (owner of UserAccount and vaults)
     #[account(mut)]
     pub user: UncheckedAccount<'info>,
@@ -107,10 +107,10 @@ pub struct CreateAnswer<'info> {
 #[instruction(side: Side, votes:u64, post_id_hash: [u8; 32])]
 pub struct VoteOnPost<'info> {
     #[account(mut,
-        seeds = [CONFIG_SEED],
-        bump,
+        seeds = [OM_CONFIG_SEED],
+          bump,
     )]
-    pub config: Box<Account<'info, Config>>,
+    pub om_config: Box<Account<'info, OMConfig>>,
 
     /// CHECK: real user identity (owner of UserAccount and vaults) - this is passed for authentication
     #[account(mut)]
@@ -143,7 +143,7 @@ pub struct VoteOnPost<'info> {
     /// CHECK: owned by opinions market - this is the voter data 
     #[account(init_if_needed, payer = payer, 
         seeds = [VOTER_ACCOUNT_SEED, voter.key().as_ref()], bump, space = 8 + VoterAccount::INIT_SPACE)]
-    pub voter_account: AccountInfo<'info>,
+    pub voter_account: Account<'info, VoterAccount>,
 
     // this is the token vault in the fed 
     // #[account(
@@ -153,7 +153,7 @@ pub struct VoteOnPost<'info> {
     //     token::mint = token_mint, 
     //     token::authority = vault_authority,
     // )]
-    #[account(owner = fed::ID)]
+    #[account(mut, owner = fed::ID)]
     pub voter_user_vault_token_account: Box<Account<'info, TokenAccount>>,
 
     #[account(
@@ -165,11 +165,10 @@ pub struct VoteOnPost<'info> {
     )]
     pub position: Box<Account<'info, VoterPostPosition>>,
 
+
+    // Vault authority opague passed from the fed 
     /// CHECK: Vault authority PDA derived from seeds
-    #[account(
-        seeds = [VAULT_AUTHORITY_SEED],
-        bump,
-    )]
+    #[account(owner = fed::ID)]
     pub vault_authority: UncheckedAccount<'info>,
 
     // THIS IS NOW LAZY-CREATED
@@ -191,32 +190,20 @@ pub struct VoteOnPost<'info> {
     pub post_pot_authority: UncheckedAccount<'info>,
 
     // protocol treasury pot for this mint
+    // CHECK: Fed-owned token account (Fed-owned) - let the fed check it 
     #[account(
-        mut,
-        seeds = [PROTOCOL_TREASURY_TOKEN_ACCOUNT_SEED, token_mint.key().as_ref()],
-        bump,
-        token::mint = token_mint,
-        token::authority = config,
+        owner = fed::ID
     )]
-    pub protocol_token_treasury_token_account: Box<Account<'info, TokenAccount>>,
+    pub protocol_token_treasury_token_account: UncheckedAccount<'info>,
 
     // creator's vault for receiving creator fees
-    #[account(
-        init_if_needed,
-        payer = payer,
-        seeds = [USER_VAULT_TOKEN_ACCOUNT_SEED, post.creator_user.as_ref(), token_mint.key().as_ref()],
-        bump,
-        token::mint = token_mint,
-        token::authority = vault_authority,
-    )]
-    pub creator_vault_token_account: Box<Account<'info, TokenAccount>>,
+    /// CHECK: Fed-owned vault; may be uninitialized.
+    /// Fed will validate / initialize via CPI.
+    #[account(mut, owner = fed::ID)]
+    pub creator_vault_token_account: UncheckedAccount<'info>,
 
-    #[account(
-        seeds = [VALID_PAYMENT_SEED, token_mint.key().as_ref()],
-        bump = valid_payment.bump,
-        constraint = valid_payment.enabled @ ErrorCode::MintNotEnabled,
-    )]
-    pub valid_payment: Box<Account<'info, ValidPayment>>,
+    #[account(owner = fed::ID)]
+    pub valid_payment: UncheckedAccount<'info>,
 
     pub token_mint: Account<'info, Mint>,
 
@@ -266,19 +253,16 @@ pub struct SettlePost<'info> {
     )]
     pub post_mint_payout: Account<'info, PostMintPayout>,
 
+    // CHECK: Fed-owned token account (Fed-owned) - let the fed check it 
     #[account(
-        mut,
-        seeds = [PROTOCOL_TREASURY_TOKEN_ACCOUNT_SEED, token_mint.key().as_ref()],
-        bump,
-        token::mint = token_mint,
-        token::authority = config,
+        owner = fed::ID
     )]
-    pub protocol_token_treasury_token_account: Account<'info, TokenAccount>,
+    pub protocol_token_treasury_token_account: UncheckedAccount<'info>,
 
     // Optional parent post (if child)
     pub parent_post: Option<Account<'info, PostAccount>>,
 
-    pub config: Account<'info, Config>,
+    pub om_config: Account<'info, OMConfig>,
     pub token_mint: Account<'info, Mint>,
 
     pub token_program: Program<'info, Token>,
@@ -320,20 +304,13 @@ pub struct DistributeCreatorReward<'info> {
     )]
     pub post_mint_payout: Account<'info, PostMintPayout>,
 
-    #[account(
-        mut,
-        seeds = [USER_VAULT_TOKEN_ACCOUNT_SEED, post.creator_user.as_ref(), token_mint.key().as_ref()],
-        bump,
-        token::mint = token_mint,
-        token::authority = vault_authority,
-    )]
-    pub creator_vault_token_account: Account<'info, TokenAccount>,
+    /// CHECK: Fed-owned vault; may be uninitialized.
+/// Fed will validate / initialize via CPI.
+#[account(mut, owner = fed::ID)]
+pub creator_vault_token_account: UncheckedAccount<'info>,
 
-    /// CHECK: Vault authority PDA
-    #[account(
-        seeds = [VAULT_AUTHORITY_SEED],
-        bump,
-    )]
+    /// CHECK: Fed vault token account (Fed-owned) - let the fed check it 
+    #[account(owner = fed::ID)]
     pub vault_authority: UncheckedAccount<'info>,
 
     pub token_mint: Account<'info, Mint>,
@@ -376,16 +353,13 @@ pub struct DistributeProtocolFee<'info> {
     )]
     pub post_mint_payout: Account<'info, PostMintPayout>,
 
+    // CHECK: Fed-owned token account (Fed-owned) - let the fed check it 
     #[account(
-        mut,
-        seeds = [PROTOCOL_TREASURY_TOKEN_ACCOUNT_SEED, token_mint.key().as_ref()],
-        bump,
-        token::mint = token_mint,
-        token::authority = config,
+        owner = fed::ID
     )]
-    pub protocol_token_treasury_token_account: Account<'info, TokenAccount>,
+    pub protocol_token_treasury_token_account: UncheckedAccount<'info>,
 
-    pub config: Account<'info, Config>,
+    pub om_config: Account<'info, OMConfig>,
     pub token_mint: Account<'info, Mint>,
     pub fed_program: Program<'info, fed::program::Fed>,
     pub token_program: Program<'info, Token>,
@@ -457,10 +431,10 @@ pub struct DistributeParentPostShare<'info> {
 #[instruction( post_id_hash: [u8; 32])]
 pub struct ClaimPostReward<'info> {
     #[account(mut,
-        seeds = [CONFIG_SEED],
+        seeds = [OM_CONFIG_SEED],
         bump,
     )]
-    pub config: Account<'info, Config>,
+    pub om_config: Account<'info, OMConfig>,
     /// CHECK: User is marked as an UncheckedAccount so that it could be just a pubkey or a signer - allowing for dual signing - in the case where the user wants to directly interact with the program and not use our centralized payer, just pass its own keypair to payer and user as the same keypair.
     #[account(mut)]
     pub user: UncheckedAccount<'info>,
@@ -488,8 +462,8 @@ pub struct ClaimPostReward<'info> {
     #[account(
         init_if_needed,
         payer = payer,
-        seeds = [USER_POST_MINT_CLAIM_SEED, post.key().as_ref(), token_mint.key().as_ref()], bump, space = 8 + UserPostMintClaim::INIT_SPACE)]
-    pub user_post_mint_claim: Account<'info, UserPostMintClaim>,
+        seeds = [VOTER_POST_MINT_CLAIM_SEED, post.key().as_ref(), token_mint.key().as_ref()], bump, space = 8 + VoterPostMintClaim::INIT_SPACE)]
+        pub voter_post_mint_claim: Account<'info, VoterPostMintClaim>,
 
     #[account(
         seeds = [POST_MINT_PAYOUT_SEED, post.key().as_ref(), token_mint.key().as_ref()],
@@ -513,22 +487,14 @@ pub struct ClaimPostReward<'info> {
     )]
     pub post_pot_authority: UncheckedAccount<'info>,
 
-    #[account(
-        init_if_needed,
-        payer = payer,
-        seeds = [USER_VAULT_TOKEN_ACCOUNT_SEED, user.key().as_ref(), token_mint.key().as_ref()],
-        bump,
-        token::mint = token_mint,
-        token::authority = vault_authority,
-    )]
+
+    /// CHECK: Fed vault token account (Fed-owned) - let the fed check it 
+    #[account(owner = fed::ID)]
     pub user_vault_token_account: Box<Account<'info, TokenAccount>>,
 
-    /// CHECK: Vault authority PDA derived from seeds
-    #[account(
-        seeds = [VAULT_AUTHORITY_SEED],
-        bump,
-    )]
-    pub vault_authority: UncheckedAccount<'info>,
+        /// CHECK: Fed vault token account (Fed-owned) - let the fed check it 
+    #[account(owner = fed::ID)]
+    pub vault_authority: AccountInfo<'info>,
 
     pub token_mint: Account<'info, Mint>,
     pub fed_program: Program<'info, fed::program::Fed>,

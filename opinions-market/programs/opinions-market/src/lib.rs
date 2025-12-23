@@ -107,7 +107,7 @@ pub mod opinions_market {
             Some(parent_pda) => PostRelation::Reply { parent: parent_pda },
             None => PostRelation::Root,
         };
-        let config = &ctx.accounts.config;
+        let config = &ctx.accounts.om_config;
         let post = &mut ctx.accounts.post;
         let new_post = PostAccount::new(
             ctx.accounts.user.key(),
@@ -137,143 +137,145 @@ pub mod opinions_market {
     /// Core MVP voting instruction.
     /// User pays from their vault; everything is denominated in BLING.
 
-    pub fn create_question(ctx: Context<CreatePost>, post_id_hash: [u8; 32]) -> Result<()> {
-        let clock = Clock::get()?;
-        let now = clock.unix_timestamp;
+    // pub fn create_question(ctx: Context<CreatePost>, post_id_hash: [u8; 32]) -> Result<()> {
+    //     let clock = Clock::get()?;
+    //     let now = clock.unix_timestamp;
 
-        // ---------------------------------------------------------------------
-        // Auth: wallet OR session
-        // ---------------------------------------------------------------------
-        // Auth: session or wallet via CPI
-        persona::cpi::check_session_or_wallet(
-            CpiContext::new(
-                ctx.accounts.persona_program.to_account_info(),
-                persona::cpi::accounts::CheckSessionOrWallet {
-                    user: ctx.accounts.user.to_account_info(),
-                    session_key: ctx.accounts.session_key.to_account_info(),
-                    session_authority: ctx.accounts.session_authority.to_account_info(),
-                },
-            ),
-            now,
-        )?;
-        let config = &ctx.accounts.config;
-        let post = &mut ctx.accounts.post;
+    //     // ---------------------------------------------------------------------
+    //     // Auth: wallet OR session
+    //     // ---------------------------------------------------------------------
+    //     // Auth: session or wallet via CPI
+    //     persona::cpi::check_session_or_wallet(
+    //         CpiContext::new(
+    //             ctx.accounts.persona_program.to_account_info(),
+    //             persona::cpi::accounts::CheckSessionOrWallet {
+    //                 user: ctx.accounts.user.to_account_info(),
+    //                 session_key: ctx.accounts.session_key.to_account_info(),
+    //                 session_authority: ctx.accounts.session_authority.to_account_info(),
+    //             },
+    //         ),
+    //         now,
+    //     )?;
+    //     let config = &ctx.accounts.config;
+    //     let post = &mut ctx.accounts.post;
 
-        // ---------------------------------------------------------------------
-        // Enforced invariants
-        // ---------------------------------------------------------------------
-        let function = PostFunction::Question;
-        let relation = PostRelation::Root;
+    //     // ---------------------------------------------------------------------
+    //     // Enforced invariants
+    //     // ---------------------------------------------------------------------
+    //     let function = PostFunction::Question;
+    //     let relation = PostRelation::Root;
 
-        // ---------------------------------------------------------------------
-        // Initialize PostAccount
-        // ---------------------------------------------------------------------
-        let new_post = PostAccount::new(
-            ctx.accounts.user.key(),
-            post_id_hash,
-            function,
-            relation,
-            now,
-            config,
-            ctx.bumps.post,
-        );
+    //     // ---------------------------------------------------------------------
+    //     // Initialize PostAccount
+    //     // ---------------------------------------------------------------------
+    //     let new_post = PostAccount::new(
+    //         ctx.accounts.user.key(),
+    //         post_id_hash,
+    //         function,
+    //         relation,
+    //         now,
+    //         config,
+    //         ctx.bumps.post,
+    //     );
 
-        // ---------------------------------------------------------------------
-        // Write to account
-        // ---------------------------------------------------------------------
-        post.function = new_post.function;
-        post.relation = new_post.relation;
-        post.forced_outcome = None;
+    //     // ---------------------------------------------------------------------
+    //     // Write to account
+    //     // ---------------------------------------------------------------------
+    //     post.function = new_post.function;
+    //     post.relation = new_post.relation;
+    //     post.forced_outcome = None;
 
-        post.creator_user = new_post.creator_user;
-        post.post_id_hash = new_post.post_id_hash;
-        post.start_time = new_post.start_time;
-        post.end_time = new_post.end_time;
-        post.state = new_post.state;
-        post.upvotes = new_post.upvotes;
-        post.downvotes = new_post.downvotes;
-        post.winning_side = new_post.winning_side;
-        post.bump = new_post.bump;
-        post.reserved = new_post.reserved;
+    //     post.creator_user = new_post.creator_user;
+    //     post.post_id_hash = new_post.post_id_hash;
+    //     post.start_time = new_post.start_time;
+    //     post.end_time = new_post.end_time;
+    //     post.state = new_post.state;
+    //     post.upvotes = new_post.upvotes;
+    //     post.downvotes = new_post.downvotes;
+    //     post.winning_side = new_post.winning_side;
+    //     post.bump = new_post.bump;
+    //     post.reserved = new_post.reserved;
 
-        Ok(())
-    }
+    //     Ok(())
+    // }
 
-    pub fn create_answer(
-        ctx: Context<CreateAnswer>,
-        answer_post_id_hash: [u8; 32],
-        _question_post_id_hash: [u8; 32],
-    ) -> Result<()> {
-        let clock = Clock::get()?;
-        let now = clock.unix_timestamp;
+    // pub fn create_answer(
+    //     ctx: Context<CreateAnswer>,
+    //     answer_post_id_hash: [u8; 32],
+    //     _question_post_id_hash: [u8; 32],
+    // ) -> Result<()> {
+    //     let clock = Clock::get()?;
+    //     let now = clock.unix_timestamp;
 
-        // Auth: session or wallet via CPI
-        persona::cpi::check_session_or_wallet(
-            CpiContext::new(
-                ctx.accounts.persona_program.to_account_info(),
-                persona::cpi::accounts::CheckSessionOrWallet {
-                    user: ctx.accounts.user.to_account_info(),
-                    session_key: ctx.accounts.session_key.to_account_info(),
-                    session_authority: ctx.accounts.session_authority.to_account_info(),
-                },
-            ),
-            now,
-        )?;
-        let config = &ctx.accounts.config;
-        let post = &mut ctx.accounts.post;
-        let question = &ctx.accounts.question_post;
+    //     // Auth: session or wallet via CPI
+    //     persona::cpi::check_session_or_wallet(
+    //         CpiContext::new(
+    //             ctx.accounts.persona_program.to_account_info(),
+    //             persona::cpi::accounts::CheckSessionOrWallet {
+    //                 user: ctx.accounts.user.to_account_info(),
+    //                 session_key: ctx.accounts.session_key.to_account_info(),
+    //                 session_authority: ctx.accounts.session_authority.to_account_info(),
+    //             },
+    //         ),
+    //         now,
+    //     )?;
+    //     let config = &ctx.accounts.config;
+    //     let post = &mut ctx.accounts.post;
+    //     let question = &ctx.accounts.question_post;
 
-        // ---------------------------------------------------------------------
-        // Enforced invariants (redundant safety)
-        // ---------------------------------------------------------------------
-        require!(
-            question.function == PostFunction::Question,
-            ErrorCode::AnswerMustTargetQuestion
-        );
+    //     // ---------------------------------------------------------------------
+    //     // Enforced invariants (redundant safety)
+    //     // ---------------------------------------------------------------------
+    //     require!(
+    //         question.function == PostFunction::Question,
+    //         ErrorCode::AnswerMustTargetQuestion
+    //     );
 
-        require!(
-            matches!(question.relation, PostRelation::Root),
-            ErrorCode::AnswerTargetNotRoot
-        );
+    //     require!(
+    //         matches!(question.relation, PostRelation::Root),
+    //         ErrorCode::AnswerTargetNotRoot
+    //     );
 
-        // ---------------------------------------------------------------------
-        // Construct Answer
-        // ---------------------------------------------------------------------
-        let function = PostFunction::Answer;
-        let relation = PostRelation::AnswerTo {
-            question: question.key(),
-        };
+    //     // ---------------------------------------------------------------------
+    //     // Construct Answer
+    //     // ---------------------------------------------------------------------
+    //     let function = PostFunction::Answer;
+    //     let relation = PostRelation::AnswerTo {
+    //         question: question.key(),
+    //     };
 
-        let new_post = PostAccount::new(
-            ctx.accounts.user.key(),
-            answer_post_id_hash,
-            function,
-            relation,
-            now,
-            config,
-            ctx.bumps.post,
-        );
+    //     let new_post = PostAccount::new(
+    //         ctx.accounts.user.key(),
+    //         answer_post_id_hash,
+    //         function,
+    //         relation,
+    //         now,
+    //         config,
+    //         ctx.bumps.post,
+    //     );
 
-        // ---------------------------------------------------------------------
-        // Write
-        // ---------------------------------------------------------------------
-        post.function = new_post.function;
-        post.relation = new_post.relation;
-        post.forced_outcome = None; // may be set later by question owner
+    //     // ---------------------------------------------------------------------
+    //     // Write
+    //     // ---------------------------------------------------------------------
+    //     post.function = new_post.function;
+    //     post.relation = new_post.relation;
+    //     post.forced_outcome = None; // may be set later by question owner
 
-        post.creator_user = new_post.creator_user;
-        post.post_id_hash = new_post.post_id_hash;
-        post.start_time = new_post.start_time;
-        post.end_time = new_post.end_time;
-        post.state = new_post.state;
-        post.upvotes = new_post.upvotes;
-        post.downvotes = new_post.downvotes;
-        post.winning_side = new_post.winning_side;
-        post.bump = new_post.bump;
-        post.reserved = new_post.reserved;
+    //     post.creator_user = new_post.creator_user;
+    //     post.post_id_hash = new_post.post_id_hash;
+    //     post.start_time = new_post.start_time;
+    //     post.end_time = new_post.end_time;
+    //     post.state = new_post.state;
+    //     post.upvotes = new_post.upvotes;
+    //     post.downvotes = new_post.downvotes;
+    //     post.winning_side = new_post.winning_side;
+    //     post.bump = new_post.bump;
+    //     post.reserved = new_post.reserved;
 
-        Ok(())
-    }
+    //     Ok(())
+    // }
+
+    //
 
     pub fn vote_on_post(
         ctx: Context<VoteOnPost>,
@@ -296,6 +298,20 @@ pub mod opinions_market {
             ),
             now,
         )?;
+
+        // Check if transfer is compliant with fed economic policy
+        fed::cpi::check_transfer(CpiContext::new(
+            ctx.accounts.fed_program.to_account_info(),
+            fed::cpi::accounts::CheckTransfer {
+                from: ctx
+                    .accounts
+                    .voter_user_vault_token_account
+                    .to_account_info(),
+                to: ctx.accounts.post_pot_token_account.to_account_info(),
+                valid_payment: ctx.accounts.valid_payment.to_account_info(),
+                token_mint: ctx.accounts.token_mint.to_account_info(),
+            },
+        ))?;
 
         let cfg = &ctx.accounts.config;
         let post = &mut ctx.accounts.post;
@@ -322,9 +338,9 @@ pub mod opinions_market {
 
         // Handle position
         let pos = &mut ctx.accounts.position;
-        if pos.user == Pubkey::default() {
-            let new_pos = UserPostPosition::new(ctx.accounts.voter.key(), post.key());
-            pos.user = new_pos.user;
+        if pos.voter == Pubkey::default() {
+            let new_pos = VoterPostPosition::new(ctx.accounts.voter.key(), post.key());
+            pos.voter = new_pos.voter;
             pos.post = new_pos.post;
             pos.upvotes = new_pos.upvotes;
             pos.downvotes = new_pos.downvotes;
@@ -336,9 +352,9 @@ pub mod opinions_market {
 
         let vote = Vote::new(side, valid_votes, ctx.accounts.voter.key(), post.key());
         // get karma from persona
-        todo!();
-        let user_karma = &mut ctx.accounts.voter_user_karma;
-        let cost_bling = vote.compute_cost_in_bling(post, pos, &ctx.accounts.voter_account)?;
+
+        let voter_account = ctx.accounts.voter_account.as_ref();
+        let cost_bling = vote.compute_cost_in_bling(post, pos, voter_account)?;
 
         msg!("cost_bling: {}", cost_bling);
         msg!("post.upvotes BEFORE: {}", post.upvotes);
@@ -388,13 +404,15 @@ pub mod opinions_market {
         // ---- 2. TRANSFERS via Fed (all in BLING) ----
         //
 
-        // Protocol fee transfer
+        // Protocol fee transfer (Fed vault → OM treasury)
         if protocol_fee > 0 {
-            fed::cpi::transfer(
+            fed::cpi::transfer_out_of_fed_user_account(
                 CpiContext::new(
                     ctx.accounts.fed_program.to_account_info(),
-                    fed::cpi::accounts::Transfer {
-                        from: ctx
+                    fed::cpi::accounts::TransferOutOfFedUserAccount {
+                        user_from: ctx.accounts.voter.to_account_info(),
+                        user: ctx.accounts.voter.to_account_info(),
+                        from_user_vault_token_account: ctx
                             .accounts
                             .voter_user_vault_token_account
                             .to_account_info(),
@@ -404,44 +422,54 @@ pub mod opinions_market {
                             .to_account_info(),
                         vault_authority: ctx.accounts.vault_authority.to_account_info(),
                         token_program: ctx.accounts.token_program.to_account_info(),
+                        valid_payment: ctx.accounts.valid_payment.to_account_info(),
+                        token_mint: ctx.accounts.token_mint.to_account_info(),
                     },
                 ),
                 protocol_fee,
             )?;
         }
 
-        // Creator fee transfer (if > 0)
+        // Creator fee transfer (Fed vault → Fed creator vault)
         if creator_pump_fee > 0 {
-            fed::cpi::transfer(
+            fed::cpi::transfer_out_of_fed_user_account(
                 CpiContext::new(
                     ctx.accounts.fed_program.to_account_info(),
-                    fed::cpi::accounts::Transfer {
-                        from: ctx
+                    fed::cpi::accounts::TransferOutOfFedUserAccount {
+                        user_from: ctx.accounts.voter.to_account_info(),
+                        user: ctx.accounts.voter.to_account_info(),
+                        from_user_vault_token_account: ctx
                             .accounts
                             .voter_user_vault_token_account
                             .to_account_info(),
                         to: ctx.accounts.creator_vault_token_account.to_account_info(),
                         vault_authority: ctx.accounts.vault_authority.to_account_info(),
                         token_program: ctx.accounts.token_program.to_account_info(),
+                        valid_payment: ctx.accounts.valid_payment.to_account_info(),
+                        token_mint: ctx.accounts.token_mint.to_account_info(),
                     },
                 ),
                 creator_pump_fee,
             )?;
         }
 
-        // Pot increment transfer (from user vault, so use Fed::transfer)
+        // Pot increment transfer (Fed vault → OM post pot)
         if pot_increment_token > 0 {
-            fed::cpi::transfer(
+            fed::cpi::transfer_out_of_fed_user_account(
                 CpiContext::new(
                     ctx.accounts.fed_program.to_account_info(),
-                    fed::cpi::accounts::Transfer {
-                        from: ctx
+                    fed::cpi::accounts::TransferOutOfFedUserAccount {
+                        user_from: ctx.accounts.voter.to_account_info(),
+                        user: ctx.accounts.voter.to_account_info(),
+                        from_user_vault_token_account: ctx
                             .accounts
                             .voter_user_vault_token_account
                             .to_account_info(),
                         to: ctx.accounts.post_pot_token_account.to_account_info(),
                         vault_authority: ctx.accounts.vault_authority.to_account_info(),
                         token_program: ctx.accounts.token_program.to_account_info(),
+                        valid_payment: ctx.accounts.valid_payment.to_account_info(),
+                        token_mint: ctx.accounts.token_mint.to_account_info(),
                     },
                 ),
                 pot_increment_token,
@@ -791,7 +819,7 @@ pub mod opinions_market {
         )?;
         let post = &ctx.accounts.post;
         let pos = &mut ctx.accounts.position;
-        let claim = &mut ctx.accounts.user_post_mint_claim;
+        let claim = &mut ctx.accounts.voter_post_mint_claim;
         let payout = &ctx.accounts.post_mint_payout;
 
         require!(post.state == PostState::Settled, ErrorCode::PostNotSettled);
