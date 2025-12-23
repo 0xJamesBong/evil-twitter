@@ -892,6 +892,71 @@ export type OpinionsMarket = {
       ]
     },
     {
+      "name": "initialize",
+      "discriminator": [
+        175,
+        175,
+        109,
+        31,
+        13,
+        152,
+        155,
+        237
+      ],
+      "accounts": [
+        {
+          "name": "admin",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "payer",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "omConfig",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  111,
+                  109,
+                  95,
+                  99,
+                  111,
+                  110,
+                  102,
+                  105,
+                  103
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "systemProgram",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "baseDurationSecs",
+          "type": "u32"
+        },
+        {
+          "name": "maxDurationSecs",
+          "type": "u32"
+        },
+        {
+          "name": "extensionPerVoteSecs",
+          "type": "u32"
+        }
+      ]
+    },
+    {
       "name": "settlePost",
       "discriminator": [
         233,

@@ -84,10 +84,9 @@ pub mod fed {
 
     pub fn initialize(
         ctx: Context<Initialize>,
-
-        base_duration_secs: u32,
-        max_duration_secs: u32,
-        extension_per_vote_secs: u32,
+        // base_duration_secs: u32,
+        // max_duration_secs: u32,
+        // extension_per_vote_secs: u32,
     ) -> Result<()> {
         let cfg = &mut ctx.accounts.fed_config;
 
@@ -95,9 +94,6 @@ pub mod fed {
             *ctx.accounts.admin.key,
             ctx.accounts.payer.key(),
             ctx.accounts.bling_mint.key(),
-            base_duration_secs,
-            max_duration_secs,
-            extension_per_vote_secs,
             ctx.bumps.fed_config,
             [0; 7],
         );
@@ -105,10 +101,6 @@ pub mod fed {
         cfg.admin = new_cfg.admin;
         cfg.payer_authroity = new_cfg.payer_authroity;
         cfg.bling_mint = new_cfg.bling_mint;
-
-        cfg.base_duration_secs = new_cfg.base_duration_secs;
-        cfg.max_duration_secs = new_cfg.max_duration_secs;
-        cfg.extension_per_vote_secs = new_cfg.extension_per_vote_secs;
 
         cfg.bump = new_cfg.bump;
         cfg.padding = new_cfg.padding;

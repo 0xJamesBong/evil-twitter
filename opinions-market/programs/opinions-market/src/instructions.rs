@@ -9,6 +9,16 @@ use anchor_spl::token::{Mint, Token, TokenAccount};
 // CONTEXTS
 // -----------------------------------------------------------------------------
 
+#[derive(Accounts)]
+pub struct Initialize<'info> {
+    #[account(mut)]
+    pub admin: Signer<'info>,
+    #[account(mut)]
+    pub payer: Signer<'info>,
+    #[account(init, payer = payer, seeds = [OM_CONFIG_SEED], bump, space = 8 + OMConfig::INIT_SPACE)]
+    pub om_config: Account<'info, OMConfig>,
+    pub system_program: Program<'info, System>,
+}
 // The User-uncheckedAccount and payer-Signer pattern is used to allow for dual signing - so the user doesn't need to see a signature prompt pop-up
 #[derive(Accounts)]
 #[instruction(post_id_hash: [u8; 32])]

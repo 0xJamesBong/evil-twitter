@@ -11,10 +11,6 @@ pub struct FedConfig {
     pub payer_authroity: Pubkey,
     pub bling_mint: Pubkey,
 
-    pub base_duration_secs: u32,
-    pub max_duration_secs: u32,
-    pub extension_per_vote_secs: u32,
-
     pub bump: u8,
     pub padding: [u8; 7], // 7
 }
@@ -24,9 +20,6 @@ impl FedConfig {
         admin: Pubkey,
         payer_authroity: Pubkey,
         bling_mint: Pubkey,
-        base_duration_secs: u32,
-        max_duration_secs: u32,
-        extension_per_vote_secs: u32,
         bump: u8,
         padding: [u8; 7],
     ) -> Self {
@@ -34,9 +27,6 @@ impl FedConfig {
             admin,
             payer_authroity,
             bling_mint,
-            base_duration_secs,
-            max_duration_secs,
-            extension_per_vote_secs,
             bump,
             padding,
         }

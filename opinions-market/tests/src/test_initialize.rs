@@ -215,7 +215,7 @@ async fn test_setup() {
         )
         .0;
 
-        let initialize_ix = fed
+        let initialize_fed_ix = fed
             .request()
             .accounts(fed::accounts::Initialize {
                 admin: admin_pubkey,
@@ -228,7 +228,26 @@ async fn test_setup() {
                 system_program: system_program::ID,
                 token_program: spl_token::ID,
             })
-            .args(fed::instruction::Initialize {
+            .args(fed::instruction::Initialize {})
+            .instructions()
+            .unwrap();
+
+        let initialize_fed_tx =
+            send_tx(&rpc, initialize_fed_ix, &payer.pubkey(), &[&payer, &admin])
+                .await
+                .unwrap();
+        println!("initialize fed tx: {:?}", initialize_fed_tx);
+
+        println!("initializing opinions market engine");
+        let initialize_opinions_market_ix = opinions_market
+            .request()
+            .accounts(opinions_market::accounts::Initialize {
+                admin: admin_pubkey,
+                payer: payer_pubkey.clone(),
+                om_config: om_config_pda,
+                system_program: anchor_client::solana_sdk::system_program::ID,
+            })
+            .args(opinions_market::instruction::Initialize {
                 base_duration_secs: TIME_CONFIG_FAST.base_duration_secs,
                 max_duration_secs: TIME_CONFIG_FAST.max_duration_secs,
                 extension_per_vote_secs: TIME_CONFIG_FAST.extension_per_vote_secs,
@@ -236,10 +255,18 @@ async fn test_setup() {
             .instructions()
             .unwrap();
 
-        let initialize_tx = send_tx(&rpc, initialize_ix, &payer.pubkey(), &[&payer, &admin])
-            .await
-            .unwrap();
-        println!("initialize tx: {:?}", initialize_tx);
+        let initialize_opinions_market_tx = send_tx(
+            &rpc,
+            initialize_opinions_market_ix,
+            &payer.pubkey(),
+            &[&payer, &admin],
+        )
+        .await
+        .unwrap();
+        println!(
+            "initialize opinions market tx: {:?}",
+            initialize_opinions_market_tx
+        );
 
         // make bling withdrawable
         test_phenomena_turn_on_withdrawable(

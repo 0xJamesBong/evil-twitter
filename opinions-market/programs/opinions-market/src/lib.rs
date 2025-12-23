@@ -79,6 +79,37 @@ pub mod opinions_market {
     use super::*;
 
     // -------------------------------------------------------------------------
+    // INITIALIZATION
+    // -------------------------------------------------------------------------
+
+    pub fn initialize(
+        ctx: Context<Initialize>,
+        base_duration_secs: u32,
+        max_duration_secs: u32,
+        extension_per_vote_secs: u32,
+    ) -> Result<()> {
+        let om_config = &mut ctx.accounts.om_config;
+
+        let new_config = OMConfig::new(
+            ctx.accounts.admin.key(),
+            base_duration_secs,
+            max_duration_secs,
+            extension_per_vote_secs,
+            ctx.bumps.om_config,
+            [0; 7],
+        );
+
+        om_config.admin = new_config.admin;
+        om_config.base_duration_secs = new_config.base_duration_secs;
+        om_config.max_duration_secs = new_config.max_duration_secs;
+        om_config.extension_per_vote_secs = new_config.extension_per_vote_secs;
+        om_config.bump = new_config.bump;
+        om_config.padding = new_config.padding;
+
+        Ok(())
+    }
+
+    // -------------------------------------------------------------------------
     // POSTS
     // -------------------------------------------------------------------------
 
