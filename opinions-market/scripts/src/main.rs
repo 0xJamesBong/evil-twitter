@@ -17,6 +17,7 @@ use opinions_market::constants::USDC_LAMPORTS_PER_USDC;
 use opinions_market::pda_seeds::*;
 use opinions_market::ID;
 
+use tests::utils::phenomena::test_phenomena_turn_on_withdrawable;
 use tests::utils::utils::{
     airdrop_sol_to_users, send_tx, setup_token_mint, setup_token_mint_ata_and_mint_to_many_users,
 };
@@ -304,6 +305,32 @@ async fn main() {
         "STABLECOIN registered to valid payments: {:?}",
         stablecoin_valid_payment_tx
     );
+
+    // Make USDC withdrawable
+    println!("🌍 Making USDC withdrawable...");
+    test_phenomena_turn_on_withdrawable(
+        &rpc,
+        &fed,
+        &payer,
+        &admin,
+        &usdc_mint.pubkey(),
+        &fed_config_pda,
+    )
+    .await;
+    println!("✅ USDC is now withdrawable");
+
+    // Make STABLECOIN withdrawable
+    println!("🌍 Making STABLECOIN withdrawable...");
+    test_phenomena_turn_on_withdrawable(
+        &rpc,
+        &fed,
+        &payer,
+        &admin,
+        &stablecoin_mint.pubkey(),
+        &fed_config_pda,
+    )
+    .await;
+    println!("✅ STABLECOIN is now withdrawable");
 
     println!("BLING_MINT: {}", bling_mint.pubkey());
     println!("USDC_MINT: {}", usdc_mint.pubkey());
