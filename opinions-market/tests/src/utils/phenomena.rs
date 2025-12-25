@@ -1897,7 +1897,7 @@ pub async fn test_phenomena_settle_post(
     println!("Settling post {:?} for {} tokens", post_pda, tokens.len());
 
     // wait for post to be expired
-    // wait_for_post_to_expire(rpc, opinions_market, post_pda).await;
+    wait_for_post_to_expire(rpc, opinions_market, post_pda).await;
 
     for (token_mint, token_name) in tokens {
         println!(
