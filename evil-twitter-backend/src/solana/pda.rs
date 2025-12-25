@@ -1,7 +1,10 @@
 use solana_sdk::pubkey::Pubkey;
 use std::str::FromStr;
+use std::{env, fs};
 
-// Fed program ID (from Anchor.toml)
+use serde_json::Value;
+
+// Fed program ID (fallback only; prefer IDL/env)
 pub const FED_PROGRAM_ID: &str = "GLQEgZvtw6JdtF4p1cGsDBh3ucCVrmpZjPuyzqp6yMTo";
 
 // Persona program ID (from Anchor.toml)
@@ -9,7 +12,22 @@ pub const PERSONA_PROGRAM_ID: &str = "3bE1UxZ4VFKbptUhpFwzA1AdXgdJENhRcLQApj9F9Z
 
 /// Get Fed program ID as Pubkey
 pub fn fed_program_id() -> Pubkey {
-    Pubkey::from_str(FED_PROGRAM_ID).expect("Invalid Fed program ID")
+    if let Ok(program_id) = env::var("SOLANA_FED_PROGRAM_ID") {
+        return Pubkey::from_str(&program_id).expect("Invalid SOLANA_FED_PROGRAM_ID");
+    }
+
+    let network = env::var("SOLANA_NETWORK").unwrap_or_else(|_| "localnet".to_string());
+    let idl_path = format!("src/solana/target/{}/idl/fed.json", network);
+    let file = fs::read_to_string(&idl_path).unwrap_or_else(|_| {
+        panic!(
+            "IDL file not found at: {}. Set SOLANA_FED_PROGRAM_ID or ensure the IDL exists.",
+            idl_path
+        )
+    });
+
+    let v: Value = serde_json::from_str(&file).expect("Invalid JSON in Fed IDL");
+    let addr = v["address"].as_str().expect("Fed IDL missing address field");
+    Pubkey::from_str(addr).expect("Invalid Fed program ID in IDL")
 }
 
 /// Get Persona program ID as Pubkey
@@ -87,7 +105,7 @@ pub fn get_post_pot_authority_pda(program_id: &Pubkey, post_pda: &Pubkey) -> (Pu
 
 /// Derive the User Vault Token Account PDA
 pub fn get_user_vault_token_account_pda(
-    program_id: &Pubkey,
+    fed_program_id: &Pubkey,
     user_wallet: &Pubkey,
     token_mint: &Pubkey,
 ) -> (Pubkey, u8) {
@@ -97,7 +115,7 @@ pub fn get_user_vault_token_account_pda(
             user_wallet.as_ref(),
             token_mint.as_ref(),
         ],
-        program_id,
+        fed_program_id,
     )
 }
 
@@ -173,11 +191,7 @@ pub fn get_session_authority_pda(
 }
 
 /// Derive the Tip Vault PDA
-pub fn get_tip_vault_pda(
-    program_id: &Pubkey,
-    owner: &Pubkey,
-    token_mint: &Pubkey,
-) -> (Pubkey, u8) {
+pub fn get_tip_vault_pda(program_id: &Pubkey, owner: &Pubkey, token_mint: &Pubkey) -> (Pubkey, u8) {
     Pubkey::find_program_address(
         &[TIP_VAULT_SEED, owner.as_ref(), token_mint.as_ref()],
         program_id,

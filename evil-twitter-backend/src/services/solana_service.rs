@@ -1463,7 +1463,7 @@ impl SolanaService {
     }
 
     /// Get canonical vote cost for a user
-    /// Fetches UserAccount from persona and VoterAccount from opinions_market
+    /// Fetches VoterAccount from opinions_market if it exists, otherwise uses default values
     /// Uses VoterAccount for cost calculation (it has the canonical_cost method)
     pub async fn get_canonical_cost(
         &self,
@@ -1480,17 +1480,23 @@ impl SolanaService {
 
         // Derive the VoterAccount PDA (in opinions_market program)
         // VoterAccount is used for voting and has the canonical_cost method
-        let (voter_account_pda, _) = get_voter_account_pda(&program_id, user_wallet);
+        let (voter_account_pda, bump) = get_voter_account_pda(&program_id, user_wallet);
 
-        // Fetch VoterAccount (this has canonical_cost method)
+        // Fetch VoterAccount if it exists, otherwise use default
+        // VoterAccount is created lazily when user first votes or creates a post
         let voter_account: opinions_market::states::VoterAccount =
-            program.account(voter_account_pda).await.map_err(|e| {
-                anyhow::anyhow!(
-                    "Failed to fetch VoterAccount PDA {}: {}",
-                    voter_account_pda,
-                    e
-                )
-            })?;
+            match program.account(voter_account_pda).await {
+                Ok(account) => account,
+                Err(_) => {
+                    // Account doesn't exist yet - use default VoterAccount
+                    // This happens when user hasn't voted or created a post yet
+                    println!(
+                        "  ℹ️  VoterAccount doesn't exist yet for user {}, using default values",
+                        user_wallet
+                    );
+                    opinions_market::states::VoterAccount::default(*user_wallet, bump)
+                }
+            };
 
         // Compute canonical cost directly on VoterAccount
         // This is a pure user attribute - no Vote struct needed
