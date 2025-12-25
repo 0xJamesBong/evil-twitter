@@ -494,13 +494,13 @@ pub async fn current_session_resolver(ctx: &Context<'_>) -> Result<Option<Sessio
             async_graphql::Error::new(format!("Failed to get session authority: {}", e))
         })?;
 
-    match session_authority {
-        Some(session) => {
-            // Derive session authority PDA to return
-            let program_id = app_state.solana_service.opinions_market_program().id();
-            let session_key = app_state.solana_service.session_key_pubkey();
-            let (session_authority_pda, _) =
-                get_session_authority_pda(&program_id, &wallet_pubkey, &session_key);
+        match session_authority {
+            Some(session) => {
+                // Derive session authority PDA to return
+                let persona_program_id = crate::solana::persona_program_id();
+                let session_key = app_state.solana_service.session_key_pubkey();
+                let (session_authority_pda, _) =
+                    get_session_authority_pda(&persona_program_id, &wallet_pubkey, &session_key);
 
             Ok(Some(SessionInfo {
                 session_authority_pda: session_authority_pda.to_string(),

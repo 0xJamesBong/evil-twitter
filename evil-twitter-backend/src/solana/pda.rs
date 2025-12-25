@@ -1,4 +1,21 @@
 use solana_sdk::pubkey::Pubkey;
+use std::str::FromStr;
+
+// Fed program ID (from Anchor.toml)
+pub const FED_PROGRAM_ID: &str = "GLQEgZvtw6JdtF4p1cGsDBh3ucCVrmpZjPuyzqp6yMTo";
+
+// Persona program ID (from Anchor.toml)
+pub const PERSONA_PROGRAM_ID: &str = "3bE1UxZ4VFKbptUhpFwzA1AdXgdJENhRcLQApj9F9Z1d";
+
+/// Get Fed program ID as Pubkey
+pub fn fed_program_id() -> Pubkey {
+    Pubkey::from_str(FED_PROGRAM_ID).expect("Invalid Fed program ID")
+}
+
+/// Get Persona program ID as Pubkey
+pub fn persona_program_id() -> Pubkey {
+    Pubkey::from_str(PERSONA_PROGRAM_ID).expect("Invalid Persona program ID")
+}
 
 // PDA seeds matching the program
 const CONFIG_SEED: &[u8] = b"config";
@@ -13,6 +30,9 @@ const POST_POT_TOKEN_ACCOUNT_SEED: &[u8] = b"post_pot_token_account";
 const PROTOCOL_TREASURY_TOKEN_ACCOUNT_SEED: &[u8] = b"protocol_treasury_token_account";
 const POST_MINT_PAYOUT_SEED: &[u8] = b"post_mint_payout";
 const USER_POST_MINT_CLAIM_SEED: &[u8] = b"user_post_mint_claim";
+const VOTER_POST_MINT_CLAIM_SEED: &[u8] = b"voter_post_mint_claim";
+const VOTER_ACCOUNT_SEED: &[u8] = b"voter_account";
+const FED_CONFIG_SEED: &[u8] = b"fed_config";
 const SESSION_AUTHORITY_SEED: &[u8] = b"session_authority";
 const TIP_VAULT_SEED: &[u8] = b"tip_vault";
 const TIP_VAULT_TOKEN_ACCOUNT_SEED: &[u8] = b"tip_vault_token_account";
@@ -174,6 +194,32 @@ pub fn get_tip_vault_token_account_pda(
         &[
             TIP_VAULT_TOKEN_ACCOUNT_SEED,
             owner.as_ref(),
+            token_mint.as_ref(),
+        ],
+        program_id,
+    )
+}
+
+/// Derive the Fed Config PDA (owned by Fed program)
+pub fn get_fed_config_pda(fed_program_id: &Pubkey) -> (Pubkey, u8) {
+    Pubkey::find_program_address(&[FED_CONFIG_SEED], fed_program_id)
+}
+
+/// Derive the Voter Account PDA (owned by Opinions Market program)
+pub fn get_voter_account_pda(program_id: &Pubkey, voter: &Pubkey) -> (Pubkey, u8) {
+    Pubkey::find_program_address(&[VOTER_ACCOUNT_SEED, voter.as_ref()], program_id)
+}
+
+/// Derive the Voter Post Mint Claim PDA
+pub fn get_voter_post_mint_claim_pda(
+    program_id: &Pubkey,
+    post_pda: &Pubkey,
+    token_mint: &Pubkey,
+) -> (Pubkey, u8) {
+    Pubkey::find_program_address(
+        &[
+            VOTER_POST_MINT_CLAIM_SEED,
+            post_pda.as_ref(),
             token_mint.as_ref(),
         ],
         program_id,

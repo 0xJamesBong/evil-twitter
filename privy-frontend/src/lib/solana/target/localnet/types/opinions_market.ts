@@ -27,13 +27,16 @@ export type OpinionsMarket = {
       ],
       "accounts": [
         {
-          "name": "config",
+          "name": "omConfig",
           "writable": true,
           "pda": {
             "seeds": [
               {
                 "kind": "const",
                 "value": [
+                  111,
+                  109,
+                  95,
                   99,
                   111,
                   110,
@@ -59,42 +62,7 @@ export type OpinionsMarket = {
           "writable": true
         },
         {
-          "name": "sessionAuthority",
-          "writable": true,
-          "pda": {
-            "seeds": [
-              {
-                "kind": "const",
-                "value": [
-                  115,
-                  101,
-                  115,
-                  115,
-                  105,
-                  111,
-                  110,
-                  95,
-                  97,
-                  117,
-                  116,
-                  104,
-                  111,
-                  114,
-                  105,
-                  116,
-                  121
-                ]
-              },
-              {
-                "kind": "account",
-                "path": "user"
-              },
-              {
-                "kind": "account",
-                "path": "sessionKey"
-              }
-            ]
-          }
+          "name": "sessionAuthority"
         },
         {
           "name": "post",
@@ -130,15 +98,16 @@ export type OpinionsMarket = {
           "writable": true
         },
         {
-          "name": "userPostMintClaim",
+          "name": "voterPostMintClaim",
           "writable": true,
           "pda": {
             "seeds": [
               {
                 "kind": "const",
                 "value": [
-                  117,
-                  115,
+                  118,
+                  111,
+                  116,
                   101,
                   114,
                   95,
@@ -288,7 +257,18 @@ export type OpinionsMarket = {
           "writable": true
         },
         {
+          "name": "vaultAuthority"
+        },
+        {
           "name": "tokenMint"
+        },
+        {
+          "name": "fedProgram",
+          "address": "GLQEgZvtw6JdtF4p1cGsDBh3ucCVrmpZjPuyzqp6yMTo"
+        },
+        {
+          "name": "personaProgram",
+          "address": "3bE1UxZ4VFKbptUhpFwzA1AdXgdJENhRcLQApj9F9Z1d"
         },
         {
           "name": "tokenProgram",
@@ -312,26 +292,29 @@ export type OpinionsMarket = {
       ]
     },
     {
-      "name": "createPost",
+      "name": "createAnswer",
       "discriminator": [
-        123,
-        92,
-        184,
-        29,
-        231,
-        24,
-        15,
-        202
+        40,
+        0,
+        255,
+        68,
+        75,
+        97,
+        185,
+        35
       ],
       "accounts": [
         {
-          "name": "config",
+          "name": "omConfig",
           "writable": true,
           "pda": {
             "seeds": [
               {
                 "kind": "const",
                 "value": [
+                  111,
+                  109,
+                  95,
                   99,
                   111,
                   110,
@@ -356,52 +339,162 @@ export type OpinionsMarket = {
           "writable": true
         },
         {
-          "name": "sessionAuthority",
+          "name": "sessionAuthority"
+        },
+        {
+          "name": "userAccount"
+        },
+        {
+          "name": "post",
           "writable": true,
           "pda": {
             "seeds": [
               {
                 "kind": "const",
                 "value": [
-                  115,
-                  101,
-                  115,
-                  115,
-                  105,
+                  112,
                   111,
-                  110,
+                  115,
+                  116,
                   95,
                   97,
-                  117,
-                  116,
-                  104,
+                  99,
+                  99,
                   111,
-                  114,
-                  105,
-                  116,
-                  121
+                  117,
+                  110,
+                  116
                 ]
               },
               {
-                "kind": "account",
-                "path": "user"
-              },
-              {
-                "kind": "account",
-                "path": "sessionKey"
+                "kind": "arg",
+                "path": "answerPostIdHash"
               }
             ]
           }
         },
         {
-          "name": "userAccount",
+          "name": "questionPost",
           "pda": {
             "seeds": [
               {
                 "kind": "const",
                 "value": [
-                  117,
+                  112,
+                  111,
                   115,
+                  116,
+                  95,
+                  97,
+                  99,
+                  99,
+                  111,
+                  117,
+                  110,
+                  116
+                ]
+              },
+              {
+                "kind": "arg",
+                "path": "questionPostIdHash"
+              }
+            ]
+          }
+        },
+        {
+          "name": "personaProgram",
+          "address": "3bE1UxZ4VFKbptUhpFwzA1AdXgdJENhRcLQApj9F9Z1d"
+        },
+        {
+          "name": "systemProgram",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "answerPostIdHash",
+          "type": {
+            "array": [
+              "u8",
+              32
+            ]
+          }
+        },
+        {
+          "name": "questionPostIdHash",
+          "type": {
+            "array": [
+              "u8",
+              32
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "createPost",
+      "discriminator": [
+        123,
+        92,
+        184,
+        29,
+        231,
+        24,
+        15,
+        202
+      ],
+      "accounts": [
+        {
+          "name": "omConfig",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  111,
+                  109,
+                  95,
+                  99,
+                  111,
+                  110,
+                  102,
+                  105,
+                  103
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "user",
+          "writable": true
+        },
+        {
+          "name": "payer",
+          "writable": true
+        },
+        {
+          "name": "sessionKey",
+          "writable": true
+        },
+        {
+          "name": "sessionAuthority"
+        },
+        {
+          "name": "userAccount"
+        },
+        {
+          "name": "voterAccount",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  118,
+                  111,
+                  116,
                   101,
                   114,
                   95,
@@ -451,6 +544,10 @@ export type OpinionsMarket = {
           }
         },
         {
+          "name": "personaProgram",
+          "address": "3bE1UxZ4VFKbptUhpFwzA1AdXgdJENhRcLQApj9F9Z1d"
+        },
+        {
           "name": "systemProgram",
           "address": "11111111111111111111111111111111"
         }
@@ -474,26 +571,33 @@ export type OpinionsMarket = {
       ]
     },
     {
-      "name": "createUser",
+      "name": "createQuestion",
+      "docs": [
+        "Core MVP voting instruction.",
+        "User pays from their vault; everything is denominated in BLING."
+      ],
       "discriminator": [
-        108,
-        227,
-        130,
-        130,
-        252,
-        109,
-        75,
-        218
+        222,
+        74,
+        49,
+        30,
+        160,
+        220,
+        179,
+        27
       ],
       "accounts": [
         {
-          "name": "config",
+          "name": "omConfig",
           "writable": true,
           "pda": {
             "seeds": [
               {
                 "kind": "const",
                 "value": [
+                  111,
+                  109,
+                  95,
                   99,
                   111,
                   110,
@@ -511,19 +615,29 @@ export type OpinionsMarket = {
         },
         {
           "name": "payer",
-          "writable": true,
-          "signer": true
+          "writable": true
         },
         {
-          "name": "userAccount",
+          "name": "sessionKey",
+          "writable": true
+        },
+        {
+          "name": "sessionAuthority"
+        },
+        {
+          "name": "userAccount"
+        },
+        {
+          "name": "voterAccount",
           "writable": true,
           "pda": {
             "seeds": [
               {
                 "kind": "const",
                 "value": [
-                  117,
-                  115,
+                  118,
+                  111,
+                  116,
                   101,
                   114,
                   95,
@@ -542,148 +656,122 @@ export type OpinionsMarket = {
               }
             ]
           }
+        },
+        {
+          "name": "post",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  111,
+                  115,
+                  116,
+                  95,
+                  97,
+                  99,
+                  99,
+                  111,
+                  117,
+                  110,
+                  116
+                ]
+              },
+              {
+                "kind": "arg",
+                "path": "postIdHash"
+              }
+            ]
+          }
+        },
+        {
+          "name": "personaProgram",
+          "address": "3bE1UxZ4VFKbptUhpFwzA1AdXgdJENhRcLQApj9F9Z1d"
         },
         {
           "name": "systemProgram",
           "address": "11111111111111111111111111111111"
         }
       ],
-      "args": []
+      "args": [
+        {
+          "name": "postIdHash",
+          "type": {
+            "array": [
+              "u8",
+              32
+            ]
+          }
+        }
+      ]
     },
     {
-      "name": "deposit",
+      "name": "distributeParentPostShare",
       "docs": [
-        "User deposits from their wallet into the program-controlled vault."
+        "Distribute parent post share from frozen settlement.",
+        "Reads mother_fee from PostMintPayout and transfers it to parent post's pot."
       ],
       "discriminator": [
-        242,
-        35,
-        198,
-        137,
-        82,
-        225,
-        242,
-        182
+        116,
+        113,
+        172,
+        154,
+        248,
+        40,
+        239,
+        114
       ],
       "accounts": [
-        {
-          "name": "user",
-          "writable": true,
-          "signer": true
-        },
         {
           "name": "payer",
           "writable": true,
           "signer": true
         },
         {
-          "name": "userAccount",
+          "name": "post",
           "pda": {
             "seeds": [
               {
                 "kind": "const",
                 "value": [
-                  117,
-                  115,
-                  101,
-                  114,
-                  95,
-                  97,
-                  99,
-                  99,
-                  111,
-                  117,
-                  110,
-                  116
-                ]
-              },
-              {
-                "kind": "account",
-                "path": "user"
-              }
-            ]
-          }
-        },
-        {
-          "name": "tokenMint"
-        },
-        {
-          "name": "validPayment",
-          "pda": {
-            "seeds": [
-              {
-                "kind": "const",
-                "value": [
-                  118,
-                  97,
-                  108,
-                  105,
-                  100,
-                  95,
                   112,
+                  111,
+                  115,
+                  116,
+                  95,
                   97,
-                  121,
-                  109,
-                  101,
+                  99,
+                  99,
+                  111,
+                  117,
                   110,
                   116
                 ]
               },
               {
-                "kind": "account",
-                "path": "tokenMint"
+                "kind": "arg",
+                "path": "postIdHash"
               }
             ]
           }
         },
         {
-          "name": "userTokenAta",
-          "writable": true
-        },
-        {
-          "name": "vaultAuthority",
-          "pda": {
-            "seeds": [
-              {
-                "kind": "const",
-                "value": [
-                  118,
-                  97,
-                  117,
-                  108,
-                  116,
-                  95,
-                  97,
-                  117,
-                  116,
-                  104,
-                  111,
-                  114,
-                  105,
-                  116,
-                  121
-                ]
-              }
-            ]
-          }
-        },
-        {
-          "name": "userVaultTokenAccount",
+          "name": "postPotTokenAccount",
           "writable": true,
           "pda": {
             "seeds": [
               {
                 "kind": "const",
                 "value": [
-                  117,
+                  112,
+                  111,
                   115,
-                  101,
-                  114,
+                  116,
                   95,
-                  118,
-                  97,
-                  117,
-                  108,
+                  112,
+                  111,
                   116,
                   95,
                   116,
@@ -703,7 +791,7 @@ export type OpinionsMarket = {
               },
               {
                 "kind": "account",
-                "path": "user"
+                "path": "post"
               },
               {
                 "kind": "account",
@@ -713,18 +801,378 @@ export type OpinionsMarket = {
           }
         },
         {
-          "name": "tokenProgram",
-          "address": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
+          "name": "postPotAuthority",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  111,
+                  115,
+                  116,
+                  95,
+                  112,
+                  111,
+                  116,
+                  95,
+                  97,
+                  117,
+                  116,
+                  104,
+                  111,
+                  114,
+                  105,
+                  116,
+                  121
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "post"
+              }
+            ]
+          }
         },
         {
-          "name": "systemProgram",
-          "address": "11111111111111111111111111111111"
+          "name": "postMintPayout",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  111,
+                  115,
+                  116,
+                  95,
+                  109,
+                  105,
+                  110,
+                  116,
+                  95,
+                  112,
+                  97,
+                  121,
+                  111,
+                  117,
+                  116
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "post"
+              },
+              {
+                "kind": "account",
+                "path": "tokenMint"
+              }
+            ]
+          }
+        },
+        {
+          "name": "parentPost"
+        },
+        {
+          "name": "parentPostPotTokenAccount",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  111,
+                  115,
+                  116,
+                  95,
+                  112,
+                  111,
+                  116,
+                  95,
+                  116,
+                  111,
+                  107,
+                  101,
+                  110,
+                  95,
+                  97,
+                  99,
+                  99,
+                  111,
+                  117,
+                  110,
+                  116
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "parentPost"
+              },
+              {
+                "kind": "account",
+                "path": "tokenMint"
+              }
+            ]
+          }
+        },
+        {
+          "name": "parentPostPotAuthority",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  111,
+                  115,
+                  116,
+                  95,
+                  112,
+                  111,
+                  116,
+                  95,
+                  97,
+                  117,
+                  116,
+                  104,
+                  111,
+                  114,
+                  105,
+                  116,
+                  121
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "parentPost"
+              }
+            ]
+          }
+        },
+        {
+          "name": "tokenMint"
+        },
+        {
+          "name": "fedProgram",
+          "address": "GLQEgZvtw6JdtF4p1cGsDBh3ucCVrmpZjPuyzqp6yMTo"
+        },
+        {
+          "name": "tokenProgram",
+          "address": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
         }
       ],
       "args": [
         {
-          "name": "amount",
-          "type": "u64"
+          "name": "postIdHash",
+          "type": {
+            "array": [
+              "u8",
+              32
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "distributeProtocolFee",
+      "docs": [
+        "Distribute creator reward from frozen settlement.",
+        "Reads creator_fee from PostMintPayout and transfers it to creator's vault.",
+        "Distribute protocol fee from frozen settlement.",
+        "Reads protocol_fee from PostMintPayout and transfers it to protocol treasury."
+      ],
+      "discriminator": [
+        212,
+        187,
+        180,
+        191,
+        59,
+        44,
+        108,
+        105
+      ],
+      "accounts": [
+        {
+          "name": "payer",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "post",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  111,
+                  115,
+                  116,
+                  95,
+                  97,
+                  99,
+                  99,
+                  111,
+                  117,
+                  110,
+                  116
+                ]
+              },
+              {
+                "kind": "arg",
+                "path": "postIdHash"
+              }
+            ]
+          }
+        },
+        {
+          "name": "postPotTokenAccount",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  111,
+                  115,
+                  116,
+                  95,
+                  112,
+                  111,
+                  116,
+                  95,
+                  116,
+                  111,
+                  107,
+                  101,
+                  110,
+                  95,
+                  97,
+                  99,
+                  99,
+                  111,
+                  117,
+                  110,
+                  116
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "post"
+              },
+              {
+                "kind": "account",
+                "path": "tokenMint"
+              }
+            ]
+          }
+        },
+        {
+          "name": "postPotAuthority",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  111,
+                  115,
+                  116,
+                  95,
+                  112,
+                  111,
+                  116,
+                  95,
+                  97,
+                  117,
+                  116,
+                  104,
+                  111,
+                  114,
+                  105,
+                  116,
+                  121
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "post"
+              }
+            ]
+          }
+        },
+        {
+          "name": "postMintPayout",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  111,
+                  115,
+                  116,
+                  95,
+                  109,
+                  105,
+                  110,
+                  116,
+                  95,
+                  112,
+                  97,
+                  121,
+                  111,
+                  117,
+                  116
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "post"
+              },
+              {
+                "kind": "account",
+                "path": "tokenMint"
+              }
+            ]
+          }
+        },
+        {
+          "name": "protocolTokenTreasuryTokenAccount",
+          "writable": true
+        },
+        {
+          "name": "validPayment"
+        },
+        {
+          "name": "fedConfig"
+        },
+        {
+          "name": "omConfig"
+        },
+        {
+          "name": "tokenMint"
+        },
+        {
+          "name": "fedProgram",
+          "address": "GLQEgZvtw6JdtF4p1cGsDBh3ucCVrmpZjPuyzqp6yMTo"
+        },
+        {
+          "name": "tokenProgram",
+          "address": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
+        }
+      ],
+      "args": [
+        {
+          "name": "postIdHash",
+          "type": {
+            "array": [
+              "u8",
+              32
+            ]
+          }
         }
       ]
     },
@@ -752,13 +1200,16 @@ export type OpinionsMarket = {
           "signer": true
         },
         {
-          "name": "config",
+          "name": "omConfig",
           "writable": true,
           "pda": {
             "seeds": [
               {
                 "kind": "const",
                 "value": [
+                  111,
+                  109,
+                  95,
                   99,
                   111,
                   110,
@@ -771,96 +1222,8 @@ export type OpinionsMarket = {
           }
         },
         {
-          "name": "blingMint"
-        },
-        {
-          "name": "usdcMint"
-        },
-        {
-          "name": "validPayment",
-          "writable": true,
-          "pda": {
-            "seeds": [
-              {
-                "kind": "const",
-                "value": [
-                  118,
-                  97,
-                  108,
-                  105,
-                  100,
-                  95,
-                  112,
-                  97,
-                  121,
-                  109,
-                  101,
-                  110,
-                  116
-                ]
-              },
-              {
-                "kind": "account",
-                "path": "blingMint"
-              }
-            ]
-          }
-        },
-        {
-          "name": "protocolBlingTreasury",
-          "writable": true,
-          "pda": {
-            "seeds": [
-              {
-                "kind": "const",
-                "value": [
-                  112,
-                  114,
-                  111,
-                  116,
-                  111,
-                  99,
-                  111,
-                  108,
-                  95,
-                  116,
-                  114,
-                  101,
-                  97,
-                  115,
-                  117,
-                  114,
-                  121,
-                  95,
-                  116,
-                  111,
-                  107,
-                  101,
-                  110,
-                  95,
-                  97,
-                  99,
-                  99,
-                  111,
-                  117,
-                  110,
-                  116
-                ]
-              },
-              {
-                "kind": "account",
-                "path": "blingMint"
-              }
-            ]
-          }
-        },
-        {
           "name": "systemProgram",
           "address": "11111111111111111111111111111111"
-        },
-        {
-          "name": "tokenProgram",
-          "address": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
         }
       ],
       "args": [
@@ -875,221 +1238,6 @@ export type OpinionsMarket = {
         {
           "name": "extensionPerVoteSecs",
           "type": "u32"
-        }
-      ]
-    },
-    {
-      "name": "ping",
-      "discriminator": [
-        173,
-        0,
-        94,
-        236,
-        73,
-        133,
-        225,
-        153
-      ],
-      "accounts": [],
-      "args": []
-    },
-    {
-      "name": "registerSession",
-      "discriminator": [
-        101,
-        116,
-        106,
-        43,
-        152,
-        189,
-        4,
-        110
-      ],
-      "accounts": [
-        {
-          "name": "payer",
-          "writable": true,
-          "signer": true
-        },
-        {
-          "name": "user"
-        },
-        {
-          "name": "sessionKey"
-        },
-        {
-          "name": "sessionAuthority",
-          "writable": true,
-          "pda": {
-            "seeds": [
-              {
-                "kind": "const",
-                "value": [
-                  115,
-                  101,
-                  115,
-                  115,
-                  105,
-                  111,
-                  110,
-                  95,
-                  97,
-                  117,
-                  116,
-                  104,
-                  111,
-                  114,
-                  105,
-                  116,
-                  121
-                ]
-              },
-              {
-                "kind": "account",
-                "path": "user"
-              },
-              {
-                "kind": "account",
-                "path": "sessionKey"
-              }
-            ]
-          }
-        },
-        {
-          "name": "instructionsSysvar",
-          "address": "Sysvar1nstructions1111111111111111111111111"
-        },
-        {
-          "name": "systemProgram",
-          "address": "11111111111111111111111111111111"
-        }
-      ],
-      "args": [
-        {
-          "name": "expectedIndex",
-          "type": "u8"
-        }
-      ]
-    },
-    {
-      "name": "registerValidPayment",
-      "discriminator": [
-        17,
-        178,
-        199,
-        191,
-        236,
-        133,
-        165,
-        187
-      ],
-      "accounts": [
-        {
-          "name": "config",
-          "writable": true
-        },
-        {
-          "name": "admin",
-          "writable": true,
-          "signer": true
-        },
-        {
-          "name": "tokenMint"
-        },
-        {
-          "name": "validPayment",
-          "writable": true,
-          "pda": {
-            "seeds": [
-              {
-                "kind": "const",
-                "value": [
-                  118,
-                  97,
-                  108,
-                  105,
-                  100,
-                  95,
-                  112,
-                  97,
-                  121,
-                  109,
-                  101,
-                  110,
-                  116
-                ]
-              },
-              {
-                "kind": "account",
-                "path": "tokenMint"
-              }
-            ]
-          }
-        },
-        {
-          "name": "protocolTokenTreasuryTokenAccount",
-          "docs": [
-            "NEW treasury token account for this mint, canonical PDA."
-          ],
-          "writable": true,
-          "pda": {
-            "seeds": [
-              {
-                "kind": "const",
-                "value": [
-                  112,
-                  114,
-                  111,
-                  116,
-                  111,
-                  99,
-                  111,
-                  108,
-                  95,
-                  116,
-                  114,
-                  101,
-                  97,
-                  115,
-                  117,
-                  114,
-                  121,
-                  95,
-                  116,
-                  111,
-                  107,
-                  101,
-                  110,
-                  95,
-                  97,
-                  99,
-                  99,
-                  111,
-                  117,
-                  110,
-                  116
-                ]
-              },
-              {
-                "kind": "account",
-                "path": "tokenMint"
-              }
-            ]
-          }
-        },
-        {
-          "name": "systemProgram",
-          "address": "11111111111111111111111111111111"
-        },
-        {
-          "name": "tokenProgram",
-          "address": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
-        }
-      ],
-      "args": [
-        {
-          "name": "priceInBling",
-          "type": "u64"
         }
       ]
     },
@@ -1256,58 +1404,14 @@ export type OpinionsMarket = {
         },
         {
           "name": "protocolTokenTreasuryTokenAccount",
-          "writable": true,
-          "pda": {
-            "seeds": [
-              {
-                "kind": "const",
-                "value": [
-                  112,
-                  114,
-                  111,
-                  116,
-                  111,
-                  99,
-                  111,
-                  108,
-                  95,
-                  116,
-                  114,
-                  101,
-                  97,
-                  115,
-                  117,
-                  114,
-                  121,
-                  95,
-                  116,
-                  111,
-                  107,
-                  101,
-                  110,
-                  95,
-                  97,
-                  99,
-                  99,
-                  111,
-                  117,
-                  110,
-                  116
-                ]
-              },
-              {
-                "kind": "account",
-                "path": "tokenMint"
-              }
-            ]
-          }
+          "writable": true
         },
         {
           "name": "parentPost",
           "optional": true
         },
         {
-          "name": "config"
+          "name": "omConfig"
         },
         {
           "name": "tokenMint"
@@ -1335,10 +1439,6 @@ export type OpinionsMarket = {
     },
     {
       "name": "voteOnPost",
-      "docs": [
-        "Core MVP voting instruction.",
-        "User pays from their vault; everything is denominated in BLING."
-      ],
       "discriminator": [
         220,
         160,
@@ -1351,13 +1451,16 @@ export type OpinionsMarket = {
       ],
       "accounts": [
         {
-          "name": "config",
+          "name": "omConfig",
           "writable": true,
           "pda": {
             "seeds": [
               {
                 "kind": "const",
                 "value": [
+                  111,
+                  109,
+                  95,
                   99,
                   111,
                   110,
@@ -1383,42 +1486,7 @@ export type OpinionsMarket = {
           "writable": true
         },
         {
-          "name": "sessionAuthority",
-          "writable": true,
-          "pda": {
-            "seeds": [
-              {
-                "kind": "const",
-                "value": [
-                  115,
-                  101,
-                  115,
-                  115,
-                  105,
-                  111,
-                  110,
-                  95,
-                  97,
-                  117,
-                  116,
-                  104,
-                  111,
-                  114,
-                  105,
-                  116,
-                  121
-                ]
-              },
-              {
-                "kind": "account",
-                "path": "voter"
-              },
-              {
-                "kind": "account",
-                "path": "sessionKey"
-              }
-            ]
-          }
+          "name": "sessionAuthority"
         },
         {
           "name": "post",
@@ -1450,14 +1518,19 @@ export type OpinionsMarket = {
           }
         },
         {
-          "name": "voterUserAccount",
+          "name": "userAccount"
+        },
+        {
+          "name": "voterAccount",
+          "writable": true,
           "pda": {
             "seeds": [
               {
                 "kind": "const",
                 "value": [
-                  117,
-                  115,
+                  118,
+                  111,
+                  116,
                   101,
                   114,
                   95,
@@ -1479,48 +1552,10 @@ export type OpinionsMarket = {
         },
         {
           "name": "voterUserVaultTokenAccount",
-          "writable": true,
-          "pda": {
-            "seeds": [
-              {
-                "kind": "const",
-                "value": [
-                  117,
-                  115,
-                  101,
-                  114,
-                  95,
-                  118,
-                  97,
-                  117,
-                  108,
-                  116,
-                  95,
-                  116,
-                  111,
-                  107,
-                  101,
-                  110,
-                  95,
-                  97,
-                  99,
-                  99,
-                  111,
-                  117,
-                  110,
-                  116
-                ]
-              },
-              {
-                "kind": "account",
-                "path": "voter"
-              },
-              {
-                "kind": "account",
-                "path": "tokenMint"
-              }
-            ]
-          }
+          "docs": [
+            "- keep opague so Fed TokenAccount cpi will initialize it and we won't be stopped by TokenAccount here"
+          ],
+          "writable": true
         },
         {
           "name": "position",
@@ -1552,31 +1587,7 @@ export type OpinionsMarket = {
           }
         },
         {
-          "name": "vaultAuthority",
-          "pda": {
-            "seeds": [
-              {
-                "kind": "const",
-                "value": [
-                  118,
-                  97,
-                  117,
-                  108,
-                  116,
-                  95,
-                  97,
-                  117,
-                  116,
-                  104,
-                  111,
-                  114,
-                  105,
-                  116,
-                  121
-                ]
-              }
-            ]
-          }
+          "name": "vaultAuthority"
         },
         {
           "name": "postPotTokenAccount",
@@ -1657,129 +1668,36 @@ export type OpinionsMarket = {
         },
         {
           "name": "protocolTokenTreasuryTokenAccount",
-          "writable": true,
-          "pda": {
-            "seeds": [
-              {
-                "kind": "const",
-                "value": [
-                  112,
-                  114,
-                  111,
-                  116,
-                  111,
-                  99,
-                  111,
-                  108,
-                  95,
-                  116,
-                  114,
-                  101,
-                  97,
-                  115,
-                  117,
-                  114,
-                  121,
-                  95,
-                  116,
-                  111,
-                  107,
-                  101,
-                  110,
-                  95,
-                  97,
-                  99,
-                  99,
-                  111,
-                  117,
-                  110,
-                  116
-                ]
-              },
-              {
-                "kind": "account",
-                "path": "tokenMint"
-              }
-            ]
-          }
+          "writable": true
         },
         {
           "name": "creatorVaultTokenAccount",
-          "writable": true,
-          "pda": {
-            "seeds": [
-              {
-                "kind": "const",
-                "value": [
-                  117,
-                  115,
-                  101,
-                  114,
-                  95,
-                  118,
-                  97,
-                  117,
-                  108,
-                  116,
-                  95,
-                  116,
-                  111,
-                  107,
-                  101,
-                  110,
-                  95,
-                  97,
-                  99,
-                  99,
-                  111,
-                  117,
-                  110,
-                  116
-                ]
-              },
-              {
-                "kind": "account",
-                "path": "post.creator_user",
-                "account": "postAccount"
-              },
-              {
-                "kind": "account",
-                "path": "tokenMint"
-              }
-            ]
-          }
+          "writable": true
         },
         {
-          "name": "validPayment",
-          "pda": {
-            "seeds": [
-              {
-                "kind": "const",
-                "value": [
-                  118,
-                  97,
-                  108,
-                  105,
-                  100,
-                  95,
-                  112,
-                  97,
-                  121,
-                  109,
-                  101,
-                  110,
-                  116
-                ]
-              },
-              {
-                "kind": "account",
-                "path": "tokenMint"
-              }
-            ]
-          }
+          "name": "creatorUser",
+          "docs": [
+            "This is the creator of the post, used to derive the creator vault PDA",
+            "Marked as mut because Fed CPI requires it for init_if_needed on creator vault"
+          ],
+          "writable": true
+        },
+        {
+          "name": "validPayment"
+        },
+        {
+          "name": "fedConfig"
         },
         {
           "name": "tokenMint"
+        },
+        {
+          "name": "fedProgram",
+          "address": "GLQEgZvtw6JdtF4p1cGsDBh3ucCVrmpZjPuyzqp6yMTo"
+        },
+        {
+          "name": "personaProgram",
+          "address": "3bE1UxZ4VFKbptUhpFwzA1AdXgdJENhRcLQApj9F9Z1d"
         },
         {
           "name": "tokenProgram",
@@ -1813,167 +1731,20 @@ export type OpinionsMarket = {
           }
         }
       ]
-    },
-    {
-      "name": "withdraw",
-      "docs": [
-        "Withdraw with possible penalty based on social interactions.",
-        "You can later implement:",
-        "effective_amount = amount * (10000 - user.withdraw_penalty_bps()) / 10000"
-      ],
-      "discriminator": [
-        183,
-        18,
-        70,
-        156,
-        148,
-        109,
-        161,
-        34
-      ],
-      "accounts": [
-        {
-          "name": "user",
-          "writable": true,
-          "signer": true
-        },
-        {
-          "name": "payer",
-          "writable": true,
-          "signer": true
-        },
-        {
-          "name": "userAccount",
-          "pda": {
-            "seeds": [
-              {
-                "kind": "const",
-                "value": [
-                  117,
-                  115,
-                  101,
-                  114,
-                  95,
-                  97,
-                  99,
-                  99,
-                  111,
-                  117,
-                  110,
-                  116
-                ]
-              },
-              {
-                "kind": "account",
-                "path": "user"
-              }
-            ]
-          }
-        },
-        {
-          "name": "tokenMint"
-        },
-        {
-          "name": "userTokenDestAta",
-          "writable": true
-        },
-        {
-          "name": "userVaultTokenAccount",
-          "writable": true,
-          "pda": {
-            "seeds": [
-              {
-                "kind": "const",
-                "value": [
-                  117,
-                  115,
-                  101,
-                  114,
-                  95,
-                  118,
-                  97,
-                  117,
-                  108,
-                  116,
-                  95,
-                  116,
-                  111,
-                  107,
-                  101,
-                  110,
-                  95,
-                  97,
-                  99,
-                  99,
-                  111,
-                  117,
-                  110,
-                  116
-                ]
-              },
-              {
-                "kind": "account",
-                "path": "user"
-              },
-              {
-                "kind": "account",
-                "path": "tokenMint"
-              }
-            ]
-          }
-        },
-        {
-          "name": "vaultAuthority",
-          "pda": {
-            "seeds": [
-              {
-                "kind": "const",
-                "value": [
-                  118,
-                  97,
-                  117,
-                  108,
-                  116,
-                  95,
-                  97,
-                  117,
-                  116,
-                  104,
-                  111,
-                  114,
-                  105,
-                  116,
-                  121
-                ]
-              }
-            ]
-          }
-        },
-        {
-          "name": "tokenProgram",
-          "address": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
-        }
-      ],
-      "args": [
-        {
-          "name": "amount",
-          "type": "u64"
-        }
-      ]
     }
   ],
   "accounts": [
     {
-      "name": "config",
+      "name": "omConfig",
       "discriminator": [
-        155,
-        12,
-        170,
-        224,
-        30,
-        250,
-        204,
-        130
+        154,
+        198,
+        113,
+        25,
+        205,
+        249,
+        252,
+        7
       ]
     },
     {
@@ -2003,68 +1774,42 @@ export type OpinionsMarket = {
       ]
     },
     {
-      "name": "sessionAuthority",
+      "name": "voterAccount",
       "discriminator": [
-        48,
-        9,
-        30,
-        120,
-        134,
-        35,
-        172,
-        170
+        24,
+        202,
+        161,
+        124,
+        196,
+        184,
+        105,
+        236
       ]
     },
     {
-      "name": "userAccount",
+      "name": "voterPostMintClaim",
       "discriminator": [
-        211,
-        33,
-        136,
-        16,
-        186,
-        110,
-        242,
-        127
-      ]
-    },
-    {
-      "name": "userPostMintClaim",
-      "discriminator": [
-        19,
-        128,
-        179,
-        146,
-        169,
-        152,
-        97,
-        40
-      ]
-    },
-    {
-      "name": "userPostPosition",
-      "discriminator": [
-        204,
-        98,
-        26,
-        158,
-        0,
-        30,
-        228,
-        130
-      ]
-    },
-    {
-      "name": "validPayment",
-      "discriminator": [
-        56,
-        136,
-        160,
-        63,
-        231,
-        218,
+        182,
+        240,
         212,
-        50
+        164,
+        172,
+        232,
+        10,
+        248
+      ]
+    },
+    {
+      "name": "voterPostPosition",
+      "discriminator": [
+        23,
+        22,
+        75,
+        28,
+        141,
+        220,
+        143,
+        192
       ]
     }
   ],
@@ -2153,24 +1898,78 @@ export type OpinionsMarket = {
       "code": 6016,
       "name": "unauthorizedSigner",
       "msg": "Unauthorized signer"
+    },
+    {
+      "code": 6017,
+      "name": "invalidRelation",
+      "msg": "Invalid post relation"
+    },
+    {
+      "code": 6018,
+      "name": "answerMustTargetQuestion",
+      "msg": "Answer must target a Question post"
+    },
+    {
+      "code": 6019,
+      "name": "answerTargetNotRoot",
+      "msg": "Answer target must be a Root post"
+    },
+    {
+      "code": 6020,
+      "name": "zeroTipAmount",
+      "msg": "Zero tip amount not allowed"
+    },
+    {
+      "code": 6021,
+      "name": "cannotTipSelf",
+      "msg": "Cannot tip yourself"
+    },
+    {
+      "code": 6022,
+      "name": "noTipsToClaim",
+      "msg": "No tips to claim"
+    },
+    {
+      "code": 6023,
+      "name": "zeroAmount",
+      "msg": "Zero amount not allowed"
+    },
+    {
+      "code": 6024,
+      "name": "cannotSendToSelf",
+      "msg": "Cannot send tokens to yourself"
+    },
+    {
+      "code": 6025,
+      "name": "tokenNotWithdrawable",
+      "msg": "Token is not withdrawable"
     }
   ],
   "types": [
     {
-      "name": "config",
+      "name": "forcedOutcome",
+      "docs": [
+        "Forced settlement outcome for Answers"
+      ],
+      "type": {
+        "kind": "enum",
+        "variants": [
+          {
+            "name": "pump"
+          },
+          {
+            "name": "smack"
+          }
+        ]
+      }
+    },
+    {
+      "name": "omConfig",
       "type": {
         "kind": "struct",
         "fields": [
           {
             "name": "admin",
-            "type": "pubkey"
-          },
-          {
-            "name": "payerAuthroity",
-            "type": "pubkey"
-          },
-          {
-            "name": "blingMint",
             "type": "pubkey"
           },
           {
@@ -2187,9 +1986,6 @@ export type OpinionsMarket = {
           },
           {
             "name": "bump",
-            "docs": [
-              "10_000 by default"
-            ],
             "type": "u8"
           },
           {
@@ -2210,6 +2006,32 @@ export type OpinionsMarket = {
         "kind": "struct",
         "fields": [
           {
+            "name": "function",
+            "type": {
+              "defined": {
+                "name": "postFunction"
+              }
+            }
+          },
+          {
+            "name": "relation",
+            "type": {
+              "defined": {
+                "name": "postRelation"
+              }
+            }
+          },
+          {
+            "name": "forcedOutcome",
+            "type": {
+              "option": {
+                "defined": {
+                  "name": "forcedOutcome"
+                }
+              }
+            }
+          },
+          {
             "name": "creatorUser",
             "type": "pubkey"
           },
@@ -2220,14 +2042,6 @@ export type OpinionsMarket = {
                 "u8",
                 32
               ]
-            }
-          },
-          {
-            "name": "postType",
-            "type": {
-              "defined": {
-                "name": "postType"
-              }
             }
           },
           {
@@ -2247,14 +2061,6 @@ export type OpinionsMarket = {
             }
           },
           {
-            "name": "upvotes",
-            "type": "u64"
-          },
-          {
-            "name": "downvotes",
-            "type": "u64"
-          },
-          {
             "name": "winningSide",
             "type": {
               "option": {
@@ -2263,6 +2069,47 @@ export type OpinionsMarket = {
                 }
               }
             }
+          },
+          {
+            "name": "upvotes",
+            "type": "u64"
+          },
+          {
+            "name": "downvotes",
+            "type": "u64"
+          },
+          {
+            "name": "bump",
+            "type": "u8"
+          },
+          {
+            "name": "reserved",
+            "docs": [
+              "padding to prevent future breakage"
+            ],
+            "type": {
+              "array": [
+                "u8",
+                32
+              ]
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "postFunction",
+      "type": {
+        "kind": "enum",
+        "variants": [
+          {
+            "name": "normal"
+          },
+          {
+            "name": "question"
+          },
+          {
+            "name": "answer"
           }
         ]
       }
@@ -2281,6 +2128,10 @@ export type OpinionsMarket = {
             "type": "pubkey"
           },
           {
+            "name": "initialPot",
+            "type": "u64"
+          },
+          {
             "name": "totalPayout",
             "type": "u64"
           },
@@ -2289,8 +2140,62 @@ export type OpinionsMarket = {
             "type": "u64"
           },
           {
+            "name": "creatorFee",
+            "type": "u64"
+          },
+          {
+            "name": "protocolFee",
+            "type": "u64"
+          },
+          {
+            "name": "motherFee",
+            "type": "u64"
+          },
+          {
+            "name": "frozen",
+            "type": "bool"
+          },
+          {
             "name": "bump",
             "type": "u8"
+          }
+        ]
+      }
+    },
+    {
+      "name": "postRelation",
+      "type": {
+        "kind": "enum",
+        "variants": [
+          {
+            "name": "root"
+          },
+          {
+            "name": "reply",
+            "fields": [
+              {
+                "name": "parent",
+                "type": "pubkey"
+              }
+            ]
+          },
+          {
+            "name": "quote",
+            "fields": [
+              {
+                "name": "quoted",
+                "type": "pubkey"
+              }
+            ]
+          },
+          {
+            "name": "answerTo",
+            "fields": [
+              {
+                "name": "question",
+                "type": "pubkey"
+              }
+            ]
           }
         ]
       }
@@ -2310,59 +2215,6 @@ export type OpinionsMarket = {
       }
     },
     {
-      "name": "postType",
-      "type": {
-        "kind": "enum",
-        "variants": [
-          {
-            "name": "original"
-          },
-          {
-            "name": "child",
-            "fields": [
-              {
-                "name": "parent",
-                "type": "pubkey"
-              }
-            ]
-          }
-        ]
-      }
-    },
-    {
-      "name": "sessionAuthority",
-      "type": {
-        "kind": "struct",
-        "fields": [
-          {
-            "name": "user",
-            "type": "pubkey"
-          },
-          {
-            "name": "sessionKey",
-            "type": "pubkey"
-          },
-          {
-            "name": "expiresAt",
-            "type": "i64"
-          },
-          {
-            "name": "privilegesHash",
-            "type": {
-              "array": [
-                "u8",
-                32
-              ]
-            }
-          },
-          {
-            "name": "bump",
-            "type": "u8"
-          }
-        ]
-      }
-    },
-    {
       "name": "side",
       "type": {
         "kind": "enum",
@@ -2377,17 +2229,25 @@ export type OpinionsMarket = {
       }
     },
     {
-      "name": "userAccount",
+      "name": "voterAccount",
       "type": {
         "kind": "struct",
         "fields": [
           {
-            "name": "user",
+            "name": "voter",
             "type": "pubkey"
           },
           {
             "name": "socialScore",
             "type": "i64"
+          },
+          {
+            "name": "attackSurface",
+            "type": {
+              "defined": {
+                "name": "voterAccountAttackSurface"
+              }
+            }
           },
           {
             "name": "bump",
@@ -2397,12 +2257,69 @@ export type OpinionsMarket = {
       }
     },
     {
-      "name": "userPostMintClaim",
+      "name": "voterAccountAttackSurface",
       "type": {
         "kind": "struct",
         "fields": [
           {
-            "name": "user",
+            "name": "enabled",
+            "type": "bool"
+          },
+          {
+            "name": "surface1",
+            "type": "i16"
+          },
+          {
+            "name": "surface2",
+            "type": "i16"
+          },
+          {
+            "name": "surface3",
+            "type": "i16"
+          },
+          {
+            "name": "surface4",
+            "type": "i16"
+          },
+          {
+            "name": "surface5",
+            "type": "i16"
+          },
+          {
+            "name": "surface6",
+            "type": "i16"
+          },
+          {
+            "name": "surface7",
+            "type": "i16"
+          },
+          {
+            "name": "surface8",
+            "type": "i16"
+          },
+          {
+            "name": "surface9",
+            "type": "i16"
+          },
+          {
+            "name": "padding",
+            "type": {
+              "array": [
+                "u8",
+                31
+              ]
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "voterPostMintClaim",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "voter",
             "type": "pubkey"
           },
           {
@@ -2425,12 +2342,12 @@ export type OpinionsMarket = {
       }
     },
     {
-      "name": "userPostPosition",
+      "name": "voterPostPosition",
       "type": {
         "kind": "struct",
         "fields": [
           {
-            "name": "user",
+            "name": "voter",
             "type": "pubkey"
           },
           {
@@ -2444,36 +2361,6 @@ export type OpinionsMarket = {
           {
             "name": "downvotes",
             "type": "u64"
-          }
-        ]
-      }
-    },
-    {
-      "name": "validPayment",
-      "type": {
-        "kind": "struct",
-        "fields": [
-          {
-            "name": "tokenMint",
-            "type": "pubkey"
-          },
-          {
-            "name": "priceInBling",
-            "docs": [
-              "how much is 1 token in BLING votes -",
-              "1 USDC = 10_000 BLING for example",
-              "1 SOL = 1_000_000_000 BLING for example",
-              "This value is lamport-free. So 1 BLING = 1 BLING"
-            ],
-            "type": "u64"
-          },
-          {
-            "name": "enabled",
-            "type": "bool"
-          },
-          {
-            "name": "bump",
-            "type": "u8"
           }
         ]
       }

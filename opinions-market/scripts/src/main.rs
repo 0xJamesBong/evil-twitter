@@ -277,3 +277,8 @@
 //     println!("CONFIG PDA: {}", config_pda);
 //     println!("OK. {} environment ready.", cluster);
 // }
+
+fn main() {
+    // Bootstrap script is currently disabled
+    // Uncomment the code above to enable bootstrap functionality
+}

@@ -451,9 +451,9 @@ pub async fn onboard_user_resolver(
     eprintln!("onboard_user: User onboarded successfully!");
 
     // Derive session authority PDA and calculate expires_at
-    let program_id = app_state.solana_service.opinions_market_program().id();
+    let persona_program_id = crate::solana::persona_program_id();
     let (session_authority_pda, _) =
-        get_session_authority_pda(&program_id, &wallet_pubkey, &session_key);
+        get_session_authority_pda(&persona_program_id, &wallet_pubkey, &session_key);
     let expires_at = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
         .unwrap()
@@ -1112,16 +1112,8 @@ pub async fn tip_resolver(ctx: &Context<'_>, input: TipInput) -> Result<TipPaylo
         Pubkey::from_str(&token_mint_str)
             .map_err(|e| async_graphql::Error::new(format!("Invalid token_mint: {}", e)))?
     } else {
-        // Get BLING mint from config
-        let program_id = app_state.solana_service.opinions_market_program().id();
-        let (config_pda, _) = crate::solana::get_config_pda(&program_id);
-        let config_account = app_state
-            .solana_service
-            .opinions_market_program()
-            .account::<opinions_market::states::OMConfig>(config_pda)
-            .await
-            .map_err(|e| async_graphql::Error::new(format!("Failed to get config: {}", e)))?;
-        config_account.bling_mint
+        // Get BLING mint from SolanaService
+        *app_state.solana_service.get_bling_mint()
     };
 
     // Convert amount to lamports using token decimals
@@ -1229,16 +1221,8 @@ pub async fn claim_tips_resolver(
         Pubkey::from_str(&token_mint_str)
             .map_err(|e| async_graphql::Error::new(format!("Invalid token_mint: {}", e)))?
     } else {
-        // Get BLING mint from config
-        let program_id = app_state.solana_service.opinions_market_program().id();
-        let (config_pda, _) = crate::solana::get_config_pda(&program_id);
-        let config_account = app_state
-            .solana_service
-            .opinions_market_program()
-            .account::<opinions_market::states::OMConfig>(config_pda)
-            .await
-            .map_err(|e| async_graphql::Error::new(format!("Failed to get config: {}", e)))?;
-        config_account.bling_mint
+        // Get BLING mint from SolanaService
+        *app_state.solana_service.get_bling_mint()
     };
 
     // Get tip vault balance before claiming
@@ -1321,16 +1305,8 @@ pub async fn send_token_resolver(
         Pubkey::from_str(&token_mint_str)
             .map_err(|e| async_graphql::Error::new(format!("Invalid token_mint: {}", e)))?
     } else {
-        // Get BLING mint from config
-        let program_id = app_state.solana_service.opinions_market_program().id();
-        let (config_pda, _) = crate::solana::get_config_pda(&program_id);
-        let config_account = app_state
-            .solana_service
-            .opinions_market_program()
-            .account::<opinions_market::states::OMConfig>(config_pda)
-            .await
-            .map_err(|e| async_graphql::Error::new(format!("Failed to get config: {}", e)))?;
-        config_account.bling_mint
+        // Get BLING mint from SolanaService
+        *app_state.solana_service.get_bling_mint()
     };
 
     // Convert amount to lamports using token decimals
