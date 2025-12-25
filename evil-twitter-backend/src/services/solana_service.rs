@@ -315,8 +315,9 @@ impl SolanaService {
         user_wallet: &Pubkey,
         token_mint: &Pubkey,
     ) -> anyhow::Result<u64> {
+        let fed_program_id = fed_program_id();
         let (vault_token_account_pda, _) =
-            get_user_vault_token_account_pda(&self.program_id, user_wallet, token_mint);
+            get_user_vault_token_account_pda(&fed_program_id, user_wallet, token_mint);
 
         let account = match self.rpc.get_account(&vault_token_account_pda).await {
             Ok(account) => account,
@@ -342,8 +343,9 @@ impl SolanaService {
         user_wallet: &Pubkey,
         token_mint: &Pubkey,
     ) -> anyhow::Result<u64> {
+        let fed_program_id = fed_program_id();
         let (tip_vault_token_account_pda, _) =
-            get_tip_vault_token_account_pda(&self.program_id, user_wallet, token_mint);
+            get_tip_vault_token_account_pda(&fed_program_id, user_wallet, token_mint);
 
         let account = match self.rpc.get_account(&tip_vault_token_account_pda).await {
             Ok(account) => account,
@@ -1461,7 +1463,8 @@ impl SolanaService {
     }
 
     /// Get canonical vote cost for a user
-    /// Fetches UserAccount and computes cost using the same logic as on-chain
+    /// Fetches UserAccount from persona and VoterAccount from opinions_market
+    /// Uses VoterAccount for cost calculation (it has the canonical_cost method)
     pub async fn get_canonical_cost(
         &self,
         user_wallet: &Pubkey,
@@ -1475,22 +1478,23 @@ impl SolanaService {
         let program = self.opinions_market_program();
         let program_id = program.id();
 
-        // Derive the UserAccount PDA
-        let (user_account_pda, _) = get_user_account_pda(&program_id, user_wallet);
+        // Derive the VoterAccount PDA (in opinions_market program)
+        // VoterAccount is used for voting and has the canonical_cost method
+        let (voter_account_pda, _) = get_voter_account_pda(&program_id, user_wallet);
 
-        // Fetch UserAccount
-        let user_account: opinions_market::states::VoterAccount =
-            program.account(user_account_pda).await.map_err(|e| {
+        // Fetch VoterAccount (this has canonical_cost method)
+        let voter_account: opinions_market::states::VoterAccount =
+            program.account(voter_account_pda).await.map_err(|e| {
                 anyhow::anyhow!(
-                    "Failed to fetch UserAccount PDA {}: {}",
-                    user_account_pda,
+                    "Failed to fetch VoterAccount PDA {}: {}",
+                    voter_account_pda,
                     e
                 )
             })?;
 
-        // Compute canonical cost directly on UserAccount
+        // Compute canonical cost directly on VoterAccount
         // This is a pure user attribute - no Vote struct needed
-        let cost = user_account
+        let cost = voter_account
             .canonical_cost(side)
             .map_err(|e| anyhow::anyhow!("Canonical cost compute error: {:?}", e))?;
 
