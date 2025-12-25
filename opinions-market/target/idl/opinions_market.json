@@ -861,6 +861,12 @@
           "writable": true
         },
         {
+          "name": "valid_payment"
+        },
+        {
+          "name": "fed_config"
+        },
+        {
           "name": "om_config"
         },
         {

@@ -867,6 +867,12 @@ export type OpinionsMarket = {
           "writable": true
         },
         {
+          "name": "validPayment"
+        },
+        {
+          "name": "fedConfig"
+        },
+        {
           "name": "omConfig"
         },
         {

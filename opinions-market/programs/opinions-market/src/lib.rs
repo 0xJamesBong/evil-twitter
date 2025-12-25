@@ -732,7 +732,9 @@ pub mod opinions_market {
 
         msg!("Distributing protocol fee: {}", protocol_fee);
 
-        // Transfer from post pot to protocol treasury (post pot is owned by OM, so handle directly)
+        // Transfer from post pot (OM-owned) to protocol treasury (Fed-owned) via Fed CPI
+        // This ensures proper separation of concerns - Fed handles all transfers to its treasury
+        // post_pot_authority is a PDA, so we need to sign with seeds
         let post_key = ctx.accounts.post.key();
         let (_, post_pot_bump) = Pubkey::find_program_address(
             &[POST_POT_AUTHORITY_SEED, post_key.as_ref()],
@@ -741,16 +743,20 @@ pub mod opinions_market {
         let post_pot_authority_seeds: &[&[&[u8]]] =
             &[&[POST_POT_AUTHORITY_SEED, post_key.as_ref(), &[post_pot_bump]]];
 
-        anchor_spl::token::transfer(
+        fed::cpi::transfer_into_fed_treasury_account(
             CpiContext::new_with_signer(
-                ctx.accounts.token_program.to_account_info(),
-                anchor_spl::token::Transfer {
+                ctx.accounts.fed_program.to_account_info(),
+                fed::cpi::accounts::TransferIntoFedTreasuryAccount {
                     from: ctx.accounts.post_pot_token_account.to_account_info(),
-                    to: ctx
+                    from_authority: ctx.accounts.post_pot_authority.to_account_info(),
+                    protocol_treasury_token_account: ctx
                         .accounts
                         .protocol_token_treasury_token_account
                         .to_account_info(),
-                    authority: ctx.accounts.post_pot_authority.to_account_info(),
+                    valid_payment: ctx.accounts.valid_payment.to_account_info(),
+                    fed_config: ctx.accounts.fed_config.to_account_info(),
+                    token_mint: ctx.accounts.token_mint.to_account_info(),
+                    token_program: ctx.accounts.token_program.to_account_info(),
                 },
                 post_pot_authority_seeds,
             ),

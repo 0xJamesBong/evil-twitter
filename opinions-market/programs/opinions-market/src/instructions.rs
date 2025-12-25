@@ -364,7 +364,15 @@ pub struct DistributeProtocolFee<'info> {
 
     /// CHECK: SPL token account whose authority is the fed - cannot do #[account(owner = fed::ID)]
     #[account(mut)]
-    pub protocol_token_treasury_token_account: Account<'info, TokenAccount>,
+    pub protocol_token_treasury_token_account: UncheckedAccount<'info>,
+
+    /// CHECK: Fed-owned ValidPayment account - let the fed check it
+    #[account(owner = fed::ID)]
+    pub valid_payment: UncheckedAccount<'info>,
+
+    /// CHECK: Fed config PDA (authority of treasury token account) - let the fed check it
+    #[account(owner = fed::ID)]
+    pub fed_config: UncheckedAccount<'info>,
 
     pub om_config: Account<'info, OMConfig>,
     pub token_mint: Account<'info, Mint>,

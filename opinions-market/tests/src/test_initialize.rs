@@ -14,8 +14,9 @@ use solana_sdk::{
 use crate::config::TIME_CONFIG_FAST;
 use crate::utils::phenomena::{
     test_phenomena_add_valid_payment, test_phenomena_create_post, test_phenomena_create_user,
-    test_phenomena_deposit, test_phenomena_send_token, test_phenomena_tip,
-    test_phenomena_turn_on_withdrawable, test_phenomena_vote_on_post, test_phenomena_withdraw,
+    test_phenomena_deposit, test_phenomena_send_token, test_phenomena_settle_post,
+    test_phenomena_tip, test_phenomena_turn_on_withdrawable, test_phenomena_vote_on_post,
+    test_phenomena_withdraw,
 };
 use crate::utils::utils::{
     airdrop_sol_to_users, send_tx, setup_token_mint, setup_token_mint_ata_and_mint_to_many_users,
@@ -607,21 +608,22 @@ async fn test_setup() {
             .await;
         }
 
-        // //         Note: In a real test, you'd need to wait for the post to expire before settling
-        // // For now, we'll just show the settle function exists
-        // {
-        //     // wait_seconds(TIME_CONFIG_FAST.max_duration_secs as u64).await;
-        //     println!("Settling post P1");
-        //     test_phenomena_settle_post(
-        //         &rpc,
-        //         &opinions_market,
-        //         &payer,
-        //         &post_p1_pda,
-        //         &tokens,
-        //         &config_pda,
-        //     )
-        //     .await;
-        // }
+        //         Note: In a real test, you'd need to wait for the post to expire before settling
+        // For now, we'll just show the settle function exists
+        {
+            // wait_seconds(TIME_CONFIG_FAST.max_duration_secs as u64).await;
+            println!("Settling post P1");
+            test_phenomena_settle_post(
+                &rpc,
+                &opinions_market,
+                &fed,
+                &payer,
+                &post_p1_pda,
+                &tokens,
+                &om_config_pda,
+            )
+            .await;
+        }
         {
             println!("\n\n");
             println!(" 🟪🟪🟪🟪🟪🟪🟪🟪🟪🟪🟪🟪🟪🟪🟪🟪🟪");
