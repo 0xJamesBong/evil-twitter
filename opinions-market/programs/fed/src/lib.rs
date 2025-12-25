@@ -560,16 +560,6 @@ pub mod fed {
         Ok(())
     }
 
-    // for checking validity and monetary economics - no control over accounts
-    pub fn check_transfer(ctx: Context<CheckTransfer>) -> Result<()> {
-        // 3. Mint must be enabled
-        require!(
-            ctx.accounts.valid_payment.enabled,
-            ErrorCode::MintNotEnabled
-        );
-        Ok(())
-    }
-
     /// Convert BLING amount to token and charge from user vault to protocol treasury.
     /// If bling_amount is 0, no charge is made.
     pub fn convert_bling_and_charge_to_protocol_treasury(
@@ -651,6 +641,50 @@ pub mod fed {
         let cpi_accounts = anchor_spl::token::Transfer {
             from: ctx.accounts.from_user_vault_token_account.to_account_info(),
             to: ctx.accounts.to.to_account_info(),
+            authority: ctx.accounts.vault_authority.to_account_info(),
+        };
+        let cpi_ctx = CpiContext::new_with_signer(
+            ctx.accounts.token_program.to_account_info(),
+            cpi_accounts,
+            authority_seeds,
+        );
+        anchor_spl::token::transfer(cpi_ctx, token_amount)?;
+
+        Ok(token_amount)
+    }
+
+    // for protocols that want to transfer BLING between Fed accounts - e.g. OM tells Fed to transfer BLING to creator vault
+    pub fn convert_bling_and_transfer_out_of_fed_user_account_to_fed_user_account(
+        ctx: Context<ConvertBlingAndTransferOutOfFedUserAccountToFedUserAccount>,
+        bling_amount: u64,
+    ) -> Result<u64> {
+        // Skip if amount is 0
+        if bling_amount == 0 {
+            return Ok(0);
+        }
+
+        // Convert BLING to token
+        let token_amount = convert_bling_to_token_lamports(
+            bling_amount,
+            ctx.accounts.valid_payment.price_in_bling,
+            ctx.accounts.token_mint.decimals,
+        )?;
+
+        require!(token_amount > 0, ErrorCode::ZeroAmount);
+
+        // Check user vault has sufficient balance
+        require!(
+            ctx.accounts.from_user_vault_token_account.amount >= token_amount,
+            ErrorCode::MathOverflow // Using MathOverflow as insufficient funds error
+        );
+
+        // Transfer from user vault to destination
+        let authority_bump = ctx.bumps.vault_authority;
+        let authority_seeds: &[&[&[u8]]] = &[&[VAULT_AUTHORITY_SEED, &[authority_bump]]];
+
+        let cpi_accounts = anchor_spl::token::Transfer {
+            from: ctx.accounts.from_user_vault_token_account.to_account_info(),
+            to: ctx.accounts.to_user_vault_token_account.to_account_info(),
             authority: ctx.accounts.vault_authority.to_account_info(),
         };
         let cpi_ctx = CpiContext::new_with_signer(

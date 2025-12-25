@@ -48,9 +48,9 @@ pub struct CreatePost<'info> {
     #[account(owner = persona::ID)]
     pub user_account: AccountInfo<'info>,
 
-    /// CHECK: used for vote tallying and karma 
+    /// CHECK: owned by opinions market - this is the voter data 
     #[account(init_if_needed, payer = payer, seeds = [VOTER_ACCOUNT_SEED, user.key().as_ref()], bump, space = 8 + VoterAccount::INIT_SPACE)]
-    pub voter_account: AccountInfo<'info>,
+    pub voter_account: Account<'info, VoterAccount>,
 
     #[account(
         init,
@@ -155,16 +155,10 @@ pub struct VoteOnPost<'info> {
         seeds = [VOTER_ACCOUNT_SEED, voter.key().as_ref()], bump, space = 8 + VoterAccount::INIT_SPACE)]
     pub voter_account: Account<'info, VoterAccount>,
 
-    // this is the token vault in the fed 
-    // #[account(
-    //     mut,
-    //     seeds = [USER_VAULT_TOKEN_ACCOUNT_SEED, voter.key().as_ref(), token_mint.key().as_ref()],
-    //     bump,
-    //     token::mint = token_mint, 
-    //     token::authority = vault_authority,
-    // )]
-    #[account(mut, owner = fed::ID)]
-    pub voter_user_vault_token_account: Box<Account<'info, TokenAccount>>,
+    /// CHECK: this is a token account, owned by the SPL program, but its authority is a pda inside the fed 
+    /// - keep opague so Fed TokenAccount cpi will initialize it and we won't be stopped by TokenAccount here
+    #[account(mut)]
+    pub voter_user_vault_token_account: UncheckedAccount<'info>,
 
     #[account(
         init_if_needed,
@@ -177,8 +171,7 @@ pub struct VoteOnPost<'info> {
 
 
     // Vault authority opague passed from the fed 
-    /// CHECK: Vault authority PDA derived from seeds
-    #[account(owner = fed::ID)]
+    /// CHECK: just a pda - can't require #[account(owner = fed::ID)]
     pub vault_authority: UncheckedAccount<'info>,
 
     // THIS IS NOW LAZY-CREATED
@@ -199,28 +192,28 @@ pub struct VoteOnPost<'info> {
     )]
     pub post_pot_authority: UncheckedAccount<'info>,
 
-    // protocol treasury pot for this mint
-    /// CHECK: Fed-owned token account (Fed-owned) - let the fed check it 
-    #[account(
-        owner = fed::ID
-    )]
+    /// CHECK: SPL token account whose authority is the fed - cannot do #[account(owner = fed::ID)]
+    #[account(mut)]
     pub protocol_token_treasury_token_account: UncheckedAccount<'info>,
 
     // creator's vault for receiving creator fees
-    /// CHECK: Fed-owned vault; may be uninitialized.
-    /// Fed will validate / initialize via CPI.
-    #[account(mut, owner = fed::ID)]
+    /// CHECK: SPL token account whose authority is the fed - cannot do #[account(owner = fed::ID)]
+    #[account(mut)]
     pub creator_vault_token_account: UncheckedAccount<'info>,
+
+    /// CHECK: Creator user pubkey (used for PDA derivation in Fed, passed as account for convenience)
+    /// This is the creator of the post, used to derive the creator vault PDA
+    /// Marked as mut because Fed CPI requires it for init_if_needed on creator vault
+    #[account(mut)]
+    pub creator_user: UncheckedAccount<'info>,
+
 
     /// CHECK: Fed-owned ValidPayment account - let the fed check it
     #[account(owner = fed::ID)]
     pub valid_payment: UncheckedAccount<'info>,
 
     /// CHECK: Fed config PDA (authority of treasury token account) - let the fed check it
-    #[account(
-        owner = fed::ID,
-        
-    )]
+    #[account(owner = fed::ID)]
     pub fed_config: UncheckedAccount<'info>,
 
     pub token_mint: Account<'info, Mint>,
@@ -271,10 +264,8 @@ pub struct SettlePost<'info> {
     )]
     pub post_mint_payout: Account<'info, PostMintPayout>,
 
-    /// CHECK: Fed-owned token account (Fed-owned) - let the fed check it 
-    #[account(
-        owner = fed::ID
-    )]
+    /// CHECK: SPL token account whose authority is the fed - cannot do #[account(owner = fed::ID)]
+    #[account(mut)]
     pub protocol_token_treasury_token_account: UncheckedAccount<'info>,
 
     // Optional parent post (if child)
@@ -322,13 +313,13 @@ pub struct DistributeCreatorReward<'info> {
     )]
     pub post_mint_payout: Account<'info, PostMintPayout>,
 
-    /// CHECK: Fed-owned vault; may be uninitialized.
-/// Fed will validate / initialize via CPI.
-#[account(mut, owner = fed::ID)]
-pub creator_vault_token_account: UncheckedAccount<'info>,
+    // creator's vault for receiving creator fees
+    /// CHECK: SPL token account whose authority is the fed - cannot do #[account(owner = fed::ID)]
+    #[account(mut)]
+    pub creator_vault_token_account: Account<'info, TokenAccount>,
 
-    /// CHECK: Fed vault token account (Fed-owned) - let the fed check it 
-    #[account(owner = fed::ID)]
+    // Vault authority opague passed from the fed 
+    /// CHECK: just a pda - can't require #[account(owner = fed::ID)]
     pub vault_authority: UncheckedAccount<'info>,
 
     pub token_mint: Account<'info, Mint>,
@@ -371,11 +362,9 @@ pub struct DistributeProtocolFee<'info> {
     )]
     pub post_mint_payout: Account<'info, PostMintPayout>,
 
-    /// CHECK: Fed-owned token account (Fed-owned) - let the fed check it 
-    #[account(
-        owner = fed::ID
-    )]
-    pub protocol_token_treasury_token_account: UncheckedAccount<'info>,
+    /// CHECK: SPL token account whose authority is the fed - cannot do #[account(owner = fed::ID)]
+    #[account(mut)]
+    pub protocol_token_treasury_token_account: Account<'info, TokenAccount>,
 
     pub om_config: Account<'info, OMConfig>,
     pub token_mint: Account<'info, Mint>,
@@ -506,13 +495,13 @@ pub struct ClaimPostReward<'info> {
     pub post_pot_authority: UncheckedAccount<'info>,
 
 
-    /// CHECK: Fed vault token account (Fed-owned) - let the fed check it 
-    #[account(owner = fed::ID)]
-    pub user_vault_token_account: Box<Account<'info, TokenAccount>>,
+    /// CHECK: SPL token account whose authority is the fed - cannot do #[account(owner = fed::ID)]
+    #[account(mut)]
+    pub user_vault_token_account: Account<'info, TokenAccount>,
 
-        /// CHECK: Fed vault token account (Fed-owned) - let the fed check it 
-    #[account(owner = fed::ID)]
-    pub vault_authority: AccountInfo<'info>,
+    // Vault authority opague passed from the fed 
+    /// CHECK: just a pda - can't require #[account(owner = fed::ID)]
+    pub vault_authority: UncheckedAccount<'info>,
 
     pub token_mint: Account<'info, Mint>,
     pub fed_program: Program<'info, fed::program::Fed>,

@@ -15,7 +15,7 @@ use crate::config::TIME_CONFIG_FAST;
 use crate::utils::phenomena::{
     test_phenomena_add_valid_payment, test_phenomena_create_post, test_phenomena_create_user,
     test_phenomena_deposit, test_phenomena_send_token, test_phenomena_tip,
-    test_phenomena_turn_on_withdrawable, test_phenomena_withdraw,
+    test_phenomena_turn_on_withdrawable, test_phenomena_vote_on_post, test_phenomena_withdraw,
 };
 use crate::utils::utils::{
     airdrop_sol_to_users, send_tx, setup_token_mint, setup_token_mint_ata_and_mint_to_many_users,
@@ -480,6 +480,8 @@ async fn test_setup() {
             test_phenomena_vote_on_post(
                 &rpc,
                 &opinions_market,
+                &fed,
+                &persona,
                 &payer,
                 &user_2,
                 &session_key,
@@ -488,7 +490,8 @@ async fn test_setup() {
                 1,
                 &bling_pubkey,
                 &bling_atas,
-                &config_pda,
+                &om_config_pda,
+                &fed_config_pda,
             )
             .await;
         }
@@ -498,6 +501,8 @@ async fn test_setup() {
             test_phenomena_vote_on_post(
                 &rpc,
                 &opinions_market,
+                &fed,
+                &persona,
                 &payer,
                 &user_1,
                 &session_key,
@@ -506,10 +511,117 @@ async fn test_setup() {
                 2,
                 &bling_pubkey,
                 &bling_atas,
-                &config_pda,
+                &om_config_pda,
+                &fed_config_pda,
             )
             .await;
         }
+
+        {
+            println!("user 1 downvoting user 2's post P2");
+            test_phenomena_vote_on_post(
+                &rpc,
+                &opinions_market,
+                &fed,
+                &persona,
+                &payer,
+                &user_1,
+                &session_key,
+                &post_p2_pda,
+                opinions_market::states::Side::Smack,
+                1,
+                &bling_pubkey,
+                &bling_atas,
+                &om_config_pda,
+                &fed_config_pda,
+            )
+            .await;
+        }
+
+        {
+            println!("user 1 downvoting user 2's child post");
+            // Note: This is the same as the previous vote since P2 is already a child post
+            // If you meant a different child post, we'd need to create another one first
+            test_phenomena_vote_on_post(
+                &rpc,
+                &opinions_market,
+                &fed,
+                &persona,
+                &payer,
+                &user_1,
+                &session_key,
+                &post_p2_pda,
+                opinions_market::states::Side::Smack,
+                1,
+                &bling_pubkey,
+                &bling_atas,
+                &om_config_pda,
+                &fed_config_pda,
+            )
+            .await;
+        }
+
+        {
+            println!("user 1 upvoting user 2's child post with USDC");
+            // Note: This is the same as the previous vote since P2 is already a child post
+            // If you meant a different child post, we'd need to create another one first
+            test_phenomena_vote_on_post(
+                &rpc,
+                &opinions_market,
+                &fed,
+                &persona,
+                &payer,
+                &user_1,
+                &session_key,
+                &post_p2_pda,
+                opinions_market::states::Side::Pump,
+                1,
+                &usdc_pubkey,
+                &bling_atas,
+                &om_config_pda,
+                &fed_config_pda,
+            )
+            .await;
+        }
+
+        {
+            println!("user 1 upvoting user 2's child post with stablecoin");
+            // Note: This is the same as the previous vote since P2 is already a child post
+            // If you meant a different child post, we'd need to create another one first
+            test_phenomena_vote_on_post(
+                &rpc,
+                &opinions_market,
+                &fed,
+                &persona,
+                &payer,
+                &user_1,
+                &session_key,
+                &post_p2_pda,
+                opinions_market::states::Side::Pump,
+                1,
+                &stablecoin_pubkey,
+                &stablecoin_atas,
+                &om_config_pda,
+                &fed_config_pda,
+            )
+            .await;
+        }
+
+        // //         Note: In a real test, you'd need to wait for the post to expire before settling
+        // // For now, we'll just show the settle function exists
+        // {
+        //     // wait_seconds(TIME_CONFIG_FAST.max_duration_secs as u64).await;
+        //     println!("Settling post P1");
+        //     test_phenomena_settle_post(
+        //         &rpc,
+        //         &opinions_market,
+        //         &payer,
+        //         &post_p1_pda,
+        //         &tokens,
+        //         &config_pda,
+        //     )
+        //     .await;
+        // }
         {
             println!("\n\n");
             println!(" 🟪🟪🟪🟪🟪🟪🟪🟪🟪🟪🟪🟪🟪🟪🟪🟪🟪");
@@ -517,99 +629,6 @@ async fn test_setup() {
             println!(" 🟪🟪🟪🟪🟪🟪🟪🟪🟪🟪🟪🟪🟪🟪🟪🟪🟪");
             panic!();
         }
-        //     {
-        //         println!("user 1 downvoting user 2's post P2");
-        //         test_phenomena_vote_on_post(
-        //             &rpc,
-        //             &opinions_market,
-        //             &payer,
-        //             &user_1,
-        //             &session_key,
-        //             &post_p2_pda,
-        //             opinions_market::states::Side::Smack,
-        //             1,
-        //             &bling_pubkey,
-        //             &bling_atas,
-        //             &config_pda,
-        //         )
-        //         .await;
-        //     }
-
-        //     {
-        //         println!("user 1 downvoting user 2's child post");
-        //         // Note: This is the same as the previous vote since P2 is already a child post
-        //         // If you meant a different child post, we'd need to create another one first
-        //         test_phenomena_vote_on_post(
-        //             &rpc,
-        //             &opinions_market,
-        //             &payer,
-        //             &user_1,
-        //             &session_key,
-        //             &post_p2_pda,
-        //             opinions_market::states::Side::Smack,
-        //             1,
-        //             &bling_pubkey,
-        //             &bling_atas,
-        //             &config_pda,
-        //         )
-        //         .await;
-        //     }
-
-        //     {
-        //         println!("user 1 upvoting user 2's child post with USDC");
-        //         // Note: This is the same as the previous vote since P2 is already a child post
-        //         // If you meant a different child post, we'd need to create another one first
-        //         test_phenomena_vote_on_post(
-        //             &rpc,
-        //             &opinions_market,
-        //             &payer,
-        //             &user_1,
-        //             &session_key,
-        //             &post_p2_pda,
-        //             opinions_market::states::Side::Pump,
-        //             1,
-        //             &usdc_pubkey,
-        //             &bling_atas,
-        //             &config_pda,
-        //         )
-        //         .await;
-        //     }
-
-        //     {
-        //         println!("user 1 upvoting user 2's child post with stablecoin");
-        //         // Note: This is the same as the previous vote since P2 is already a child post
-        //         // If you meant a different child post, we'd need to create another one first
-        //         test_phenomena_vote_on_post(
-        //             &rpc,
-        //             &opinions_market,
-        //             &payer,
-        //             &user_1,
-        //             &session_key,
-        //             &post_p2_pda,
-        //             opinions_market::states::Side::Pump,
-        //             1,
-        //             &stablecoin_pubkey,
-        //             &stablecoin_atas,
-        //             &config_pda,
-        //         )
-        //         .await;
-        //     }
-
-        //     //         Note: In a real test, you'd need to wait for the post to expire before settling
-        //     // For now, we'll just show the settle function exists
-        //     {
-        //         // wait_seconds(TIME_CONFIG_FAST.max_duration_secs as u64).await;
-        //         println!("Settling post P1");
-        //         test_phenomena_settle_post(
-        //             &rpc,
-        //             &opinions_market,
-        //             &payer,
-        //             &post_p1_pda,
-        //             &tokens,
-        //             &config_pda,
-        //         )
-        //         .await;
-        //     }
 
         //     {
         //         println!("\n user 2 claims their reward from user 's post");

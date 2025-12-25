@@ -247,7 +247,8 @@
           }
         },
         {
-          "name": "user_vault_token_account"
+          "name": "user_vault_token_account",
+          "writable": true
         },
         {
           "name": "vault_authority"
@@ -856,7 +857,8 @@
           }
         },
         {
-          "name": "protocol_token_treasury_token_account"
+          "name": "protocol_token_treasury_token_account",
+          "writable": true
         },
         {
           "name": "om_config"
@@ -1112,7 +1114,8 @@
           }
         },
         {
-          "name": "protocol_token_treasury_token_account"
+          "name": "protocol_token_treasury_token_account",
+          "writable": true
         },
         {
           "name": "parent_post",
@@ -1264,6 +1267,9 @@
         },
         {
           "name": "voter_user_vault_token_account",
+          "docs": [
+            "- keep opague so Fed TokenAccount cpi will initialize it and we won't be stopped by TokenAccount here"
+          ],
           "writable": true
         },
         {
@@ -1376,12 +1382,18 @@
           }
         },
         {
-          "name": "protocol_token_treasury_token_account"
+          "name": "protocol_token_treasury_token_account",
+          "writable": true
         },
         {
           "name": "creator_vault_token_account",
+          "writable": true
+        },
+        {
+          "name": "creator_user",
           "docs": [
-            "Fed will validate / initialize via CPI."
+            "This is the creator of the post, used to derive the creator vault PDA",
+            "Marked as mut because Fed CPI requires it for init_if_needed on creator vault"
           ],
           "writable": true
         },

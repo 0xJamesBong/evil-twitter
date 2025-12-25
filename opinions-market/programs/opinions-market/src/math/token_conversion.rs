@@ -76,33 +76,6 @@ pub fn convert_bling_to_stablecoin_lamports(
     convert_bling_to_token_lamports(bling_lamports, price_in_bling, STABLECOIN_DECIMALS)
 }
 
-/// Convert multiple BLING amounts to token amounts
-///
-/// Useful for converting protocol_fee, creator_fee, and pot_increment all at once
-///
-/// # Arguments
-/// * `protocol_fee_bling` - Protocol fee in BLING lamports
-/// * `creator_fee_bling` - Creator fee in BLING lamports
-/// * `pot_increment_bling` - Pot increment in BLING lamports
-/// * `price_in_bling` - Price from ValidPayment
-/// * `token_decimals` - Target token decimals
-///
-/// # Returns
-/// Tuple of (protocol_fee_token, creator_fee_token, pot_increment_token) in token lamports
-pub fn convert_bling_fees_to_token(
-    protocol_fee_bling: u64,
-    creator_fee_bling: u64,
-    pot_increment_bling: u64,
-    price_in_bling: u64,
-    token_decimals: u8,
-) -> Result<(u64, u64, u64)> {
-    Ok((
-        convert_bling_to_token_lamports(protocol_fee_bling, price_in_bling, token_decimals)?,
-        convert_bling_to_token_lamports(creator_fee_bling, price_in_bling, token_decimals)?,
-        convert_bling_to_token_lamports(pot_increment_bling, price_in_bling, token_decimals)?,
-    ))
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -126,29 +99,5 @@ mod tests {
             convert_bling_to_token_lamports(bling_lamports, price_in_bling, BLING_DECIMALS)
                 .unwrap();
         assert_eq!(result, bling_lamports);
-    }
-
-    #[test]
-    fn test_convert_fees() {
-        // Test converting multiple fees at once
-        let protocol_fee = 100_000_000u64; // 0.1 BLING
-        let creator_fee = 100_000_000u64; // 0.1 BLING
-        let pot_increment = 1_800_000_000u64; // 1.8 BLING
-        let price_in_bling = 10_000u64; // 1 USDC = 10,000 BLING
-
-        let (protocol_token, creator_token, pot_token) = convert_bling_fees_to_token(
-            protocol_fee,
-            creator_fee,
-            pot_increment,
-            price_in_bling,
-            USDC_DECIMALS,
-        )
-        .unwrap();
-
-        // 0.1 BLING / 10,000 = 0.00001 USDC = 10 lamports
-        assert_eq!(protocol_token, 10u64);
-        assert_eq!(creator_token, 10u64);
-        // 1.8 BLING / 10,000 = 0.00018 USDC = 180 lamports
-        assert_eq!(pot_token, 180u64);
     }
 }

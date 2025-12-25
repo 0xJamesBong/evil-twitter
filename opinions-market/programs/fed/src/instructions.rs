@@ -670,6 +670,72 @@ pub struct ConvertBlingAndTransferOutOfFedUserAccount<'info> {
     pub token_program: Program<'info, Token>,
 }
 
+/// Account struct for transferring from Fed user vault to another Fed user vault
+/// Supports init_if_needed for the destination vault
+#[derive(Accounts)]
+pub struct ConvertBlingAndTransferOutOfFedUserAccountToFedUserAccount<'info> {
+    /// CHECK: User pubkey used to derive the source vault PDA
+    #[account(mut)]
+    pub user_from: UncheckedAccount<'info>,
+    
+    /// CHECK: User pubkey used to derive the destination vault PDA (creator)
+    #[account(mut)]
+    pub user_to: UncheckedAccount<'info>,
+
+    /// CHECK: User vault token account (Fed-owned, source of transfer)
+    #[account(
+        mut,
+        seeds = [
+            USER_VAULT_TOKEN_ACCOUNT_SEED,
+            user_from.key().as_ref(),
+            token_mint.key().as_ref()
+        ],
+        bump,
+        token::mint = token_mint,
+        token::authority = vault_authority,
+    )]
+    pub from_user_vault_token_account: Account<'info, TokenAccount>,
+
+    /// CHECK: Creator vault token account (Fed-owned, destination of transfer)
+    /// This will be initialized if it doesn't exist
+    #[account(
+        init_if_needed,
+        payer = payer,
+        seeds = [
+            USER_VAULT_TOKEN_ACCOUNT_SEED,
+            user_to.key().as_ref(),
+            token_mint.key().as_ref()
+        ],
+        bump,
+        token::mint = token_mint,
+        token::authority = vault_authority,
+    )]
+    pub to_user_vault_token_account: Account<'info, TokenAccount>,
+
+    #[account(
+        seeds = [VALID_PAYMENT_SEED, token_mint.key().as_ref()],
+        bump = valid_payment.bump,
+        constraint = valid_payment.enabled @ ErrorCode::MintNotEnabled,
+    )]
+    pub valid_payment: Account<'info, ValidPayment>,
+
+    pub token_mint: Account<'info, Mint>,
+
+    /// CHECK: Vault authority PDA (Fed-owned, signs the transfer)
+    #[account(
+        seeds = [VAULT_AUTHORITY_SEED],
+        bump,
+    )]
+    pub vault_authority: UncheckedAccount<'info>,
+    
+    /// CHECK: Payer for account initialization (if needed)
+    #[account(mut)]
+    pub payer: Signer<'info>,
+    
+    pub token_program: Program<'info, Token>,
+    pub system_program: Program<'info, System>,
+}
+
 #[derive(Accounts)]
 pub struct CheckTransfer<'info> {
     #[account(mut

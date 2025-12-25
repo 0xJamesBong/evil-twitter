@@ -253,7 +253,8 @@ export type OpinionsMarket = {
           }
         },
         {
-          "name": "userVaultTokenAccount"
+          "name": "userVaultTokenAccount",
+          "writable": true
         },
         {
           "name": "vaultAuthority"
@@ -862,7 +863,8 @@ export type OpinionsMarket = {
           }
         },
         {
-          "name": "protocolTokenTreasuryTokenAccount"
+          "name": "protocolTokenTreasuryTokenAccount",
+          "writable": true
         },
         {
           "name": "omConfig"
@@ -1118,7 +1120,8 @@ export type OpinionsMarket = {
           }
         },
         {
-          "name": "protocolTokenTreasuryTokenAccount"
+          "name": "protocolTokenTreasuryTokenAccount",
+          "writable": true
         },
         {
           "name": "parentPost",
@@ -1270,6 +1273,9 @@ export type OpinionsMarket = {
         },
         {
           "name": "voterUserVaultTokenAccount",
+          "docs": [
+            "- keep opague so Fed TokenAccount cpi will initialize it and we won't be stopped by TokenAccount here"
+          ],
           "writable": true
         },
         {
@@ -1382,12 +1388,18 @@ export type OpinionsMarket = {
           }
         },
         {
-          "name": "protocolTokenTreasuryTokenAccount"
+          "name": "protocolTokenTreasuryTokenAccount",
+          "writable": true
         },
         {
           "name": "creatorVaultTokenAccount",
+          "writable": true
+        },
+        {
+          "name": "creatorUser",
           "docs": [
-            "Fed will validate / initialize via CPI."
+            "This is the creator of the post, used to derive the creator vault PDA",
+            "Marked as mut because Fed CPI requires it for init_if_needed on creator vault"
           ],
           "writable": true
         },

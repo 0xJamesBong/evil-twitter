@@ -1219,6 +1219,359 @@ pub async fn test_phenomena_create_post(
     (post_pda, hash)
 }
 
+pub async fn test_phenomena_vote_on_post(
+    rpc: &RpcClient,
+    opinions_market: &Program<&Keypair>,
+    fed: &Program<&Keypair>,
+    persona: &Program<&Keypair>,
+    payer: &Keypair,
+    voter: &Keypair,
+    session_key: &Keypair,
+    post_pda: &Pubkey,
+    side: opinions_market::states::Side,
+    votes: u64,
+    token_mint: &Pubkey,
+    token_atas: &HashMap<Pubkey, Pubkey>,
+    om_config_pda: &Pubkey,
+    fed_config_pda: &Pubkey,
+) {
+    let side_str = match side {
+        opinions_market::states::Side::Pump => "upvote",
+        opinions_market::states::Side::Smack => "downvote",
+    };
+    println!(
+        "{:} {}ing post {:} with {} votes",
+        voter.pubkey(),
+        side_str,
+        post_pda,
+        votes
+    );
+
+    // Get post account BEFORE vote to capture initial state
+    let post_account_before = opinions_market
+        .account::<opinions_market::states::PostAccount>(*post_pda)
+        .await
+        .unwrap();
+
+    let post_id_hash = post_account_before.post_id_hash.clone();
+
+    println!("post_pda passed in: {}", post_pda);
+    let expected = Pubkey::find_program_address(
+        &[POST_ACCOUNT_SEED, post_id_hash.as_ref()],
+        &opinions_market.id(),
+    )
+    .0;
+    println!("post_pda derived from seeds: {}", expected);
+    println!("post_id_hash: {}", hex::encode(post_id_hash));
+
+    assert_eq!(
+        post_account_before.state,
+        opinions_market::states::PostState::Open,
+        "Post should be in Open state before voting"
+    );
+    println!("✅ Post state is Open");
+
+    // Capture initial post state
+    let initial_end_time = post_account_before.end_time;
+    let initial_upvotes = post_account_before.upvotes;
+    let initial_downvotes = post_account_before.downvotes;
+    let initial_start_time = post_account_before.start_time;
+
+    println!("📊 Post state BEFORE vote:");
+    println!("   - Start time: {}", initial_start_time);
+    println!("   - End time: {}", initial_end_time);
+    println!(
+        "   - Upvotes: {}, Downvotes: {}",
+        initial_upvotes, initial_downvotes
+    );
+
+    // Use TIME_CONFIG_FAST for time calculations (matches what we initialized with)
+    // Calculate expected end_time extension
+    let expected_extension = (TIME_CONFIG_FAST.extension_per_vote_secs as i64) * (votes as i64);
+    let naive_new_end_time = initial_end_time + expected_extension;
+    let max_allowed_end_time = initial_start_time + (TIME_CONFIG_FAST.max_duration_secs as i64);
+    let expected_end_time = naive_new_end_time.min(max_allowed_end_time);
+    let expected_actual_extension = expected_end_time - initial_end_time;
+
+    println!(
+        "📅 Expected time extension: {} seconds ({} votes × {} secs/vote)",
+        expected_extension, votes, TIME_CONFIG_FAST.extension_per_vote_secs
+    );
+    println!("   - Naive new end_time: {}", naive_new_end_time);
+    println!("   - Max allowed end_time: {}", max_allowed_end_time);
+    println!(
+        "   - Expected end_time after vote: {} (extension: {} seconds)",
+        expected_end_time, expected_actual_extension
+    );
+
+    let voter_user_account_pda = Pubkey::find_program_address(
+        &[
+            persona::pda_seeds::USER_ACCOUNT_SEED,
+            voter.pubkey().as_ref(),
+        ],
+        &persona.id(),
+    )
+    .0;
+
+    let voter_account_pda = Pubkey::find_program_address(
+        &[VOTER_ACCOUNT_SEED, voter.pubkey().as_ref()],
+        &opinions_market.id(),
+    )
+    .0;
+
+    let user_vault_token_account_pda = Pubkey::find_program_address(
+        &[
+            fed::pda_seeds::USER_VAULT_TOKEN_ACCOUNT_SEED,
+            voter.pubkey().as_ref(),
+            token_mint.as_ref(),
+        ],
+        &fed.id(),
+    )
+    .0;
+
+    let position_pda = Pubkey::find_program_address(
+        &[
+            POSITION_SEED,
+            post_pda.as_ref(),
+            voter.pubkey().as_ref(), // Use voter's wallet pubkey, not user_account PDA
+        ],
+        &opinions_market.id(),
+    )
+    .0;
+
+    // Try to get position BEFORE vote (may not exist)
+    let position_before = opinions_market
+        .account::<opinions_market::states::VoterPostPosition>(position_pda)
+        .await;
+
+    let initial_position_upvotes = match &position_before {
+        Ok(pos) => pos.upvotes,
+        Err(_) => 0,
+    };
+    let initial_position_downvotes = match &position_before {
+        Ok(pos) => pos.downvotes,
+        Err(_) => 0,
+    };
+
+    println!("📊 Position state BEFORE vote:");
+    println!(
+        "   - Upvotes: {}, Downvotes: {}",
+        initial_position_upvotes, initial_position_downvotes
+    );
+
+    let vault_authority_pda =
+        Pubkey::find_program_address(&[fed::pda_seeds::VAULT_AUTHORITY_SEED], &fed.id()).0;
+
+    let creator_user = post_account_before.creator_user; // this is a wallet pubkey
+
+    let creator_vault_token_account_pda = Pubkey::find_program_address(
+        &[
+            fed::pda_seeds::USER_VAULT_TOKEN_ACCOUNT_SEED,
+            creator_user.as_ref(),
+            token_mint.as_ref(),
+        ],
+        &fed.id(),
+    )
+    .0;
+
+    let post_pot_authority_pda = Pubkey::find_program_address(
+        &[POST_POT_AUTHORITY_SEED, post_pda.as_ref()],
+        &opinions_market.id(),
+    )
+    .0;
+
+    let post_pot_token_account_pda = Pubkey::find_program_address(
+        &[
+            POST_POT_TOKEN_ACCOUNT_SEED,
+            post_pda.as_ref(),
+            token_mint.as_ref(),
+        ],
+        &opinions_market.id(),
+    )
+    .0;
+
+    let protocol_treasury_token_account_pda = Pubkey::find_program_address(
+        &[
+            fed::pda_seeds::PROTOCOL_TREASURY_TOKEN_ACCOUNT_SEED,
+            token_mint.as_ref(),
+        ],
+        &fed.id(),
+    )
+    .0;
+
+    let valid_payment_pda = Pubkey::find_program_address(
+        &[fed::pda_seeds::VALID_PAYMENT_SEED, token_mint.as_ref()],
+        &fed.id(),
+    )
+    .0;
+
+    let session_authority_pda = Pubkey::find_program_address(
+        &[
+            persona::pda_seeds::SESSION_AUTHORITY_SEED,
+            voter.pubkey().as_ref(),
+            session_key.pubkey().as_ref(),
+        ],
+        &persona.id(),
+    )
+    .0;
+
+    let vote_ix = opinions_market
+        .request()
+        .accounts(opinions_market::accounts::VoteOnPost {
+            om_config: *om_config_pda,
+            voter: voter.pubkey(),
+            payer: payer.pubkey(),
+            session_key: session_key.pubkey(),
+            session_authority: session_authority_pda,
+            post: *post_pda,
+            user_account: voter_user_account_pda,
+            voter_account: voter_account_pda,
+            position: position_pda,
+            vault_authority: vault_authority_pda,
+            voter_user_vault_token_account: user_vault_token_account_pda,
+            post_pot_token_account: post_pot_token_account_pda,
+            post_pot_authority: post_pot_authority_pda,
+            protocol_token_treasury_token_account: protocol_treasury_token_account_pda,
+            creator_vault_token_account: creator_vault_token_account_pda,
+            creator_user: creator_user, // Creator user pubkey (used for PDA derivation in Fed)
+            valid_payment: valid_payment_pda,
+            fed_config: *fed_config_pda,
+            token_mint: *token_mint,
+            fed_program: fed.id(),
+            persona_program: persona.id(),
+            token_program: spl_token::ID,
+            system_program: system_program::ID,
+        })
+        .args(opinions_market::instruction::VoteOnPost {
+            side,
+            votes,
+            post_id_hash,
+        })
+        .instructions()
+        .unwrap();
+
+    // Voter is the payer, so only voter needs to sign
+    let vote_tx = send_tx(&rpc, vote_ix, &payer.pubkey(), &[&payer])
+        .await
+        .unwrap();
+    println!("vote tx: {:?}", vote_tx);
+
+    // Verify position was updated AFTER vote
+    let position_after = opinions_market
+        .account::<opinions_market::states::VoterPostPosition>(position_pda)
+        .await
+        .unwrap();
+
+    println!("📊 Position state AFTER vote:");
+    println!(
+        "   - Upvotes: {}, Downvotes: {}",
+        position_after.upvotes, position_after.downvotes
+    );
+
+    match side {
+        opinions_market::states::Side::Pump => {
+            assert_eq!(
+                position_after.upvotes,
+                initial_position_upvotes + votes,
+                "Position upvotes should increase by {} (was {}, now {})",
+                votes,
+                initial_position_upvotes,
+                position_after.upvotes
+            );
+        }
+        opinions_market::states::Side::Smack => {
+            assert_eq!(
+                position_after.downvotes,
+                initial_position_downvotes + votes,
+                "Position downvotes should increase by {} (was {}, now {})",
+                votes,
+                initial_position_downvotes,
+                position_after.downvotes
+            );
+        }
+    }
+
+    // Verify post counters were updated AFTER vote
+    let post_account_after = opinions_market
+        .account::<opinions_market::states::PostAccount>(*post_pda)
+        .await
+        .unwrap();
+
+    println!("📊 Post state AFTER vote:");
+    println!(
+        "   - Start time: {} (unchanged)",
+        post_account_after.start_time
+    );
+    println!(
+        "   - End time: {} (was {}, changed by {} seconds)",
+        post_account_after.end_time,
+        initial_end_time,
+        post_account_after.end_time - initial_end_time
+    );
+    println!(
+        "   - Upvotes: {} (was {}, changed by {})",
+        post_account_after.upvotes,
+        initial_upvotes,
+        post_account_after.upvotes as i64 - initial_upvotes as i64
+    );
+    println!(
+        "   - Downvotes: {} (was {}, changed by {})",
+        post_account_after.downvotes,
+        initial_downvotes,
+        post_account_after.downvotes as i64 - initial_downvotes as i64
+    );
+
+    // Verify start_time didn't change
+    assert_eq!(
+        post_account_after.start_time, initial_start_time,
+        "Post start_time should not change after vote"
+    );
+
+    // Verify end_time was extended correctly
+    let actual_extension = post_account_after.end_time - initial_end_time;
+    assert_eq!(
+        post_account_after.end_time, expected_end_time,
+        "Post end_time should be extended correctly. Expected: {} (extension: {} secs), Got: {} (extension: {} secs)",
+        expected_end_time, expected_actual_extension, post_account_after.end_time, actual_extension
+    );
+    assert!(
+        actual_extension > 0,
+        "Post end_time should be extended by at least some amount. Extension: {} seconds",
+        actual_extension
+    );
+    assert!(
+        actual_extension <= expected_extension,
+        "Post end_time extension should not exceed expected. Expected max: {} secs, Got: {} secs",
+        expected_extension,
+        actual_extension
+    );
+
+    // Verify vote counts increased correctly
+    match side {
+        opinions_market::states::Side::Pump => {
+            assert!(
+                post_account_after.upvotes >= initial_upvotes + votes as u64,
+                "Post upvotes should increase by at least {} (was {}, now {})",
+                votes,
+                initial_upvotes,
+                post_account_after.upvotes
+            );
+        }
+        opinions_market::states::Side::Smack => {
+            assert!(
+                post_account_after.downvotes >= initial_downvotes + votes as u64,
+                "Post downvotes should increase by at least {} (was {}, now {})",
+                votes,
+                initial_downvotes,
+                post_account_after.downvotes
+            );
+        }
+    }
+
+    println!("✅ Vote successful. Position and post updated correctly.");
+    println!("   ✅ End time extended by {} seconds", actual_extension);
+}
+
 // pub async fn test_phenomena_create_question(
 //     rpc: &RpcClient,
 //     opinions_market: &Program<&Keypair>,
@@ -1530,339 +1883,6 @@ pub async fn test_phenomena_create_post(
 //     println!("answer_id_hash: {:?}", hex::encode(answer_hash));
 
 //     (answer_pda, answer_hash)
-// }
-
-// pub async fn test_phenomena_vote_on_post(
-//     rpc: &RpcClient,
-//     opinions_market: &Program<&Keypair>,
-//     payer: &Keypair,
-//     voter: &Keypair,
-//     session_key: &Keypair,
-//     post_pda: &Pubkey,
-//     side: opinions_market::states::Side,
-//     votes: u64,
-//     token_mint: &Pubkey,
-//     token_atas: &HashMap<Pubkey, Pubkey>,
-//     config_pda: &Pubkey,
-// ) {
-//     let side_str = match side {
-//         opinions_market::states::Side::Pump => "upvote",
-//         opinions_market::states::Side::Smack => "downvote",
-//     };
-//     println!(
-//         "{:} {}ing post {:} with {} votes",
-//         voter.pubkey(),
-//         side_str,
-//         post_pda,
-//         votes
-//     );
-
-//     // Get post account BEFORE vote to capture initial state
-//     let post_account_before = opinions_market
-//         .account::<opinions_market::states::PostAccount>(*post_pda)
-//         .await
-//         .unwrap();
-
-//     let post_id_hash = post_account_before.post_id_hash.clone();
-
-//     println!("post_pda passed in: {}", post_pda);
-//     let expected = Pubkey::find_program_address(
-//         &[POST_ACCOUNT_SEED, post_id_hash.as_ref()],
-//         &opinions_market.id(),
-//     )
-//     .0;
-//     println!("post_pda derived from seeds: {}", expected);
-//     println!("post_id_hash: {}", hex::encode(post_id_hash));
-
-//     assert_eq!(
-//         post_account_before.state,
-//         opinions_market::states::PostState::Open,
-//         "Post should be in Open state before voting"
-//     );
-//     println!("✅ Post state is Open");
-
-//     // Capture initial post state
-//     let initial_end_time = post_account_before.end_time;
-//     let initial_upvotes = post_account_before.upvotes;
-//     let initial_downvotes = post_account_before.downvotes;
-//     let initial_start_time = post_account_before.start_time;
-
-//     println!("📊 Post state BEFORE vote:");
-//     println!("   - Start time: {}", initial_start_time);
-//     println!("   - End time: {}", initial_end_time);
-//     println!(
-//         "   - Upvotes: {}, Downvotes: {}",
-//         initial_upvotes, initial_downvotes
-//     );
-
-//     // Use TIME_CONFIG_FAST for time calculations (matches what we initialized with)
-//     // Calculate expected end_time extension
-//     let expected_extension = (TIME_CONFIG_FAST.extension_per_vote_secs as i64) * (votes as i64);
-//     let naive_new_end_time = initial_end_time + expected_extension;
-//     let max_allowed_end_time = initial_start_time + (TIME_CONFIG_FAST.max_duration_secs as i64);
-//     let expected_end_time = naive_new_end_time.min(max_allowed_end_time);
-//     let expected_actual_extension = expected_end_time - initial_end_time;
-
-//     println!(
-//         "📅 Expected time extension: {} seconds ({} votes × {} secs/vote)",
-//         expected_extension, votes, TIME_CONFIG_FAST.extension_per_vote_secs
-//     );
-//     println!("   - Naive new end_time: {}", naive_new_end_time);
-//     println!("   - Max allowed end_time: {}", max_allowed_end_time);
-//     println!(
-//         "   - Expected end_time after vote: {} (extension: {} seconds)",
-//         expected_end_time, expected_actual_extension
-//     );
-
-//     let voter_user_account_pda = Pubkey::find_program_address(
-//         &[USER_ACCOUNT_SEED, voter.pubkey().as_ref()],
-//         &opinions_market.id(),
-//     )
-//     .0;
-
-//     let user_vault_token_account_pda = Pubkey::find_program_address(
-//         &[
-//             USER_VAULT_TOKEN_ACCOUNT_SEED,
-//             voter.pubkey().as_ref(),
-//             token_mint.as_ref(),
-//         ],
-//         &opinions_market.id(),
-//     )
-//     .0;
-
-//     let position_pda = Pubkey::find_program_address(
-//         &[
-//             POSITION_SEED,
-//             post_pda.as_ref(),
-//             voter.pubkey().as_ref(), // Use voter's wallet pubkey, not user_account PDA
-//         ],
-//         &opinions_market.id(),
-//     )
-//     .0;
-
-//     // Try to get position BEFORE vote (may not exist)
-//     let position_before = opinions_market
-//         .account::<opinions_market::states::UserPostPosition>(position_pda)
-//         .await;
-
-//     let initial_position_upvotes = match &position_before {
-//         Ok(pos) => pos.upvotes,
-//         Err(_) => 0,
-//     };
-//     let initial_position_downvotes = match &position_before {
-//         Ok(pos) => pos.downvotes,
-//         Err(_) => 0,
-//     };
-
-//     println!("📊 Position state BEFORE vote:");
-//     println!(
-//         "   - Upvotes: {}, Downvotes: {}",
-//         initial_position_upvotes, initial_position_downvotes
-//     );
-
-// let vault_authority_pda =
-//     Pubkey::find_program_address(&[VAULT_AUTHORITY_SEED], &opinions_market.id()).0;
-
-//     let creator_user = post_account_before.creator_user; // this is a wallet pubkey
-
-//     let creator_vault_token_account_pda = Pubkey::find_program_address(
-//         &[
-//             USER_VAULT_TOKEN_ACCOUNT_SEED,
-//             creator_user.as_ref(),
-//             token_mint.as_ref(),
-//         ],
-//         &opinions_market.id(),
-//     )
-//     .0;
-
-//     let post_pot_authority_pda = Pubkey::find_program_address(
-//         &[POST_POT_AUTHORITY_SEED, post_pda.as_ref()],
-//         &opinions_market.id(),
-//     )
-//     .0;
-
-//     let post_pot_token_account_pda = Pubkey::find_program_address(
-//         &[
-//             POST_POT_TOKEN_ACCOUNT_SEED,
-//             post_pda.as_ref(),
-//             token_mint.as_ref(),
-//         ],
-//         &opinions_market.id(),
-//     )
-//     .0;
-
-//     let protocol_treasury_token_account_pda = Pubkey::find_program_address(
-//         &[PROTOCOL_TREASURY_TOKEN_ACCOUNT_SEED, token_mint.as_ref()],
-//         &opinions_market.id(),
-//     )
-//     .0;
-
-//     let valid_payment_pda = Pubkey::find_program_address(
-//         &[VALID_PAYMENT_SEED, token_mint.as_ref()],
-//         &opinions_market.id(),
-//     )
-//     .0;
-
-//     let session_authority_pda = Pubkey::find_program_address(
-//         &[
-//             SESSION_AUTHORITY_SEED,
-//             voter.pubkey().as_ref(),
-//             session_key.pubkey().as_ref(),
-//         ],
-//         &opinions_market.id(),
-//     )
-//     .0;
-
-//     let vote_ix = opinions_market
-//         .request()
-//         .accounts(opinions_market::accounts::VoteOnPost {
-//             config: *config_pda,
-//             voter: voter.pubkey(),
-//             payer: payer.pubkey(),
-//             session_key: session_key.pubkey(),
-//             session_authority: session_authority_pda,
-//             post: *post_pda,
-//             voter_user_account: voter_user_account_pda,
-//             position: position_pda,
-//             vault_authority: vault_authority_pda,
-//             voter_user_vault_token_account: user_vault_token_account_pda,
-//             post_pot_token_account: post_pot_token_account_pda,
-//             post_pot_authority: post_pot_authority_pda,
-//             protocol_token_treasury_token_account: protocol_treasury_token_account_pda,
-//             creator_vault_token_account: creator_vault_token_account_pda,
-//             valid_payment: valid_payment_pda,
-//             token_mint: *token_mint,
-//             token_program: spl_token::ID,
-//             system_program: system_program::ID,
-//         })
-//         .args(opinions_market::instruction::VoteOnPost {
-//             side,
-//             votes,
-//             post_id_hash,
-//         })
-//         .instructions()
-//         .unwrap();
-
-//     // Voter is the payer, so only voter needs to sign
-//     let vote_tx = send_tx(&rpc, vote_ix, &payer.pubkey(), &[&payer])
-//         .await
-//         .unwrap();
-//     println!("vote tx: {:?}", vote_tx);
-
-//     // Verify position was updated AFTER vote
-//     let position_after = opinions_market
-//         .account::<opinions_market::states::UserPostPosition>(position_pda)
-//         .await
-//         .unwrap();
-
-//     println!("📊 Position state AFTER vote:");
-//     println!(
-//         "   - Upvotes: {}, Downvotes: {}",
-//         position_after.upvotes, position_after.downvotes
-//     );
-
-//     match side {
-//         opinions_market::states::Side::Pump => {
-//             assert_eq!(
-//                 position_after.upvotes,
-//                 initial_position_upvotes + votes,
-//                 "Position upvotes should increase by {} (was {}, now {})",
-//                 votes,
-//                 initial_position_upvotes,
-//                 position_after.upvotes
-//             );
-//         }
-//         opinions_market::states::Side::Smack => {
-//             assert_eq!(
-//                 position_after.downvotes,
-//                 initial_position_downvotes + votes,
-//                 "Position downvotes should increase by {} (was {}, now {})",
-//                 votes,
-//                 initial_position_downvotes,
-//                 position_after.downvotes
-//             );
-//         }
-//     }
-
-//     // Verify post counters were updated AFTER vote
-//     let post_account_after = opinions_market
-//         .account::<opinions_market::states::PostAccount>(*post_pda)
-//         .await
-//         .unwrap();
-
-//     println!("📊 Post state AFTER vote:");
-//     println!(
-//         "   - Start time: {} (unchanged)",
-//         post_account_after.start_time
-//     );
-//     println!(
-//         "   - End time: {} (was {}, changed by {} seconds)",
-//         post_account_after.end_time,
-//         initial_end_time,
-//         post_account_after.end_time - initial_end_time
-//     );
-//     println!(
-//         "   - Upvotes: {} (was {}, changed by {})",
-//         post_account_after.upvotes,
-//         initial_upvotes,
-//         post_account_after.upvotes as i64 - initial_upvotes as i64
-//     );
-//     println!(
-//         "   - Downvotes: {} (was {}, changed by {})",
-//         post_account_after.downvotes,
-//         initial_downvotes,
-//         post_account_after.downvotes as i64 - initial_downvotes as i64
-//     );
-
-//     // Verify start_time didn't change
-//     assert_eq!(
-//         post_account_after.start_time, initial_start_time,
-//         "Post start_time should not change after vote"
-//     );
-
-//     // Verify end_time was extended correctly
-//     let actual_extension = post_account_after.end_time - initial_end_time;
-//     assert_eq!(
-//         post_account_after.end_time, expected_end_time,
-//         "Post end_time should be extended correctly. Expected: {} (extension: {} secs), Got: {} (extension: {} secs)",
-//         expected_end_time, expected_actual_extension, post_account_after.end_time, actual_extension
-//     );
-//     assert!(
-//         actual_extension > 0,
-//         "Post end_time should be extended by at least some amount. Extension: {} seconds",
-//         actual_extension
-//     );
-//     assert!(
-//         actual_extension <= expected_extension,
-//         "Post end_time extension should not exceed expected. Expected max: {} secs, Got: {} secs",
-//         expected_extension,
-//         actual_extension
-//     );
-
-//     // Verify vote counts increased correctly
-//     match side {
-//         opinions_market::states::Side::Pump => {
-//             assert!(
-//                 post_account_after.upvotes >= initial_upvotes + votes as u64,
-//                 "Post upvotes should increase by at least {} (was {}, now {})",
-//                 votes,
-//                 initial_upvotes,
-//                 post_account_after.upvotes
-//             );
-//         }
-//         opinions_market::states::Side::Smack => {
-//             assert!(
-//                 post_account_after.downvotes >= initial_downvotes + votes as u64,
-//                 "Post downvotes should increase by at least {} (was {}, now {})",
-//                 votes,
-//                 initial_downvotes,
-//                 post_account_after.downvotes
-//             );
-//         }
-//     }
-
-//     println!("✅ Vote successful. Position and post updated correctly.");
-//     println!("   ✅ End time extended by {} seconds", actual_extension);
 // }
 
 // pub async fn test_phenomena_settle_post(

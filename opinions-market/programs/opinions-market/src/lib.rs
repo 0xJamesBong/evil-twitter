@@ -162,6 +162,17 @@ pub mod opinions_market {
         post.downvotes = new_post.downvotes;
         post.winning_side = new_post.winning_side;
 
+        // Initialize voter_account if it was just created
+        let voter_account = &mut ctx.accounts.voter_account;
+        if voter_account.voter == Pubkey::default() {
+            let new_voter_account =
+                VoterAccount::default(ctx.accounts.user.key(), ctx.bumps.voter_account);
+            voter_account.voter = new_voter_account.voter;
+            voter_account.social_score = new_voter_account.social_score;
+            voter_account.attack_surface = new_voter_account.attack_surface;
+            voter_account.bump = new_voter_account.bump;
+        }
+
         Ok(())
     }
 
@@ -330,20 +341,6 @@ pub mod opinions_market {
             now,
         )?;
 
-        // Check if transfer is compliant with fed economic policy
-        fed::cpi::check_transfer(CpiContext::new(
-            ctx.accounts.fed_program.to_account_info(),
-            fed::cpi::accounts::CheckTransfer {
-                from: ctx
-                    .accounts
-                    .voter_user_vault_token_account
-                    .to_account_info(),
-                to: ctx.accounts.post_pot_token_account.to_account_info(),
-                valid_payment: ctx.accounts.valid_payment.to_account_info(),
-                token_mint: ctx.accounts.token_mint.to_account_info(),
-            },
-        ))?;
-
         let om_config = &ctx.accounts.om_config;
         let post = &mut ctx.accounts.post;
         let current = match side {
@@ -366,6 +363,9 @@ pub mod opinions_market {
 
         require!(post.state == PostState::Open, ErrorCode::PostNotOpen);
         require!(post.within_time_limit(now), ErrorCode::PostExpired);
+
+        // Extract creator_user pubkey before any mutable borrows (needed for creator vault initialization)
+        let creator_user_key = post.creator_user;
 
         // Handle position
         let pos = &mut ctx.accounts.position;
@@ -401,46 +401,6 @@ pub mod opinions_market {
             .ok_or(ErrorCode::MathOverflow)?;
 
         //
-        // ---- 2. CONVERT COSTS TO token_mint (if not BLING) ----
-        //
-
-        use crate::math::token_conversion::convert_bling_fees_to_token;
-
-        // Get token decimals
-        let token_decimals = ctx.accounts.token_mint.decimals;
-
-        // Convert costs from BLING to selected token if needed
-        // let (protocol_fee_token, creator_pump_fee_token, pot_increment_token) =
-        //     if ctx.accounts.token_mint.key() == ctx.accounts.om_config.bling_mint {
-        //         // Already in BLING, no conversion needed
-        //         (protocol_fee, creator_pump_fee, pot_increment)
-        //     } else {
-        //         // Convert from BLING to selected token using ValidPayment price
-        //         let price_in_bling = fed::cpi::bling_to_token(
-        //             CpiContext::new(
-        //                 ctx.accounts.fed_program.to_account_info(),
-        //                 fed::cpi::accounts::BlingToToken {
-        //                     valid_payment: ctx.accounts.valid_payment.to_account_info(),
-        //                     token_mint: ctx.accounts.token_mint.to_account_info(),
-        //                 },
-        //             ),
-        //             protocol_fee,
-        //         )?;
-
-        //         convert_bling_fees_to_token(
-        //             protocol_fee,
-        //             creator_pump_fee,
-        //             pot_increment,
-        //             price_in_bling,
-        //             token_decimals,
-        //         )?
-        //     };
-
-        // msg!("protocol_fee_token: {}", protocol_fee_token);
-        // msg!("creator_pump_fee_token: {}", creator_pump_fee_token);
-        // msg!("pot_increment_token: {}", pot_increment_token);
-
-        //
         // ---- 2. TRANSFERS via Fed (all in BLING) ----
         //
 
@@ -472,21 +432,29 @@ pub mod opinions_market {
 
         // Creator fee transfer (Fed vault → Fed creator vault)
         if creator_pump_fee > 0 {
-            fed::cpi::convert_bling_and_transfer_out_of_fed_user_account(
+            // Validate that creator_user account matches post.creator_user
+            require!(
+                ctx.accounts.creator_user.key() == creator_user_key,
+                ErrorCode::MathOverflow // Using MathOverflow as a generic error
+            );
+
+            fed::cpi::convert_bling_and_transfer_out_of_fed_user_account_to_fed_user_account(
                 CpiContext::new(
                     ctx.accounts.fed_program.to_account_info(),
-                    fed::cpi::accounts::ConvertBlingAndTransferOutOfFedUserAccount {
+                    fed::cpi::accounts::ConvertBlingAndTransferOutOfFedUserAccountToFedUserAccount {
                         user_from: ctx.accounts.voter.to_account_info(),
-                        user: ctx.accounts.voter.to_account_info(),
+                        user_to: ctx.accounts.creator_user.to_account_info(),
                         from_user_vault_token_account: ctx
                             .accounts
                             .voter_user_vault_token_account
                             .to_account_info(),
-                        to: ctx.accounts.creator_vault_token_account.to_account_info(),
+                        to_user_vault_token_account: ctx.accounts.creator_vault_token_account.to_account_info(),
                         valid_payment: ctx.accounts.valid_payment.to_account_info(),
                         token_mint: ctx.accounts.token_mint.to_account_info(),
                         vault_authority: ctx.accounts.vault_authority.to_account_info(),
+                        payer: ctx.accounts.payer.to_account_info(),
                         token_program: ctx.accounts.token_program.to_account_info(),
+                        system_program: ctx.accounts.system_program.to_account_info(),
                     },
                 ),
                 creator_pump_fee,
