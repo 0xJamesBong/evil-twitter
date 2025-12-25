@@ -460,6 +460,56 @@ async fn test_setup() {
             .await
         };
 
+        let (post_p2_pda, post_p2_id_hash) = {
+            println!("user 2 creates a child post P2 of user 1's post P1");
+            test_phenomena_create_post(
+                &rpc,
+                &opinions_market,
+                &persona,
+                &payer,
+                &user_2,
+                &session_key,
+                &om_config_pda,
+                Some(post_p1_pda), // Child post
+            )
+            .await
+        };
+
+        {
+            println!("user 2 upvoting user 1's post P1");
+            test_phenomena_vote_on_post(
+                &rpc,
+                &opinions_market,
+                &payer,
+                &user_2,
+                &session_key,
+                &post_p1_pda,
+                opinions_market::states::Side::Pump,
+                1,
+                &bling_pubkey,
+                &bling_atas,
+                &config_pda,
+            )
+            .await;
+        }
+
+        {
+            println!("user 1 downvoting user 2's post P2");
+            test_phenomena_vote_on_post(
+                &rpc,
+                &opinions_market,
+                &payer,
+                &user_1,
+                &session_key,
+                &post_p2_pda,
+                opinions_market::states::Side::Smack,
+                2,
+                &bling_pubkey,
+                &bling_atas,
+                &config_pda,
+            )
+            .await;
+        }
         {
             println!("\n\n");
             println!(" 🟪🟪🟪🟪🟪🟪🟪🟪🟪🟪🟪🟪🟪🟪🟪🟪🟪");
@@ -467,57 +517,6 @@ async fn test_setup() {
             println!(" 🟪🟪🟪🟪🟪🟪🟪🟪🟪🟪🟪🟪🟪🟪🟪🟪🟪");
             panic!();
         }
-
-        //     let (post_p2_pda, post_p2_id_hash) = {
-        //         println!("user 2 creates a child post P2 of user 1's post P1");
-        //         test_phenomena_create_post(
-        //             &rpc,
-        //             &opinions_market,
-        //             &payer,
-        //             &user_2,
-        //             &session_key,
-        //             &config_pda,
-        //             Some(post_p1_pda), // Child post
-        //         )
-        //         .await
-        //     };
-
-        //     {
-        //         println!("user 2 upvoting user 1's post P1");
-        //         test_phenomena_vote_on_post(
-        //             &rpc,
-        //             &opinions_market,
-        //             &payer,
-        //             &user_2,
-        //             &session_key,
-        //             &post_p1_pda,
-        //             opinions_market::states::Side::Pump,
-        //             1,
-        //             &bling_pubkey,
-        //             &bling_atas,
-        //             &config_pda,
-        //         )
-        //         .await;
-        //     }
-
-        //     {
-        //         println!("user 1 downvoting user 2's post P2");
-        //         test_phenomena_vote_on_post(
-        //             &rpc,
-        //             &opinions_market,
-        //             &payer,
-        //             &user_1,
-        //             &session_key,
-        //             &post_p2_pda,
-        //             opinions_market::states::Side::Smack,
-        //             2,
-        //             &bling_pubkey,
-        //             &bling_atas,
-        //             &config_pda,
-        //         )
-        //         .await;
-        //     }
-
         //     {
         //         println!("user 1 downvoting user 2's post P2");
         //         test_phenomena_vote_on_post(
