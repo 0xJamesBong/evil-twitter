@@ -5,7 +5,7 @@
  * IDL can be found at `target/idl/fed.json`.
  */
 export type Fed = {
-  "address": "GLQEgZvtw6JdtF4p1cGsDBh3ucCVrmpZjPuyzqp6yMTo",
+  "address": "6p4L4eVGQtzYEnYFnSrEFGaZMqsrx7r1Emd5aPBAXXzC",
   "metadata": {
     "name": "fed",
     "version": "0.1.0",

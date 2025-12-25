@@ -10,7 +10,7 @@ use constants::*;
 use instructions::*;
 use states::*;
 
-declare_id!("GLQEgZvtw6JdtF4p1cGsDBh3ucCVrmpZjPuyzqp6yMTo");
+declare_id!("6p4L4eVGQtzYEnYFnSrEFGaZMqsrx7r1Emd5aPBAXXzC");
 
 #[error_code]
 pub enum ErrorCode {

@@ -765,6 +765,7 @@ dependencies = [
  "anchor-client",
  "anchor-lang",
  "anchor-spl",
+ "fed",
  "opinions-market",
  "solana-client",
  "solana-program-test",

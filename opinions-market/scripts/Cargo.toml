@@ -4,9 +4,9 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-anchor-client =  { workspace = true }
-anchor-lang =  { workspace = true }
-anchor-spl =  { workspace = true }
+anchor-client = { workspace = true }
+anchor-lang = { workspace = true }
+anchor-spl = { workspace = true }
 solana-sdk = { workspace = true }
 solana-client = { workspace = true }
 solana-program-test = { workspace = true }
@@ -15,5 +15,6 @@ spl-token = "4.0"
 tokio = { version = "1.0", features = ["full"] }
 
 opinions-market = { path = "../programs/opinions-market" }
+fed = { path = "../programs/fed" }
 
 tests = { path = "../tests" }

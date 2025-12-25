@@ -264,7 +264,7 @@ export type OpinionsMarket = {
         },
         {
           "name": "fedProgram",
-          "address": "GLQEgZvtw6JdtF4p1cGsDBh3ucCVrmpZjPuyzqp6yMTo"
+          "address": "6p4L4eVGQtzYEnYFnSrEFGaZMqsrx7r1Emd5aPBAXXzC"
         },
         {
           "name": "personaProgram",
@@ -955,7 +955,7 @@ export type OpinionsMarket = {
         },
         {
           "name": "fedProgram",
-          "address": "GLQEgZvtw6JdtF4p1cGsDBh3ucCVrmpZjPuyzqp6yMTo"
+          "address": "6p4L4eVGQtzYEnYFnSrEFGaZMqsrx7r1Emd5aPBAXXzC"
         },
         {
           "name": "tokenProgram",
@@ -1157,7 +1157,7 @@ export type OpinionsMarket = {
         },
         {
           "name": "fedProgram",
-          "address": "GLQEgZvtw6JdtF4p1cGsDBh3ucCVrmpZjPuyzqp6yMTo"
+          "address": "6p4L4eVGQtzYEnYFnSrEFGaZMqsrx7r1Emd5aPBAXXzC"
         },
         {
           "name": "tokenProgram",
@@ -1693,7 +1693,7 @@ export type OpinionsMarket = {
         },
         {
           "name": "fedProgram",
-          "address": "GLQEgZvtw6JdtF4p1cGsDBh3ucCVrmpZjPuyzqp6yMTo"
+          "address": "6p4L4eVGQtzYEnYFnSrEFGaZMqsrx7r1Emd5aPBAXXzC"
         },
         {
           "name": "personaProgram",
