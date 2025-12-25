@@ -1572,318 +1572,335 @@ pub async fn test_phenomena_vote_on_post(
     println!("   ✅ End time extended by {} seconds", actual_extension);
 }
 
-// pub async fn test_phenomena_create_question(
-//     rpc: &RpcClient,
-//     opinions_market: &Program<&Keypair>,
-//     payer: &Keypair,
-//     creator: &Keypair,
-//     session_key: &Keypair,
-//     config_pda: &Pubkey,
-// ) -> (Pubkey, [u8; 32]) {
-//     println!("{:} creates a question", creator.pubkey());
+pub async fn test_phenomena_create_question(
+    rpc: &RpcClient,
+    opinions_market: &Program<&Keypair>,
+    persona: &Program<&Keypair>,
+    payer: &Keypair,
+    creator: &Keypair,
+    session_key: &Keypair,
+    om_config_pda: &Pubkey,
+) -> (Pubkey, [u8; 32]) {
+    println!("{:} creates a question", creator.pubkey());
 
-//     // Generate a unique post_id_hash
-//     let hash = crate::utils::utils::generate_post_id_hash();
+    // Generate a unique post_id_hash
+    let hash = crate::utils::utils::generate_post_id_hash();
 
-//     let user_account_pda = Pubkey::find_program_address(
-//         &[USER_ACCOUNT_SEED, creator.pubkey().as_ref()],
-//         &opinions_market.id(),
-//     )
-//     .0;
+    let user_account_pda = Pubkey::find_program_address(
+        &[
+            persona::pda_seeds::USER_ACCOUNT_SEED,
+            creator.pubkey().as_ref(),
+        ],
+        &persona.id(),
+    )
+    .0;
 
-//     let post_pda =
-//         Pubkey::find_program_address(&[POST_ACCOUNT_SEED, hash.as_ref()], &opinions_market.id()).0;
-//     let session_authority_pda = Pubkey::find_program_address(
-//         &[
-//             SESSION_AUTHORITY_SEED,
-//             creator.pubkey().as_ref(),
-//             session_key.pubkey().as_ref(),
-//         ],
-//         &opinions_market.id(),
-//     )
-//     .0;
+    let voter_account_pda = Pubkey::find_program_address(
+        &[VOTER_ACCOUNT_SEED, creator.pubkey().as_ref()],
+        &opinions_market.id(),
+    )
+    .0;
 
-//     let create_question_ix = opinions_market
-//         .request()
-//         .accounts(opinions_market::accounts::CreatePost {
-//             config: *config_pda,
-//             user: creator.pubkey(),
-//             payer: payer.pubkey(),
-//             session_key: session_key.pubkey(),
-//             session_authority: session_authority_pda,
-//             user_account: user_account_pda,
-//             post: post_pda,
-//             system_program: system_program::ID,
-//         })
-//         .args(opinions_market::instruction::CreateQuestion { post_id_hash: hash })
-//         .instructions()
-//         .unwrap();
+    let post_pda =
+        Pubkey::find_program_address(&[POST_ACCOUNT_SEED, hash.as_ref()], &opinions_market.id()).0;
+    let session_authority_pda = Pubkey::find_program_address(
+        &[
+            persona::pda_seeds::SESSION_AUTHORITY_SEED,
+            creator.pubkey().as_ref(),
+            session_key.pubkey().as_ref(),
+        ],
+        &persona.id(),
+    )
+    .0;
 
-//     // Both payer and creator (user) must sign
-//     let create_question_tx = send_tx(&rpc, create_question_ix, &payer.pubkey(), &[&payer])
-//         .await
-//         .unwrap();
-//     println!("create question tx: {:?}", create_question_tx);
+    let create_question_ix = opinions_market
+        .request()
+        .accounts(opinions_market::accounts::CreatePost {
+            om_config: *om_config_pda,
+            user: creator.pubkey(),
+            payer: payer.pubkey(),
+            session_key: session_key.pubkey(),
+            session_authority: session_authority_pda,
+            user_account: user_account_pda,
+            voter_account: voter_account_pda,
+            post: post_pda,
+            persona_program: persona.id(),
+            system_program: system_program::ID,
+        })
+        .args(opinions_market::instruction::CreateQuestion { post_id_hash: hash })
+        .instructions()
+        .unwrap();
 
-//     // Verify question was created and all fields are correct
-//     let post_account = opinions_market
-//         .account::<opinions_market::states::PostAccount>(post_pda)
-//         .await
-//         .unwrap();
+    // Both payer and creator (user) must sign
+    let create_question_tx = send_tx(&rpc, create_question_ix, &payer.pubkey(), &[&payer])
+        .await
+        .unwrap();
+    println!("create question tx: {:?}", create_question_tx);
 
-//     // Verify creator
-//     assert_eq!(
-//         post_account.creator_user,
-//         creator.pubkey(),
-//         "Question creator_user should match creator wallet"
-//     );
+    // Verify question was created and all fields are correct
+    let post_account = opinions_market
+        .account::<opinions_market::states::PostAccount>(post_pda)
+        .await
+        .unwrap();
 
-//     // Verify post_id_hash
-//     assert_eq!(
-//         post_account.post_id_hash, hash,
-//         "Question post_id_hash should match generated hash"
-//     );
+    // Verify creator
+    assert_eq!(
+        post_account.creator_user,
+        creator.pubkey(),
+        "Question creator_user should match creator wallet"
+    );
 
-//     // Verify state is Open
-//     assert_eq!(post_account.state, opinions_market::states::PostState::Open);
-//     println!("✅ Question state is Open");
+    // Verify post_id_hash
+    assert_eq!(
+        post_account.post_id_hash, hash,
+        "Question post_id_hash should match generated hash"
+    );
 
-//     // Verify initial vote counts
-//     assert_eq!(
-//         post_account.upvotes, 0,
-//         "New question should have 0 upvotes"
-//     );
-//     assert_eq!(
-//         post_account.downvotes, 0,
-//         "New question should have 0 downvotes"
-//     );
+    // Verify state is Open
+    assert_eq!(post_account.state, opinions_market::states::PostState::Open);
+    println!("✅ Question state is Open");
 
-//     // Verify winning_side is None for new question
-//     assert_eq!(
-//         post_account.winning_side, None,
-//         "New question should not have a winning_side"
-//     );
-//     println!("✅ Question winning_side is None (correct for new question)");
+    // Verify initial vote counts
+    assert_eq!(
+        post_account.upvotes, 0,
+        "New question should have 0 upvotes"
+    );
+    assert_eq!(
+        post_account.downvotes, 0,
+        "New question should have 0 downvotes"
+    );
 
-//     // Verify timestamps are set correctly
-//     assert!(
-//         post_account.start_time > 0,
-//         "Question start_time should be set to a valid timestamp"
-//     );
+    // Verify winning_side is None for new question
+    assert_eq!(
+        post_account.winning_side, None,
+        "New question should not have a winning_side"
+    );
+    println!("✅ Question winning_side is None (correct for new question)");
 
-//     let expected_end_time = post_account.start_time + (TIME_CONFIG_FAST.base_duration_secs) as i64;
-//     assert_eq!(
-//         post_account.end_time, expected_end_time,
-//         "Question end_time should be start_time + {} seconds (base_duration_secs)",
-//         TIME_CONFIG_FAST.base_duration_secs
-//     );
+    // Verify timestamps are set correctly
+    assert!(
+        post_account.start_time > 0,
+        "Question start_time should be set to a valid timestamp"
+    );
 
-//     assert!(
-//         post_account.end_time > post_account.start_time,
-//         "Question end_time should be after start_time"
-//     );
+    let expected_end_time = post_account.start_time + (TIME_CONFIG_FAST.base_duration_secs) as i64;
+    assert_eq!(
+        post_account.end_time, expected_end_time,
+        "Question end_time should be start_time + {} seconds (base_duration_secs)",
+        TIME_CONFIG_FAST.base_duration_secs
+    );
 
-//     // Verify question function and relation
-//     assert_eq!(
-//         post_account.function,
-//         opinions_market::states::PostFunction::Question,
-//         "Post should have Question function"
-//     );
-//     assert_eq!(
-//         post_account.relation,
-//         opinions_market::states::PostRelation::Root,
-//         "Question relation should be Root"
-//     );
-//     println!("✅ Question function and relation verified");
+    assert!(
+        post_account.end_time > post_account.start_time,
+        "Question end_time should be after start_time"
+    );
 
-//     // Verify forced_outcome is None
-//     assert_eq!(
-//         post_account.forced_outcome, None,
-//         "New question should not have a forced_outcome"
-//     );
+    // Verify question function and relation
+    assert_eq!(
+        post_account.function,
+        opinions_market::states::PostFunction::Question,
+        "Post should have Question function"
+    );
+    assert_eq!(
+        post_account.relation,
+        opinions_market::states::PostRelation::Root,
+        "Question relation should be Root"
+    );
+    println!("✅ Question function and relation verified");
 
-//     println!("✅ Question created successfully with all fields verified");
-//     println!("   - Creator: {}", post_account.creator_user);
-//     println!("   - Function: Question");
-//     println!("   - Relation: Root");
-//     println!("   - State: Open");
-//     println!("   - Start time: {}", post_account.start_time);
-//     println!("   - End time: {}", post_account.end_time);
-//     println!(
-//         "   - Upvotes: {}, Downvotes: {}",
-//         post_account.upvotes, post_account.downvotes
-//     );
-//     println!("question_pda: {}", post_pda);
-//     println!("question_id_hash: {:?}", hex::encode(hash));
+    // Verify forced_outcome is None
+    assert_eq!(
+        post_account.forced_outcome, None,
+        "New question should not have a forced_outcome"
+    );
 
-//     (post_pda, hash)
-// }
+    println!("✅ Question created successfully with all fields verified");
+    println!("   - Creator: {}", post_account.creator_user);
+    println!("   - Function: Question");
+    println!("   - Relation: Root");
+    println!("   - State: Open");
+    println!("   - Start time: {}", post_account.start_time);
+    println!("   - End time: {}", post_account.end_time);
+    println!(
+        "   - Upvotes: {}, Downvotes: {}",
+        post_account.upvotes, post_account.downvotes
+    );
+    println!("question_pda: {}", post_pda);
+    println!("question_id_hash: {:?}", hex::encode(hash));
 
-// pub async fn test_phenomena_create_answer(
-//     rpc: &RpcClient,
-//     opinions_market: &Program<&Keypair>,
-//     payer: &Keypair,
-//     creator: &Keypair,
-//     session_key: &Keypair,
-//     config_pda: &Pubkey,
-//     question_post_pda: Pubkey,
-//     question_post_id_hash: [u8; 32],
-// ) -> (Pubkey, [u8; 32]) {
-//     println!(
-//         "{:} creates an answer to question {:}",
-//         creator.pubkey(),
-//         question_post_pda
-//     );
+    (post_pda, hash)
+}
 
-//     // Generate a unique post_id_hash for the answer
-//     let answer_hash = crate::utils::utils::generate_post_id_hash();
+pub async fn test_phenomena_create_answer(
+    rpc: &RpcClient,
+    opinions_market: &Program<&Keypair>,
+    persona: &Program<&Keypair>,
+    payer: &Keypair,
+    creator: &Keypair,
+    session_key: &Keypair,
+    om_config_pda: &Pubkey,
+    question_post_pda: Pubkey,
+    question_post_id_hash: [u8; 32],
+) -> (Pubkey, [u8; 32]) {
+    println!(
+        "{:} creates an answer to question {:}",
+        creator.pubkey(),
+        question_post_pda
+    );
 
-//     let user_account_pda = Pubkey::find_program_address(
-//         &[USER_ACCOUNT_SEED, creator.pubkey().as_ref()],
-//         &opinions_market.id(),
-//     )
-//     .0;
+    // Generate a unique post_id_hash for the answer
+    let answer_hash = crate::utils::utils::generate_post_id_hash();
 
-//     let answer_pda = Pubkey::find_program_address(
-//         &[POST_ACCOUNT_SEED, answer_hash.as_ref()],
-//         &opinions_market.id(),
-//     )
-//     .0;
-//     let session_authority_pda = Pubkey::find_program_address(
-//         &[
-//             SESSION_AUTHORITY_SEED,
-//             creator.pubkey().as_ref(),
-//             session_key.pubkey().as_ref(),
-//         ],
-//         &opinions_market.id(),
-//     )
-//     .0;
+    let user_account_pda = Pubkey::find_program_address(
+        &[
+            persona::pda_seeds::USER_ACCOUNT_SEED,
+            creator.pubkey().as_ref(),
+        ],
+        &persona.id(),
+    )
+    .0;
 
-//     let create_answer_ix = opinions_market
-//         .request()
-//         .accounts(opinions_market::accounts::CreateAnswer {
-//             config: *config_pda,
-//             user: creator.pubkey(),
-//             payer: payer.pubkey(),
-//             session_key: session_key.pubkey(),
-//             session_authority: session_authority_pda,
-//             user_account: user_account_pda,
-//             post: answer_pda,
-//             question_post: question_post_pda,
-//             system_program: system_program::ID,
-//         })
-//         .args(opinions_market::instruction::CreateAnswer {
-//             answer_post_id_hash: answer_hash,
-//             _question_post_id_hash: question_post_id_hash,
-//         })
-//         .instructions()
-//         .unwrap();
+    let answer_pda = Pubkey::find_program_address(
+        &[POST_ACCOUNT_SEED, answer_hash.as_ref()],
+        &opinions_market.id(),
+    )
+    .0;
+    let session_authority_pda = Pubkey::find_program_address(
+        &[
+            persona::pda_seeds::SESSION_AUTHORITY_SEED,
+            creator.pubkey().as_ref(),
+            session_key.pubkey().as_ref(),
+        ],
+        &persona.id(),
+    )
+    .0;
 
-//     // Both payer and creator (user) must sign
-//     let create_answer_tx = send_tx(&rpc, create_answer_ix, &payer.pubkey(), &[&payer])
-//         .await
-//         .unwrap();
-//     println!("create answer tx: {:?}", create_answer_tx);
+    let create_answer_ix = opinions_market
+        .request()
+        .accounts(opinions_market::accounts::CreateAnswer {
+            om_config: *om_config_pda,
+            user: creator.pubkey(),
+            payer: payer.pubkey(),
+            session_key: session_key.pubkey(),
+            session_authority: session_authority_pda,
+            user_account: user_account_pda,
+            post: answer_pda,
+            question_post: question_post_pda,
+            persona_program: persona.id(),
+            system_program: system_program::ID,
+        })
+        .args(opinions_market::instruction::CreateAnswer {
+            answer_post_id_hash: answer_hash,
+            _question_post_id_hash: question_post_id_hash,
+        })
+        .instructions()
+        .unwrap();
 
-//     // Verify answer was created and all fields are correct
-//     let post_account = opinions_market
-//         .account::<opinions_market::states::PostAccount>(answer_pda)
-//         .await
-//         .unwrap();
+    // Both payer and creator (user) must sign
+    let create_answer_tx = send_tx(&rpc, create_answer_ix, &payer.pubkey(), &[&payer])
+        .await
+        .unwrap();
+    println!("create answer tx: {:?}", create_answer_tx);
 
-//     // Verify creator
-//     assert_eq!(
-//         post_account.creator_user,
-//         creator.pubkey(),
-//         "Answer creator_user should match creator wallet"
-//     );
+    // Verify answer was created and all fields are correct
+    let post_account = opinions_market
+        .account::<opinions_market::states::PostAccount>(answer_pda)
+        .await
+        .unwrap();
 
-//     // Verify post_id_hash
-//     assert_eq!(
-//         post_account.post_id_hash, answer_hash,
-//         "Answer post_id_hash should match generated hash"
-//     );
+    // Verify creator
+    assert_eq!(
+        post_account.creator_user,
+        creator.pubkey(),
+        "Answer creator_user should match creator wallet"
+    );
 
-//     // Verify state is Open
-//     assert_eq!(post_account.state, opinions_market::states::PostState::Open);
-//     println!("✅ Answer state is Open");
+    // Verify post_id_hash
+    assert_eq!(
+        post_account.post_id_hash, answer_hash,
+        "Answer post_id_hash should match generated hash"
+    );
 
-//     // Verify initial vote counts
-//     assert_eq!(post_account.upvotes, 0, "New answer should have 0 upvotes");
-//     assert_eq!(
-//         post_account.downvotes, 0,
-//         "New answer should have 0 downvotes"
-//     );
+    // Verify state is Open
+    assert_eq!(post_account.state, opinions_market::states::PostState::Open);
+    println!("✅ Answer state is Open");
 
-//     // Verify winning_side is None for new answer
-//     assert_eq!(
-//         post_account.winning_side, None,
-//         "New answer should not have a winning_side"
-//     );
-//     println!("✅ Answer winning_side is None (correct for new answer)");
+    // Verify initial vote counts
+    assert_eq!(post_account.upvotes, 0, "New answer should have 0 upvotes");
+    assert_eq!(
+        post_account.downvotes, 0,
+        "New answer should have 0 downvotes"
+    );
 
-//     // Verify timestamps are set correctly
-//     assert!(
-//         post_account.start_time > 0,
-//         "Answer start_time should be set to a valid timestamp"
-//     );
+    // Verify winning_side is None for new answer
+    assert_eq!(
+        post_account.winning_side, None,
+        "New answer should not have a winning_side"
+    );
+    println!("✅ Answer winning_side is None (correct for new answer)");
 
-//     let expected_end_time = post_account.start_time + (TIME_CONFIG_FAST.base_duration_secs) as i64;
-//     assert_eq!(
-//         post_account.end_time, expected_end_time,
-//         "Answer end_time should be start_time + {} seconds (base_duration_secs)",
-//         TIME_CONFIG_FAST.base_duration_secs
-//     );
+    // Verify timestamps are set correctly
+    assert!(
+        post_account.start_time > 0,
+        "Answer start_time should be set to a valid timestamp"
+    );
 
-//     assert!(
-//         post_account.end_time > post_account.start_time,
-//         "Answer end_time should be after start_time"
-//     );
+    let expected_end_time = post_account.start_time + (TIME_CONFIG_FAST.base_duration_secs) as i64;
+    assert_eq!(
+        post_account.end_time, expected_end_time,
+        "Answer end_time should be start_time + {} seconds (base_duration_secs)",
+        TIME_CONFIG_FAST.base_duration_secs
+    );
 
-//     // Verify answer function and relation
-//     assert_eq!(
-//         post_account.function,
-//         opinions_market::states::PostFunction::Answer,
-//         "Post should have Answer function"
-//     );
-//     if let opinions_market::states::PostRelation::AnswerTo {
-//         question: stored_question,
-//     } = &post_account.relation
-//     {
-//         assert_eq!(
-//             *stored_question, question_post_pda,
-//             "Answer question PDA should match provided question"
-//         );
-//         println!("✅ Answer relation is AnswerTo with correct question");
-//     } else {
-//         panic!(
-//             "Answer relation mismatch: expected AnswerTo but got {:?}",
-//             post_account.relation
-//         );
-//     }
+    assert!(
+        post_account.end_time > post_account.start_time,
+        "Answer end_time should be after start_time"
+    );
 
-//     // Verify forced_outcome is None (may be set later by question owner)
-//     assert_eq!(
-//         post_account.forced_outcome, None,
-//         "New answer should not have a forced_outcome"
-//     );
+    // Verify answer function and relation
+    assert_eq!(
+        post_account.function,
+        opinions_market::states::PostFunction::Answer,
+        "Post should have Answer function"
+    );
+    if let opinions_market::states::PostRelation::AnswerTo {
+        question: stored_question,
+    } = &post_account.relation
+    {
+        assert_eq!(
+            *stored_question, question_post_pda,
+            "Answer question PDA should match provided question"
+        );
+        println!("✅ Answer relation is AnswerTo with correct question");
+    } else {
+        panic!(
+            "Answer relation mismatch: expected AnswerTo but got {:?}",
+            post_account.relation
+        );
+    }
 
-//     println!("✅ Answer created successfully with all fields verified");
-//     println!("   - Creator: {}", post_account.creator_user);
-//     println!("   - Function: Answer");
-//     println!("   - Relation: AnswerTo({})", question_post_pda);
-//     println!("   - State: Open");
-//     println!("   - Start time: {}", post_account.start_time);
-//     println!("   - End time: {}", post_account.end_time);
-//     println!(
-//         "   - Upvotes: {}, Downvotes: {}",
-//         post_account.upvotes, post_account.downvotes
-//     );
-//     println!("answer_pda: {}", answer_pda);
-//     println!("answer_id_hash: {:?}", hex::encode(answer_hash));
+    // Verify forced_outcome is None (may be set later by question owner)
+    assert_eq!(
+        post_account.forced_outcome, None,
+        "New answer should not have a forced_outcome"
+    );
 
-//     (answer_pda, answer_hash)
-// }
+    println!("✅ Answer created successfully with all fields verified");
+    println!("   - Creator: {}", post_account.creator_user);
+    println!("   - Function: Answer");
+    println!("   - Relation: AnswerTo({})", question_post_pda);
+    println!("   - State: Open");
+    println!("   - Start time: {}", post_account.start_time);
+    println!("   - End time: {}", post_account.end_time);
+    println!(
+        "   - Upvotes: {}, Downvotes: {}",
+        post_account.upvotes, post_account.downvotes
+    );
+    println!("answer_pda: {}", answer_pda);
+    println!("answer_id_hash: {:?}", hex::encode(answer_hash));
+
+    (answer_pda, answer_hash)
+}
 
 pub async fn test_phenomena_settle_post(
     rpc: &RpcClient,
@@ -2184,253 +2201,257 @@ pub async fn test_phenomena_settle_post(
 //     }
 // }
 
-// pub async fn test_phenomena_claim_post_reward(
-//     rpc: &RpcClient,
-//     opinions_market: &Program<&Keypair>,
-//     payer: &Keypair,
-//     user: &Keypair,
-//     session_key: &Keypair,
-//     post_pda: &Pubkey,
-//     token_mint: &Pubkey,
-//     tokens: &HashMap<Pubkey, String>,
-//     config_pda: &Pubkey,
-// ) {
-//     let token_name = tokens.get(token_mint).unwrap();
-//     println!(
-//         "User {:?} claiming reward from post {:?} for token {}",
-//         user.pubkey(),
-//         post_pda,
-//         token_name
-//     );
+pub async fn test_phenomena_claim_post_reward(
+    rpc: &RpcClient,
+    opinions_market: &Program<&Keypair>,
+    fed: &Program<&Keypair>,
+    persona: &Program<&Keypair>,
+    payer: &Keypair,
+    user: &Keypair,
+    session_key: &Keypair,
+    post_pda: &Pubkey,
+    token_mint: &Pubkey,
+    tokens: &HashMap<Pubkey, String>,
+    om_config_pda: &Pubkey,
+) {
+    //     let token_name = tokens.get(token_mint).unwrap();
+    //     println!(
+    //         "User {:?} claiming reward from post {:?} for token {}",
+    //         user.pubkey(),
+    //         post_pda,
+    //         token_name
+    //     );
 
-//     // Get post account to extract post_id_hash
-//     let post_account = opinions_market
-//         .account::<opinions_market::states::PostAccount>(*post_pda)
-//         .await
-//         .unwrap();
-//     let post_id_hash = post_account.post_id_hash.clone();
+    //     // Get post account to extract post_id_hash
+    let post_account = opinions_market
+        .account::<opinions_market::states::PostAccount>(*post_pda)
+        .await
+        .unwrap();
+    let post_id_hash = post_account.post_id_hash.clone();
 
-//     // Verify post is settled
-//     assert_eq!(
-//         post_account.state,
-//         opinions_market::states::PostState::Settled,
-//         "Post must be settled before claiming rewards"
-//     );
+    // Verify post is settled
+    assert_eq!(
+        post_account.state,
+        opinions_market::states::PostState::Settled,
+        "Post must be settled before claiming rewards"
+    );
 
-//     // Verify post has a winning side
-//     assert!(
-//         post_account.winning_side.is_some(),
-//         "Post must have a winning side to claim rewards"
-//     );
+    // Verify post has a winning side
+    assert!(
+        post_account.winning_side.is_some(),
+        "Post must have a winning side to claim rewards"
+    );
 
-//     // Derive all necessary PDAs
-//     let position_pda = Pubkey::find_program_address(
-//         &[POSITION_SEED, post_pda.as_ref(), user.pubkey().as_ref()],
-//         &opinions_market.id(),
-//     )
-//     .0;
+    // Derive all necessary PDAs
+    let position_pda = Pubkey::find_program_address(
+        &[POSITION_SEED, post_pda.as_ref(), user.pubkey().as_ref()],
+        &opinions_market.id(),
+    )
+    .0;
 
-//     let user_post_mint_claim_pda = Pubkey::find_program_address(
-//         &[
-//             USER_POST_MINT_CLAIM_SEED,
-//             post_pda.as_ref(),
-//             token_mint.as_ref(),
-//         ],
-//         &opinions_market.id(),
-//     )
-//     .0;
+    let voter_post_mint_claim_pda = Pubkey::find_program_address(
+        &[
+            VOTER_POST_MINT_CLAIM_SEED,
+            post_pda.as_ref(),
+            token_mint.as_ref(),
+        ],
+        &opinions_market.id(),
+    )
+    .0;
 
-//     let post_mint_payout_pda = Pubkey::find_program_address(
-//         &[
-//             POST_MINT_PAYOUT_SEED,
-//             post_pda.as_ref(),
-//             token_mint.as_ref(),
-//         ],
-//         &opinions_market.id(),
-//     )
-//     .0;
+    let post_mint_payout_pda = Pubkey::find_program_address(
+        &[
+            POST_MINT_PAYOUT_SEED,
+            post_pda.as_ref(),
+            token_mint.as_ref(),
+        ],
+        &opinions_market.id(),
+    )
+    .0;
 
-//     let post_pot_token_account_pda = Pubkey::find_program_address(
-//         &[
-//             POST_POT_TOKEN_ACCOUNT_SEED,
-//             post_pda.as_ref(),
-//             token_mint.as_ref(),
-//         ],
-//         &opinions_market.id(),
-//     )
-//     .0;
+    let post_pot_token_account_pda = Pubkey::find_program_address(
+        &[
+            POST_POT_TOKEN_ACCOUNT_SEED,
+            post_pda.as_ref(),
+            token_mint.as_ref(),
+        ],
+        &opinions_market.id(),
+    )
+    .0;
 
-//     let post_pot_authority_pda = Pubkey::find_program_address(
-//         &[POST_POT_AUTHORITY_SEED, post_pda.as_ref()],
-//         &opinions_market.id(),
-//     )
-//     .0;
+    let post_pot_authority_pda = Pubkey::find_program_address(
+        &[POST_POT_AUTHORITY_SEED, post_pda.as_ref()],
+        &opinions_market.id(),
+    )
+    .0;
 
-//     let user_vault_token_account_pda = Pubkey::find_program_address(
-//         &[
-//             USER_VAULT_TOKEN_ACCOUNT_SEED,
-//             user.pubkey().as_ref(),
-//             token_mint.as_ref(),
-//         ],
-//         &opinions_market.id(),
-//     )
-//     .0;
+    let user_vault_token_account_pda = Pubkey::find_program_address(
+        &[
+            fed::pda_seeds::USER_VAULT_TOKEN_ACCOUNT_SEED,
+            user.pubkey().as_ref(),
+            token_mint.as_ref(),
+        ],
+        &fed.id(),
+    )
+    .0;
 
-//     let session_authority_pda = Pubkey::find_program_address(
-//         &[
-//             SESSION_AUTHORITY_SEED,
-//             user.pubkey().as_ref(),
-//             session_key.pubkey().as_ref(),
-//         ],
-//         &opinions_market.id(),
-//     )
-//     .0;
+    let session_authority_pda = Pubkey::find_program_address(
+        &[
+            persona::pda_seeds::SESSION_AUTHORITY_SEED,
+            user.pubkey().as_ref(),
+            session_key.pubkey().as_ref(),
+        ],
+        &persona.id(),
+    )
+    .0;
 
-//     let vault_authority_pda =
-//         Pubkey::find_program_address(&[VAULT_AUTHORITY_SEED], &opinions_market.id()).0;
+    let vault_authority_pda =
+        Pubkey::find_program_address(&[fed::pda_seeds::VAULT_AUTHORITY_SEED], &fed.id()).0;
 
-//     // Get initial balances and state
-//     // Check if position exists (user must have voted on this post)
-//     let position_result = opinions_market
-//         .account::<opinions_market::states::UserPostPosition>(position_pda)
-//         .await;
+    // Get initial balances and state
+    // Check if position exists (user must have voted on this post)
+    let position_result = opinions_market
+        .account::<opinions_market::states::VoterPostPosition>(position_pda)
+        .await;
 
-//     let position = match position_result {
-//         Ok(pos) => pos,
-//         Err(_) => {
-//             println!("⚠️  User has no position on this post (never voted), cannot claim reward");
-//             return; // User never voted, so no reward to claim
-//         }
-//     };
+    let position = match position_result {
+        Ok(pos) => pos,
+        Err(_) => {
+            println!("⚠️  User has no position on this post (never voted), cannot claim reward");
+            return; // User never voted, so no reward to claim
+        }
+    };
 
-//     let post_mint_payout = opinions_market
-//         .account::<opinions_market::states::PostMintPayout>(post_mint_payout_pda)
-//         .await
-//         .unwrap();
+    let post_mint_payout = opinions_market
+        .account::<opinions_market::states::PostMintPayout>(post_mint_payout_pda)
+        .await
+        .unwrap();
 
-//     let post_pot_before = opinions_market
-//         .account::<anchor_spl::token::TokenAccount>(post_pot_token_account_pda)
-//         .await
-//         .unwrap();
+    let post_pot_before = opinions_market
+        .account::<anchor_spl::token::TokenAccount>(post_pot_token_account_pda)
+        .await
+        .unwrap();
 
-//     let user_vault_before = opinions_market
-//         .account::<anchor_spl::token::TokenAccount>(user_vault_token_account_pda)
-//         .await
-//         .unwrap();
+    let user_vault_before = opinions_market
+        .account::<anchor_spl::token::TokenAccount>(user_vault_token_account_pda)
+        .await
+        .unwrap();
 
-//     // Check if already claimed
-//     let claim_before = opinions_market
-//         .account::<opinions_market::states::UserPostMintClaim>(user_post_mint_claim_pda)
-//         .await;
+    // Check if already claimed
+    let claim_before = opinions_market
+        .account::<opinions_market::states::VoterPostMintClaim>(voter_post_mint_claim_pda)
+        .await;
 
-//     if let Ok(claim) = claim_before {
-//         if claim.claimed {
-//             println!("⚠️  Reward already claimed for this token mint, skipping...");
-//             return;
-//         }
-//     }
+    if let Ok(claim) = claim_before {
+        if claim.claimed {
+            println!("⚠️  Reward already claimed for this token mint, skipping...");
+            return;
+        }
+    }
 
-//     // Determine expected reward
-//     let winning_side = post_account.winning_side.unwrap();
-//     let user_votes = match winning_side {
-//         opinions_market::states::Side::Pump => position.upvotes as u64,
-//         opinions_market::states::Side::Smack => position.downvotes as u64,
-//     };
+    // Determine expected reward
+    let winning_side = post_account.winning_side.unwrap();
+    let user_votes = match winning_side {
+        opinions_market::states::Side::Pump => position.upvotes as u64,
+        opinions_market::states::Side::Smack => position.downvotes as u64,
+    };
 
-//     let expected_reward = if user_votes == 0 {
-//         0
-//     } else {
-//         let scaled = user_votes
-//             .checked_mul(post_mint_payout.payout_per_winning_vote)
-//             .unwrap();
-//         scaled
-//             .checked_div(opinions_market::constants::PRECISION)
-//             .unwrap()
-//     };
+    let expected_reward = if user_votes == 0 {
+        0
+    } else {
+        let scaled = user_votes
+            .checked_mul(post_mint_payout.payout_per_winning_vote)
+            .unwrap();
+        scaled
+            .checked_div(opinions_market::constants::PRECISION)
+            .unwrap()
+    };
 
-//     println!("📊 Claim details:");
-//     println!("   - Winning side: {:?}", winning_side);
-//     println!("   - User votes on winning side: {}", user_votes);
-//     println!(
-//         "   - Payout per winning vote: {}",
-//         post_mint_payout.payout_per_winning_vote
-//     );
-//     println!("   - Expected reward: {}", expected_reward);
-//     println!("   - Post pot before: {}", post_pot_before.amount);
-//     println!("   - User vault before: {}", user_vault_before.amount);
+    println!("📊 Claim details:");
+    println!("   - Winning side: {:?}", winning_side);
+    println!("   - User votes on winning side: {}", user_votes);
+    println!(
+        "   - Payout per winning vote: {}",
+        post_mint_payout.payout_per_winning_vote
+    );
+    println!("   - Expected reward: {}", expected_reward);
+    println!("   - Post pot before: {}", post_pot_before.amount);
+    println!("   - User vault before: {}", user_vault_before.amount);
 
-//     // Call claim_post_reward instruction
-//     let claim_ix = opinions_market
-//         .request()
-//         .accounts(opinions_market::accounts::ClaimPostReward {
-//             config: *config_pda,
-//             user: user.pubkey(),
-//             payer: payer.pubkey(),
-//             session_key: session_key.pubkey(),
-//             session_authority: session_authority_pda,
-//             post: *post_pda,
-//             position: position_pda,
-//             user_post_mint_claim: user_post_mint_claim_pda,
-//             post_mint_payout: post_mint_payout_pda,
-//             post_pot_token_account: post_pot_token_account_pda,
-//             post_pot_authority: post_pot_authority_pda,
-//             user_vault_token_account: user_vault_token_account_pda,
-//             vault_authority: vault_authority_pda,
-//             token_mint: *token_mint,
-//             token_program: spl_token::ID,
-//             system_program: system_program::ID,
-//         })
-//         .args(opinions_market::instruction::ClaimPostReward { post_id_hash })
-//         .instructions()
-//         .unwrap();
+    // Call claim_post_reward instruction
+    let claim_ix = opinions_market
+        .request()
+        .accounts(opinions_market::accounts::ClaimPostReward {
+            om_config: *om_config_pda,
+            user: user.pubkey(),
+            payer: payer.pubkey(),
+            session_key: session_key.pubkey(),
+            session_authority: session_authority_pda,
+            post: *post_pda,
+            position: position_pda,
+            voter_post_mint_claim: voter_post_mint_claim_pda,
+            post_mint_payout: post_mint_payout_pda,
+            post_pot_token_account: post_pot_token_account_pda,
+            post_pot_authority: post_pot_authority_pda,
+            user_vault_token_account: user_vault_token_account_pda,
+            vault_authority: vault_authority_pda,
+            token_mint: *token_mint,
+            fed_program: fed.id(),
+            persona_program: persona.id(),
+            token_program: spl_token::ID,
+            system_program: system_program::ID,
+        })
+        .args(opinions_market::instruction::ClaimPostReward { post_id_hash })
+        .instructions()
+        .unwrap();
 
-//     let claim_tx = send_tx(&rpc, claim_ix, &payer.pubkey(), &[&payer])
-//         .await
-//         .unwrap();
-//     println!("claim post reward tx: {:?}", claim_tx);
+    let claim_tx = send_tx(&rpc, claim_ix, &payer.pubkey(), &[&payer])
+        .await
+        .unwrap();
+    println!("claim post reward tx: {:?}", claim_tx);
 
-//     // Verify claim was successful
-//     let user_post_mint_claim = opinions_market
-//         .account::<opinions_market::states::UserPostMintClaim>(user_post_mint_claim_pda)
-//         .await
-//         .unwrap();
+    // Verify claim was successful
+    let voter_post_mint_claim = opinions_market
+        .account::<opinions_market::states::VoterPostMintClaim>(voter_post_mint_claim_pda)
+        .await
+        .unwrap();
 
-//     assert_eq!(
-//         user_post_mint_claim.claimed, true,
-//         "Claim should be marked as claimed"
-//     );
+    assert_eq!(
+        voter_post_mint_claim.claimed, true,
+        "Claim should be marked as claimed"
+    );
 
-//     // Verify balances changed correctly
-//     let post_pot_after = opinions_market
-//         .account::<anchor_spl::token::TokenAccount>(post_pot_token_account_pda)
-//         .await
-//         .unwrap();
+    // Verify balances changed correctly
+    let post_pot_after = opinions_market
+        .account::<anchor_spl::token::TokenAccount>(post_pot_token_account_pda)
+        .await
+        .unwrap();
 
-//     let user_vault_after = opinions_market
-//         .account::<anchor_spl::token::TokenAccount>(user_vault_token_account_pda)
-//         .await
-//         .unwrap();
+    let user_vault_after = opinions_market
+        .account::<anchor_spl::token::TokenAccount>(user_vault_token_account_pda)
+        .await
+        .unwrap();
 
-//     if expected_reward > 0 {
-//         assert_eq!(
-//             post_pot_after.amount,
-//             post_pot_before.amount.checked_sub(expected_reward).unwrap(),
-//             "Post pot should decrease by reward amount"
-//         );
-//         assert_eq!(
-//             user_vault_after.amount,
-//             user_vault_before
-//                 .amount
-//                 .checked_add(expected_reward)
-//                 .unwrap(),
-//             "User vault should increase by reward amount"
-//         );
-//         println!("✅ Reward transferred successfully");
-//         println!("   - Post pot after: {}", post_pot_after.amount);
-//         println!("   - User vault after: {}", user_vault_after.amount);
-//     } else {
-//         println!("✅ No reward (user had 0 votes on winning side or reward was 0)");
-//     }
+    if expected_reward > 0 {
+        assert_eq!(
+            post_pot_after.amount,
+            post_pot_before.amount.checked_sub(expected_reward).unwrap(),
+            "Post pot should decrease by reward amount"
+        );
+        assert_eq!(
+            user_vault_after.amount,
+            user_vault_before
+                .amount
+                .checked_add(expected_reward)
+                .unwrap(),
+            "User vault should increase by reward amount"
+        );
+        println!("✅ Reward transferred successfully");
+        println!("   - Post pot after: {}", post_pot_after.amount);
+        println!("   - User vault after: {}", user_vault_after.amount);
+    } else {
+        println!("✅ No reward (user had 0 votes on winning side or reward was 0)");
+    }
 
-//     println!("✅ Post reward claimed successfully");
-// }
+    println!("✅ Post reward claimed successfully");
+}

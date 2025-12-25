@@ -286,6 +286,146 @@
       ]
     },
     {
+      "name": "create_answer",
+      "discriminator": [
+        40,
+        0,
+        255,
+        68,
+        75,
+        97,
+        185,
+        35
+      ],
+      "accounts": [
+        {
+          "name": "om_config",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  111,
+                  109,
+                  95,
+                  99,
+                  111,
+                  110,
+                  102,
+                  105,
+                  103
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "user",
+          "writable": true
+        },
+        {
+          "name": "payer",
+          "writable": true
+        },
+        {
+          "name": "session_key",
+          "writable": true
+        },
+        {
+          "name": "session_authority"
+        },
+        {
+          "name": "user_account"
+        },
+        {
+          "name": "post",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  111,
+                  115,
+                  116,
+                  95,
+                  97,
+                  99,
+                  99,
+                  111,
+                  117,
+                  110,
+                  116
+                ]
+              },
+              {
+                "kind": "arg",
+                "path": "answer_post_id_hash"
+              }
+            ]
+          }
+        },
+        {
+          "name": "question_post",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  111,
+                  115,
+                  116,
+                  95,
+                  97,
+                  99,
+                  99,
+                  111,
+                  117,
+                  110,
+                  116
+                ]
+              },
+              {
+                "kind": "arg",
+                "path": "question_post_id_hash"
+              }
+            ]
+          }
+        },
+        {
+          "name": "persona_program",
+          "address": "3bE1UxZ4VFKbptUhpFwzA1AdXgdJENhRcLQApj9F9Z1d"
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "answer_post_id_hash",
+          "type": {
+            "array": [
+              "u8",
+              32
+            ]
+          }
+        },
+        {
+          "name": "_question_post_id_hash",
+          "type": {
+            "array": [
+              "u8",
+              32
+            ]
+          }
+        }
+      ]
+    },
+    {
       "name": "create_post",
       "discriminator": [
         123,
@@ -420,6 +560,143 @@
           "name": "parent_post_pda",
           "type": {
             "option": "pubkey"
+          }
+        }
+      ]
+    },
+    {
+      "name": "create_question",
+      "docs": [
+        "Core MVP voting instruction.",
+        "User pays from their vault; everything is denominated in BLING."
+      ],
+      "discriminator": [
+        222,
+        74,
+        49,
+        30,
+        160,
+        220,
+        179,
+        27
+      ],
+      "accounts": [
+        {
+          "name": "om_config",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  111,
+                  109,
+                  95,
+                  99,
+                  111,
+                  110,
+                  102,
+                  105,
+                  103
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "user",
+          "writable": true
+        },
+        {
+          "name": "payer",
+          "writable": true
+        },
+        {
+          "name": "session_key",
+          "writable": true
+        },
+        {
+          "name": "session_authority"
+        },
+        {
+          "name": "user_account"
+        },
+        {
+          "name": "voter_account",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  118,
+                  111,
+                  116,
+                  101,
+                  114,
+                  95,
+                  97,
+                  99,
+                  99,
+                  111,
+                  117,
+                  110,
+                  116
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "user"
+              }
+            ]
+          }
+        },
+        {
+          "name": "post",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  111,
+                  115,
+                  116,
+                  95,
+                  97,
+                  99,
+                  99,
+                  111,
+                  117,
+                  110,
+                  116
+                ]
+              },
+              {
+                "kind": "arg",
+                "path": "post_id_hash"
+              }
+            ]
+          }
+        },
+        {
+          "name": "persona_program",
+          "address": "3bE1UxZ4VFKbptUhpFwzA1AdXgdJENhRcLQApj9F9Z1d"
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "post_id_hash",
+          "type": {
+            "array": [
+              "u8",
+              32
+            ]
           }
         }
       ]
@@ -1156,10 +1433,6 @@
     },
     {
       "name": "vote_on_post",
-      "docs": [
-        "Core MVP voting instruction.",
-        "User pays from their vault; everything is denominated in BLING."
-      ],
       "discriminator": [
         220,
         160,

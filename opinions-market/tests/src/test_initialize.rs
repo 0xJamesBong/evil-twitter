@@ -13,10 +13,11 @@ use solana_sdk::{
 
 use crate::config::TIME_CONFIG_FAST;
 use crate::utils::phenomena::{
-    test_phenomena_add_valid_payment, test_phenomena_create_post, test_phenomena_create_user,
-    test_phenomena_deposit, test_phenomena_send_token, test_phenomena_settle_post,
-    test_phenomena_tip, test_phenomena_turn_on_withdrawable, test_phenomena_vote_on_post,
-    test_phenomena_withdraw,
+    test_phenomena_add_valid_payment, test_phenomena_claim_post_reward,
+    test_phenomena_create_answer, test_phenomena_create_post, test_phenomena_create_question,
+    test_phenomena_create_user, test_phenomena_deposit, test_phenomena_send_token,
+    test_phenomena_settle_post, test_phenomena_tip, test_phenomena_turn_on_withdrawable,
+    test_phenomena_vote_on_post, test_phenomena_withdraw,
 };
 use crate::utils::utils::{
     airdrop_sol_to_users, send_tx, setup_token_mint, setup_token_mint_ata_and_mint_to_many_users,
@@ -624,6 +625,90 @@ async fn test_setup() {
             )
             .await;
         }
+
+        {
+            println!("\n user 2 claims their reward from user 's post");
+            test_phenomena_claim_post_reward(
+                &rpc,
+                &opinions_market,
+                &fed,
+                &persona,
+                &payer,
+                &user_2,
+                &session_key,
+                &post_p1_pda,
+                &bling_pubkey,
+                &tokens,
+                &om_config_pda,
+            )
+            .await;
+        }
+
+        {
+            // question
+            println!("user 1 creating a question post Q1");
+            let (question_post_pda, question_post_id_hash) = test_phenomena_create_question(
+                &rpc,
+                &opinions_market,
+                &persona,
+                &payer,
+                &user_1,
+                &session_key,
+                &om_config_pda,
+            )
+            .await;
+
+            let (answer_post_pda, answer_post_id_hash) = test_phenomena_create_answer(
+                &rpc,
+                &opinions_market,
+                &persona,
+                &payer,
+                &user_1,
+                &session_key,
+                &om_config_pda,
+                question_post_pda,
+                question_post_id_hash,
+            )
+            .await;
+
+            println!("user 2 upvoting user 1's question post Q1");
+            test_phenomena_vote_on_post(
+                &rpc,
+                &opinions_market,
+                &fed,
+                &persona,
+                &payer,
+                &user_2,
+                &session_key,
+                &question_post_pda,
+                opinions_market::states::Side::Pump,
+                1,
+                &bling_pubkey,
+                &bling_atas,
+                &om_config_pda,
+                &fed_config_pda,
+            )
+            .await;
+
+            println!("user 2 upvoting user 1's answer post A1");
+            test_phenomena_vote_on_post(
+                &rpc,
+                &opinions_market,
+                &fed,
+                &persona,
+                &payer,
+                &user_2,
+                &session_key,
+                &answer_post_pda,
+                opinions_market::states::Side::Pump,
+                1,
+                &bling_pubkey,
+                &bling_atas,
+                &om_config_pda,
+                &fed_config_pda,
+            )
+            .await;
+        };
         {
             println!("\n\n");
             println!(" 🟪🟪🟪🟪🟪🟪🟪🟪🟪🟪🟪🟪🟪🟪🟪🟪🟪");
@@ -632,92 +717,18 @@ async fn test_setup() {
             panic!();
         }
 
-        //     {
-        //         println!("\n user 2 claims their reward from user 's post");
-        //         test_phenomena_claim_post_reward(
-        //             &rpc,
-        //             &opinions_market,
-        //             &payer,
-        //             &user_2,
-        //             &session_key,
-        //             &post_p1_pda,
-        //             &bling_pubkey,
-        //             &tokens,
-        //             &config_pda,
-        //         )
-        //         .await;
-        //     }
-
-        //     {
-        //         // question
-        //         println!("user 1 creating a question post Q1");
-        //         let (question_post_pda, question_post_id_hash) = test_phenomena_create_question(
-        //             &rpc,
-        //             &opinions_market,
-        //             &payer,
-        //             &user_1,
-        //             &session_key,
-        //             &config_pda,
-        //         )
-        //         .await;
-
-        //         let (answer_post_pda, answer_post_id_hash) = test_phenomena_create_answer(
-        //             &rpc,
-        //             &opinions_market,
-        //             &payer,
-        //             &user_1,
-        //             &session_key,
-        //             &config_pda,
-        //             question_post_pda,
-        //             question_post_id_hash,
-        //         )
-        //         .await;
-
-        //         println!("user 2 upvoting user 1's question post Q1");
-        //         test_phenomena_vote_on_post(
-        //             &rpc,
-        //             &opinions_market,
-        //             &payer,
-        //             &user_2,
-        //             &session_key,
-        //             &question_post_pda,
-        //             opinions_market::states::Side::Pump,
-        //             1,
-        //             &bling_pubkey,
-        //             &bling_atas,
-        //             &config_pda,
-        //         )
-        //         .await;
-
-        //         println!("user 2 upvoting user 1's answer post A1");
-        //         test_phenomena_vote_on_post(
-        //             &rpc,
-        //             &opinions_market,
-        //             &payer,
-        //             &user_2,
-        //             &session_key,
-        //             &answer_post_pda,
-        //             opinions_market::states::Side::Pump,
-        //             1,
-        //             &bling_pubkey,
-        //             &bling_atas,
-        //             &config_pda,
-        //         )
-        //         .await;
-        //     };
-
-        //     // {
-        //     //     println!("user 3 trying to make a post");
-        //     //     // This would Cause an error because user 3 is not a user in the system
-        //     //     test_phenomena_create_post(
-        //     //         &rpc,
-        //     //         &opinions_market,
-        //     //         &payer,
-        //     //         &user_3,
-        //     //         &bling_pubkey,
-        //     //         &config_pda,
-        //     //     )
-        //     //     .await;
-        //     // }
+        // {
+        //     println!("user 3 trying to make a post");
+        //     // This would Cause an error because user 3 is not a user in the system
+        //     test_phenomena_create_post(
+        //         &rpc,
+        //         &opinions_market,
+        //         &payer,
+        //         &user_3,
+        //         &bling_pubkey,
+        //         &config_pda,
+        //     )
+        //     .await;
+        // }
     }
 }

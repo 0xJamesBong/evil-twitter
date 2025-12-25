@@ -292,6 +292,146 @@ export type OpinionsMarket = {
       ]
     },
     {
+      "name": "createAnswer",
+      "discriminator": [
+        40,
+        0,
+        255,
+        68,
+        75,
+        97,
+        185,
+        35
+      ],
+      "accounts": [
+        {
+          "name": "omConfig",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  111,
+                  109,
+                  95,
+                  99,
+                  111,
+                  110,
+                  102,
+                  105,
+                  103
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "user",
+          "writable": true
+        },
+        {
+          "name": "payer",
+          "writable": true
+        },
+        {
+          "name": "sessionKey",
+          "writable": true
+        },
+        {
+          "name": "sessionAuthority"
+        },
+        {
+          "name": "userAccount"
+        },
+        {
+          "name": "post",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  111,
+                  115,
+                  116,
+                  95,
+                  97,
+                  99,
+                  99,
+                  111,
+                  117,
+                  110,
+                  116
+                ]
+              },
+              {
+                "kind": "arg",
+                "path": "answerPostIdHash"
+              }
+            ]
+          }
+        },
+        {
+          "name": "questionPost",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  111,
+                  115,
+                  116,
+                  95,
+                  97,
+                  99,
+                  99,
+                  111,
+                  117,
+                  110,
+                  116
+                ]
+              },
+              {
+                "kind": "arg",
+                "path": "questionPostIdHash"
+              }
+            ]
+          }
+        },
+        {
+          "name": "personaProgram",
+          "address": "3bE1UxZ4VFKbptUhpFwzA1AdXgdJENhRcLQApj9F9Z1d"
+        },
+        {
+          "name": "systemProgram",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "answerPostIdHash",
+          "type": {
+            "array": [
+              "u8",
+              32
+            ]
+          }
+        },
+        {
+          "name": "questionPostIdHash",
+          "type": {
+            "array": [
+              "u8",
+              32
+            ]
+          }
+        }
+      ]
+    },
+    {
       "name": "createPost",
       "discriminator": [
         123,
@@ -426,6 +566,143 @@ export type OpinionsMarket = {
           "name": "parentPostPda",
           "type": {
             "option": "pubkey"
+          }
+        }
+      ]
+    },
+    {
+      "name": "createQuestion",
+      "docs": [
+        "Core MVP voting instruction.",
+        "User pays from their vault; everything is denominated in BLING."
+      ],
+      "discriminator": [
+        222,
+        74,
+        49,
+        30,
+        160,
+        220,
+        179,
+        27
+      ],
+      "accounts": [
+        {
+          "name": "omConfig",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  111,
+                  109,
+                  95,
+                  99,
+                  111,
+                  110,
+                  102,
+                  105,
+                  103
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "user",
+          "writable": true
+        },
+        {
+          "name": "payer",
+          "writable": true
+        },
+        {
+          "name": "sessionKey",
+          "writable": true
+        },
+        {
+          "name": "sessionAuthority"
+        },
+        {
+          "name": "userAccount"
+        },
+        {
+          "name": "voterAccount",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  118,
+                  111,
+                  116,
+                  101,
+                  114,
+                  95,
+                  97,
+                  99,
+                  99,
+                  111,
+                  117,
+                  110,
+                  116
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "user"
+              }
+            ]
+          }
+        },
+        {
+          "name": "post",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  111,
+                  115,
+                  116,
+                  95,
+                  97,
+                  99,
+                  99,
+                  111,
+                  117,
+                  110,
+                  116
+                ]
+              },
+              {
+                "kind": "arg",
+                "path": "postIdHash"
+              }
+            ]
+          }
+        },
+        {
+          "name": "personaProgram",
+          "address": "3bE1UxZ4VFKbptUhpFwzA1AdXgdJENhRcLQApj9F9Z1d"
+        },
+        {
+          "name": "systemProgram",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "postIdHash",
+          "type": {
+            "array": [
+              "u8",
+              32
+            ]
           }
         }
       ]
@@ -1162,10 +1439,6 @@ export type OpinionsMarket = {
     },
     {
       "name": "voteOnPost",
-      "docs": [
-        "Core MVP voting instruction.",
-        "User pays from their vault; everything is denominated in BLING."
-      ],
       "discriminator": [
         220,
         160,
