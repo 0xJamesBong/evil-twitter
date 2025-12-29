@@ -95,39 +95,6 @@ pub mod persona {
 
     // to be called only after create_user
     pub fn register_session(ctx: Context<RegisterSession>, expected_index: u8) -> Result<()> {
-        // // ---- Load Ed25519 verify instruction from tx instruction list ----
-        // let ix = load_instruction_at_checked(
-        //     expected_index as usize,
-        //     &ctx.accounts.instructions_sysvar,
-        // )?;
-
-        // // ---- Confirm this instruction is the Ed25519 system verifier ----
-        // require!(
-        //     ix.program_id == ed25519_program::ID,
-        //     ErrorCode::InvalidSignatureInstruction
-        // );
-
-        // //
-        // // ---- Extract verifying pubkey from instruction data ----
-        // //
-        // // Ed25519Verify instruction structure:
-        // // see solana docs: https://docs.solana.com/developing/runtime-facilities/programs#ed25519-program
-        // //
-        // // layout:
-        // // [0..1]  num_signatures
-        // // [1..x]  struct describing signatures
-        // // pubkey is commonly at bytes 16..48
-        // //
-        // let signer_pubkey_bytes = &ix.data[16..48];
-        // let signer_pubkey =
-        //     Pubkey::try_from(signer_pubkey_bytes).map_err(|_| ErrorCode::UnauthorizedSigner)?;
-
-        // // Ensure the validated signature came from the user we expect
-        // require!(
-        //     signer_pubkey == ctx.accounts.user.key(),
-        //     ErrorCode::UnauthorizedSigner
-        // );
-
         let now = Clock::get()?.unix_timestamp;
         let expires_at = now + 60 * 60 * 24 * 30; // 30 days
 

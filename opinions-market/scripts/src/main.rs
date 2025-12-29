@@ -306,32 +306,6 @@ async fn main() {
         stablecoin_valid_payment_tx
     );
 
-    // Make USDC withdrawable
-    println!("🌍 Making USDC withdrawable...");
-    test_phenomena_turn_on_withdrawable(
-        &rpc,
-        &fed,
-        &payer,
-        &admin,
-        &usdc_mint.pubkey(),
-        &fed_config_pda,
-    )
-    .await;
-    println!("✅ USDC is now withdrawable");
-
-    // Make STABLECOIN withdrawable
-    println!("🌍 Making STABLECOIN withdrawable...");
-    test_phenomena_turn_on_withdrawable(
-        &rpc,
-        &fed,
-        &payer,
-        &admin,
-        &stablecoin_mint.pubkey(),
-        &fed_config_pda,
-    )
-    .await;
-    println!("✅ STABLECOIN is now withdrawable");
-
     println!("BLING_MINT: {}", bling_mint.pubkey());
     println!("USDC_MINT: {}", usdc_mint.pubkey());
     println!("STABLECOIN_MINT: {}", stablecoin_mint.pubkey());
