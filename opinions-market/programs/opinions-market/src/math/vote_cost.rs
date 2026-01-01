@@ -1,17 +1,17 @@
 use crate::constants::{MAX_VOTE_COUNT_CAP, PARAMS, SMACK_TO_PUMP_PRICE_RATIO};
-use crate::states::{PostRelation, Side, UserAccount};
+use crate::states::{PostRelation, Side, VoterAccount};
 use crate::ErrorCode;
 use anchor_lang::prelude::*;
 
-/// Calculate social score multiplier from user account
+/// Calculate social score multiplier from voter account
 /// Returns multiplier in basis points (BPS): 5_000 (50%) to 20_000 (200%)
 ///
 /// Formula:
 /// - score 10000 → 10_000 BPS (100% = 1.0x multiplier)
 /// - score 0 → 20_000 BPS (200% = 2.0x multiplier)
 /// - score -100 → 5_000 BPS (50% = 0.5x multiplier)
-pub fn social_score_multiplier(user_account: &UserAccount) -> Result<u64> {
-    let score = user_account.social_score;
+pub fn social_score_multiplier(voter_account: &VoterAccount) -> Result<u64> {
+    let score = voter_account.social_score;
 
     let mult_bps = if score >= 0 {
         // score 0 → 20_000 BPS (200% = 2.0x)
@@ -33,19 +33,19 @@ pub fn social_score_multiplier(user_account: &UserAccount) -> Result<u64> {
     Ok(mult_bps.clamp(5_000, 20_000))
 }
 
-/// Calculate base user-adjusted cost
+/// Calculate base voter-adjusted cost
 /// This is the core "unadjusted base cost" before post adjustments
 ///
 /// Parameters:
 /// - votes: Number of votes being cast
-/// - prev: Previous votes on this side (for this user on this post)
+/// - prev: Previous votes on this side (for this voter on this post)
 /// - side: Pump or Smack
-/// - user_account: User account for social score
-pub fn base_user_cost(
+/// - voter_account: User account for social score
+pub fn base_voter_cost(
     votes: u64,
     prev: u64,
     side: Side,
-    user_account: &UserAccount,
+    voter_account: &VoterAccount,
 ) -> Result<u64> {
     // ---- FIXED CAPS (core overflow prevention) ----
     let votes = votes.min(MAX_VOTE_COUNT_CAP);
@@ -65,16 +65,16 @@ pub fn base_user_cost(
 
     // ---- APPLY SOCIAL MULTIPLIER (BPS) ----
     // max (raw * 20_000) < 2e17 → safe
-    let social_mult = social_score_multiplier(user_account)?;
-    let user_adjusted = (raw * social_mult) / 10_000;
+    let social_mult = social_score_multiplier(voter_account)?;
+    let voter_adjusted = (raw * social_mult) / 10_000;
 
-    Ok(user_adjusted.max(1))
+    Ok(voter_adjusted.max(1))
 }
 
 /// Apply post bonding curve adjustments to the base cost
 ///
 /// Parameters:
-/// - unadjusted_cost: Base cost from base_user_cost
+/// - unadjusted_cost: Base cost from base_voter_cost
 /// - post_upvotes: Number of upvotes on the post
 /// - post_downvotes: Number of downvotes on the post
 /// - side: Pump or Smack (determines which vote count to use)

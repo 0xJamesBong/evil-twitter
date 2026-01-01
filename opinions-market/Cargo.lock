@@ -765,6 +765,7 @@ dependencies = [
  "anchor-client",
  "anchor-lang",
  "anchor-spl",
+ "fed",
  "opinions-market",
  "solana-client",
  "solana-program-test",
@@ -1054,6 +1055,20 @@ checksum = "ba5a308b75df32fe02788e748662718f03fde005016435c444eea572398219fd"
 dependencies = [
  "bytes",
  "memchr",
+]
+
+[[package]]
+name = "common"
+version = "0.1.0"
+dependencies = [
+ "anchor-lang",
+ "anchor-spl",
+ "bytemuck",
+ "hex",
+ "spl-pod",
+ "spl-tlv-account-resolution 0.10.0",
+ "spl-transfer-hook-interface 0.10.0",
+ "spl-type-length-value 0.8.0",
 ]
 
 [[package]]
@@ -1615,6 +1630,22 @@ name = "feature-probe"
 version = "0.1.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "835a3dc7d1ec9e75e2b5fb4ba75396837112d2060b03f7d43bc1897c7f7211da"
+
+[[package]]
+name = "fed"
+version = "0.1.0"
+dependencies = [
+ "anchor-lang",
+ "anchor-spl",
+ "bytemuck",
+ "common",
+ "hex",
+ "persona",
+ "spl-pod",
+ "spl-tlv-account-resolution 0.10.0",
+ "spl-transfer-hook-interface 0.10.0",
+ "spl-type-length-value 0.8.0",
+]
 
 [[package]]
 name = "fiat-crypto"
@@ -3019,6 +3050,22 @@ dependencies = [
  "anchor-lang",
  "anchor-spl",
  "bytemuck",
+ "fed",
+ "hex",
+ "persona",
+ "spl-pod",
+ "spl-tlv-account-resolution 0.10.0",
+ "spl-transfer-hook-interface 0.10.0",
+ "spl-type-length-value 0.8.0",
+]
+
+[[package]]
+name = "opinions-market-old"
+version = "0.1.0"
+dependencies = [
+ "anchor-lang",
+ "anchor-spl",
+ "bytemuck",
  "hex",
  "spl-pod",
  "spl-tlv-account-resolution 0.10.0",
@@ -3092,6 +3139,20 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "2fd23b938276f14057220b707937bcb42fa76dda7560e57a2da30cb52d557937"
 dependencies = [
  "num",
+]
+
+[[package]]
+name = "persona"
+version = "0.1.0"
+dependencies = [
+ "anchor-lang",
+ "anchor-spl",
+ "bytemuck",
+ "hex",
+ "spl-pod",
+ "spl-tlv-account-resolution 0.10.0",
+ "spl-transfer-hook-interface 0.10.0",
+ "spl-type-length-value 0.8.0",
 ]
 
 [[package]]
@@ -3504,6 +3565,20 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ed2bf2547551a7053d6fdfafda3f938979645c44812fbfcda098faae3f1a362d"
 dependencies = [
  "bitflags",
+]
+
+[[package]]
+name = "referrals"
+version = "0.1.0"
+dependencies = [
+ "anchor-lang",
+ "anchor-spl",
+ "bytemuck",
+ "hex",
+ "spl-pod",
+ "spl-tlv-account-resolution 0.10.0",
+ "spl-transfer-hook-interface 0.10.0",
+ "spl-type-length-value 0.8.0",
 ]
 
 [[package]]
@@ -7988,9 +8063,12 @@ dependencies = [
  "anchor-client",
  "anchor-spl",
  "anyhow",
+ "fed",
  "hex",
  "opinions-market",
+ "persona",
  "rand 0.8.5",
+ "referrals",
  "solana-client",
  "solana-program-test",
  "solana-sdk",

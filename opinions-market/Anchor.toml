@@ -4,10 +4,12 @@ package_manager = "yarn"
 [features]
 resolution = true
 skip-lint = false
-upgradeable = true
 
 [programs.localnet]
+fed = "6p4L4eVGQtzYEnYFnSrEFGaZMqsrx7r1Emd5aPBAXXzC"
 opinions_market = "4z5rjroGdWmgGX13SdFsh4wRM4jJkMUrcvYrNpV3gezm"
+persona = "3bE1UxZ4VFKbptUhpFwzA1AdXgdJENhRcLQApj9F9Z1d"
+referrals = "44Ti52xtPRNGHBrWWpWFFWHzngCQChCzoEPeLWxeRFxC"
 
 [registry]
 url = "https://api.apr.dev"
@@ -17,31 +19,6 @@ cluster = "localnet"
 wallet = "~/Documents/evil-twitter/opinions-market/.secrets/assFUvBMqjyWvtRLEbWXuN84T4UdTihCjfzC8JaXtrh.json"
 
 [scripts]
-test = "cargo test -- --nocapture"
-
-local = """
-set -a
-source .env
-set +a
-
-export CLUSTER=localnet
-
-pkill solana-test-validator || true;
-solana config set --url http://127.0.0.1:8899;
-solana config set --keypair $ANCHOR_WALLET_PATH;
-solana-test-validator --reset & sleep 3;
-solana airdrop 0.01;
-anchor build;
-anchor deploy --provider.cluster localnet -- --upgrade-authority $ANCHOR_WALLET_PATH
-cargo run -p bootstrap
-pwd
-cp "$(pwd)/target/idl/opinions_market.json" "$(pwd)/../privy-frontend/src/lib/solana/target/localnet/idl/opinions_market.json"
-cp "$(pwd)/target/types/opinions_market.ts" "$(pwd)/../privy-frontend/src/lib/solana/target/localnet/target/opinions_market.ts"
-
-cp "$(pwd)/target/idl/opinions_market.json" "$(pwd)/../evil-twitter-backend/src/solana/target/localnet/idl/opinions_market.json"
-cp "$(pwd)/target/types/opinions_market.ts" "$(pwd)/../evil-twitter-backend/src/solana/target/localnet/types/opinions_market.ts"
-"""
-
 devnet-deploy = """
 set -a
 source .env
@@ -57,9 +34,56 @@ anchor build;
 anchor deploy --provider.cluster devnet -- --upgrade-authority $ANCHOR_WALLET_PATH
 cargo run -p bootstrap
 pwd
-cp "$(pwd)/target/idl/opinions_market.json" "$(pwd)/../privy-frontend/src/lib/solana/target/devnet/idl/opinions_market.json"
-cp "$(pwd)/target/types/opinions_market.ts" "$(pwd)/../privy-frontend/src/lib/solana/target/devnet/target/opinions_market.ts"
+cp \"$(pwd)/target/idl/opinions_market.json\" \"$(pwd)/../privy-frontend/src/lib/solana/target/devnet/idl/opinions_market.json\"
+cp \"$(pwd)/target/types/opinions_market.ts\" \"$(pwd)/../privy-frontend/src/lib/solana/target/devnet/types/opinions_market.ts\"
+cp \"$(pwd)/target/idl/fed.json\" \"$(pwd)/../privy-frontend/src/lib/solana/target/devnet/idl/fed.json\"
+cp \"$(pwd)/target/types/fed.ts\" \"$(pwd)/../privy-frontend/src/lib/solana/target/devnet/types/fed.ts\"
+cp \"$(pwd)/target/idl/persona.json\" \"$(pwd)/../privy-frontend/src/lib/solana/target/devnet/idl/persona.json\"
+cp \"$(pwd)/target/types/persona.ts\" \"$(pwd)/../privy-frontend/src/lib/solana/target/devnet/types/persona.ts\"
 
-cp "$(pwd)/target/idl/opinions_market.json" "$(pwd)/../evil-twitter-backend/src/solana/target/devnet/idl/opinions_market.json"
-cp "$(pwd)/target/types/opinions_market.ts" "$(pwd)/../evil-twitter-backend/src/solana/target/devnet/types/opinions_market.ts"
+cp \"$(pwd)/target/idl/opinions_market.json\" \"$(pwd)/../evil-twitter-backend/src/solana/target/devnet/idl/opinions_market.json\"
+cp \"$(pwd)/target/types/opinions_market.ts\" \"$(pwd)/../evil-twitter-backend/src/solana/target/devnet/types/opinions_market.ts\"
+cp \"$(pwd)/target/idl/fed.json\" \"$(pwd)/../evil-twitter-backend/src/solana/target/devnet/idl/fed.json\"
+cp \"$(pwd)/target/types/fed.ts\" \"$(pwd)/../evil-twitter-backend/src/solana/target/devnet/types/fed.ts\"
+cp \"$(pwd)/target/idl/persona.json\" \"$(pwd)/../evil-twitter-backend/src/solana/target/devnet/idl/persona.json\"
+cp \"$(pwd)/target/types/persona.ts\" \"$(pwd)/../evil-twitter-backend/src/solana/target/devnet/types/persona.ts\"
 """
+local = """
+set -a
+source .env
+set +a
+
+export CLUSTER=localnet
+
+pkill solana-test-validator || true;
+solana config set --url http://127.0.0.1:8899;
+solana config set --keypair $ANCHOR_WALLET_PATH;
+solana-test-validator --reset & sleep 3;
+solana airdrop 0.01;
+anchor build;
+echo \"Deploying programs individually...\";
+anchor deploy --provider.cluster localnet -- --upgrade-authority $ANCHOR_WALLET_PATH
+
+sleep 2;
+echo \"Verifying programs are deployed...\";
+solana program show 4z5rjroGdWmgGX13SdFsh4wRM4jJkMUrcvYrNpV3gezm || echo \"⚠️  opinions_market not found\";
+solana program show GLQEgZvtw6JdtF4p1cGsDBh3ucCVrmpZjPuyzqp6yMTo || echo \"⚠️  fed not found\";
+solana program show 3bE1UxZ4VFKbptUhpFwzA1AdXgdJENhRcLQApj9F9Z1d || echo \"⚠️  persona not found\";
+solana program show 44Ti52xtPRNGHBrWWpWFFWHzngCQChCzoEPeLWxeRFxC || echo \"⚠️  referrals not found\";
+cargo run -p bootstrap
+pwd
+cp \"$(pwd)/target/idl/opinions_market.json\" \"$(pwd)/../privy-frontend/src/lib/solana/target/localnet/idl/opinions_market.json\"
+cp \"$(pwd)/target/types/opinions_market.ts\" \"$(pwd)/../privy-frontend/src/lib/solana/target/localnet/types/opinions_market.ts\"
+cp \"$(pwd)/target/idl/fed.json\" \"$(pwd)/../privy-frontend/src/lib/solana/target/localnet/idl/fed.json\"
+cp \"$(pwd)/target/types/fed.ts\" \"$(pwd)/../privy-frontend/src/lib/solana/target/localnet/types/fed.ts\"
+cp \"$(pwd)/target/idl/persona.json\" \"$(pwd)/../privy-frontend/src/lib/solana/target/localnet/idl/persona.json\"
+cp \"$(pwd)/target/types/persona.ts\" \"$(pwd)/../privy-frontend/src/lib/solana/target/localnet/types/persona.ts\"
+
+cp \"$(pwd)/target/idl/opinions_market.json\" \"$(pwd)/../evil-twitter-backend/src/solana/target/localnet/idl/opinions_market.json\"
+cp \"$(pwd)/target/types/opinions_market.ts\" \"$(pwd)/../evil-twitter-backend/src/solana/target/localnet/types/opinions_market.ts\"
+cp \"$(pwd)/target/idl/fed.json\" \"$(pwd)/../evil-twitter-backend/src/solana/target/localnet/idl/fed.json\"
+cp \"$(pwd)/target/types/fed.ts\" \"$(pwd)/../evil-twitter-backend/src/solana/target/localnet/types/fed.ts\"
+cp \"$(pwd)/target/idl/persona.json\" \"$(pwd)/../evil-twitter-backend/src/solana/target/localnet/idl/persona.json\"
+cp \"$(pwd)/target/types/persona.ts\" \"$(pwd)/../evil-twitter-backend/src/solana/target/localnet/types/persona.ts\"
+"""
+test = "cargo test -- --nocapture"

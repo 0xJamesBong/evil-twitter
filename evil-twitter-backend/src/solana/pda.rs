@@ -1,4 +1,39 @@
 use solana_sdk::pubkey::Pubkey;
+use std::str::FromStr;
+use std::{env, fs};
+
+use serde_json::Value;
+
+// Fed program ID (fallback only; prefer IDL/env)
+pub const FED_PROGRAM_ID: &str = "GLQEgZvtw6JdtF4p1cGsDBh3ucCVrmpZjPuyzqp6yMTo";
+
+// Persona program ID (from Anchor.toml)
+pub const PERSONA_PROGRAM_ID: &str = "3bE1UxZ4VFKbptUhpFwzA1AdXgdJENhRcLQApj9F9Z1d";
+
+/// Get Fed program ID as Pubkey
+pub fn fed_program_id() -> Pubkey {
+    if let Ok(program_id) = env::var("SOLANA_FED_PROGRAM_ID") {
+        return Pubkey::from_str(&program_id).expect("Invalid SOLANA_FED_PROGRAM_ID");
+    }
+
+    let network = env::var("SOLANA_NETWORK").unwrap_or_else(|_| "localnet".to_string());
+    let idl_path = format!("src/solana/target/{}/idl/fed.json", network);
+    let file = fs::read_to_string(&idl_path).unwrap_or_else(|_| {
+        panic!(
+            "IDL file not found at: {}. Set SOLANA_FED_PROGRAM_ID or ensure the IDL exists.",
+            idl_path
+        )
+    });
+
+    let v: Value = serde_json::from_str(&file).expect("Invalid JSON in Fed IDL");
+    let addr = v["address"].as_str().expect("Fed IDL missing address field");
+    Pubkey::from_str(addr).expect("Invalid Fed program ID in IDL")
+}
+
+/// Get Persona program ID as Pubkey
+pub fn persona_program_id() -> Pubkey {
+    Pubkey::from_str(PERSONA_PROGRAM_ID).expect("Invalid Persona program ID")
+}
 
 // PDA seeds matching the program
 const CONFIG_SEED: &[u8] = b"config";
@@ -13,6 +48,9 @@ const POST_POT_TOKEN_ACCOUNT_SEED: &[u8] = b"post_pot_token_account";
 const PROTOCOL_TREASURY_TOKEN_ACCOUNT_SEED: &[u8] = b"protocol_treasury_token_account";
 const POST_MINT_PAYOUT_SEED: &[u8] = b"post_mint_payout";
 const USER_POST_MINT_CLAIM_SEED: &[u8] = b"user_post_mint_claim";
+const VOTER_POST_MINT_CLAIM_SEED: &[u8] = b"voter_post_mint_claim";
+const VOTER_ACCOUNT_SEED: &[u8] = b"voter_account";
+const FED_CONFIG_SEED: &[u8] = b"fed_config";
 const SESSION_AUTHORITY_SEED: &[u8] = b"session_authority";
 const TIP_VAULT_SEED: &[u8] = b"tip_vault";
 const TIP_VAULT_TOKEN_ACCOUNT_SEED: &[u8] = b"tip_vault_token_account";
@@ -67,7 +105,7 @@ pub fn get_post_pot_authority_pda(program_id: &Pubkey, post_pda: &Pubkey) -> (Pu
 
 /// Derive the User Vault Token Account PDA
 pub fn get_user_vault_token_account_pda(
-    program_id: &Pubkey,
+    fed_program_id: &Pubkey,
     user_wallet: &Pubkey,
     token_mint: &Pubkey,
 ) -> (Pubkey, u8) {
@@ -77,7 +115,7 @@ pub fn get_user_vault_token_account_pda(
             user_wallet.as_ref(),
             token_mint.as_ref(),
         ],
-        program_id,
+        fed_program_id,
     )
 }
 
@@ -153,11 +191,7 @@ pub fn get_session_authority_pda(
 }
 
 /// Derive the Tip Vault PDA
-pub fn get_tip_vault_pda(
-    program_id: &Pubkey,
-    owner: &Pubkey,
-    token_mint: &Pubkey,
-) -> (Pubkey, u8) {
+pub fn get_tip_vault_pda(program_id: &Pubkey, owner: &Pubkey, token_mint: &Pubkey) -> (Pubkey, u8) {
     Pubkey::find_program_address(
         &[TIP_VAULT_SEED, owner.as_ref(), token_mint.as_ref()],
         program_id,
@@ -174,6 +208,32 @@ pub fn get_tip_vault_token_account_pda(
         &[
             TIP_VAULT_TOKEN_ACCOUNT_SEED,
             owner.as_ref(),
+            token_mint.as_ref(),
+        ],
+        program_id,
+    )
+}
+
+/// Derive the Fed Config PDA (owned by Fed program)
+pub fn get_fed_config_pda(fed_program_id: &Pubkey) -> (Pubkey, u8) {
+    Pubkey::find_program_address(&[FED_CONFIG_SEED], fed_program_id)
+}
+
+/// Derive the Voter Account PDA (owned by Opinions Market program)
+pub fn get_voter_account_pda(program_id: &Pubkey, voter: &Pubkey) -> (Pubkey, u8) {
+    Pubkey::find_program_address(&[VOTER_ACCOUNT_SEED, voter.as_ref()], program_id)
+}
+
+/// Derive the Voter Post Mint Claim PDA
+pub fn get_voter_post_mint_claim_pda(
+    program_id: &Pubkey,
+    post_pda: &Pubkey,
+    token_mint: &Pubkey,
+) -> (Pubkey, u8) {
+    Pubkey::find_program_address(
+        &[
+            VOTER_POST_MINT_CLAIM_SEED,
+            post_pda.as_ref(),
             token_mint.as_ref(),
         ],
         program_id,

@@ -4,7 +4,7 @@ use anchor_lang::solana_program::pubkey::Pubkey;
 pub mod constants;
 pub mod instructions;
 pub mod math;
-pub mod middleware;
+
 pub mod pda_seeds;
 pub mod states;
 use constants::*;
@@ -69,233 +69,43 @@ pub enum ErrorCode {
     TokenNotWithdrawable,
 }
 
-#[event]
-pub struct TipReceived {
-    pub owner: Pubkey,
-    pub sender: Pubkey,
-    pub token_mint: Pubkey,
-    pub amount: u64,
-    pub vault_balance: u64,
-}
-
-#[event]
-pub struct TipsClaimed {
-    pub owner: Pubkey,
-    pub token_mint: Pubkey,
-    pub amount: u64,
-}
-
-#[derive(Accounts)]
-pub struct Ping {}
-
 #[program]
 pub mod opinions_market {
 
     use anchor_lang::solana_program::{ed25519_program, program::invoke};
 
-    use crate::middleware::session::{assert_session_or_wallet, validate_session_signature};
     use anchor_lang::solana_program::sysvar::instructions::load_instruction_at_checked;
 
     use super::*;
-    // Don't import from instructions module - use re-exports from crate root
-    pub fn ping(ctx: Context<Ping>) -> Result<()> {
-        msg!("Greetings from: {:?}", ctx.program_id);
-        panic!("SHIT");
-        Ok(())
-    }
+
+    // -------------------------------------------------------------------------
+    // INITIALIZATION
+    // -------------------------------------------------------------------------
+
     pub fn initialize(
         ctx: Context<Initialize>,
-
         base_duration_secs: u32,
         max_duration_secs: u32,
         extension_per_vote_secs: u32,
     ) -> Result<()> {
-        let cfg = &mut ctx.accounts.config;
+        let om_config = &mut ctx.accounts.om_config;
 
-        let new_cfg = Config::new(
-            *ctx.accounts.admin.key,
-            ctx.accounts.payer.key(),
-            ctx.accounts.bling_mint.key(),
+        let new_config = OMConfig::new(
+            ctx.accounts.admin.key(),
             base_duration_secs,
             max_duration_secs,
             extension_per_vote_secs,
-            ctx.bumps.config,
+            ctx.bumps.om_config,
             [0; 7],
         );
 
-        cfg.admin = new_cfg.admin;
-        cfg.payer_authroity = new_cfg.payer_authroity;
-        cfg.bling_mint = new_cfg.bling_mint;
+        om_config.admin = new_config.admin;
+        om_config.base_duration_secs = new_config.base_duration_secs;
+        om_config.max_duration_secs = new_config.max_duration_secs;
+        om_config.extension_per_vote_secs = new_config.extension_per_vote_secs;
+        om_config.bump = new_config.bump;
+        om_config.padding = new_config.padding;
 
-        cfg.base_duration_secs = new_cfg.base_duration_secs;
-        cfg.max_duration_secs = new_cfg.max_duration_secs;
-        cfg.extension_per_vote_secs = new_cfg.extension_per_vote_secs;
-
-        cfg.bump = new_cfg.bump;
-        cfg.padding = new_cfg.padding;
-
-        let valid_payment = &mut ctx.accounts.valid_payment;
-
-        let new_valid_payment = ValidPayment::new(ctx.accounts.bling_mint.key(), 1, true, false);
-
-        valid_payment.token_mint = new_valid_payment.token_mint;
-        valid_payment.price_in_bling = new_valid_payment.price_in_bling;
-        valid_payment.enabled = new_valid_payment.enabled;
-        valid_payment.withdrawable = new_valid_payment.withdrawable; // BLING is not withdrawable by default
-        valid_payment.bump = ctx.bumps.valid_payment; // Use the actual bump from Anchor
-
-        Ok(())
-    }
-
-    pub fn register_valid_payment(
-        ctx: Context<RegisterValidPayment>,
-        price_in_bling: u64, // How much is 1 token in BLING -
-        withdrawable: bool,  // Whether this token can be withdrawn from vault
-    ) -> Result<()> {
-        let cfg = &ctx.accounts.config;
-
-        // Note: Duplicate registration is prevented by the `init` constraint on alternative_payment account.
-        // If the account already exists (same PDA seeds), init will fail before this function is called.
-
-        let valid_payment = &mut ctx.accounts.valid_payment;
-        let new_valid_payment = ValidPayment::new(
-            ctx.accounts.token_mint.key(),
-            price_in_bling,
-            true,
-            withdrawable,
-        );
-
-        valid_payment.token_mint = new_valid_payment.token_mint;
-        valid_payment.price_in_bling = new_valid_payment.price_in_bling;
-        valid_payment.enabled = new_valid_payment.enabled;
-        valid_payment.withdrawable = new_valid_payment.withdrawable;
-        valid_payment.bump = ctx.bumps.valid_payment; // Use the actual bump from Anchor
-
-        Ok(())
-    }
-
-    /// Update the withdrawable flag for a valid payment token
-    pub fn update_valid_payment_withdrawable(
-        ctx: Context<ModifyAcceptedMint>,
-        withdrawable: bool,
-    ) -> Result<()> {
-        let valid_payment = &mut ctx.accounts.accepted_mint;
-        valid_payment.withdrawable = withdrawable;
-        Ok(())
-    }
-
-    // -------------------------------------------------------------------------
-    // USER + VAULTS
-    // -------------------------------------------------------------------------
-
-    // when the user first signs in, we will need the user to create a user, which will create their deposit vault
-    pub fn create_user(ctx: Context<CreateUser>) -> Result<()> {
-        let config = &mut ctx.accounts.config;
-        let user_account = &mut ctx.accounts.user_account;
-        let new_user_account = UserAccount::new(ctx.accounts.user.key(), ctx.bumps.user_account);
-
-        user_account.user = new_user_account.user;
-        user_account.social_score = new_user_account.social_score;
-        user_account.attack_surface = new_user_account.attack_surface;
-        user_account.bump = new_user_account.bump;
-
-        Ok(())
-    }
-
-    // to be called only after create_user
-    pub fn register_session(ctx: Context<RegisterSession>, expected_index: u8) -> Result<()> {
-        // // ---- Load Ed25519 verify instruction from tx instruction list ----
-        // let ix = load_instruction_at_checked(
-        //     expected_index as usize,
-        //     &ctx.accounts.instructions_sysvar,
-        // )?;
-
-        // // ---- Confirm this instruction is the Ed25519 system verifier ----
-        // require!(
-        //     ix.program_id == ed25519_program::ID,
-        //     ErrorCode::InvalidSignatureInstruction
-        // );
-
-        // //
-        // // ---- Extract verifying pubkey from instruction data ----
-        // //
-        // // Ed25519Verify instruction structure:
-        // // see solana docs: https://docs.solana.com/developing/runtime-facilities/programs#ed25519-program
-        // //
-        // // layout:
-        // // [0..1]  num_signatures
-        // // [1..x]  struct describing signatures
-        // // pubkey is commonly at bytes 16..48
-        // //
-        // let signer_pubkey_bytes = &ix.data[16..48];
-        // let signer_pubkey =
-        //     Pubkey::try_from(signer_pubkey_bytes).map_err(|_| ErrorCode::UnauthorizedSigner)?;
-
-        // // Ensure the validated signature came from the user we expect
-        // require!(
-        //     signer_pubkey == ctx.accounts.user.key(),
-        //     ErrorCode::UnauthorizedSigner
-        // );
-
-        let now = Clock::get()?.unix_timestamp;
-        let expires_at = now + 60 * 60 * 24 * 30; // 30 days
-
-        validate_session_signature(
-            &ctx.accounts.user.key(),
-            expected_index,
-            &ctx.accounts.instructions_sysvar,
-            expires_at,
-        )?;
-
-        // ---- Check expiry ----
-        // let now = Clock::get()?.unix_timestamp;
-        // require!(expires_at > now, ErrorCode::SessionExpired);
-
-        // ---- Initialize SessionAuthority PDA ----
-        let session = &mut ctx.accounts.session_authority;
-        session.user = ctx.accounts.user.key();
-        session.session_key = ctx.accounts.session_key.key();
-        session.expires_at = expires_at;
-        session.privileges_hash = [0u8; 32];
-        session.bump = ctx.bumps.session_authority;
-
-        Ok(())
-    }
-
-    /// User deposits from their wallet into the program-controlled vault.
-    pub fn deposit(ctx: Context<Deposit>, amount: u64) -> Result<()> {
-        // No logic needed—Anchor already checked mint is allowed.
-        let cpi_accounts = anchor_spl::token::Transfer {
-            from: ctx.accounts.user_token_ata.to_account_info(),
-            to: ctx.accounts.user_vault_token_account.to_account_info(),
-            authority: ctx.accounts.user.to_account_info(),
-        };
-        let cpi_ctx = CpiContext::new(ctx.accounts.token_program.to_account_info(), cpi_accounts);
-        anchor_spl::token::transfer(cpi_ctx, amount)?;
-        Ok(())
-    }
-
-    /// Withdraw with possible penalty based on social interactions.
-    /// You can later implement:
-    ///   effective_amount = amount * (10000 - user.withdraw_penalty_bps()) / 10000
-    pub fn withdraw(ctx: Context<Withdraw>, amount: u64) -> Result<()> {
-        // later you’ll put the social penalty logic here
-        let effective_amount = amount;
-
-        let vault_bump = ctx.bumps.vault_authority;
-        let seeds: &[&[&[u8]]] = &[&[VAULT_AUTHORITY_SEED, &[vault_bump]]];
-
-        let cpi_accounts = anchor_spl::token::Transfer {
-            from: ctx.accounts.user_vault_token_account.to_account_info(),
-            to: ctx.accounts.user_token_dest_ata.to_account_info(),
-            authority: ctx.accounts.vault_authority.to_account_info(),
-        };
-        let cpi_ctx = CpiContext::new_with_signer(
-            ctx.accounts.token_program.to_account_info(),
-            cpi_accounts,
-            seeds,
-        );
-        anchor_spl::token::transfer(cpi_ctx, effective_amount)?;
         Ok(())
     }
 
@@ -311,10 +121,16 @@ pub mod opinions_market {
         let clock = Clock::get()?;
         let now = clock.unix_timestamp;
 
-        assert_session_or_wallet(
-            &ctx.accounts.user.key(),
-            &ctx.accounts.session_authority.user,
-            Some(&ctx.accounts.session_authority),
+        // Auth: session or wallet via CPI
+        persona::cpi::check_session_or_wallet(
+            CpiContext::new(
+                ctx.accounts.persona_program.to_account_info(),
+                persona::cpi::accounts::CheckSessionOrWallet {
+                    user: ctx.accounts.user.to_account_info(),
+                    session_key: ctx.accounts.session_key.to_account_info(),
+                    session_authority: ctx.accounts.session_authority.to_account_info(),
+                },
+            ),
             now,
         )?;
 
@@ -322,7 +138,7 @@ pub mod opinions_market {
             Some(parent_pda) => PostRelation::Reply { parent: parent_pda },
             None => PostRelation::Root,
         };
-        let config = &ctx.accounts.config;
+        let config = &ctx.accounts.om_config;
         let post = &mut ctx.accounts.post;
         let new_post = PostAccount::new(
             ctx.accounts.user.key(),
@@ -346,6 +162,17 @@ pub mod opinions_market {
         post.downvotes = new_post.downvotes;
         post.winning_side = new_post.winning_side;
 
+        // Initialize voter_account if it was just created
+        let voter_account = &mut ctx.accounts.voter_account;
+        if voter_account.voter == Pubkey::default() {
+            let new_voter_account =
+                VoterAccount::default(ctx.accounts.user.key(), ctx.bumps.voter_account);
+            voter_account.voter = new_voter_account.voter;
+            voter_account.social_score = new_voter_account.social_score;
+            voter_account.attack_surface = new_voter_account.attack_surface;
+            voter_account.bump = new_voter_account.bump;
+        }
+
         Ok(())
     }
 
@@ -359,14 +186,19 @@ pub mod opinions_market {
         // ---------------------------------------------------------------------
         // Auth: wallet OR session
         // ---------------------------------------------------------------------
-        assert_session_or_wallet(
-            &ctx.accounts.user.key(),
-            &ctx.accounts.session_authority.user,
-            Some(&ctx.accounts.session_authority),
+        // Auth: session or wallet via CPI
+        persona::cpi::check_session_or_wallet(
+            CpiContext::new(
+                ctx.accounts.persona_program.to_account_info(),
+                persona::cpi::accounts::CheckSessionOrWallet {
+                    user: ctx.accounts.user.to_account_info(),
+                    session_key: ctx.accounts.session_key.to_account_info(),
+                    session_authority: ctx.accounts.session_authority.to_account_info(),
+                },
+            ),
             now,
         )?;
-
-        let config = &ctx.accounts.config;
+        let config = &ctx.accounts.om_config;
         let post = &mut ctx.accounts.post;
 
         // ---------------------------------------------------------------------
@@ -391,12 +223,11 @@ pub mod opinions_market {
         // ---------------------------------------------------------------------
         // Write to account
         // ---------------------------------------------------------------------
-        post.function = new_post.function;
-        post.relation = new_post.relation;
-        post.forced_outcome = None;
-
         post.creator_user = new_post.creator_user;
         post.post_id_hash = new_post.post_id_hash;
+        post.function = new_post.function;
+        post.relation = new_post.relation;
+        post.forced_outcome = new_post.forced_outcome;
         post.start_time = new_post.start_time;
         post.end_time = new_post.end_time;
         post.state = new_post.state;
@@ -405,6 +236,17 @@ pub mod opinions_market {
         post.winning_side = new_post.winning_side;
         post.bump = new_post.bump;
         post.reserved = new_post.reserved;
+
+        // Initialize voter_account if it was just created
+        let voter_account = &mut ctx.accounts.voter_account;
+        if voter_account.voter == Pubkey::default() {
+            let new_voter_account =
+                VoterAccount::default(ctx.accounts.user.key(), ctx.bumps.voter_account);
+            voter_account.voter = new_voter_account.voter;
+            voter_account.social_score = new_voter_account.social_score;
+            voter_account.attack_surface = new_voter_account.attack_surface;
+            voter_account.bump = new_voter_account.bump;
+        }
 
         Ok(())
     }
@@ -417,17 +259,19 @@ pub mod opinions_market {
         let clock = Clock::get()?;
         let now = clock.unix_timestamp;
 
-        // ---------------------------------------------------------------------
-        // Auth
-        // ---------------------------------------------------------------------
-        assert_session_or_wallet(
-            &ctx.accounts.user.key(),
-            &ctx.accounts.session_authority.user,
-            Some(&ctx.accounts.session_authority),
+        // Auth: session or wallet via CPI
+        persona::cpi::check_session_or_wallet(
+            CpiContext::new(
+                ctx.accounts.persona_program.to_account_info(),
+                persona::cpi::accounts::CheckSessionOrWallet {
+                    user: ctx.accounts.user.to_account_info(),
+                    session_key: ctx.accounts.session_key.to_account_info(),
+                    session_authority: ctx.accounts.session_authority.to_account_info(),
+                },
+            ),
             now,
         )?;
-
-        let config = &ctx.accounts.config;
+        let config = &ctx.accounts.om_config;
         let post = &mut ctx.accounts.post;
         let question = &ctx.accounts.question_post;
 
@@ -463,14 +307,13 @@ pub mod opinions_market {
         );
 
         // ---------------------------------------------------------------------
-        // Write
+        // Write to account
         // ---------------------------------------------------------------------
-        post.function = new_post.function;
-        post.relation = new_post.relation;
-        post.forced_outcome = None; // may be set later by question owner
-
         post.creator_user = new_post.creator_user;
         post.post_id_hash = new_post.post_id_hash;
+        post.function = new_post.function;
+        post.relation = new_post.relation;
+        post.forced_outcome = new_post.forced_outcome; // may be set later by question owner
         post.start_time = new_post.start_time;
         post.end_time = new_post.end_time;
         post.state = new_post.state;
@@ -492,15 +335,20 @@ pub mod opinions_market {
         require!(votes > 0, ErrorCode::ZeroVotes);
         let clock = Clock::get()?;
         let now = clock.unix_timestamp;
-
-        assert_session_or_wallet(
-            &ctx.accounts.voter.key(),
-            &ctx.accounts.session_authority.user,
-            Some(&ctx.accounts.session_authority),
+        // todo: replace with CPI to persona::cpi::check_session_or_wallet
+        persona::cpi::check_session_or_wallet(
+            CpiContext::new(
+                ctx.accounts.persona_program.to_account_info(),
+                persona::cpi::accounts::CheckSessionOrWallet {
+                    user: ctx.accounts.voter.to_account_info(),
+                    session_key: ctx.accounts.session_key.to_account_info(),
+                    session_authority: ctx.accounts.session_authority.to_account_info(),
+                },
+            ),
             now,
         )?;
 
-        let cfg = &ctx.accounts.config;
+        let om_config = &ctx.accounts.om_config;
         let post = &mut ctx.accounts.post;
         let current = match side {
             Side::Pump => post.upvotes,
@@ -523,11 +371,14 @@ pub mod opinions_market {
         require!(post.state == PostState::Open, ErrorCode::PostNotOpen);
         require!(post.within_time_limit(now), ErrorCode::PostExpired);
 
+        // Extract creator_user pubkey before any mutable borrows (needed for creator vault initialization)
+        let creator_user_key = post.creator_user;
+
         // Handle position
         let pos = &mut ctx.accounts.position;
-        if pos.user == Pubkey::default() {
-            let new_pos = UserPostPosition::new(ctx.accounts.voter.key(), post.key());
-            pos.user = new_pos.user;
+        if pos.voter == Pubkey::default() {
+            let new_pos = VoterPostPosition::new(ctx.accounts.voter.key(), post.key());
+            pos.voter = new_pos.voter;
             pos.post = new_pos.post;
             pos.upvotes = new_pos.upvotes;
             pos.downvotes = new_pos.downvotes;
@@ -538,7 +389,10 @@ pub mod opinions_market {
         //
 
         let vote = Vote::new(side, valid_votes, ctx.accounts.voter.key(), post.key());
-        let cost_bling = vote.compute_cost_in_bling(post, pos, &ctx.accounts.voter_user_account)?;
+        // get karma from persona
+
+        let voter_account = ctx.accounts.voter_account.as_ref();
+        let cost_bling = vote.compute_cost_in_bling(post, pos, voter_account)?;
 
         msg!("cost_bling: {}", cost_bling);
         msg!("post.upvotes BEFORE: {}", post.upvotes);
@@ -554,100 +408,89 @@ pub mod opinions_market {
             .ok_or(ErrorCode::MathOverflow)?;
 
         //
-        // ---- 2. CONVERT COSTS TO token_mint (if not BLING) ----
+        // ---- 2. TRANSFERS via Fed (all in BLING) ----
         //
 
-        use crate::math::token_conversion::convert_bling_fees_to_token;
-
-        // Get token decimals
-        let token_decimals = ctx.accounts.token_mint.decimals;
-
-        // Convert costs from BLING to selected token if needed
-        let (protocol_fee_token, creator_pump_fee_token, pot_increment_token) =
-            if ctx.accounts.token_mint.key() == ctx.accounts.config.bling_mint {
-                // Already in BLING, no conversion needed
-                (protocol_fee, creator_pump_fee, pot_increment)
-            } else {
-                // Convert from BLING to selected token using ValidPayment price
-                let price_in_bling = ctx.accounts.valid_payment.price_in_bling;
-
-                convert_bling_fees_to_token(
-                    protocol_fee,
-                    creator_pump_fee,
-                    pot_increment,
-                    price_in_bling,
-                    token_decimals,
-                )?
-            };
-
-        msg!("protocol_fee_token: {}", protocol_fee_token);
-        msg!("creator_pump_fee_token: {}", creator_pump_fee_token);
-        msg!("pot_increment_token: {}", pot_increment_token);
-
-        //
-        // ---- 3. TRANSFERS (IN token_mint) ----
-        //
-
-        let vault_bump = ctx.bumps.vault_authority;
-        let user_authority_seeds: &[&[&[u8]]] = &[&[VAULT_AUTHORITY_SEED, &[vault_bump]]];
-
-        // protocol fee
-        if protocol_fee_token > 0 {
-            anchor_spl::token::transfer(
-                CpiContext::new_with_signer(
-                    ctx.accounts.token_program.to_account_info(),
-                    anchor_spl::token::Transfer {
-                        from: ctx
+        // Protocol fee transfer (Fed vault → OM treasury)
+        if protocol_fee > 0 {
+            fed::cpi::convert_bling_and_charge_to_protocol_treasury(
+                CpiContext::new(
+                    ctx.accounts.fed_program.to_account_info(),
+                    fed::cpi::accounts::ConvertBlingAndChargeToProtocolTreasury {
+                        user: ctx.accounts.voter.to_account_info(),
+                        from_user_vault_token_account: ctx
                             .accounts
                             .voter_user_vault_token_account
                             .to_account_info(),
-                        to: ctx
+                        protocol_treasury_token_account: ctx
                             .accounts
                             .protocol_token_treasury_token_account
                             .to_account_info(),
-                        authority: ctx.accounts.vault_authority.to_account_info(),
+                        valid_payment: ctx.accounts.valid_payment.to_account_info(),
+                        token_mint: ctx.accounts.token_mint.to_account_info(),
+                        fed_config: ctx.accounts.fed_config.to_account_info(),
+                        vault_authority: ctx.accounts.vault_authority.to_account_info(),
+                        token_program: ctx.accounts.token_program.to_account_info(),
                     },
-                    user_authority_seeds,
                 ),
-                protocol_fee_token,
+                protocol_fee,
             )?;
         }
 
-        // creator fee
-        if creator_pump_fee_token > 0 {
-            anchor_spl::token::transfer(
-                CpiContext::new_with_signer(
-                    ctx.accounts.token_program.to_account_info(),
-                    anchor_spl::token::Transfer {
-                        from: ctx
+        // Creator fee transfer (Fed vault → Fed creator vault)
+        if creator_pump_fee > 0 {
+            // Validate that creator_user account matches post.creator_user
+            require!(
+                ctx.accounts.creator_user.key() == creator_user_key,
+                ErrorCode::MathOverflow // Using MathOverflow as a generic error
+            );
+
+            fed::cpi::convert_bling_and_transfer_out_of_fed_user_account_to_fed_user_account(
+                CpiContext::new(
+                    ctx.accounts.fed_program.to_account_info(),
+                    fed::cpi::accounts::ConvertBlingAndTransferOutOfFedUserAccountToFedUserAccount {
+                        user_from: ctx.accounts.voter.to_account_info(),
+                        user_to: ctx.accounts.creator_user.to_account_info(),
+                        from_user_vault_token_account: ctx
                             .accounts
                             .voter_user_vault_token_account
                             .to_account_info(),
-                        to: ctx.accounts.creator_vault_token_account.to_account_info(),
-                        authority: ctx.accounts.vault_authority.to_account_info(),
+                        to_user_vault_token_account: ctx.accounts.creator_vault_token_account.to_account_info(),
+                        valid_payment: ctx.accounts.valid_payment.to_account_info(),
+                        token_mint: ctx.accounts.token_mint.to_account_info(),
+                        vault_authority: ctx.accounts.vault_authority.to_account_info(),
+                        payer: ctx.accounts.payer.to_account_info(),
+                        token_program: ctx.accounts.token_program.to_account_info(),
+                        system_program: ctx.accounts.system_program.to_account_info(),
                     },
-                    user_authority_seeds,
                 ),
-                creator_pump_fee_token,
+                creator_pump_fee,
             )?;
         }
 
-        // pot increment
-        anchor_spl::token::transfer(
-            CpiContext::new_with_signer(
-                ctx.accounts.token_program.to_account_info(),
-                anchor_spl::token::Transfer {
-                    from: ctx
-                        .accounts
-                        .voter_user_vault_token_account
-                        .to_account_info(),
-                    to: ctx.accounts.post_pot_token_account.to_account_info(),
-                    authority: ctx.accounts.vault_authority.to_account_info(),
-                },
-                user_authority_seeds,
-            ),
-            pot_increment_token,
-        )?;
+        // Pot increment transfer (Fed vault → OM post pot)
+        // Note: pot_increment is in BLING, function will convert to token
+        if pot_increment > 0 {
+            fed::cpi::convert_bling_and_transfer_out_of_fed_user_account(
+                CpiContext::new(
+                    ctx.accounts.fed_program.to_account_info(),
+                    fed::cpi::accounts::ConvertBlingAndTransferOutOfFedUserAccount {
+                        user_from: ctx.accounts.voter.to_account_info(),
+                        user: ctx.accounts.voter.to_account_info(),
+                        from_user_vault_token_account: ctx
+                            .accounts
+                            .voter_user_vault_token_account
+                            .to_account_info(),
+                        to: ctx.accounts.post_pot_token_account.to_account_info(),
+                        valid_payment: ctx.accounts.valid_payment.to_account_info(),
+                        token_mint: ctx.accounts.token_mint.to_account_info(),
+                        vault_authority: ctx.accounts.vault_authority.to_account_info(),
+                        token_program: ctx.accounts.token_program.to_account_info(),
+                    },
+                ),
+                pot_increment,
+            )?;
+        }
 
         //
         // ---- 4. UPDATE COUNTERS ----
@@ -665,7 +508,7 @@ pub mod opinions_market {
         }
 
         // Extend post duration
-        post.extend_time_limit(clock.unix_timestamp, valid_votes as u32, cfg)?;
+        post.extend_time_limit(clock.unix_timestamp, valid_votes as u32, om_config)?;
 
         Ok(())
     }
@@ -833,47 +676,51 @@ pub mod opinions_market {
 
     /// Distribute creator reward from frozen settlement.
     /// Reads creator_fee from PostMintPayout and transfers it to creator's vault.
-    pub fn distribute_creator_reward(
-        ctx: Context<DistributeCreatorReward>,
-        post_id_hash: [u8; 32],
-    ) -> Result<()> {
-        let payout = &ctx.accounts.post_mint_payout;
-        require!(payout.frozen, ErrorCode::PostNotSettled);
+    // pub fn distribute_creator_reward(
+    //     ctx: Context<DistributeCreatorReward>,
+    //     post_id_hash: [u8; 32],
+    // ) -> Result<()> {
+    //     let payout = &ctx.accounts.post_mint_payout;
+    //     require!(payout.frozen, ErrorCode::PostNotSettled);
 
-        let creator_fee = payout.creator_fee;
-        if creator_fee == 0 {
-            msg!("No creator fee to distribute");
-            return Ok(());
-        }
+    //     let creator_fee = payout.creator_fee;
+    //     if creator_fee == 0 {
+    //         msg!("No creator fee to distribute");
+    //         return Ok(());
+    //     }
 
-        msg!("Distributing creator fee: {}", creator_fee);
+    //     msg!("Distributing creator fee: {}", creator_fee);
 
-        let post_key = ctx.accounts.post.key();
-        let (_, bump) = Pubkey::find_program_address(
-            &[POST_POT_AUTHORITY_SEED, post_key.as_ref()],
-            ctx.program_id,
-        );
+    //     // Transfer from post pot to creator vault (post pot is owned by OM, so handle directly)
+    //     let post_key = ctx.accounts.post.key();
+    //     let (_, post_pot_bump) = Pubkey::find_program_address(
+    //         &[POST_POT_AUTHORITY_SEED, post_key.as_ref()],
+    //         ctx.program_id,
+    //     );
+    //     let post_pot_authority_seeds: &[&[&[u8]]] =
+    //         &[&[POST_POT_AUTHORITY_SEED, post_key.as_ref(), &[post_pot_bump]]];
 
-        let bump_array = [bump];
-        let seeds_array = [POST_POT_AUTHORITY_SEED, post_key.as_ref(), &bump_array];
-        let seeds: &[&[&[u8]]] = &[&seeds_array];
+    //     fed::cpi::transfer(CpiContext::new(
+    //         ctx.accounts.fed_program.to_account_info(),
+    //         fed::cpi::accounts::Transfer {
+    //             from: ctx.accounts.post_pot_token_account.to_account_info(),
+    //             to: ctx.accounts.creator_vault_token_account.to_account_info(),
+    //         },
+    //     ))?;
+    //     //     let cpi = CpiContext::new_with_signer(
+    //     //         ctx.accounts.token_program.to_account_info(),
+    //     //         anchor_spl::token::Transfer {
+    //     //             from: ctx.accounts.post_pot_token_account.to_account_info(),
+    //     //             to: ctx.accounts.creator_vault_token_account.to_account_info(),
+    //     //             authority: ctx.accounts.post_pot_authority.to_account_info(),
+    //     //         },
+    //     //         seeds,
+    //     //     );
 
-        let cpi = CpiContext::new_with_signer(
-            ctx.accounts.token_program.to_account_info(),
-            anchor_spl::token::Transfer {
-                from: ctx.accounts.post_pot_token_account.to_account_info(),
-                to: ctx.accounts.creator_vault_token_account.to_account_info(),
-                authority: ctx.accounts.post_pot_authority.to_account_info(),
-            },
-            seeds,
-        );
+    //     msg!("✅ Creator reward distributed successfully");
 
-        anchor_spl::token::transfer(cpi, creator_fee)?;
-
-        msg!("✅ Creator reward distributed successfully");
-
-        Ok(())
-    }
+    //     Ok(())
+    // }
 
     /// Distribute protocol fee from frozen settlement.
     /// Reads protocol_fee from PostMintPayout and transfers it to protocol treasury.
@@ -892,30 +739,36 @@ pub mod opinions_market {
 
         msg!("Distributing protocol fee: {}", protocol_fee);
 
+        // Transfer from post pot (OM-owned) to protocol treasury (Fed-owned) via Fed CPI
+        // This ensures proper separation of concerns - Fed handles all transfers to its treasury
+        // post_pot_authority is a PDA, so we need to sign with seeds
         let post_key = ctx.accounts.post.key();
-        let (_, bump) = Pubkey::find_program_address(
+        let (_, post_pot_bump) = Pubkey::find_program_address(
             &[POST_POT_AUTHORITY_SEED, post_key.as_ref()],
             ctx.program_id,
         );
+        let post_pot_authority_seeds: &[&[&[u8]]] =
+            &[&[POST_POT_AUTHORITY_SEED, post_key.as_ref(), &[post_pot_bump]]];
 
-        let bump_array = [bump];
-        let seeds_array = [POST_POT_AUTHORITY_SEED, post_key.as_ref(), &bump_array];
-        let seeds: &[&[&[u8]]] = &[&seeds_array];
-
-        let cpi = CpiContext::new_with_signer(
-            ctx.accounts.token_program.to_account_info(),
-            anchor_spl::token::Transfer {
-                from: ctx.accounts.post_pot_token_account.to_account_info(),
-                to: ctx
-                    .accounts
-                    .protocol_token_treasury_token_account
-                    .to_account_info(),
-                authority: ctx.accounts.post_pot_authority.to_account_info(),
-            },
-            seeds,
-        );
-
-        anchor_spl::token::transfer(cpi, protocol_fee)?;
+        fed::cpi::transfer_into_fed_treasury_account(
+            CpiContext::new_with_signer(
+                ctx.accounts.fed_program.to_account_info(),
+                fed::cpi::accounts::TransferIntoFedTreasuryAccount {
+                    from: ctx.accounts.post_pot_token_account.to_account_info(),
+                    from_authority: ctx.accounts.post_pot_authority.to_account_info(),
+                    protocol_treasury_token_account: ctx
+                        .accounts
+                        .protocol_token_treasury_token_account
+                        .to_account_info(),
+                    valid_payment: ctx.accounts.valid_payment.to_account_info(),
+                    fed_config: ctx.accounts.fed_config.to_account_info(),
+                    token_mint: ctx.accounts.token_mint.to_account_info(),
+                    token_program: ctx.accounts.token_program.to_account_info(),
+                },
+                post_pot_authority_seeds,
+            ),
+            protocol_fee,
+        )?;
 
         msg!("✅ Protocol fee distributed successfully");
 
@@ -943,29 +796,27 @@ pub mod opinions_market {
             mother_fee,
             parent_post.key()
         );
-
-        // Transfer from child post pot to parent post pot
+        // Transfer from child post pot to parent post pot (post pots are owned by OM, so handle directly)
         let post_key = ctx.accounts.post.key();
-        let (_, bump) = Pubkey::find_program_address(
+        let (_, post_pot_bump) = Pubkey::find_program_address(
             &[POST_POT_AUTHORITY_SEED, post_key.as_ref()],
             ctx.program_id,
         );
+        let post_pot_authority_seeds: &[&[&[u8]]] =
+            &[&[POST_POT_AUTHORITY_SEED, post_key.as_ref(), &[post_pot_bump]]];
 
-        let bump_array = [bump];
-        let seeds_array = [POST_POT_AUTHORITY_SEED, post_key.as_ref(), &bump_array];
-        let seeds: &[&[&[u8]]] = &[&seeds_array];
-
-        let cpi = CpiContext::new_with_signer(
-            ctx.accounts.token_program.to_account_info(),
-            anchor_spl::token::Transfer {
-                from: ctx.accounts.post_pot_token_account.to_account_info(),
-                to: ctx.accounts.parent_post_pot_token_account.to_account_info(),
-                authority: ctx.accounts.post_pot_authority.to_account_info(),
-            },
-            seeds,
-        );
-
-        anchor_spl::token::transfer(cpi, mother_fee)?;
+        anchor_spl::token::transfer(
+            CpiContext::new_with_signer(
+                ctx.accounts.token_program.to_account_info(),
+                anchor_spl::token::Transfer {
+                    from: ctx.accounts.post_pot_token_account.to_account_info(),
+                    to: ctx.accounts.parent_post_pot_token_account.to_account_info(),
+                    authority: ctx.accounts.post_pot_authority.to_account_info(),
+                },
+                post_pot_authority_seeds,
+            ),
+            mother_fee,
+        )?;
 
         msg!("✅ Parent post share distributed successfully");
 
@@ -976,15 +827,21 @@ pub mod opinions_market {
         let clock = Clock::get()?;
         let now = clock.unix_timestamp;
 
-        assert_session_or_wallet(
-            &ctx.accounts.user.key(),
-            &ctx.accounts.session_authority.user,
-            Some(&ctx.accounts.session_authority),
+        // Auth: session or wallet via CPI
+        persona::cpi::check_session_or_wallet(
+            CpiContext::new(
+                ctx.accounts.persona_program.to_account_info(),
+                persona::cpi::accounts::CheckSessionOrWallet {
+                    user: ctx.accounts.user.to_account_info(),
+                    session_key: ctx.accounts.session_key.to_account_info(),
+                    session_authority: ctx.accounts.session_authority.to_account_info(),
+                },
+            ),
             now,
         )?;
         let post = &ctx.accounts.post;
         let pos = &mut ctx.accounts.position;
-        let claim = &mut ctx.accounts.user_post_mint_claim;
+        let claim = &mut ctx.accounts.voter_post_mint_claim;
         let payout = &ctx.accounts.post_mint_payout;
 
         require!(post.state == PostState::Settled, ErrorCode::PostNotSettled);
@@ -1017,235 +874,54 @@ pub mod opinions_market {
             return Ok(()); // too small to matter, claim and exit
         }
 
-        // Transfer reward
+        // Transfer from post pot to user vault (post pot is owned by OM, so handle directly)
         let post_key = post.key();
-        let (_, bump) = Pubkey::find_program_address(
+        let (_, post_pot_bump) = Pubkey::find_program_address(
             &[POST_POT_AUTHORITY_SEED, post_key.as_ref()],
             ctx.program_id,
         );
+        let post_pot_authority_seeds: &[&[&[u8]]] =
+            &[&[POST_POT_AUTHORITY_SEED, post_key.as_ref(), &[post_pot_bump]]];
 
-        let bump_array = [bump];
-        let seeds_array = [POST_POT_AUTHORITY_SEED, post_key.as_ref(), &bump_array];
-        let seeds: &[&[&[u8]]] = &[&seeds_array];
+        anchor_spl::token::transfer(
+            CpiContext::new_with_signer(
+                ctx.accounts.token_program.to_account_info(),
+                anchor_spl::token::Transfer {
+                    from: ctx.accounts.post_pot_token_account.to_account_info(),
+                    to: ctx.accounts.user_vault_token_account.to_account_info(),
+                    authority: ctx.accounts.post_pot_authority.to_account_info(),
+                },
+                post_pot_authority_seeds,
+            ),
+            reward,
+        )?;
 
-        let cpi = CpiContext::new_with_signer(
-            ctx.accounts.token_program.to_account_info(),
-            anchor_spl::token::Transfer {
-                from: ctx.accounts.post_pot_token_account.to_account_info(),
-                to: ctx.accounts.user_vault_token_account.to_account_info(),
-                authority: ctx.accounts.post_pot_authority.to_account_info(),
-            },
-            seeds,
-        );
+        // {
+        //     // Transfer reward
+        //     let post_key = post.key();
+        //     let (_, bump) = Pubkey::find_program_address(
+        //         &[POST_POT_AUTHORITY_SEED, post_key.as_ref()],
+        //         ctx.program_id,
+        //     );
 
-        anchor_spl::token::transfer(cpi, reward)?;
+        //     let bump_array = [bump];
+        //     let seeds_array = [POST_POT_AUTHORITY_SEED, post_key.as_ref(), &bump_array];
+        //     let seeds: &[&[&[u8]]] = &[&seeds_array];
+
+        //     let cpi = CpiContext::new_with_signer(
+        //         ctx.accounts.token_program.to_account_info(),
+        //         anchor_spl::token::Transfer {
+        //             from: ctx.accounts.post_pot_token_account.to_account_info(),
+        //             to: ctx.accounts.user_vault_token_account.to_account_info(),
+        //             authority: ctx.accounts.post_pot_authority.to_account_info(),
+        //         },
+        //         seeds,
+        //     );
+
+        //     anchor_spl::token::transfer(cpi, reward)?;
+        // }
 
         claim.claimed = true;
-        Ok(())
-    }
-
-    /// Tip another user from sender's vault to recipient's tip vault.
-    /// Tips accumulate in the recipient's tip vault until they claim.
-    pub fn tip(ctx: Context<Tip>, amount: u64) -> Result<()> {
-        let clock = Clock::get()?;
-        let now = clock.unix_timestamp;
-
-        // Determine actual signer (could be sender wallet or session key)
-        let signer = ctx.accounts.sender.key();
-
-        // Auth: session or wallet
-        assert_session_or_wallet(
-            &signer,
-            &ctx.accounts.sender_user_account.user,
-            Some(&ctx.accounts.session_authority),
-            now,
-        )?;
-
-        // Validate amount
-        require!(amount > 0, ErrorCode::ZeroTipAmount);
-
-        // Validate recipient != sender
-        require!(
-            ctx.accounts.recipient.key() != ctx.accounts.sender_user_account.user,
-            ErrorCode::CannotTipSelf
-        );
-
-        // Initialize TipVault if needed (init_if_needed will create it if missing)
-        let tip_vault = &mut ctx.accounts.tip_vault;
-        let is_new = tip_vault.owner == Pubkey::default();
-
-        if is_new {
-            let new_tip_vault = TipVault::new(
-                ctx.accounts.recipient.key(),
-                ctx.accounts.token_mint.key(),
-                ctx.bumps.tip_vault,
-            );
-            tip_vault.owner = new_tip_vault.owner;
-            tip_vault.token_mint = new_tip_vault.token_mint;
-            tip_vault.unclaimed_amount = new_tip_vault.unclaimed_amount;
-            tip_vault.bump = new_tip_vault.bump;
-        } else {
-            // Validate existing tip vault matches recipient and mint
-            require!(
-                tip_vault.owner == ctx.accounts.recipient.key(),
-                ErrorCode::Unauthorized
-            );
-            require!(
-                tip_vault.token_mint == ctx.accounts.token_mint.key(),
-                ErrorCode::Unauthorized
-            );
-        }
-
-        // Transfer from sender's vault to tip vault
-        let vault_bump = ctx.bumps.vault_authority;
-        let vault_authority_seeds: &[&[&[u8]]] = &[&[VAULT_AUTHORITY_SEED, &[vault_bump]]];
-
-        let cpi_accounts = anchor_spl::token::Transfer {
-            from: ctx
-                .accounts
-                .sender_user_vault_token_account
-                .to_account_info(),
-            to: ctx.accounts.tip_vault_token_account.to_account_info(),
-            authority: ctx.accounts.vault_authority.to_account_info(),
-        };
-        let cpi_ctx = CpiContext::new_with_signer(
-            ctx.accounts.token_program.to_account_info(),
-            cpi_accounts,
-            vault_authority_seeds,
-        );
-        anchor_spl::token::transfer(cpi_ctx, amount)?;
-
-        // Increment unclaimed_amount
-        tip_vault.unclaimed_amount = tip_vault
-            .unclaimed_amount
-            .checked_add(amount)
-            .ok_or(ErrorCode::MathOverflow)?;
-
-        // Emit event
-        emit!(TipReceived {
-            owner: tip_vault.owner,
-            sender: ctx.accounts.sender_user_account.user,
-            token_mint: ctx.accounts.token_mint.key(),
-            amount,
-            vault_balance: ctx.accounts.tip_vault_token_account.amount,
-        });
-
-        Ok(())
-    }
-
-    /// Claim all tips from tip vault to owner's main vault.
-    /// All-or-nothing: claims entire vault balance.
-    pub fn claim_tips(ctx: Context<ClaimTips>) -> Result<()> {
-        let clock = Clock::get()?;
-        let now = clock.unix_timestamp;
-
-        // Determine actual signer (could be owner wallet or session key)
-        let signer = ctx.accounts.owner.key();
-
-        // Auth: session or wallet
-        assert_session_or_wallet(
-            &signer,
-            &ctx.accounts.user_account.user,
-            Some(&ctx.accounts.session_authority),
-            now,
-        )?;
-
-        let tip_vault = &mut ctx.accounts.tip_vault;
-
-        // Validate tip vault owner matches
-        require!(
-            tip_vault.owner == ctx.accounts.user_account.user,
-            ErrorCode::Unauthorized
-        );
-        require!(
-            tip_vault.token_mint == ctx.accounts.token_mint.key(),
-            ErrorCode::Unauthorized
-        );
-
-        // Read vault balance (source of truth)
-        let claim_amount = ctx.accounts.tip_vault_token_account.amount;
-        require!(claim_amount > 0, ErrorCode::NoTipsToClaim);
-
-        // Transfer from tip vault to owner's main vault
-        let vault_bump = ctx.bumps.vault_authority;
-        let vault_authority_seeds: &[&[&[u8]]] = &[&[VAULT_AUTHORITY_SEED, &[vault_bump]]];
-
-        let cpi_accounts = anchor_spl::token::Transfer {
-            from: ctx.accounts.tip_vault_token_account.to_account_info(),
-            to: ctx
-                .accounts
-                .owner_user_vault_token_account
-                .to_account_info(),
-            authority: ctx.accounts.vault_authority.to_account_info(),
-        };
-        let cpi_ctx = CpiContext::new_with_signer(
-            ctx.accounts.token_program.to_account_info(),
-            cpi_accounts,
-            vault_authority_seeds,
-        );
-        anchor_spl::token::transfer(cpi_ctx, claim_amount)?;
-
-        // Reset unclaimed_amount
-        tip_vault.unclaimed_amount = 0;
-
-        // Emit event
-        emit!(TipsClaimed {
-            owner: tip_vault.owner,
-            token_mint: ctx.accounts.token_mint.key(),
-            amount: claim_amount,
-        });
-
-        Ok(())
-    }
-
-    /// Send tokens from sender's user vault to recipient's user vault.
-    /// Direct vault-to-vault transfer without intermediate accounts.
-    pub fn send_token(ctx: Context<SendToken>, amount: u64) -> Result<()> {
-        let clock = Clock::get()?;
-        let now = clock.unix_timestamp;
-
-        // Determine actual signer (could be sender wallet or session key)
-        let signer = ctx.accounts.sender.key();
-
-        // Auth: session or wallet
-        assert_session_or_wallet(
-            &signer,
-            &ctx.accounts.sender_user_account.user,
-            Some(&ctx.accounts.session_authority),
-            now,
-        )?;
-
-        // Validate amount
-        require!(amount > 0, ErrorCode::ZeroAmount);
-
-        // Validate recipient != sender
-        require!(
-            ctx.accounts.recipient.key() != ctx.accounts.sender_user_account.user,
-            ErrorCode::CannotSendToSelf
-        );
-
-        // Transfer from sender's vault to recipient's vault
-        let vault_bump = ctx.bumps.vault_authority;
-        let vault_authority_seeds: &[&[&[u8]]] = &[&[VAULT_AUTHORITY_SEED, &[vault_bump]]];
-
-        let cpi_accounts = anchor_spl::token::Transfer {
-            from: ctx
-                .accounts
-                .sender_user_vault_token_account
-                .to_account_info(),
-            to: ctx
-                .accounts
-                .recipient_user_vault_token_account
-                .to_account_info(),
-            authority: ctx.accounts.vault_authority.to_account_info(),
-        };
-        let cpi_ctx = CpiContext::new_with_signer(
-            ctx.accounts.token_program.to_account_info(),
-            cpi_accounts,
-            vault_authority_seeds,
-        );
-        anchor_spl::token::transfer(cpi_ctx, amount)?;
-
         Ok(())
     }
 }

@@ -37,16 +37,22 @@ use hex;
 use solana_sdk::commitment_config::CommitmentConfig;
 use std::sync::Arc;
 
+use fed::accounts::*;
+use fed::instructions::*;
 use opinions_market::accounts::*;
 use opinions_market::instructions::*;
+use persona::accounts::*;
+use persona::instructions::*;
+use persona::states::SessionAuthority;
 
 use crate::solana::get_config_pda;
 use crate::solana::{
-    get_position_pda, get_post_mint_payout_pda, get_post_pda, get_post_pot_authority_pda,
-    get_post_pot_token_account_pda, get_protocol_treasury_token_account_pda,
-    get_session_authority_pda, get_tip_vault_pda, get_tip_vault_token_account_pda,
-    get_user_account_pda, get_user_post_mint_claim_pda, get_user_vault_token_account_pda,
-    get_valid_payment_pda, get_vault_authority_pda,
+    fed_program_id, get_fed_config_pda, get_position_pda, get_post_mint_payout_pda, get_post_pda,
+    get_post_pot_authority_pda, get_post_pot_token_account_pda,
+    get_protocol_treasury_token_account_pda, get_session_authority_pda, get_tip_vault_pda,
+    get_tip_vault_token_account_pda, get_user_account_pda, get_user_vault_token_account_pda,
+    get_valid_payment_pda, get_vault_authority_pda, get_voter_account_pda,
+    get_voter_post_mint_claim_pda, persona_program_id,
 };
 
 pub struct SolanaService {
@@ -148,6 +154,42 @@ impl SolanaService {
             .expect("Failed to init program")
     }
 
+    /// Get fed_program using the async Anchor client (no nested runtimes)
+    pub fn fed_program(&self) -> Program<Arc<Keypair>> {
+        // Read SOLANA_NETWORK env var to determine cluster (default to "localnet" if not set)
+        let network = std::env::var("SOLANA_NETWORK").unwrap_or_else(|_| "localnet".to_string());
+
+        let cluster = match network.as_str() {
+            "devnet" => Cluster::Devnet,
+            "mainnet" => Cluster::Mainnet,
+            "localnet" | _ => Cluster::Localnet,
+        };
+
+        let client =
+            Client::new_with_options(cluster, self.payer.clone(), CommitmentConfig::confirmed());
+        client
+            .program(fed_program_id())
+            .expect("Failed to init Fed program")
+    }
+
+    /// Get persona_program using the async Anchor client (no nested runtimes)
+    pub fn persona_program(&self) -> Program<Arc<Keypair>> {
+        // Read SOLANA_NETWORK env var to determine cluster (default to "localnet" if not set)
+        let network = std::env::var("SOLANA_NETWORK").unwrap_or_else(|_| "localnet".to_string());
+
+        let cluster = match network.as_str() {
+            "devnet" => Cluster::Devnet,
+            "mainnet" => Cluster::Mainnet,
+            "localnet" | _ => Cluster::Localnet,
+        };
+
+        let client =
+            Client::new_with_options(cluster, self.payer.clone(), CommitmentConfig::confirmed());
+        client
+            .program(persona_program_id())
+            .expect("Failed to init Persona program")
+    }
+
     /// Build a partially-signed transaction with the backend payer as signer
     pub async fn build_partial_signed_tx(
         &self,
@@ -234,12 +276,13 @@ impl SolanaService {
     pub async fn get_user_account(
         &self,
         user_wallet: &Pubkey,
-    ) -> anyhow::Result<Option<opinions_market::states::UserAccount>> {
-        let opinions_market = self.opinions_market_program();
-        let (user_account_pda, _) = get_user_account_pda(&self.program_id, user_wallet);
+    ) -> anyhow::Result<Option<persona::states::UserAccount>> {
+        let persona = self.persona_program();
+        let persona_program_id = persona_program_id();
+        let (user_account_pda, _) = get_user_account_pda(&persona_program_id, user_wallet);
 
-        match opinions_market
-            .account::<opinions_market::states::UserAccount>(user_account_pda)
+        match persona
+            .account::<persona::states::UserAccount>(user_account_pda)
             .await
         {
             Ok(user_account) => Ok(Some(user_account)),
@@ -251,14 +294,15 @@ impl SolanaService {
     pub async fn get_session_authority(
         &self,
         user_wallet: &Pubkey,
-    ) -> anyhow::Result<Option<opinions_market::states::SessionAuthority>> {
-        let opinions_market = self.opinions_market_program();
+    ) -> anyhow::Result<Option<SessionAuthority>> {
+        let persona = self.persona_program();
         let session_key = self.session_key.pubkey();
+        let persona_program_id = persona_program_id();
         let (session_authority_pda, _) =
-            get_session_authority_pda(&self.program_id, user_wallet, &session_key);
+            get_session_authority_pda(&persona_program_id, user_wallet, &session_key);
 
-        match opinions_market
-            .account::<opinions_market::states::SessionAuthority>(session_authority_pda)
+        match persona
+            .account::<SessionAuthority>(session_authority_pda)
             .await
         {
             Ok(session_authority) => Ok(Some(session_authority)),
@@ -271,8 +315,9 @@ impl SolanaService {
         user_wallet: &Pubkey,
         token_mint: &Pubkey,
     ) -> anyhow::Result<u64> {
+        let fed_program_id = fed_program_id();
         let (vault_token_account_pda, _) =
-            get_user_vault_token_account_pda(&self.program_id, user_wallet, token_mint);
+            get_user_vault_token_account_pda(&fed_program_id, user_wallet, token_mint);
 
         let account = match self.rpc.get_account(&vault_token_account_pda).await {
             Ok(account) => account,
@@ -298,8 +343,9 @@ impl SolanaService {
         user_wallet: &Pubkey,
         token_mint: &Pubkey,
     ) -> anyhow::Result<u64> {
+        let fed_program_id = fed_program_id();
         let (tip_vault_token_account_pda, _) =
-            get_tip_vault_token_account_pda(&self.program_id, user_wallet, token_mint);
+            get_tip_vault_token_account_pda(&fed_program_id, user_wallet, token_mint);
 
         let account = match self.rpc.get_account(&tip_vault_token_account_pda).await {
             Ok(account) => account,
@@ -354,14 +400,14 @@ impl SolanaService {
         &self,
         user_wallet: &Pubkey,
         post_id_hash: &[u8; 32],
-    ) -> anyhow::Result<Option<opinions_market::states::UserPostPosition>> {
+    ) -> anyhow::Result<Option<opinions_market::states::VoterPostPosition>> {
         let program = self.opinions_market_program();
         let program_id = program.id();
         let (post_pda, _) = get_post_pda(&program_id, post_id_hash);
         let (position_pda, _) = get_position_pda(&program_id, &post_pda, user_wallet);
 
         match program
-            .account::<opinions_market::states::UserPostPosition>(position_pda)
+            .account::<opinions_market::states::VoterPostPosition>(position_pda)
             .await
         {
             Ok(position) => Ok(Some(position)),
@@ -403,22 +449,17 @@ impl SolanaService {
             user_wallet, session_key
         );
 
-        let program = self.opinions_market_program();
-        let program_id = program.id();
+        let persona = self.persona_program();
+        let persona_program_id = persona_program_id();
         println!(
-            "  📍 SolanaService::onboard_user_with_session: Program ID: {}",
-            program_id
+            "  📍 SolanaService::onboard_user_with_session: Persona Program ID: {}",
+            persona_program_id
         );
 
-        // Derive PDAs
-        let (config_pda, _) = get_config_pda(&program_id);
-        let (user_account_pda, _) = get_user_account_pda(&program_id, &user_wallet);
+        // Derive PDAs for persona program
+        let (user_account_pda, _) = get_user_account_pda(&persona_program_id, &user_wallet);
         let (session_authority_pda, _) =
-            get_session_authority_pda(&program_id, &user_wallet, &session_key);
-        println!(
-            "  📍 SolanaService::onboard_user_with_session: Config PDA: {}",
-            config_pda
-        );
+            get_session_authority_pda(&persona_program_id, &user_wallet, &session_key);
         println!(
             "  📍 SolanaService::onboard_user_with_session: User Account PDA: {}",
             user_account_pda
@@ -436,16 +477,15 @@ impl SolanaService {
         println!(
             "  🔨 SolanaService::onboard_user_with_session: Building CreateUser instruction..."
         );
-        let create_user_ix = program
+        let create_user_ix = persona
             .request()
-            .accounts(opinions_market::accounts::CreateUser {
-                config: config_pda,
+            .accounts(persona::accounts::CreateUser {
                 user: user_wallet,
                 payer: self.payer.pubkey(),
                 user_account: user_account_pda,
                 system_program: solana_sdk::system_program::ID,
             })
-            .args(opinions_market::instruction::CreateUser {})
+            .args(persona::instruction::CreateUser {})
             .instructions()
             .map_err(|e| {
                 eprintln!(
@@ -469,9 +509,9 @@ impl SolanaService {
         println!(
             "  🔨 SolanaService::onboard_user_with_session: Building RegisterSession instruction..."
         );
-        let register_session_ix = program
+        let register_session_ix = persona
             .request()
-            .accounts(opinions_market::accounts::RegisterSession {
+            .accounts(persona::accounts::RegisterSession {
                 payer: self.payer.pubkey(),
                 user: user_wallet,
                 session_key,
@@ -479,7 +519,7 @@ impl SolanaService {
                 instructions_sysvar: INSTRUCTIONS_SYSVAR_ID,
                 system_program: solana_sdk::system_program::ID,
             })
-            .args(opinions_market::instruction::RegisterSession { expected_index: 1 })
+            .args(persona::instruction::RegisterSession { expected_index: 1 })
             .instructions()
             .map_err(|e| {
                 eprintln!(
@@ -551,20 +591,15 @@ impl SolanaService {
             user_wallet
         );
 
-        let program = self.opinions_market_program();
-        let program_id = program.id();
+        let persona = self.persona_program();
+        let persona_program_id = persona_program_id();
         println!(
-            "  📍 SolanaService::create_user: Program ID: {}",
-            program_id
+            "  📍 SolanaService::create_user: Persona Program ID: {}",
+            persona_program_id
         );
 
-        // Derive PDAs
-        let (config_pda, _) = get_config_pda(&program_id);
-        let (user_account_pda, _) = get_user_account_pda(&program_id, &user_wallet);
-        println!(
-            "  📍 SolanaService::create_user: Config PDA: {}",
-            config_pda
-        );
+        // Derive PDAs for persona program
+        let (user_account_pda, _) = get_user_account_pda(&persona_program_id, &user_wallet);
         println!(
             "  📍 SolanaService::create_user: User Account PDA: {}",
             user_account_pda
@@ -576,16 +611,15 @@ impl SolanaService {
 
         // Build CreateUser instruction
         println!("  🔨 SolanaService::create_user: Building CreateUser instruction...");
-        let ixs = program
+        let ixs = persona
             .request()
-            .accounts(opinions_market::accounts::CreateUser {
-                config: config_pda,
+            .accounts(persona::accounts::CreateUser {
                 user: user_wallet,
                 payer: self.payer.pubkey(),
                 user_account: user_account_pda,
                 system_program: solana_sdk::system_program::ID,
             })
-            .args(opinions_market::instruction::CreateUser {})
+            .args(persona::instruction::CreateUser {})
             .instructions()
             .map_err(|e| {
                 eprintln!(
@@ -644,16 +678,16 @@ impl SolanaService {
             user_wallet, session_key
         );
 
-        let program = self.opinions_market_program();
-        let program_id = program.id();
+        let persona = self.persona_program();
+        let persona_program_id = persona_program_id();
         println!(
-            "  📍 SolanaService::renew_session: Program ID: {}",
-            program_id
+            "  📍 SolanaService::renew_session: Persona Program ID: {}",
+            persona_program_id
         );
 
         // Derive session authority PDA
         let (session_authority_pda, _) =
-            get_session_authority_pda(&program_id, &user_wallet, &session_key);
+            get_session_authority_pda(&persona_program_id, &user_wallet, &session_key);
         println!(
             "  📍 SolanaService::renew_session: Session Authority PDA: {}",
             session_authority_pda
@@ -670,9 +704,9 @@ impl SolanaService {
 
         // Create register_session instruction
         println!("  🔨 SolanaService::renew_session: Building RegisterSession instruction...");
-        let register_session_ix = program
+        let register_session_ix = persona
             .request()
-            .accounts(opinions_market::accounts::RegisterSession {
+            .accounts(persona::accounts::RegisterSession {
                 payer: self.payer.pubkey(),
                 user: user_wallet,
                 session_key,
@@ -680,7 +714,7 @@ impl SolanaService {
                 instructions_sysvar: INSTRUCTIONS_SYSVAR_ID,
                 system_program: solana_sdk::system_program::ID,
             })
-            .args(opinions_market::instruction::RegisterSession { expected_index: 0 })
+            .args(persona::instruction::RegisterSession { expected_index: 0 })
             .instructions()
             .map_err(|e| {
                 eprintln!(
@@ -833,13 +867,15 @@ impl SolanaService {
         let ixs = program
             .request()
             .accounts(opinions_market::accounts::CreatePost {
-                config: config_pda,
+                om_config: config_pda,
                 user: user_wallet,
                 payer: self.payer.pubkey(),
                 session_key: self.session_key.pubkey(),
                 session_authority: session_authority_pda,
                 user_account: user_account_pda,
+                voter_account: get_voter_account_pda(&program_id, &user_wallet).0,
                 post: post_pda,
+                persona_program: persona_program_id(),
                 system_program: solana_sdk::system_program::ID,
             })
             .args(opinions_market::instruction::CreatePost {
@@ -927,7 +963,9 @@ impl SolanaService {
         // Derive PDAs
         let (config_pda, _) = get_config_pda(&program_id);
         let (user_account_pda, _) = get_user_account_pda(&program_id, &user_wallet);
+        let (voter_account_pda, _) = get_voter_account_pda(&program_id, &user_wallet);
         let (post_pda, _) = get_post_pda(&program_id, &post_id_hash);
+        let persona_program_id = persona_program_id();
         println!(
             "  📍 SolanaService::create_question: Config PDA: {}",
             config_pda
@@ -935,6 +973,10 @@ impl SolanaService {
         println!(
             "  📍 SolanaService::create_question: User Account PDA: {}",
             user_account_pda
+        );
+        println!(
+            "  📍 SolanaService::create_question: Voter Account PDA: {}",
+            voter_account_pda
         );
         println!(
             "  📍 SolanaService::create_question: Post PDA: {}",
@@ -995,13 +1037,15 @@ impl SolanaService {
         let ixs = program
             .request()
             .accounts(opinions_market::accounts::CreatePost {
-                config: config_pda,
+                om_config: config_pda,
                 user: user_wallet,
                 payer: self.payer.pubkey(),
                 session_key: self.session_key.pubkey(),
                 session_authority: session_authority_pda,
                 user_account: user_account_pda,
+                voter_account: voter_account_pda,
                 post: post_pda,
+                persona_program: persona_program_id,
                 system_program: solana_sdk::system_program::ID,
             })
             .args(opinions_market::instruction::CreateQuestion { post_id_hash })
@@ -1085,6 +1129,7 @@ impl SolanaService {
         let (user_account_pda, _) = get_user_account_pda(&program_id, &user_wallet);
         let (answer_post_pda, _) = get_post_pda(&program_id, &answer_post_id_hash);
         let (question_post_pda, _) = get_post_pda(&program_id, &question_post_id_hash);
+        let persona_program_id = persona_program_id();
         println!(
             "  📍 SolanaService::create_answer: Config PDA: {}",
             config_pda
@@ -1154,7 +1199,7 @@ impl SolanaService {
         let ixs = program
             .request()
             .accounts(opinions_market::accounts::CreateAnswer {
-                config: config_pda,
+                om_config: config_pda,
                 user: user_wallet,
                 payer: self.payer.pubkey(),
                 session_key: self.session_key.pubkey(),
@@ -1162,6 +1207,7 @@ impl SolanaService {
                 user_account: user_account_pda,
                 post: answer_post_pda,
                 question_post: question_post_pda,
+                persona_program: persona_program_id,
                 system_program: solana_sdk::system_program::ID,
             })
             .args(opinions_market::instruction::CreateAnswer {
@@ -1242,7 +1288,8 @@ impl SolanaService {
 
         // Derive PDAs
         let (config_pda, _) = get_config_pda(&program_id);
-        let (voter_user_account_pda, _) = get_user_account_pda(&program_id, voter_wallet);
+        let (user_account_pda, _) = get_user_account_pda(&program_id, voter_wallet);
+        let (voter_account_pda, _) = get_voter_account_pda(&program_id, voter_wallet);
         let (post_pda, _) = get_post_pda(&program_id, &post_id_hash);
         let (voter_user_vault_token_account_pda, _) =
             get_user_vault_token_account_pda(&program_id, voter_wallet, token_mint);
@@ -1271,13 +1318,22 @@ impl SolanaService {
         let (creator_vault_token_account_pda, _) =
             get_user_vault_token_account_pda(&program_id, &creator_user, token_mint);
 
+        // Derive Fed and Persona program IDs and Fed config PDA
+        let fed_program_id = fed_program_id();
+        let persona_program_id = persona_program_id();
+        let (fed_config_pda, _) = get_fed_config_pda(&fed_program_id);
+
         println!(
             "  📍 SolanaService::vote_on_post: Config PDA: {}",
             config_pda
         );
         println!(
             "  📍 SolanaService::vote_on_post: User Account PDA: {}",
-            voter_user_account_pda
+            user_account_pda
+        );
+        println!(
+            "  📍 SolanaService::vote_on_post: Voter Account PDA: {}",
+            voter_account_pda
         );
         println!("  📍 SolanaService::vote_on_post: Post PDA: {}", post_pda);
         println!(
@@ -1317,6 +1373,10 @@ impl SolanaService {
             creator_user
         );
         println!(
+            "  📍 SolanaService::vote_on_post: Fed Config PDA: {}",
+            fed_config_pda
+        );
+        println!(
             "  💰 SolanaService::vote_on_post: Payer: {}",
             self.payer.pubkey()
         );
@@ -1331,13 +1391,14 @@ impl SolanaService {
         let ixs = program
             .request()
             .accounts(opinions_market::accounts::VoteOnPost {
-                config: config_pda,
+                om_config: config_pda,
                 voter: *voter_wallet,
                 payer: self.payer.pubkey(),
                 session_key: self.session_key.pubkey(),
                 session_authority: session_authority_pda,
                 post: post_pda,
-                voter_user_account: voter_user_account_pda,
+                user_account: user_account_pda,
+                voter_account: voter_account_pda,
                 voter_user_vault_token_account: voter_user_vault_token_account_pda,
                 position: position_pda,
                 vault_authority: vault_authority_pda,
@@ -1345,8 +1406,12 @@ impl SolanaService {
                 post_pot_authority: post_pot_authority_pda,
                 protocol_token_treasury_token_account: protocol_treasury_token_account_pda,
                 creator_vault_token_account: creator_vault_token_account_pda,
+                creator_user: creator_user,
                 valid_payment: valid_payment_pda,
+                fed_config: fed_config_pda,
                 token_mint: *token_mint,
+                fed_program: fed_program_id,
+                persona_program: persona_program_id,
                 token_program: spl_token::ID,
                 system_program: solana_sdk::system_program::ID,
             })
@@ -1398,7 +1463,8 @@ impl SolanaService {
     }
 
     /// Get canonical vote cost for a user
-    /// Fetches UserAccount and computes cost using the same logic as on-chain
+    /// Fetches VoterAccount from opinions_market if it exists, otherwise uses default values
+    /// Uses VoterAccount for cost calculation (it has the canonical_cost method)
     pub async fn get_canonical_cost(
         &self,
         user_wallet: &Pubkey,
@@ -1412,22 +1478,29 @@ impl SolanaService {
         let program = self.opinions_market_program();
         let program_id = program.id();
 
-        // Derive the UserAccount PDA
-        let (user_account_pda, _) = get_user_account_pda(&program_id, user_wallet);
+        // Derive the VoterAccount PDA (in opinions_market program)
+        // VoterAccount is used for voting and has the canonical_cost method
+        let (voter_account_pda, bump) = get_voter_account_pda(&program_id, user_wallet);
 
-        // Fetch UserAccount
-        let user_account: opinions_market::states::UserAccount =
-            program.account(user_account_pda).await.map_err(|e| {
-                anyhow::anyhow!(
-                    "Failed to fetch UserAccount PDA {}: {}",
-                    user_account_pda,
-                    e
-                )
-            })?;
+        // Fetch VoterAccount if it exists, otherwise use default
+        // VoterAccount is created lazily when user first votes or creates a post
+        let voter_account: opinions_market::states::VoterAccount =
+            match program.account(voter_account_pda).await {
+                Ok(account) => account,
+                Err(_) => {
+                    // Account doesn't exist yet - use default VoterAccount
+                    // This happens when user hasn't voted or created a post yet
+                    println!(
+                        "  ℹ️  VoterAccount doesn't exist yet for user {}, using default values",
+                        user_wallet
+                    );
+                    opinions_market::states::VoterAccount::default(*user_wallet, bump)
+                }
+            };
 
-        // Compute canonical cost directly on UserAccount
+        // Compute canonical cost directly on VoterAccount
         // This is a pure user attribute - no Vote struct needed
-        let cost = user_account
+        let cost = voter_account
             .canonical_cost(side)
             .map_err(|e| anyhow::anyhow!("Canonical cost compute error: {:?}", e))?;
 
@@ -1454,20 +1527,19 @@ impl SolanaService {
             bling_lamports, target_token_mint
         );
 
-        let program = self.opinions_market_program();
-        let program_id = program.id();
-
         // If target is BLING, return as-is
         if target_token_mint == &self.bling_mint {
             return Ok(bling_lamports);
         }
 
-        // Derive ValidPayment PDA for target token
-        let (valid_payment_pda, _) = get_valid_payment_pda(&program_id, target_token_mint);
+        // Derive ValidPayment PDA for target token (ValidPayment is owned by Fed)
+        let fed_program_id = fed_program_id();
+        let (valid_payment_pda, _) = get_valid_payment_pda(&fed_program_id, target_token_mint);
 
-        // Fetch ValidPayment account
-        let valid_payment: opinions_market::states::ValidPayment =
-            program.account(valid_payment_pda).await.map_err(|e| {
+        // Fetch ValidPayment account using Fed program
+        let fed_program = self.fed_program();
+        let valid_payment: fed::states::ValidPayment =
+            fed_program.account(valid_payment_pda).await.map_err(|e| {
                 anyhow::anyhow!(
                     "Failed to fetch ValidPayment PDA {}: {}",
                     valid_payment_pda,
@@ -1545,16 +1617,15 @@ impl SolanaService {
     pub async fn get_valid_payment(
         &self,
         token_mint: &Pubkey,
-    ) -> anyhow::Result<Option<opinions_market::states::ValidPayment>> {
-        let program = self.opinions_market_program();
-        let program_id = program.id();
+    ) -> anyhow::Result<Option<fed::states::ValidPayment>> {
+        // Derive ValidPayment PDA (ValidPayment is owned by Fed)
+        let fed_program_id = fed_program_id();
+        let (valid_payment_pda, _) = get_valid_payment_pda(&fed_program_id, token_mint);
 
-        // Derive ValidPayment PDA
-        let (valid_payment_pda, _) = get_valid_payment_pda(&program_id, token_mint);
-
-        // Fetch ValidPayment account
-        match program
-            .account::<opinions_market::states::ValidPayment>(valid_payment_pda)
+        // Fetch ValidPayment account using Fed program
+        let fed_program = self.fed_program();
+        match fed_program
+            .account::<fed::states::ValidPayment>(valid_payment_pda)
             .await
         {
             Ok(valid_payment) => Ok(Some(valid_payment)),
@@ -1614,7 +1685,7 @@ impl SolanaService {
                 post_mint_payout: post_mint_payout_pda,
                 protocol_token_treasury_token_account: protocol_treasury_token_account_pda,
                 parent_post: parent_post_pda, // Optional - only for reading parent state
-                config: config_pda,
+                om_config: config_pda,
                 token_mint: *token_mint,
                 token_program: spl_token::ID,
                 system_program: solana_sdk::system_program::ID,
@@ -1656,65 +1727,17 @@ impl SolanaService {
     }
 
     /// Distribute creator reward from frozen settlement
+    /// NOTE: This instruction is currently commented out in the program and will not work until uncommented
+    /// This function is disabled until the instruction is enabled in the program
     pub async fn distribute_creator_reward(
         &self,
-        post_id_hash: [u8; 32],
-        token_mint: &Pubkey,
+        _post_id_hash: [u8; 32],
+        _token_mint: &Pubkey,
     ) -> anyhow::Result<Signature> {
-        println!(
-            "  🔧 SolanaService::distribute_creator_reward: Starting for post_id_hash: {}, token_mint: {}",
-            hex::encode(post_id_hash),
-            token_mint
-        );
-
-        let program = self.opinions_market_program();
-        let program_id = program.id();
-
-        // Derive PDAs
-        let (post_pda, _) = get_post_pda(&program_id, &post_id_hash);
-        let (post_pot_token_account_pda, _) =
-            get_post_pot_token_account_pda(&program_id, &post_pda, token_mint);
-        let (post_pot_authority_pda, _) = get_post_pot_authority_pda(&program_id, &post_pda);
-        let (post_mint_payout_pda, _) =
-            get_post_mint_payout_pda(&program_id, &post_pda, token_mint);
-
-        // Fetch post account to get creator_user
-        let post_account = program
-            .account::<opinions_market::states::PostAccount>(post_pda)
-            .await
-            .map_err(|e| anyhow::anyhow!("Failed to fetch post account: {}", e))?;
-
-        let (creator_vault_token_account_pda, _) =
-            get_user_vault_token_account_pda(&program_id, &post_account.creator_user, token_mint);
-        let (vault_authority_pda, _) = get_vault_authority_pda(&program_id);
-
-        let ixs = program
-            .request()
-            .accounts(opinions_market::accounts::DistributeCreatorReward {
-                payer: self.payer.pubkey(),
-                post: post_pda,
-                post_pot_token_account: post_pot_token_account_pda,
-                post_pot_authority: post_pot_authority_pda,
-                post_mint_payout: post_mint_payout_pda,
-                creator_vault_token_account: creator_vault_token_account_pda,
-                vault_authority: vault_authority_pda,
-                token_mint: *token_mint,
-                token_program: spl_token::ID,
-            })
-            .args(opinions_market::instruction::DistributeCreatorReward { post_id_hash })
-            .instructions()
-            .map_err(|e| {
-                anyhow::anyhow!("Failed to build DistributeCreatorReward instruction: {}", e)
-            })?;
-
-        let tx = self.build_partial_signed_tx(ixs).await?;
-        let signature = self.send_signed_tx(&tx).await?;
-
-        println!(
-            "  ✅ SolanaService::distribute_creator_reward: Transaction confirmed! Signature: {}",
-            signature
-        );
-        Ok(signature)
+        Err(anyhow::anyhow!(
+            "DistributeCreatorReward instruction is currently disabled in the program. \
+            Please uncomment the instruction in opinions-market/src/lib.rs to enable this functionality."
+        ))
     }
 
     /// Distribute protocol fee from frozen settlement
@@ -1742,6 +1765,9 @@ impl SolanaService {
             get_post_mint_payout_pda(&program_id, &post_pda, token_mint);
         let (protocol_treasury_token_account_pda, _) =
             get_protocol_treasury_token_account_pda(&program_id, token_mint);
+        let (valid_payment_pda, _) = get_valid_payment_pda(&program_id, token_mint);
+        let fed_program_id = fed_program_id();
+        let (fed_config_pda, _) = get_fed_config_pda(&fed_program_id);
 
         let ixs = program
             .request()
@@ -1752,8 +1778,11 @@ impl SolanaService {
                 post_pot_authority: post_pot_authority_pda,
                 post_mint_payout: post_mint_payout_pda,
                 protocol_token_treasury_token_account: protocol_treasury_token_account_pda,
-                config: config_pda,
+                valid_payment: valid_payment_pda,
+                fed_config: fed_config_pda,
+                om_config: config_pda,
                 token_mint: *token_mint,
+                fed_program: fed_program_id,
                 token_program: spl_token::ID,
             })
             .args(opinions_market::instruction::DistributeProtocolFee { post_id_hash })
@@ -1835,6 +1864,7 @@ impl SolanaService {
                 parent_post_pot_token_account: parent_post_pot_token_account_pda, // Required, not Option
                 parent_post_pot_authority: parent_post_pot_authority_pda, // Required, not Option
                 token_mint: *token_mint,
+                fed_program: fed_program_id(),
                 token_program: spl_token::ID,
             })
             .args(opinions_market::instruction::DistributeParentPostShare { post_id_hash })
@@ -1900,7 +1930,7 @@ impl SolanaService {
                 post_mint_payout: post_mint_payout_pda,
                 protocol_token_treasury_token_account: protocol_treasury_token_account_pda,
                 parent_post: parent_post_pda, // Optional - only for reading parent state
-                config: config_pda,
+                om_config: config_pda,
                 token_mint: *token_mint,
                 token_program: spl_token::ID,
                 system_program: solana_sdk::system_program::ID,
@@ -1913,52 +1943,17 @@ impl SolanaService {
     }
 
     /// Build DistributeCreatorReward instruction (returns instruction, doesn't send)
+    /// NOTE: This instruction is currently commented out in the program and will not work until uncommented
+    /// This function is disabled until the instruction is enabled in the program
     pub async fn build_distribute_creator_reward_instruction(
         &self,
-        post_id_hash: [u8; 32],
-        token_mint: &Pubkey,
+        _post_id_hash: [u8; 32],
+        _token_mint: &Pubkey,
     ) -> anyhow::Result<Vec<Instruction>> {
-        let program = self.opinions_market_program();
-        let program_id = program.id();
-
-        // Derive PDAs
-        let (post_pda, _) = get_post_pda(&program_id, &post_id_hash);
-        let (post_pot_token_account_pda, _) =
-            get_post_pot_token_account_pda(&program_id, &post_pda, token_mint);
-        let (post_pot_authority_pda, _) = get_post_pot_authority_pda(&program_id, &post_pda);
-        let (post_mint_payout_pda, _) =
-            get_post_mint_payout_pda(&program_id, &post_pda, token_mint);
-
-        // Fetch post account to get creator_user
-        let post_account = program
-            .account::<opinions_market::states::PostAccount>(post_pda)
-            .await
-            .map_err(|e| anyhow::anyhow!("Failed to fetch post account: {}", e))?;
-
-        let (creator_vault_token_account_pda, _) =
-            get_user_vault_token_account_pda(&program_id, &post_account.creator_user, token_mint);
-        let (vault_authority_pda, _) = get_vault_authority_pda(&program_id);
-
-        let ixs = program
-            .request()
-            .accounts(opinions_market::accounts::DistributeCreatorReward {
-                payer: self.payer.pubkey(),
-                post: post_pda,
-                post_pot_token_account: post_pot_token_account_pda,
-                post_pot_authority: post_pot_authority_pda,
-                post_mint_payout: post_mint_payout_pda,
-                creator_vault_token_account: creator_vault_token_account_pda,
-                vault_authority: vault_authority_pda,
-                token_mint: *token_mint,
-                token_program: spl_token::ID,
-            })
-            .args(opinions_market::instruction::DistributeCreatorReward { post_id_hash })
-            .instructions()
-            .map_err(|e| {
-                anyhow::anyhow!("Failed to build DistributeCreatorReward instruction: {}", e)
-            })?;
-
-        Ok(ixs)
+        Err(anyhow::anyhow!(
+            "DistributeCreatorReward instruction is currently disabled in the program. \
+            Please uncomment the instruction in opinions-market/src/lib.rs to enable this functionality."
+        ))
     }
 
     /// Build DistributeProtocolFee instruction (returns instruction, doesn't send)
@@ -1980,6 +1975,9 @@ impl SolanaService {
             get_post_mint_payout_pda(&program_id, &post_pda, token_mint);
         let (protocol_treasury_token_account_pda, _) =
             get_protocol_treasury_token_account_pda(&program_id, token_mint);
+        let (valid_payment_pda, _) = get_valid_payment_pda(&program_id, token_mint);
+        let fed_program_id = fed_program_id();
+        let (fed_config_pda, _) = get_fed_config_pda(&fed_program_id);
 
         let ixs = program
             .request()
@@ -1990,8 +1988,11 @@ impl SolanaService {
                 post_pot_authority: post_pot_authority_pda,
                 post_mint_payout: post_mint_payout_pda,
                 protocol_token_treasury_token_account: protocol_treasury_token_account_pda,
-                config: config_pda,
+                valid_payment: valid_payment_pda,
+                fed_config: fed_config_pda,
+                om_config: config_pda,
                 token_mint: *token_mint,
+                fed_program: fed_program_id,
                 token_program: spl_token::ID,
             })
             .args(opinions_market::instruction::DistributeProtocolFee { post_id_hash })
@@ -2062,6 +2063,7 @@ impl SolanaService {
                 parent_post_pot_token_account: parent_post_pot_token_account_pda, // Required, not Option
                 parent_post_pot_authority: parent_post_pot_authority_pda, // Required, not Option
                 token_mint: *token_mint,
+                fed_program: fed_program_id(),
                 token_program: spl_token::ID,
             })
             .args(opinions_market::instruction::DistributeParentPostShare { post_id_hash })
@@ -2129,9 +2131,9 @@ impl SolanaService {
 
         // Check if user has already claimed
         let (user_post_mint_claim_pda, _) =
-            get_user_post_mint_claim_pda(&program_id, &post_pda, token_mint, user_wallet);
+            get_voter_post_mint_claim_pda(&program_id, &post_pda, token_mint);
         if let Ok(claim_account) = program
-            .account::<opinions_market::states::UserPostMintClaim>(user_post_mint_claim_pda)
+            .account::<opinions_market::states::VoterPostMintClaim>(user_post_mint_claim_pda)
             .await
         {
             // Check if already claimed
@@ -2203,8 +2205,8 @@ impl SolanaService {
         let (config_pda, _) = get_config_pda(&program_id);
         let (post_pda, _) = get_post_pda(&program_id, &post_id_hash);
         let (position_pda, _) = get_position_pda(&program_id, &post_pda, user_wallet);
-        let (user_post_mint_claim_pda, _) =
-            get_user_post_mint_claim_pda(&program_id, &post_pda, token_mint, user_wallet);
+        let (voter_post_mint_claim_pda, _) =
+            get_voter_post_mint_claim_pda(&program_id, &post_pda, token_mint);
         let (post_mint_payout_pda, _) =
             get_post_mint_payout_pda(&program_id, &post_pda, token_mint);
         let (post_pot_token_account_pda, _) =
@@ -2215,26 +2217,30 @@ impl SolanaService {
         let (vault_authority_pda, _) = get_vault_authority_pda(&program_id);
         let (session_authority_pda, _) =
             get_session_authority_pda(&program_id, user_wallet, &self.session_key.pubkey());
+        let fed_program_id = fed_program_id();
+        let persona_program_id = persona_program_id();
 
         println!("  🔨 SolanaService::claim_post_reward: Building ClaimPostReward instruction...");
 
         let ixs = program
             .request()
             .accounts(opinions_market::accounts::ClaimPostReward {
-                config: config_pda,
+                om_config: config_pda,
                 user: *user_wallet,
                 payer: self.payer.pubkey(),
                 session_key: self.session_key.pubkey(),
                 session_authority: session_authority_pda,
                 post: post_pda,
                 position: position_pda,
-                user_post_mint_claim: user_post_mint_claim_pda,
+                voter_post_mint_claim: voter_post_mint_claim_pda,
                 post_mint_payout: post_mint_payout_pda,
                 post_pot_token_account: post_pot_token_account_pda,
                 post_pot_authority: post_pot_authority_pda,
                 user_vault_token_account: user_vault_token_account_pda,
                 vault_authority: vault_authority_pda,
                 token_mint: *token_mint,
+                fed_program: fed_program_id,
+                persona_program: persona_program_id,
                 token_program: spl_token::ID,
                 system_program: solana_sdk::system_program::ID,
             })
@@ -2288,26 +2294,26 @@ impl SolanaService {
             sender_wallet, recipient_wallet, amount, token_mint
         );
 
-        let program = self.opinions_market_program();
-        let program_id = program.id();
-
-        // Derive PDAs
-        let (sender_user_account_pda, _) = get_user_account_pda(&program_id, sender_wallet);
-        let (sender_vault_token_account_pda, _) =
-            get_user_vault_token_account_pda(&program_id, sender_wallet, token_mint);
-        let (tip_vault_pda, _) = get_tip_vault_pda(&program_id, recipient_wallet, token_mint);
-        let (tip_vault_token_account_pda, _) =
-            get_tip_vault_token_account_pda(&program_id, recipient_wallet, token_mint);
-        let (vault_authority_pda, _) = get_vault_authority_pda(&program_id);
-        let (valid_payment_pda, _) = get_valid_payment_pda(&program_id, token_mint);
-        let (session_authority_pda, _) =
-            get_session_authority_pda(&program_id, sender_wallet, &self.session_key.pubkey());
-
         println!("  🔨 SolanaService::tip: Building Tip instruction...");
 
-        let ixs = program
+        let fed = self.fed_program();
+        let fed_program_id = fed_program_id();
+
+        // Derive PDAs using fed_program_id
+        let (session_authority_pda, _) =
+            get_session_authority_pda(&fed_program_id, sender_wallet, &self.session_key.pubkey());
+        let (sender_user_account_pda, _) = get_user_account_pda(&fed_program_id, sender_wallet);
+        let (sender_vault_token_account_pda, _) =
+            get_user_vault_token_account_pda(&fed_program_id, sender_wallet, token_mint);
+        let (valid_payment_pda, _) = get_valid_payment_pda(&fed_program_id, token_mint);
+        let (vault_authority_pda, _) = get_vault_authority_pda(&fed_program_id);
+        let (tip_vault_pda, _) = get_tip_vault_pda(&fed_program_id, recipient_wallet, token_mint);
+        let (tip_vault_token_account_pda, _) =
+            get_tip_vault_token_account_pda(&fed_program_id, recipient_wallet, token_mint);
+
+        let ixs = fed
             .request()
-            .accounts(opinions_market::accounts::Tip {
+            .accounts(fed::accounts::Tip {
                 sender: *sender_wallet,
                 payer: self.payer.pubkey(),
                 recipient: *recipient_wallet,
@@ -2320,10 +2326,11 @@ impl SolanaService {
                 vault_authority: vault_authority_pda,
                 tip_vault: tip_vault_pda,
                 tip_vault_token_account: tip_vault_token_account_pda,
+                persona_program: persona_program_id(),
                 token_program: spl_token::ID,
                 system_program: solana_sdk::system_program::ID,
             })
-            .args(opinions_market::instruction::Tip { amount })
+            .args(fed::instruction::Tip { amount })
             .instructions()
             .map_err(|e| {
                 eprintln!(
@@ -2366,25 +2373,25 @@ impl SolanaService {
             owner_wallet, token_mint
         );
 
-        let program = self.opinions_market_program();
-        let program_id = program.id();
-
-        // Derive PDAs
-        let (user_account_pda, _) = get_user_account_pda(&program_id, owner_wallet);
-        let (tip_vault_pda, _) = get_tip_vault_pda(&program_id, owner_wallet, token_mint);
-        let (tip_vault_token_account_pda, _) =
-            get_tip_vault_token_account_pda(&program_id, owner_wallet, token_mint);
-        let (owner_vault_token_account_pda, _) =
-            get_user_vault_token_account_pda(&program_id, owner_wallet, token_mint);
-        let (vault_authority_pda, _) = get_vault_authority_pda(&program_id);
-        let (session_authority_pda, _) =
-            get_session_authority_pda(&program_id, owner_wallet, &self.session_key.pubkey());
-
         println!("  🔨 SolanaService::claim_tips: Building ClaimTips instruction...");
 
-        let ixs = program
+        let fed = self.fed_program();
+        let fed_program_id = fed_program_id();
+
+        // Derive PDAs using fed_program_id
+        let (user_account_pda, _) = get_user_account_pda(&fed_program_id, owner_wallet);
+        let (tip_vault_pda, _) = get_tip_vault_pda(&fed_program_id, owner_wallet, token_mint);
+        let (tip_vault_token_account_pda, _) =
+            get_tip_vault_token_account_pda(&fed_program_id, owner_wallet, token_mint);
+        let (owner_vault_token_account_pda, _) =
+            get_user_vault_token_account_pda(&fed_program_id, owner_wallet, token_mint);
+        let (vault_authority_pda, _) = get_vault_authority_pda(&fed_program_id);
+        let (session_authority_pda, _) =
+            get_session_authority_pda(&fed_program_id, owner_wallet, &self.session_key.pubkey());
+
+        let ixs = fed
             .request()
-            .accounts(opinions_market::accounts::ClaimTips {
+            .accounts(fed::accounts::ClaimTips {
                 owner: *owner_wallet,
                 payer: self.payer.pubkey(),
                 session_key: self.session_key.pubkey(),
@@ -2395,10 +2402,11 @@ impl SolanaService {
                 tip_vault_token_account: tip_vault_token_account_pda,
                 vault_authority: vault_authority_pda,
                 owner_user_vault_token_account: owner_vault_token_account_pda,
+                persona_program: persona_program_id(),
                 token_program: spl_token::ID,
                 system_program: solana_sdk::system_program::ID,
             })
-            .args(opinions_market::instruction::ClaimTips {})
+            .args(fed::instruction::ClaimTips {})
             .instructions()
             .map_err(|e| {
                 eprintln!(
@@ -2446,25 +2454,25 @@ impl SolanaService {
             sender_wallet, recipient_wallet, amount, token_mint
         );
 
-        let program = self.opinions_market_program();
-        let program_id = program.id();
-
-        // Derive PDAs
-        let (sender_user_account_pda, _) = get_user_account_pda(&program_id, sender_wallet);
-        let (sender_vault_token_account_pda, _) =
-            get_user_vault_token_account_pda(&program_id, sender_wallet, token_mint);
-        let (recipient_vault_token_account_pda, _) =
-            get_user_vault_token_account_pda(&program_id, recipient_wallet, token_mint);
-        let (vault_authority_pda, _) = get_vault_authority_pda(&program_id);
-        let (valid_payment_pda, _) = get_valid_payment_pda(&program_id, token_mint);
-        let (session_authority_pda, _) =
-            get_session_authority_pda(&program_id, sender_wallet, &self.session_key.pubkey());
-
         println!("  🔨 SolanaService::send_token: Building SendToken instruction...");
 
-        let ixs = program
+        let fed = self.fed_program();
+        let fed_program_id = fed_program_id();
+
+        // Derive PDAs using fed_program_id
+        let (sender_user_account_pda, _) = get_user_account_pda(&fed_program_id, sender_wallet);
+        let (sender_vault_token_account_pda, _) =
+            get_user_vault_token_account_pda(&fed_program_id, sender_wallet, token_mint);
+        let (recipient_vault_token_account_pda, _) =
+            get_user_vault_token_account_pda(&fed_program_id, recipient_wallet, token_mint);
+        let (vault_authority_pda, _) = get_vault_authority_pda(&fed_program_id);
+        let (valid_payment_pda, _) = get_valid_payment_pda(&fed_program_id, token_mint);
+        let (session_authority_pda, _) =
+            get_session_authority_pda(&fed_program_id, sender_wallet, &self.session_key.pubkey());
+
+        let ixs = fed
             .request()
-            .accounts(opinions_market::accounts::SendToken {
+            .accounts(fed::accounts::SendToken {
                 sender: *sender_wallet,
                 payer: self.payer.pubkey(),
                 recipient: *recipient_wallet,
@@ -2476,10 +2484,11 @@ impl SolanaService {
                 sender_user_vault_token_account: sender_vault_token_account_pda,
                 vault_authority: vault_authority_pda,
                 recipient_user_vault_token_account: recipient_vault_token_account_pda,
+                persona_program: persona_program_id(),
                 token_program: spl_token::ID,
                 system_program: solana_sdk::system_program::ID,
             })
-            .args(opinions_market::instruction::SendToken { amount })
+            .args(fed::instruction::SendToken { amount })
             .instructions()
             .map_err(|e| {
                 eprintln!(

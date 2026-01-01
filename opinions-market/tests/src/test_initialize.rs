@@ -15,15 +15,14 @@ use crate::config::TIME_CONFIG_FAST;
 use crate::utils::phenomena::{
     test_phenomena_add_valid_payment, test_phenomena_claim_post_reward,
     test_phenomena_create_answer, test_phenomena_create_post, test_phenomena_create_question,
-    test_phenomena_create_user, test_phenomena_deposit, test_phenomena_settle_post,
-    test_phenomena_tip, test_phenomena_turn_on_withdrawable, test_phenomena_vote_on_post,
-    test_phenomena_withdraw,
+    test_phenomena_create_user, test_phenomena_deposit, test_phenomena_send_token,
+    test_phenomena_settle_post, test_phenomena_tip, test_phenomena_turn_on_withdrawable,
+    test_phenomena_vote_on_post, test_phenomena_withdraw,
 };
 use crate::utils::utils::{
     airdrop_sol_to_users, send_tx, setup_token_mint, setup_token_mint_ata_and_mint_to_many_users,
 };
 use opinions_market::constants::USDC_LAMPORTS_PER_USDC;
-use opinions_market::pda_seeds::*;
 use std::collections::HashMap;
 
 // #[tokio::test]
@@ -84,7 +83,11 @@ use std::collections::HashMap;
 
 #[tokio::test]
 async fn test_setup() {
-    let program_id = opinions_market::ID;
+    let opinions_market_program_id = opinions_market::ID;
+    let persona_program_id = persona::ID;
+    let referrals_program_id = referrals::ID;
+    let fed_program_id = fed::ID;
+
     let anchor_wallet = std::env::var("ANCHOR_WALLET").unwrap();
     let payer = read_keypair_file(&anchor_wallet).unwrap();
     let payer_pubkey = &payer.pubkey();
@@ -110,7 +113,11 @@ async fn test_setup() {
 
     let client = Client::new_with_options(Cluster::Localnet, &payer, CommitmentConfig::confirmed());
 
-    let opinions_market = client.program(program_id).unwrap();
+    let fed = client.program(fed_program_id).unwrap();
+    let opinions_market = client.program(opinions_market_program_id).unwrap();
+    let persona = client.program(persona_program_id).unwrap();
+    let referrals = client.program(referrals_program_id).unwrap();
+
     let rpc = opinions_market.rpc();
 
     let bling_mint = Keypair::new();
@@ -185,32 +192,62 @@ async fn test_setup() {
     )
     .await;
 
-    let config_pda = Pubkey::find_program_address(&[b"config"], &program_id).0;
+    let fed_config_pda =
+        Pubkey::find_program_address(&[fed::pda_seeds::FED_CONFIG_SEED], &fed_program_id).0;
+    let om_config_pda = Pubkey::find_program_address(
+        &[opinions_market::pda_seeds::OM_CONFIG_SEED],
+        &opinions_market_program_id,
+    )
+    .0;
 
     {
-        println!("initializing opinions market engine");
+        println!("initializing fed engine");
         let protocol_bling_treasury_pda = Pubkey::find_program_address(
-            &[PROTOCOL_TREASURY_TOKEN_ACCOUNT_SEED, bling_pubkey.as_ref()],
-            &program_id,
+            &[
+                fed::pda_seeds::PROTOCOL_TREASURY_TOKEN_ACCOUNT_SEED,
+                bling_pubkey.as_ref(),
+            ],
+            &fed_program_id,
         )
         .0;
 
-        let valid_payment_pda =
-            Pubkey::find_program_address(&[VALID_PAYMENT_SEED, bling_pubkey.as_ref()], &program_id)
-                .0;
+        let valid_payment_pda = Pubkey::find_program_address(
+            &[fed::pda_seeds::VALID_PAYMENT_SEED, bling_pubkey.as_ref()],
+            &fed_program_id,
+        )
+        .0;
 
-        let initialize_ix = opinions_market
+        let initialize_fed_ix = fed
             .request()
-            .accounts(opinions_market::accounts::Initialize {
+            .accounts(fed::accounts::Initialize {
                 admin: admin_pubkey,
                 payer: payer_pubkey.clone(),
-                config: config_pda,
+                fed_config: fed_config_pda,
                 bling_mint: bling_pubkey,
                 usdc_mint: usdc_pubkey,
                 protocol_bling_treasury: protocol_bling_treasury_pda,
                 valid_payment: valid_payment_pda,
                 system_program: system_program::ID,
                 token_program: spl_token::ID,
+            })
+            .args(fed::instruction::Initialize {})
+            .instructions()
+            .unwrap();
+
+        let initialize_fed_tx =
+            send_tx(&rpc, initialize_fed_ix, &payer.pubkey(), &[&payer, &admin])
+                .await
+                .unwrap();
+        println!("initialize fed tx: {:?}", initialize_fed_tx);
+
+        println!("initializing opinions market engine");
+        let initialize_opinions_market_ix = opinions_market
+            .request()
+            .accounts(opinions_market::accounts::Initialize {
+                admin: admin_pubkey,
+                payer: payer_pubkey.clone(),
+                om_config: om_config_pda,
+                system_program: anchor_client::solana_sdk::system_program::ID,
             })
             .args(opinions_market::instruction::Initialize {
                 base_duration_secs: TIME_CONFIG_FAST.base_duration_secs,
@@ -220,84 +257,77 @@ async fn test_setup() {
             .instructions()
             .unwrap();
 
-        let initialize_tx = send_tx(&rpc, initialize_ix, &payer.pubkey(), &[&payer, &admin])
-            .await
-            .unwrap();
-        println!("initialize tx: {:?}", initialize_tx);
+        let initialize_opinions_market_tx = send_tx(
+            &rpc,
+            initialize_opinions_market_ix,
+            &payer.pubkey(),
+            &[&payer, &admin],
+        )
+        .await
+        .unwrap();
+        println!(
+            "initialize opinions market tx: {:?}",
+            initialize_opinions_market_tx
+        );
 
         // make bling withdrawable
-        test_phenomena_turn_on_withdrawable(&rpc, &opinions_market, &payer, &admin, &bling_pubkey)
-            .await;
+        test_phenomena_turn_on_withdrawable(
+            &rpc,
+            &fed,
+            &payer,
+            &admin,
+            &bling_pubkey,
+            &fed_config_pda,
+        )
+        .await;
 
-        test_phenomena_add_valid_payment(&rpc, &opinions_market, &payer, &admin, &usdc_pubkey)
+        test_phenomena_add_valid_payment(&rpc, &fed, &payer, &admin, &usdc_pubkey, &fed_config_pda)
             .await;
 
         // Register Stablecoin as a valid payment token
         test_phenomena_add_valid_payment(
             &rpc,
-            &opinions_market,
+            &fed,
             &payer,
             &admin,
             &stablecoin_pubkey,
+            &fed_config_pda,
         )
         .await;
 
-        test_phenomena_create_user(
-            &rpc,
-            &opinions_market,
-            &payer,
-            &user_1,
-            &session_key,
-            &config_pda,
-        )
-        .await;
-        test_phenomena_create_user(
-            &rpc,
-            &opinions_market,
-            &payer,
-            &user_2,
-            &session_key,
-            &config_pda,
-        )
-        .await;
-        test_phenomena_create_user(
-            &rpc,
-            &opinions_market,
-            &payer,
-            &user_3,
-            &session_key,
-            &config_pda,
-        )
-        .await;
+        test_phenomena_create_user(&rpc, &persona, &payer, &user_1, &session_key).await;
+        test_phenomena_create_user(&rpc, &persona, &payer, &user_2, &session_key).await;
+        test_phenomena_create_user(&rpc, &persona, &payer, &user_3, &session_key).await;
 
         {
             println!("user 1 depositing 10_000_000 bling to their vault");
             test_phenomena_deposit(
                 &rpc,
-                &opinions_market,
+                &fed,
+                &persona,
                 &payer,
                 &user_1,
                 10_000_000 * LAMPORTS_PER_SOL,
                 &bling_pubkey,
                 &tokens,
                 &bling_atas,
-                &config_pda,
+                &fed_config_pda,
             )
             .await;
         }
-
         {
             println!("user 2 depositing 1_000 usdc to their vault");
             test_phenomena_deposit(
                 &rpc,
-                &opinions_market,
+                &fed,
+                &persona,
                 &payer,
                 &user_2,
                 1_000 * USDC_LAMPORTS_PER_USDC, // 1,000 USDC with 6 decimals
                 &usdc_pubkey,
                 &tokens,
                 &usdc_atas,
-                &config_pda,
+                &fed_config_pda,
             )
             .await;
         }
@@ -305,7 +335,8 @@ async fn test_setup() {
             println!("user 1 withdrawing 9_000_000 bling from their vault to their wallet");
             test_phenomena_withdraw(
                 &rpc,
-                &opinions_market,
+                &fed,
+                &persona,
                 &payer,
                 &user_1,
                 9_000_000 * LAMPORTS_PER_SOL,
@@ -320,7 +351,8 @@ async fn test_setup() {
             println!("user 2 withdrawing 900 usdc from their vault to their wallet");
             test_phenomena_withdraw(
                 &rpc,
-                &opinions_market,
+                &fed,
+                &persona,
                 &payer,
                 &user_2,
                 900 * USDC_LAMPORTS_PER_USDC, // 900 USDC with 6 decimals
@@ -335,14 +367,15 @@ async fn test_setup() {
             println!("user 2 depositing 1_000_000 bling to their vault");
             test_phenomena_deposit(
                 &rpc,
-                &opinions_market,
+                &fed,
+                &persona,
                 &payer,
                 &user_2,
                 1_000_000 * LAMPORTS_PER_SOL,
                 &bling_pubkey,
                 &tokens,
                 &bling_atas,
-                &config_pda,
+                &fed_config_pda,
             )
             .await;
         }
@@ -351,14 +384,15 @@ async fn test_setup() {
             println!("user 1 depositing 1_000_000 usdc to their vault");
             test_phenomena_deposit(
                 &rpc,
-                &opinions_market,
+                &fed,
+                &persona,
                 &payer,
                 &user_1,
                 1_000_000 * USDC_LAMPORTS_PER_USDC, // 1,000,000 USDC with 6 decimals
                 &usdc_pubkey,
                 &tokens,
                 &usdc_atas,
-                &config_pda,
+                &fed_config_pda,
             )
             .await;
         }
@@ -366,14 +400,48 @@ async fn test_setup() {
             println!("user 1 depositing 1_000_000 stablecoin to their vault");
             test_phenomena_deposit(
                 &rpc,
-                &opinions_market,
+                &fed,
+                &persona,
                 &payer,
                 &user_1,
                 1_000_000 * USDC_LAMPORTS_PER_USDC, // 1,000,000 Stablecoin with 6 decimals
                 &stablecoin_pubkey,
                 &tokens,
                 &stablecoin_atas,
-                &config_pda,
+                &fed_config_pda,
+            )
+            .await;
+        }
+
+        {
+            println!("user 1 tipping user 2 100 bling");
+            test_phenomena_tip(
+                &rpc,
+                &fed,
+                &persona,
+                &payer,
+                &user_1,
+                &session_key,
+                &user_2,
+                100 * LAMPORTS_PER_SOL,
+                &bling_pubkey,
+                &tokens,
+            )
+            .await;
+        }
+        {
+            println!("user 1 sending 100 bling to user 2");
+            test_phenomena_send_token(
+                &rpc,
+                &fed,
+                &persona,
+                &payer,
+                &user_1,
+                &session_key,
+                &user_2,
+                100 * LAMPORTS_PER_SOL,
+                &bling_pubkey,
+                &tokens,
             )
             .await;
         }
@@ -384,10 +452,11 @@ async fn test_setup() {
             test_phenomena_create_post(
                 &rpc,
                 &opinions_market,
+                &persona,
                 &payer,
                 &user_1,
                 &session_key,
-                &config_pda,
+                &om_config_pda,
                 None, // Original post
             )
             .await
@@ -398,10 +467,11 @@ async fn test_setup() {
             test_phenomena_create_post(
                 &rpc,
                 &opinions_market,
+                &persona,
                 &payer,
                 &user_2,
                 &session_key,
-                &config_pda,
+                &om_config_pda,
                 Some(post_p1_pda), // Child post
             )
             .await
@@ -412,6 +482,8 @@ async fn test_setup() {
             test_phenomena_vote_on_post(
                 &rpc,
                 &opinions_market,
+                &fed,
+                &persona,
                 &payer,
                 &user_2,
                 &session_key,
@@ -420,7 +492,8 @@ async fn test_setup() {
                 1,
                 &bling_pubkey,
                 &bling_atas,
-                &config_pda,
+                &om_config_pda,
+                &fed_config_pda,
             )
             .await;
         }
@@ -430,6 +503,8 @@ async fn test_setup() {
             test_phenomena_vote_on_post(
                 &rpc,
                 &opinions_market,
+                &fed,
+                &persona,
                 &payer,
                 &user_1,
                 &session_key,
@@ -438,7 +513,8 @@ async fn test_setup() {
                 2,
                 &bling_pubkey,
                 &bling_atas,
-                &config_pda,
+                &om_config_pda,
+                &fed_config_pda,
             )
             .await;
         }
@@ -448,6 +524,8 @@ async fn test_setup() {
             test_phenomena_vote_on_post(
                 &rpc,
                 &opinions_market,
+                &fed,
+                &persona,
                 &payer,
                 &user_1,
                 &session_key,
@@ -456,7 +534,8 @@ async fn test_setup() {
                 1,
                 &bling_pubkey,
                 &bling_atas,
-                &config_pda,
+                &om_config_pda,
+                &fed_config_pda,
             )
             .await;
         }
@@ -468,6 +547,8 @@ async fn test_setup() {
             test_phenomena_vote_on_post(
                 &rpc,
                 &opinions_market,
+                &fed,
+                &persona,
                 &payer,
                 &user_1,
                 &session_key,
@@ -476,7 +557,8 @@ async fn test_setup() {
                 1,
                 &bling_pubkey,
                 &bling_atas,
-                &config_pda,
+                &om_config_pda,
+                &fed_config_pda,
             )
             .await;
         }
@@ -488,6 +570,8 @@ async fn test_setup() {
             test_phenomena_vote_on_post(
                 &rpc,
                 &opinions_market,
+                &fed,
+                &persona,
                 &payer,
                 &user_1,
                 &session_key,
@@ -496,7 +580,8 @@ async fn test_setup() {
                 1,
                 &usdc_pubkey,
                 &bling_atas,
-                &config_pda,
+                &om_config_pda,
+                &fed_config_pda,
             )
             .await;
         }
@@ -508,6 +593,8 @@ async fn test_setup() {
             test_phenomena_vote_on_post(
                 &rpc,
                 &opinions_market,
+                &fed,
+                &persona,
                 &payer,
                 &user_1,
                 &session_key,
@@ -516,7 +603,8 @@ async fn test_setup() {
                 1,
                 &stablecoin_pubkey,
                 &stablecoin_atas,
-                &config_pda,
+                &om_config_pda,
+                &fed_config_pda,
             )
             .await;
         }
@@ -529,10 +617,11 @@ async fn test_setup() {
             test_phenomena_settle_post(
                 &rpc,
                 &opinions_market,
+                &fed,
                 &payer,
                 &post_p1_pda,
                 &tokens,
-                &config_pda,
+                &om_config_pda,
             )
             .await;
         }
@@ -542,13 +631,15 @@ async fn test_setup() {
             test_phenomena_claim_post_reward(
                 &rpc,
                 &opinions_market,
+                &fed,
+                &persona,
                 &payer,
                 &user_2,
                 &session_key,
                 &post_p1_pda,
                 &bling_pubkey,
                 &tokens,
-                &config_pda,
+                &om_config_pda,
             )
             .await;
         }
@@ -559,20 +650,22 @@ async fn test_setup() {
             let (question_post_pda, question_post_id_hash) = test_phenomena_create_question(
                 &rpc,
                 &opinions_market,
+                &persona,
                 &payer,
                 &user_1,
                 &session_key,
-                &config_pda,
+                &om_config_pda,
             )
             .await;
 
             let (answer_post_pda, answer_post_id_hash) = test_phenomena_create_answer(
                 &rpc,
                 &opinions_market,
+                &persona,
                 &payer,
                 &user_1,
                 &session_key,
-                &config_pda,
+                &om_config_pda,
                 question_post_pda,
                 question_post_id_hash,
             )
@@ -582,6 +675,8 @@ async fn test_setup() {
             test_phenomena_vote_on_post(
                 &rpc,
                 &opinions_market,
+                &fed,
+                &persona,
                 &payer,
                 &user_2,
                 &session_key,
@@ -590,7 +685,8 @@ async fn test_setup() {
                 1,
                 &bling_pubkey,
                 &bling_atas,
-                &config_pda,
+                &om_config_pda,
+                &fed_config_pda,
             )
             .await;
 
@@ -598,6 +694,8 @@ async fn test_setup() {
             test_phenomena_vote_on_post(
                 &rpc,
                 &opinions_market,
+                &fed,
+                &persona,
                 &payer,
                 &user_2,
                 &session_key,
@@ -606,26 +704,11 @@ async fn test_setup() {
                 1,
                 &bling_pubkey,
                 &bling_atas,
-                &config_pda,
+                &om_config_pda,
+                &fed_config_pda,
             )
             .await;
         };
-
-        {
-            println!("user 1 tipping user 2 100 bling");
-            test_phenomena_tip(
-                &rpc,
-                &opinions_market,
-                &payer,
-                &user_1,
-                &session_key,
-                &user_2,
-                100 * LAMPORTS_PER_SOL,
-                &bling_pubkey,
-                &tokens,
-            )
-            .await;
-        }
         {
             println!("\n\n");
             println!(" 🟪🟪🟪🟪🟪🟪🟪🟪🟪🟪🟪🟪🟪🟪🟪🟪🟪");

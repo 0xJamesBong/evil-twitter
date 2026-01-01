@@ -392,7 +392,6 @@ pub async fn canonical_vote_costs_resolver(
     };
 
     // Get canonical cost in BLING
-
     let bling_cost = app_state
         .solana_service
         .get_canonical_cost(&wallet_pubkey, vote_side)
@@ -402,57 +401,11 @@ pub async fn canonical_vote_costs_resolver(
             async_graphql::Error::new("Failed to compute canonical cost")
         })?;
 
-    // Get USDC and Stablecoin mints from environment or config
-    // For now, we'll try to get them from environment variables or use defaults
-    let usdc_mint_str = std::env::var("USDC_MINT").ok();
-    let stablecoin_mint_str = std::env::var("STABLECOIN_MINT").ok();
-
-    // Convert to USDC if available
-    let usdc_cost = if let Some(ref usdc_mint_str) = usdc_mint_str {
-        if let Ok(usdc_mint) = solana_sdk::pubkey::Pubkey::from_str(usdc_mint_str) {
-            match app_state
-                .solana_service
-                .convert_bling_to_token(bling_cost, &usdc_mint)
-                .await
-            {
-                Ok(cost) => Some(cost),
-                Err(e) => {
-                    eprintln!("Failed to convert to USDC: {}", e);
-                    None
-                }
-            }
-        } else {
-            None
-        }
-    } else {
-        None
-    };
-
-    // Convert to Stablecoin if available
-    let stablecoin_cost = if let Some(ref stablecoin_mint_str) = stablecoin_mint_str {
-        if let Ok(stablecoin_mint) = solana_sdk::pubkey::Pubkey::from_str(stablecoin_mint_str) {
-            match app_state
-                .solana_service
-                .convert_bling_to_token(bling_cost, &stablecoin_mint)
-                .await
-            {
-                Ok(cost) => Some(cost),
-                Err(e) => {
-                    eprintln!("Failed to convert to Stablecoin: {}", e);
-                    None
-                }
-            }
-        } else {
-            None
-        }
-    } else {
-        None
-    };
-
+    // Just return BLING cost - deposit function handles deposits directly
     Ok(CanonicalVoteCosts {
         bling: bling_cost,
-        usdc: usdc_cost,
-        stablecoin: stablecoin_cost,
+        usdc: None,
+        stablecoin: None,
     })
 }
 
@@ -497,10 +450,10 @@ pub async fn current_session_resolver(ctx: &Context<'_>) -> Result<Option<Sessio
     match session_authority {
         Some(session) => {
             // Derive session authority PDA to return
-            let program_id = app_state.solana_service.opinions_market_program().id();
+            let persona_program_id = crate::solana::persona_program_id();
             let session_key = app_state.solana_service.session_key_pubkey();
             let (session_authority_pda, _) =
-                get_session_authority_pda(&program_id, &wallet_pubkey, &session_key);
+                get_session_authority_pda(&persona_program_id, &wallet_pubkey, &session_key);
 
             Ok(Some(SessionInfo {
                 session_authority_pda: session_authority_pda.to_string(),

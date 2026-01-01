@@ -10,22 +10,20 @@ import { getConnection } from "../lib/solana/connection";
 import { getAssociatedTokenAddress, getMint } from "@solana/spl-token";
 import { useSolanaStore } from "../lib/stores/solanaStore";
 import bs58 from "bs58";
-import { getProgramId, getIdl } from "../lib/solana/config";
+import { useNetworkStore } from "../lib/stores/networkStore";
+import fedIdlLocal from "../lib/solana/target/localnet/idl/fed.json";
+import { Fed as FedTypeLocal } from "../lib/solana/target/localnet/types/fed";
 
-// PDA seeds
-const USER_ACCOUNT_SEED = Buffer.from("user_account");
+// PDA seeds (for fed program)
 const USER_VAULT_TOKEN_ACCOUNT_SEED = Buffer.from("user_vault_token_account");
 const VAULT_AUTHORITY_SEED = Buffer.from("vault_authority");
 const VALID_PAYMENT_SEED = Buffer.from("valid_payment");
 
-function getUserAccountPda(
-  user: PublicKey,
-  programId: PublicKey
-): [PublicKey, number] {
-  return PublicKey.findProgramAddressSync(
-    [USER_ACCOUNT_SEED, user.toBuffer()],
-    programId
-  );
+function getFedProgramId(): string {
+  const network = useNetworkStore.getState().network;
+  // Get program ID from IDL (centralized)
+  // For now, use localnet IDL for both (devnet can be added when available)
+  return fedIdlLocal.address;
 }
 
 function getUserVaultTokenAccountPda(
@@ -81,17 +79,27 @@ export function useDeposit() {
     try {
       const userPubkey = new PublicKey(solanaWallet.address);
       const connection = getConnection();
-      const programId = new PublicKey(getProgramId());
+      const fedProgramId = new PublicKey(getFedProgramId());
 
-      // Derive PDAs
-      const [userAccountPda] = getUserAccountPda(userPubkey, programId);
+      // Derive PDAs using fed program ID
+      // Note: userAccount is in persona program, not fed
       const [userVaultTokenAccountPda] = getUserVaultTokenAccountPda(
         userPubkey,
         tokenMint,
-        programId
+        fedProgramId
       );
-      const [vaultAuthorityPda] = getVaultAuthorityPda(programId);
-      const [validPaymentPda] = getValidPaymentPda(tokenMint, programId);
+      const [vaultAuthorityPda] = getVaultAuthorityPda(fedProgramId);
+      const [validPaymentPda] = getValidPaymentPda(tokenMint, fedProgramId);
+
+      // UserAccount PDA is in persona program
+      const personaProgramId = new PublicKey(
+        "3bE1UxZ4VFKbptUhpFwzA1AdXgdJENhRcLQApj9F9Z1d"
+      );
+      const USER_ACCOUNT_SEED = Buffer.from("user_account");
+      const [userAccountPda] = PublicKey.findProgramAddressSync(
+        [USER_ACCOUNT_SEED, userPubkey.toBuffer()],
+        personaProgramId
+      );
 
       // Get user's token ATA (source)
       const userTokenAta = await getAssociatedTokenAddress(
@@ -143,24 +151,22 @@ export function useDeposit() {
         throw new Error(`Amount ${amountInLamports} exceeds maximum u64 value`);
       }
 
-      // // Create a minimal wallet for Anchor (not used for signing)
-      // const dummyWallet = {
-      //   publicKey: userPubkey,
-      //   signTransaction: async (tx: any) => tx,
-      //   signAllTransactions: async (txs: any[]) => txs,
-      // };
-
-      // Create Anchor provider and program
+      // Create Anchor provider and program for FED
       const provider = new anchor.AnchorProvider(
         connection,
         solanaWallet as any,
         { commitment: "confirmed" }
       );
       anchor.setProvider(provider);
-      const program = new anchor.Program(getIdl() as anchor.Idl, provider);
 
-      // Build deposit instruction using Anchor
-      const depositIx = await program.methods
+      // Load fed IDL (centralized - use localnet for now, devnet can be added when available)
+      const fedProgram = new anchor.Program(
+        fedIdlLocal as anchor.Idl,
+        provider
+      ) as unknown as anchor.Program<FedTypeLocal>;
+
+      // Build deposit instruction using FED program
+      const depositIx = await fedProgram.methods
         .deposit(new anchor.BN(amountInLamports.toString()))
         .accountsPartial({
           user: userPubkey,

@@ -1,10 +1,9 @@
 use crate::pda_seeds::*;
 use crate::states::*;
+use crate::ErrorCode;
 use anchor_lang::prelude::*;
 use anchor_lang::solana_program::sysvar::instructions;
 use anchor_spl::token::{Mint, Token, TokenAccount};
-use crate::ErrorCode;
-
 
 // -----------------------------------------------------------------------------
 // CONTEXTS
@@ -14,316 +13,21 @@ use crate::ErrorCode;
 pub struct Initialize<'info> {
     #[account(mut)]
     pub admin: Signer<'info>,
-
-    /// CHECK: Payer for transaction fees and account initialization
     #[account(mut)]
     pub payer: Signer<'info>,
-    #[account(
-        init,
-        payer = payer,  
-        seeds = [CONFIG_SEED],
-        bump,
-        space = 8 + Config::INIT_SPACE,
-    )]
-    pub config: Account<'info, Config>,
-    pub bling_mint: Account<'info, Mint>,
-    pub usdc_mint: Account<'info, Mint>,
-    
-    #[account(
-        init,
-        payer = payer,
-        seeds = [VALID_PAYMENT_SEED, bling_mint.key().as_ref()],
-        bump,
-        space = 8 + ValidPayment::INIT_SPACE, 
-    )]
-    pub valid_payment: Account<'info, ValidPayment>,
-
-    #[account(
-        init,
-        payer = payer,
-        seeds = [PROTOCOL_TREASURY_TOKEN_ACCOUNT_SEED, bling_mint.key().as_ref()],bump,
-        token::mint = bling_mint,
-        token::authority = config,
-    )]
-    pub protocol_bling_treasury: Account<'info, TokenAccount>,
-
-    // DO NOT ADD USDC HERE, TREAT IT AS AN ALTERNATIVE PAYMENT MINT 
-    pub system_program: Program<'info, System>,
-    pub token_program: Program<'info, Token>,
-}
-
-#[derive(Accounts)]
-pub struct RegisterValidPayment<'info> {
-    #[account(mut,
-    constraint = config.admin == admin.key())]
-    pub config: Account<'info, Config>,
-    // we need to require this to be the admin of the config account
-    #[account(mut)]
-    pub admin: Signer<'info>,
-    pub token_mint: Account<'info, Mint>,
-    #[account(
-        init,
-        payer = admin,
-        seeds = [VALID_PAYMENT_SEED, token_mint.key().as_ref()],
-        bump,
-        space = 8 + ValidPayment::INIT_SPACE,
-        constraint = token_mint.key() != config.bling_mint @ ErrorCode::BlingCannotBeAlternativePayment,
-    )]
-    pub valid_payment: Account<'info, ValidPayment>,
-
-    /// NEW treasury token account for this mint, canonical PDA.
-    #[account(
-        init,
-        payer = admin,
-        seeds = [PROTOCOL_TREASURY_TOKEN_ACCOUNT_SEED, token_mint.key().as_ref()],
-        bump,
-        token::mint = token_mint,
-        token::authority = config, // <-- SPL owner = config PDA
-    )]
-    pub protocol_token_treasury_token_account: Account<'info, TokenAccount>,
-
-    pub system_program: Program<'info, System>,
-    pub token_program: Program<'info, Token>,
-}
-
-
-#[derive(Accounts)]
-pub struct ModifyAcceptedMint<'info> {
-    #[account(
-        mut,
-        seeds = [CONFIG_SEED],
-        bump,
-        constraint = config.admin == admin.key(),
-    )]
-    pub config: Account<'info, Config>,
-
-    #[account(mut)]
-    pub admin: Signer<'info>,
-
-    pub mint: Account<'info, Mint>,
-
-    #[account(
-        mut,
-        seeds = [VALID_PAYMENT_SEED, mint.key().as_ref()],
-        bump = accepted_mint.bump,
-    )]
-    pub accepted_mint: Account<'info, ValidPayment>,
-}
-
-
-
-// This initializes the UserAccount PDA only
-#[derive(Accounts)]
-pub struct CreateUser<'info> {
-    #[account(mut,
-        seeds = [CONFIG_SEED],
-        bump,
-    )]
-    pub config: Account<'info, Config>,
-    // This is the only case where the user remains a signer - keeps it real bro.
-    /// CHECK: User is marked as an UncheckedAccount to allow for dual signing patterns
-    #[account(mut)]
-    pub user: UncheckedAccount<'info>,
-
-    
-   // This must be kept because we don't want strangers initializing user accounts for other users. 
-   /// CHECK: Payer can be either the user or backend payer, allowing for flexible fee payment
-   #[account(mut,
-    // constraint = payer.key() == config.payer_authroity || payer.key() == user.key()
-    )]
-    pub payer: Signer<'info>,
-   
-    #[account(
-        init,
-        payer = payer,
-        seeds = [USER_ACCOUNT_SEED, user.key().as_ref()],
-        bump,
-        space = 8 + UserAccount::INIT_SPACE,
-    )]
-    pub user_account: Account<'info, UserAccount>,
-    
-    
+    #[account(init, payer = payer, seeds = [OM_CONFIG_SEED], bump, space = 8 + OMConfig::INIT_SPACE)]
+    pub om_config: Account<'info, OMConfig>,
     pub system_program: Program<'info, System>,
 }
-
-
-#[derive(Accounts)]
-#[instruction(expected_index: u8)]
-pub struct RegisterSession<'info> {
-    /// CHECK: Payer for transaction fees and session authority account initialization
-    #[account(mut)]
-    pub payer: Signer<'info>,
-
-    /// CHECK: the user wallet we are delegating authority for
-    pub user: UncheckedAccount<'info>,
-
-    /// CHECK: ephemeral delegated session key
-    pub session_key: UncheckedAccount<'info>,
-
-    #[account(
-        init_if_needed,
-        payer = payer,
-        seeds = [SESSION_AUTHORITY_SEED, user.key().as_ref(), session_key.key().as_ref()],
-        bump,
-        space = 8 + SessionAuthority::INIT_SPACE,
-    )]
-    pub session_authority: Account<'info, SessionAuthority>,
-
-    /// CHECK: sysvar required to load instructions in the tx
-    #[account(address = instructions::ID)]
-    pub instructions_sysvar: UncheckedAccount<'info>,
-
-    pub system_program: Program<'info, System>,
-}
-
-
-
-/// User deposits from their wallet into the program-controlled vault.
-/// Also initializes the program-controlled vault if it doesn't exist.
-#[derive(Accounts)]
-pub struct Deposit<'info> {
-    // Here the user must be a signer. If we want to use someone else to pay other than our centralized payer, just pass user into payer.
-    #[account(mut)]
-    pub user: Signer<'info>,
-
-    /// CHECK: Payer for transaction fees (can be user or backend)
-    #[account(mut)]
-    pub payer: Signer<'info>,
-
-    #[account(
-        seeds = [USER_ACCOUNT_SEED, user.key().as_ref()],
-        bump,
-    )]
-    pub user_account: Account<'info, UserAccount>,
-
-    pub token_mint: Account<'info, Mint>,
-
-    #[account(
-        seeds = [VALID_PAYMENT_SEED, token_mint.key().as_ref()],
-        bump = valid_payment.bump,
-        constraint = valid_payment.enabled @ ErrorCode::MintNotEnabled,
-    )]
-    pub valid_payment: Account<'info, ValidPayment>,
-
-    #[account(mut)]
-    pub user_token_ata: Account<'info, TokenAccount>,
-
-    /// CHECK: Vault authority PDA derived from seeds
-    #[account(
-        seeds = [VAULT_AUTHORITY_SEED],
-        bump,
-    )]
-    pub vault_authority: UncheckedAccount<'info>,
-
-    #[account(
-        init_if_needed,
-        payer = payer,
-        seeds = [USER_VAULT_TOKEN_ACCOUNT_SEED, user.key().as_ref(), token_mint.key().as_ref()],
-        bump,
-        token::mint = token_mint,
-        token::authority = vault_authority,
-    )]
-    pub user_vault_token_account: Account<'info, TokenAccount>,
-
-    pub token_program: Program<'info, Token>,
-    pub system_program: Program<'info, System>,
-}
-
-
-
-#[derive(Accounts)]
-pub struct Withdraw<'info> {
-    // Here the user must be a signer. If we want to use someone else to pay other than our centralized payer, just pass user into payer.
-    #[account(mut)]
-    pub user: Signer<'info>,    
-
-    /// CHECK: Payer for transaction fees (can be user or backend)
-    #[account(mut)]
-    pub payer: Signer<'info>,
-
-    #[account(
-        seeds = [USER_ACCOUNT_SEED, user.key().as_ref()],
-        bump,
-    )]
-    pub user_account: Account<'info, UserAccount>,
-
-    pub token_mint: Account<'info, Mint>,
-
-    // user’s personal wallet ATA for this mint
-    #[account(mut)]
-    pub user_token_dest_ata: Account<'info, TokenAccount>,
-
-    #[account(
-        mut,
-        seeds = [USER_VAULT_TOKEN_ACCOUNT_SEED, user.key().as_ref(), token_mint.key().as_ref()],
-        bump,
-        constraint = user_vault_token_account.owner == vault_authority.key(),
-        constraint = user_vault_token_account.mint == token_mint.key(),
-    )]
-    pub user_vault_token_account: Account<'info, TokenAccount>,
-
-    /// CHECK: Global vault authority PDA derived from seeds
-    #[account(
-        seeds = [VAULT_AUTHORITY_SEED],
-        bump,
-    )]
-    pub vault_authority: UncheckedAccount<'info>,
-    pub token_program: Program<'info, Token>,
-}
-
 // The User-uncheckedAccount and payer-Signer pattern is used to allow for dual signing - so the user doesn't need to see a signature prompt pop-up
 #[derive(Accounts)]
 #[instruction(post_id_hash: [u8; 32])]
 pub struct CreatePost<'info> {
     #[account(mut,
-        seeds = [CONFIG_SEED],
+        seeds = [OM_CONFIG_SEED],
         bump,
     )]
-    pub config: Account<'info, Config>,
-    /// CHECK: real user identity (owner of UserAccount and vaults)
-    #[account(mut)]
-    pub user: UncheckedAccount<'info>,
- 
-   /// CHECK: Signer paying the TX fee (user or backend)
-   #[account(mut)]
-   pub payer: UncheckedAccount<'info>,
-
-    /// CHECK: ephemeral delegated session key
-    #[account(mut)]
-    pub session_key: UncheckedAccount<'info>,
-
-    #[account(
-        mut,
-        seeds = [SESSION_AUTHORITY_SEED, user.key().as_ref(), session_key.key().as_ref()],
-        bump,
-    )]
-    pub session_authority: Account<'info, SessionAuthority>,
-
-    #[account(
-        seeds = [USER_ACCOUNT_SEED, user.key().as_ref()],
-        bump,
-    )]
-    pub user_account: Account<'info, UserAccount>,
-
-    #[account(
-        init,
-        payer = payer,
-        seeds = [POST_ACCOUNT_SEED, post_id_hash.as_ref()],
-        bump,
-        space = 8 + PostAccount::INIT_SPACE,
-    )]
-    pub post: Account<'info, PostAccount>,
-    pub system_program: Program<'info, System>,
-}
-
-#[derive(Accounts)]
-#[instruction(answer_post_id_hash: [u8; 32], question_post_id_hash: [u8; 32])]
-pub struct CreateAnswer<'info> {
-    #[account(mut,
-        seeds = [CONFIG_SEED],
-        bump,
-    )]
-    pub config: Account<'info, Config>,
+    pub om_config: Account<'info, OMConfig>,
     /// CHECK: real user identity (owner of UserAccount and vaults)
     #[account(mut)]
     pub user: UncheckedAccount<'info>,
@@ -336,18 +40,57 @@ pub struct CreateAnswer<'info> {
     #[account(mut)]
     pub session_key: UncheckedAccount<'info>,
 
-    #[account(
-        mut,
-        seeds = [SESSION_AUTHORITY_SEED, user.key().as_ref(), session_key.key().as_ref()],
-        bump,
-    )]
-    pub session_authority: Account<'info, SessionAuthority>,
+    /// CHECK: persona-owned session authority (opaque)
+    #[account(owner = persona::ID)]
+    pub session_authority: AccountInfo<'info>,
+
+    /// CHECK: persona-owned user account (opaque) - used for checking authentication
+    #[account(owner = persona::ID)]
+    pub user_account: AccountInfo<'info>,
+
+    /// CHECK: owned by opinions market - this is the voter data 
+    #[account(init_if_needed, payer = payer, seeds = [VOTER_ACCOUNT_SEED, user.key().as_ref()], bump, space = 8 + VoterAccount::INIT_SPACE)]
+    pub voter_account: Account<'info, VoterAccount>,
 
     #[account(
-        seeds = [USER_ACCOUNT_SEED, user.key().as_ref()],
+        init,
+        payer = payer,
+        seeds = [POST_ACCOUNT_SEED, post_id_hash.as_ref()],
+        bump,
+        space = 8 + PostAccount::INIT_SPACE,
+    )]
+    pub post: Account<'info, PostAccount>,
+    pub persona_program: Program<'info, persona::program::Persona>,
+    pub system_program: Program<'info, System>,
+}
+
+#[derive(Accounts)]
+#[instruction(answer_post_id_hash: [u8; 32], question_post_id_hash: [u8; 32])]
+pub struct CreateAnswer<'info> {
+    #[account(mut,
+        seeds = [OM_CONFIG_SEED],
         bump,
     )]
-    pub user_account: Account<'info, UserAccount>,
+    pub om_config: Account<'info, OMConfig>,
+    /// CHECK: real user identity (owner of UserAccount and vaults)
+    #[account(mut)]
+    pub user: UncheckedAccount<'info>,
+
+    /// CHECK: Signer paying the TX fee (user or backend)
+    #[account(mut)]
+    pub payer: UncheckedAccount<'info>,
+
+    /// CHECK: ephemeral delegated session key
+    #[account(mut)]
+    pub session_key: UncheckedAccount<'info>,
+
+    /// CHECK: persona-owned session authority (opaque)
+    #[account(owner = persona::ID)]
+    pub session_authority: AccountInfo<'info>,
+
+    /// CHECK: persona-owned user account (opaque)
+    #[account(owner = persona::ID)]
+    pub user_account: AccountInfo<'info>,
 
     #[account(
         init,
@@ -365,42 +108,36 @@ pub struct CreateAnswer<'info> {
     )]
     pub question_post: Account<'info, PostAccount>,
 
+    pub persona_program: Program<'info, persona::program::Persona>,
     pub system_program: Program<'info, System>,
 }
-
-
 
 // The User-uncheckedAccount and payer-Signer pattern is used to allow for dual signing - so the user doesn't need to see a signature prompt pop-up
 #[derive(Accounts)]
 #[instruction(side: Side, votes:u64, post_id_hash: [u8; 32])]
 pub struct VoteOnPost<'info> {
     #[account(mut,
-        seeds = [CONFIG_SEED],
-        bump,
+        seeds = [OM_CONFIG_SEED],
+          bump,
     )]
-    pub config: Box<Account<'info, Config>>,
+    pub om_config: Box<Account<'info, OMConfig>>,
 
-     /// CHECK: real user identity (owner of UserAccount and vaults)
-     #[account(mut)]
-     pub voter: UncheckedAccount<'info>,
-    
+    /// CHECK: real user identity (owner of UserAccount and vaults) - this is passed for authentication
+    #[account(mut)]
+    pub voter: UncheckedAccount<'info>,
+
     /// CHECK: Signer paying the TX fee (user or backend)
     #[account(mut)]
     pub payer: Signer<'info>,
-
 
     /// CHECK: ephemeral delegated session key
     #[account(mut)]
     pub session_key: UncheckedAccount<'info>,
 
-    #[account(
-        mut,
-        seeds = [SESSION_AUTHORITY_SEED, voter.key().as_ref(), session_key.key().as_ref()],
-        bump,
-    )]
-    pub session_authority: Account<'info, SessionAuthority>,
+    /// CHECK: persona-owned session authority (opaque)
+    #[account(owner = persona::ID)]
+    pub session_authority: AccountInfo<'info>,
 
- 
     #[account(
         mut,
         seeds = [POST_ACCOUNT_SEED, post_id_hash.as_ref()],
@@ -409,35 +146,32 @@ pub struct VoteOnPost<'info> {
     )]
     pub post: Box<Account<'info, PostAccount>>,
 
-    #[account(
-        seeds = [USER_ACCOUNT_SEED, voter.key().as_ref()],
-        bump,
-    )]
-    pub voter_user_account: Box<Account<'info, UserAccount>>,
+    /// CHECK: persona-owned user account (opaque)
+    #[account(owner = persona::ID)]
+    pub user_account: AccountInfo<'info>,
 
-    #[account(
-        mut,
-        seeds = [USER_VAULT_TOKEN_ACCOUNT_SEED, voter.key().as_ref(), token_mint.key().as_ref()],
-        bump,
-        token::mint = token_mint,
-        token::authority = vault_authority,
-    )]
-    pub voter_user_vault_token_account: Box<Account<'info, TokenAccount>>,
+    /// CHECK: owned by opinions market - this is the voter data 
+    #[account(init_if_needed, payer = payer, 
+        seeds = [VOTER_ACCOUNT_SEED, voter.key().as_ref()], bump, space = 8 + VoterAccount::INIT_SPACE)]
+    pub voter_account: Account<'info, VoterAccount>,
+
+    /// CHECK: this is a token account, owned by the SPL program, but its authority is a pda inside the fed 
+    /// - keep opague so Fed TokenAccount cpi will initialize it and we won't be stopped by TokenAccount here
+    #[account(mut)]
+    pub voter_user_vault_token_account: UncheckedAccount<'info>,
 
     #[account(
         init_if_needed,
         payer = payer,
         seeds = [POSITION_SEED, post.key().as_ref(), voter.key().as_ref()],
         bump,
-        space = 8 + UserPostPosition::INIT_SPACE,
+        space = 8 + VoterPostPosition::INIT_SPACE,
     )]
-    pub position: Box<Account<'info, UserPostPosition>>,
+    pub position: Box<Account<'info, VoterPostPosition>>,
 
-    /// CHECK: Vault authority PDA derived from seeds
-    #[account(
-        seeds = [VAULT_AUTHORITY_SEED],
-        bump,
-    )]
+
+    // Vault authority opague passed from the fed 
+    /// CHECK: just a pda - can't require #[account(owner = fed::ID)]
     pub vault_authority: UncheckedAccount<'info>,
 
     // THIS IS NOW LAZY-CREATED
@@ -458,40 +192,37 @@ pub struct VoteOnPost<'info> {
     )]
     pub post_pot_authority: UncheckedAccount<'info>,
 
-    // protocol treasury pot for this mint
-    #[account(
-        mut,
-        seeds = [PROTOCOL_TREASURY_TOKEN_ACCOUNT_SEED, token_mint.key().as_ref()],
-        bump,
-        token::mint = token_mint,
-        token::authority = config,
-    )]
-    pub protocol_token_treasury_token_account: Box<Account<'info, TokenAccount>>,
+    /// CHECK: SPL token account whose authority is the fed - cannot do #[account(owner = fed::ID)]
+    #[account(mut)]
+    pub protocol_token_treasury_token_account: UncheckedAccount<'info>,
 
     // creator's vault for receiving creator fees
-    #[account(
-        init_if_needed,
-        payer = payer,
-        seeds = [USER_VAULT_TOKEN_ACCOUNT_SEED, post.creator_user.as_ref(), token_mint.key().as_ref()],
-        bump,
-        token::mint = token_mint,
-        token::authority = vault_authority,
-    )]
-    pub creator_vault_token_account: Box<Account<'info, TokenAccount>>,
-    
-    #[account(
-        seeds = [VALID_PAYMENT_SEED, token_mint.key().as_ref()],
-        bump = valid_payment.bump,
-        constraint = valid_payment.enabled @ ErrorCode::MintNotEnabled,
-    )]
-    pub valid_payment: Box<Account<'info, ValidPayment>>,
+    /// CHECK: SPL token account whose authority is the fed - cannot do #[account(owner = fed::ID)]
+    #[account(mut)]
+    pub creator_vault_token_account: UncheckedAccount<'info>,
+
+    /// CHECK: Creator user pubkey (used for PDA derivation in Fed, passed as account for convenience)
+    /// This is the creator of the post, used to derive the creator vault PDA
+    /// Marked as mut because Fed CPI requires it for init_if_needed on creator vault
+    #[account(mut)]
+    pub creator_user: UncheckedAccount<'info>,
+
+
+    /// CHECK: Fed-owned ValidPayment account - let the fed check it
+    #[account(owner = fed::ID)]
+    pub valid_payment: UncheckedAccount<'info>,
+
+    /// CHECK: Fed config PDA (authority of treasury token account) - let the fed check it
+    #[account(owner = fed::ID)]
+    pub fed_config: UncheckedAccount<'info>,
 
     pub token_mint: Account<'info, Mint>,
-    
+
+    pub fed_program: Program<'info, fed::program::Fed>,
+    pub persona_program: Program<'info, persona::program::Persona>,
     pub token_program: Program<'info, Token>,
     pub system_program: Program<'info, System>,
 }
-
 
 #[derive(Accounts)]
 #[instruction(post_id_hash: [u8; 32])]
@@ -533,22 +264,16 @@ pub struct SettlePost<'info> {
     )]
     pub post_mint_payout: Account<'info, PostMintPayout>,
 
-    #[account(
-        mut,
-        seeds = [PROTOCOL_TREASURY_TOKEN_ACCOUNT_SEED, token_mint.key().as_ref()],
-        bump,
-        token::mint = token_mint,
-        token::authority = config,
-    )]
-    pub protocol_token_treasury_token_account: Account<'info, TokenAccount>,
+    /// CHECK: SPL token account whose authority is the fed - cannot do #[account(owner = fed::ID)]
+    #[account(mut)]
+    pub protocol_token_treasury_token_account: UncheckedAccount<'info>,
 
     // Optional parent post (if child)
     pub parent_post: Option<Account<'info, PostAccount>>,
 
-    pub config: Account<'info, Config>,
+    pub om_config: Account<'info, OMConfig>,
     pub token_mint: Account<'info, Mint>,
 
-    
     pub token_program: Program<'info, Token>,
     pub system_program: Program<'info, System>,
 }
@@ -588,23 +313,17 @@ pub struct DistributeCreatorReward<'info> {
     )]
     pub post_mint_payout: Account<'info, PostMintPayout>,
 
-    #[account(
-        mut,
-        seeds = [USER_VAULT_TOKEN_ACCOUNT_SEED, post.creator_user.as_ref(), token_mint.key().as_ref()],
-        bump,
-        token::mint = token_mint,
-        token::authority = vault_authority,
-    )]
+    // creator's vault for receiving creator fees
+    /// CHECK: SPL token account whose authority is the fed - cannot do #[account(owner = fed::ID)]
+    #[account(mut)]
     pub creator_vault_token_account: Account<'info, TokenAccount>,
 
-    /// CHECK: Vault authority PDA
-    #[account(
-        seeds = [VAULT_AUTHORITY_SEED],
-        bump,
-    )]
+    // Vault authority opague passed from the fed 
+    /// CHECK: just a pda - can't require #[account(owner = fed::ID)]
     pub vault_authority: UncheckedAccount<'info>,
 
     pub token_mint: Account<'info, Mint>,
+    pub fed_program: Program<'info, fed::program::Fed>,
     pub token_program: Program<'info, Token>,
 }
 
@@ -643,17 +362,21 @@ pub struct DistributeProtocolFee<'info> {
     )]
     pub post_mint_payout: Account<'info, PostMintPayout>,
 
-    #[account(
-        mut,
-        seeds = [PROTOCOL_TREASURY_TOKEN_ACCOUNT_SEED, token_mint.key().as_ref()],
-        bump,
-        token::mint = token_mint,
-        token::authority = config,
-    )]
-    pub protocol_token_treasury_token_account: Account<'info, TokenAccount>,
+    /// CHECK: SPL token account whose authority is the fed - cannot do #[account(owner = fed::ID)]
+    #[account(mut)]
+    pub protocol_token_treasury_token_account: UncheckedAccount<'info>,
 
-    pub config: Account<'info, Config>,
+    /// CHECK: Fed-owned ValidPayment account - let the fed check it
+    #[account(owner = fed::ID)]
+    pub valid_payment: UncheckedAccount<'info>,
+
+    /// CHECK: Fed config PDA (authority of treasury token account) - let the fed check it
+    #[account(owner = fed::ID)]
+    pub fed_config: UncheckedAccount<'info>,
+
+    pub om_config: Account<'info, OMConfig>,
     pub token_mint: Account<'info, Mint>,
+    pub fed_program: Program<'info, fed::program::Fed>,
     pub token_program: Program<'info, Token>,
 }
 
@@ -713,9 +436,9 @@ pub struct DistributeParentPostShare<'info> {
     pub parent_post_pot_authority: UncheckedAccount<'info>,
 
     pub token_mint: Account<'info, Mint>,
+    pub fed_program: Program<'info, fed::program::Fed>,
     pub token_program: Program<'info, Token>,
 }
-
 
 // The User-uncheckedAccount and payer-Signer pattern is used to allow for dual signing - so the user doesn't need to see a signature prompt pop-up
 
@@ -723,30 +446,25 @@ pub struct DistributeParentPostShare<'info> {
 #[instruction( post_id_hash: [u8; 32])]
 pub struct ClaimPostReward<'info> {
     #[account(mut,
-        seeds = [CONFIG_SEED],
+        seeds = [OM_CONFIG_SEED],
         bump,
     )]
-    pub config: Account<'info, Config>,
+    pub om_config: Account<'info, OMConfig>,
     /// CHECK: User is marked as an UncheckedAccount so that it could be just a pubkey or a signer - allowing for dual signing - in the case where the user wants to directly interact with the program and not use our centralized payer, just pass its own keypair to payer and user as the same keypair.
     #[account(mut)]
     pub user: UncheckedAccount<'info>,
-     
-   /// CHECK: Signer paying the TX fee (user or backend)
-   #[account(mut)]
-    pub payer: Signer<'info>,
 
+    /// CHECK: Signer paying the TX fee (user or backend)
+    #[account(mut)]
+    pub payer: Signer<'info>,
 
     /// CHECK: ephemeral delegated session key
     #[account(mut)]
     pub session_key: UncheckedAccount<'info>,
 
-    #[account(
-        mut,
-        seeds = [SESSION_AUTHORITY_SEED, user.key().as_ref(), session_key.key().as_ref()],
-        bump,
-    )]
-    pub session_authority: Account<'info, SessionAuthority>,
-
+    /// CHECK: persona-owned session authority (opaque)
+    #[account(owner = persona::ID)]
+    pub session_authority: AccountInfo<'info>,
 
     #[account(
         mut,
@@ -755,12 +473,12 @@ pub struct ClaimPostReward<'info> {
     )]
     pub post: Account<'info, PostAccount>,
     #[account(mut)]
-    pub position: Account<'info, UserPostPosition>,
+    pub position: Account<'info, VoterPostPosition>,
     #[account(
-        init_if_needed, 
-        payer = payer, 
-        seeds = [USER_POST_MINT_CLAIM_SEED, post.key().as_ref(), token_mint.key().as_ref()], bump, space = 8 + UserPostMintClaim::INIT_SPACE)]
-    pub user_post_mint_claim: Account<'info, UserPostMintClaim>,
+        init_if_needed,
+        payer = payer,
+        seeds = [VOTER_POST_MINT_CLAIM_SEED, post.key().as_ref(), token_mint.key().as_ref()], bump, space = 8 + VoterPostMintClaim::INIT_SPACE)]
+        pub voter_post_mint_claim: Account<'info, VoterPostMintClaim>,
 
     #[account(
         seeds = [POST_MINT_PAYOUT_SEED, post.key().as_ref(), token_mint.key().as_ref()],
@@ -784,248 +502,18 @@ pub struct ClaimPostReward<'info> {
     )]
     pub post_pot_authority: UncheckedAccount<'info>,
 
-    #[account(
-        init_if_needed,
-        payer = payer,
-        seeds = [USER_VAULT_TOKEN_ACCOUNT_SEED, user.key().as_ref(), token_mint.key().as_ref()],
-        bump,
-        token::mint = token_mint,
-        token::authority = vault_authority,
-    )]
-    pub user_vault_token_account: Box<Account<'info, TokenAccount>>,
 
-    /// CHECK: Vault authority PDA derived from seeds
-    #[account(
-        seeds = [VAULT_AUTHORITY_SEED],
-        bump,
-    )]
+    /// CHECK: SPL token account whose authority is the fed - cannot do #[account(owner = fed::ID)]
+    #[account(mut)]
+    pub user_vault_token_account: Account<'info, TokenAccount>,
+
+    // Vault authority opague passed from the fed 
+    /// CHECK: just a pda - can't require #[account(owner = fed::ID)]
     pub vault_authority: UncheckedAccount<'info>,
 
     pub token_mint: Account<'info, Mint>,
+    pub fed_program: Program<'info, fed::program::Fed>,
+    pub persona_program: Program<'info, persona::program::Persona>,
     pub token_program: Program<'info, Token>,
     pub system_program: Program<'info, System>,
 }
-
-
-
-#[derive(Accounts)]
-pub struct Tip<'info> {
-    /// CHECK: Sender (can be session key or wallet)
-    #[account(mut)]
-    pub sender: UncheckedAccount<'info>,
-
-    /// CHECK: Payer for transaction fees and account initialization
-    #[account(mut)]
-    pub payer: Signer<'info>,
-
-    /// CHECK: Recipient of the tip (validated in instruction logic)
-    #[account(mut)]
-    pub recipient: UncheckedAccount<'info>,
-
-    /// CHECK: ephemeral delegated session key (can be same as sender for wallet signing)
-    #[account(mut)]
-    pub session_key: UncheckedAccount<'info>,
-
-    #[account(
-        mut,
-        seeds = [SESSION_AUTHORITY_SEED, sender_user_account.user.as_ref(), session_key.key().as_ref()],
-        bump,
-    )]
-    pub session_authority: Account<'info, SessionAuthority>,
-
-    #[account(
-        seeds = [USER_ACCOUNT_SEED, sender.key().as_ref()],
-        bump,
-    )]
-    pub sender_user_account: Account<'info, UserAccount>,
-
-    pub token_mint: Account<'info, Mint>,
-
-    #[account(
-        seeds = [VALID_PAYMENT_SEED, token_mint.key().as_ref()],
-        bump = valid_payment.bump,
-        constraint = valid_payment.enabled @ ErrorCode::MintNotEnabled,
-    )]
-    pub valid_payment: Account<'info, ValidPayment>,
-
-    #[account(
-        mut,
-        seeds = [USER_VAULT_TOKEN_ACCOUNT_SEED, sender.key().as_ref(), token_mint.key().as_ref()],
-        bump,
-        token::mint = token_mint,
-        token::authority = vault_authority,
-    )]
-    pub sender_user_vault_token_account: Account<'info, TokenAccount>,
-
-    
-    /// CHECK: Global vault authority PDA
-    #[account(
-        seeds = [VAULT_AUTHORITY_SEED],
-        bump,
-    )]
-    pub vault_authority: UncheckedAccount<'info>,
-
-    #[account(
-        init_if_needed,
-        payer = payer,
-        seeds = [TIP_VAULT_SEED, recipient.key().as_ref(), token_mint.key().as_ref()],
-        bump,
-        space = 8 + TipVault::INIT_SPACE,
-    )]
-    pub tip_vault: Account<'info, TipVault>,
-
-    
-    #[account(
-        init_if_needed,
-        payer = payer,
-        seeds = [TIP_VAULT_TOKEN_ACCOUNT_SEED, recipient.key().as_ref(), token_mint.key().as_ref()],
-        bump,
-        token::mint = token_mint,
-        token::authority = vault_authority,
-    )]
-    pub tip_vault_token_account: Account<'info, TokenAccount>,
-
-    pub token_program: Program<'info, Token>,
-    pub system_program: Program<'info, System>,
-}
-
-#[derive(Accounts)]
-pub struct ClaimTips<'info> {
-    /// CHECK: Owner of the tip vault (can be session key or wallet)
-    #[account(mut)]
-    pub owner: UncheckedAccount<'info>,
-
-    /// CHECK: Payer for transaction fees
-    #[account(mut)]
-    pub payer: Signer<'info>,
-
-    /// CHECK: ephemeral delegated session key
-    #[account(mut)]
-    pub session_key: UncheckedAccount<'info>,
-
-    #[account(
-        mut,
-        seeds = [SESSION_AUTHORITY_SEED, owner.key().as_ref(), session_key.key().as_ref()],
-        bump,
-    )]
-    pub session_authority: Account<'info, SessionAuthority>,
-
-    #[account(
-        seeds = [USER_ACCOUNT_SEED, owner.key().as_ref()],
-        bump,
-    )]
-    pub user_account: Account<'info, UserAccount>,
-
-    pub token_mint: Account<'info, Mint>,
-
-    #[account(
-        mut,
-        seeds = [TIP_VAULT_SEED, owner.key().as_ref(), token_mint.key().as_ref()],
-        bump,
-    )]
-    pub tip_vault: Account<'info, TipVault>,
-
-
-    #[account(
-        mut,
-        seeds = [TIP_VAULT_TOKEN_ACCOUNT_SEED, owner.key().as_ref(), token_mint.key().as_ref()],
-        bump,
-        token::mint = token_mint,
-        token::authority = vault_authority,
-    )]
-    pub tip_vault_token_account: Account<'info, TokenAccount>,
-
-    /// CHECK: Global vault authority PDA
-    #[account(
-        seeds = [VAULT_AUTHORITY_SEED],
-        bump,
-    )]
-    pub vault_authority: UncheckedAccount<'info>,
-
-    #[account(
-        init_if_needed,
-        payer = payer,
-        seeds = [USER_VAULT_TOKEN_ACCOUNT_SEED, owner.key().as_ref(), token_mint.key().as_ref()],
-        bump,
-        token::mint = token_mint,
-        token::authority = vault_authority,
-    )]
-    pub owner_user_vault_token_account: Account<'info, TokenAccount>,
-
-    pub token_program: Program<'info, Token>,
-    pub system_program: Program<'info, System>,
-}
-
-#[derive(Accounts)]
-pub struct SendToken<'info> {
-    /// CHECK: Sender (can be session key or wallet)
-    #[account(mut)]
-    pub sender: UncheckedAccount<'info>,
-
-    /// CHECK: Payer for transaction fees and account initialization
-    #[account(mut)]
-    pub payer: Signer<'info>,
-
-    /// CHECK: Recipient of the tokens
-    pub recipient: UncheckedAccount<'info>,
-
-    /// CHECK: ephemeral delegated session key
-    #[account(mut)]
-    pub session_key: UncheckedAccount<'info>,
-
-    #[account(
-        mut,
-        seeds = [SESSION_AUTHORITY_SEED, sender_user_account.user.as_ref(), session_key.key().as_ref()],
-        bump,
-    )]
-    pub session_authority: Account<'info, SessionAuthority>,
-
-    #[account(
-        seeds = [USER_ACCOUNT_SEED, sender.key().as_ref()],
-        bump,
-    )]
-    pub sender_user_account: Account<'info, UserAccount>,
-
-    pub token_mint: Account<'info, Mint>,
-
-    #[account(
-        seeds = [VALID_PAYMENT_SEED, token_mint.key().as_ref()],
-        bump = valid_payment.bump,
-        constraint = valid_payment.enabled @ ErrorCode::MintNotEnabled,
-    )]
-    pub valid_payment: Account<'info, ValidPayment>,
-
-    #[account(
-        mut,
-        seeds = [USER_VAULT_TOKEN_ACCOUNT_SEED, sender.key().as_ref(), token_mint.key().as_ref()],
-        bump,
-        token::mint = token_mint,
-        token::authority = vault_authority,
-    )]
-    pub sender_user_vault_token_account: Account<'info, TokenAccount>,
-
-    /// CHECK: Global vault authority PDA
-    #[account(
-        seeds = [VAULT_AUTHORITY_SEED],
-        bump,
-    )]
-    pub vault_authority: UncheckedAccount<'info>,
-
-    #[account(
-        init_if_needed,
-        payer = payer,
-        seeds = [USER_VAULT_TOKEN_ACCOUNT_SEED, recipient.key().as_ref(), token_mint.key().as_ref()],
-        bump,
-        token::mint = token_mint,
-        token::authority = vault_authority,
-    )]
-    pub recipient_user_vault_token_account: Account<'info, TokenAccount>,
-
-    pub token_program: Program<'info, Token>,
-    pub system_program: Program<'info, System>,
-}
-
-// -----------------------------------------------------------------------------
-// ERRORS
-// -----------------------------------------------------------------------------
-// ErrorCode moved to lib.rs at crate root

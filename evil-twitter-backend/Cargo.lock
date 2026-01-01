@@ -1234,6 +1234,20 @@ dependencies = [
 ]
 
 [[package]]
+name = "common"
+version = "0.1.0"
+dependencies = [
+ "anchor-lang",
+ "anchor-spl",
+ "bytemuck",
+ "hex",
+ "spl-pod",
+ "spl-tlv-account-resolution 0.10.0",
+ "spl-transfer-hook-interface 0.10.0",
+ "spl-type-length-value 0.8.0",
+]
+
+[[package]]
 name = "compression-codecs"
 version = "0.4.33"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2025,6 +2039,7 @@ dependencies = [
  "derive_builder",
  "dotenvy",
  "ed25519-dalek 2.2.0",
+ "fed",
  "futures",
  "hex",
  "http-body-util",
@@ -2032,6 +2047,7 @@ dependencies = [
  "mongodb 3.4.1",
  "mongodb-gridfs",
  "opinions-market",
+ "persona",
  "rand 0.8.5",
  "reqwest",
  "rust_decimal",
@@ -2088,6 +2104,22 @@ name = "feature-probe"
 version = "0.1.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "835a3dc7d1ec9e75e2b5fb4ba75396837112d2060b03f7d43bc1897c7f7211da"
+
+[[package]]
+name = "fed"
+version = "0.1.0"
+dependencies = [
+ "anchor-lang",
+ "anchor-spl",
+ "bytemuck",
+ "common",
+ "hex",
+ "persona",
+ "spl-pod",
+ "spl-tlv-account-resolution 0.10.0",
+ "spl-transfer-hook-interface 0.10.0",
+ "spl-type-length-value 0.8.0",
+]
 
 [[package]]
 name = "fiat-crypto"
@@ -3764,7 +3796,9 @@ dependencies = [
  "anchor-lang",
  "anchor-spl",
  "bytemuck",
+ "fed",
  "hex",
+ "persona",
  "spl-pod",
  "spl-tlv-account-resolution 0.10.0",
  "spl-transfer-hook-interface 0.10.0",
@@ -3846,6 +3880,20 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "2fd23b938276f14057220b707937bcb42fa76dda7560e57a2da30cb52d557937"
 dependencies = [
  "num",
+]
+
+[[package]]
+name = "persona"
+version = "0.1.0"
+dependencies = [
+ "anchor-lang",
+ "anchor-spl",
+ "bytemuck",
+ "hex",
+ "spl-pod",
+ "spl-tlv-account-resolution 0.10.0",
+ "spl-transfer-hook-interface 0.10.0",
+ "spl-type-length-value 0.8.0",
 ]
 
 [[package]]
