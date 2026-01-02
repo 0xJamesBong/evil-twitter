@@ -1234,20 +1234,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "common"
-version = "0.1.0"
-dependencies = [
- "anchor-lang",
- "anchor-spl",
- "bytemuck",
- "hex",
- "spl-pod",
- "spl-tlv-account-resolution 0.10.0",
- "spl-transfer-hook-interface 0.10.0",
- "spl-type-length-value 0.8.0",
-]
-
-[[package]]
 name = "compression-codecs"
 version = "0.4.33"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2112,7 +2098,6 @@ dependencies = [
  "anchor-lang",
  "anchor-spl",
  "bytemuck",
- "common",
  "hex",
  "persona",
  "spl-pod",

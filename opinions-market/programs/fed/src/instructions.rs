@@ -3,7 +3,7 @@ use crate::states::*;
 use anchor_lang::prelude::*;
 use anchor_lang::solana_program::sysvar::instructions;
 
-use common::*;
+
 use anchor_spl::token::{Mint, Token, TokenAccount};
 use crate::ErrorCode;
 
