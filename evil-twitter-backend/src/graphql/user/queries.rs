@@ -668,7 +668,7 @@ pub async fn valid_payment_resolver(
     {
         Ok(Some(valid_payment)) => Ok(Some(ValidPaymentNode {
             token_mint: valid_payment.token_mint.to_string(),
-            price_in_bling: valid_payment.price_in_bling,
+            price_in_bling: valid_payment.price_in_dollar,
             enabled: valid_payment.enabled,
             withdrawable: valid_payment.withdrawable,
         })),

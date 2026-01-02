@@ -183,7 +183,7 @@ pub async fn test_phenomena_add_valid_payment(
             token_program: spl_token::ID,
         })
         .args(fed::instruction::RegisterValidPayment {
-            price_in_bling: RATES.usdc_to_bling,
+            price_in_dollar: RATES.usdc_to_dollar,
             withdrawable: true, // USDC is withdrawable
         })
         .instructions()
@@ -213,7 +213,7 @@ pub async fn test_phenomena_add_valid_payment(
         "USDC should be enabled as valid payment"
     );
     assert_eq!(
-        account_after.price_in_bling, RATES.usdc_to_bling,
+        account_after.price_in_dollar, RATES.usdc_to_dollar,
         "Price in BLING should match the registered rate"
     );
 }

@@ -77,7 +77,7 @@ pub enum ErrorCode {
 #[program]
 pub mod fed {
 
-    use crate::math::token_conversion::convert_bling_to_token_lamports;
+    use crate::math::token_conversion::convert_dollar_to_token_lamports;
 
     use super::*;
     // Don't import from instructions module - use re-exports from crate root
@@ -110,7 +110,7 @@ pub mod fed {
         let new_valid_payment = ValidPayment::new(ctx.accounts.bling_mint.key(), 1, true, false);
 
         valid_payment.token_mint = new_valid_payment.token_mint;
-        valid_payment.price_in_bling = new_valid_payment.price_in_bling;
+        valid_payment.price_in_dollar = new_valid_payment.price_in_dollar;
         valid_payment.enabled = new_valid_payment.enabled;
         valid_payment.withdrawable = new_valid_payment.withdrawable; // BLING is not withdrawable by default
         valid_payment.bump = ctx.bumps.valid_payment; // Use the actual bump from Anchor
@@ -120,8 +120,8 @@ pub mod fed {
 
     pub fn register_valid_payment(
         ctx: Context<RegisterValidPayment>,
-        price_in_bling: u64, // How much is 1 token in BLING -
-        withdrawable: bool,  // Whether this token can be withdrawn from vault
+        price_in_dollar: u64, // How much is 1 token in BLING -
+        withdrawable: bool,   // Whether this token can be withdrawn from vault
     ) -> Result<()> {
         let cfg = &ctx.accounts.fed_config;
 
@@ -131,13 +131,13 @@ pub mod fed {
         let valid_payment = &mut ctx.accounts.valid_payment;
         let new_valid_payment = ValidPayment::new(
             ctx.accounts.token_mint.key(),
-            price_in_bling,
+            price_in_dollar,
             true,
             withdrawable,
         );
 
         valid_payment.token_mint = new_valid_payment.token_mint;
-        valid_payment.price_in_bling = new_valid_payment.price_in_bling;
+        valid_payment.price_in_dollar = new_valid_payment.price_in_dollar;
         valid_payment.enabled = new_valid_payment.enabled;
         valid_payment.withdrawable = new_valid_payment.withdrawable;
         valid_payment.bump = ctx.bumps.valid_payment; // Use the actual bump from Anchor
@@ -572,9 +572,9 @@ pub mod fed {
         }
 
         // Convert BLING to token
-        let token_amount = convert_bling_to_token_lamports(
+        let token_amount = convert_dollar_to_token_lamports(
             bling_amount,
-            ctx.accounts.valid_payment.price_in_bling,
+            ctx.accounts.valid_payment.price_in_dollar,
             ctx.accounts.token_mint.decimals,
         )?;
 
@@ -620,9 +620,9 @@ pub mod fed {
         }
 
         // Convert BLING to token
-        let token_amount = convert_bling_to_token_lamports(
+        let token_amount = convert_dollar_to_token_lamports(
             bling_amount,
-            ctx.accounts.valid_payment.price_in_bling,
+            ctx.accounts.valid_payment.price_in_dollar,
             ctx.accounts.token_mint.decimals,
         )?;
 
@@ -664,9 +664,9 @@ pub mod fed {
         }
 
         // Convert BLING to token
-        let token_amount = convert_bling_to_token_lamports(
+        let token_amount = convert_dollar_to_token_lamports(
             bling_amount,
-            ctx.accounts.valid_payment.price_in_bling,
+            ctx.accounts.valid_payment.price_in_dollar,
             ctx.accounts.token_mint.decimals,
         )?;
 

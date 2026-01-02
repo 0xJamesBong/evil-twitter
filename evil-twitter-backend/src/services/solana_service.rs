@@ -1573,7 +1573,7 @@ impl SolanaService {
         // 3. Convert to token lamports: token_lamports = token_base * 10^target_decimals
         // Combined: token_lamports = (bling_lamports * 10^target_decimals) / (price_in_bling * 10^bling_decimals)
 
-        let price_in_bling = valid_payment.price_in_bling;
+        let price_in_bling = valid_payment.price_in_dollar;
 
         // Use checked arithmetic to avoid overflow
         let numerator = bling_lamports
