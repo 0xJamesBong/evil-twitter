@@ -32,7 +32,7 @@ impl FedConfig {
         }
     }
 }
-
+// READY
 #[account]
 #[derive(InitSpace, Copy, PartialEq, Eq, Debug)]
 pub struct ValidPayment {
