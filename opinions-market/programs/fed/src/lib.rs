@@ -1,12 +1,12 @@
 use crate::pda_seeds::*;
 use anchor_lang::prelude::*;
 use anchor_lang::solana_program::pubkey::Pubkey;
-pub mod constants;
+
 pub mod instructions;
 pub mod math;
 pub mod pda_seeds;
 pub mod states;
-use constants::*;
+
 use instructions::*;
 use states::*;
 
@@ -82,12 +82,7 @@ pub mod fed {
     use super::*;
     // Don't import from instructions module - use re-exports from crate root
 
-    pub fn initialize(
-        ctx: Context<Initialize>,
-        // base_duration_secs: u32,
-        // max_duration_secs: u32,
-        // extension_per_vote_secs: u32,
-    ) -> Result<()> {
+    pub fn initialize(ctx: Context<Initialize>) -> Result<()> {
         let cfg = &mut ctx.accounts.fed_config;
 
         let new_cfg = FedConfig::new(
