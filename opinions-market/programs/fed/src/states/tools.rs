@@ -35,16 +35,6 @@ impl FedConfig {
 
 #[account]
 #[derive(InitSpace, Copy, PartialEq, Eq, Debug)]
-pub struct SessionAuthority {
-    pub user: Pubkey,              // wallet being delegated
-    pub session_key: Pubkey,       // ephemeral pubkey authorized to act
-    pub expires_at: i64,           // timestamp
-    pub privileges_hash: [u8; 32], // optional whitelist hash
-    pub bump: u8,
-}
-
-#[account]
-#[derive(InitSpace, Copy, PartialEq, Eq, Debug)]
 pub struct ValidPayment {
     pub token_mint: Pubkey,
     /// how much is 1 token in BLING votes -
