@@ -1,22 +1,5 @@
 use anchor_lang::prelude::*;
 
-// -----------------------------------------------------------------------------
-// USER ACCOUNTS
-// -----------------------------------------------------------------------------
-
-// #[account]
-// #[derive(InitSpace, Copy, PartialEq, Eq, Debug)]
-// pub struct UserAccount {
-//     pub user: Pubkey, // user wallet pubkey
-//     pub bump: u8,
-// }
-
-// impl UserAccount {
-//     pub fn new(user: Pubkey, bump: u8) -> Self {
-//         Self { user, bump }
-//     }
-// }
-
 #[account]
 #[derive(InitSpace, Copy, PartialEq, Eq, Debug)]
 pub struct TipVault {
