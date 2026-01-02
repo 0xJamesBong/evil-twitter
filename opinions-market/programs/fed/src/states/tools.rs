@@ -32,36 +32,32 @@ impl FedConfig {
         }
     }
 }
-
-#[account]
-#[derive(InitSpace, Copy, PartialEq, Eq, Debug)]
-pub struct SessionAuthority {
-    pub user: Pubkey,              // wallet being delegated
-    pub session_key: Pubkey,       // ephemeral pubkey authorized to act
-    pub expires_at: i64,           // timestamp
-    pub privileges_hash: [u8; 32], // optional whitelist hash
-    pub bump: u8,
-}
-
+// READY
 #[account]
 #[derive(InitSpace, Copy, PartialEq, Eq, Debug)]
 pub struct ValidPayment {
     pub token_mint: Pubkey,
-    /// how much is 1 token in BLING votes -
-    /// 1 USDC = 10_000 BLING for example
-    /// 1 SOL = 1_000_000_000 BLING for example
-    /// This value is lamport-free. So 1 BLING = 1 BLING
-    pub price_in_bling: u64,
+    /// how much is 1 token in dollars, our virtual unit of account.
+    /// e.g.
+    /// 1 USDC = 1 dollar
+    /// 1 SOL = 200 dollars
+    /// This value is lamport-free. So 1 usdc = 1 dollar
+    pub price_in_dollar: u64,
     pub enabled: bool,
     pub withdrawable: bool,
     pub bump: u8,
 }
 
 impl ValidPayment {
-    pub fn new(token_mint: Pubkey, price_in_bling: u64, enabled: bool, withdrawable: bool) -> Self {
+    pub fn new(
+        token_mint: Pubkey,
+        price_in_dollar: u64,
+        enabled: bool,
+        withdrawable: bool,
+    ) -> Self {
         Self {
             token_mint,
-            price_in_bling,
+            price_in_dollar: price_in_dollar,
             enabled,
             withdrawable,
             bump: 0,

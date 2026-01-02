@@ -1,6 +1,6 @@
 use super::tools::OMConfig;
 use super::voter::{VoterAccount, VoterPostPosition};
-use crate::math::vote_cost::{base_voter_cost, cost_in_bling, post_curve_cost};
+use crate::math::vote_cost::{base_voter_cost, cost_in_dollar, post_curve_cost};
 use anchor_lang::prelude::*;
 
 // -----------------------------------------------------------------------------
@@ -195,10 +195,10 @@ impl Vote {
     }
 
     // -------------------------------------------------------------------------
-    // FINAL COST = user-adjusted cost → post-adjusted cost → scaled to BLING
+    // FINAL COST = user-adjusted cost → post-adjusted cost → scaled to dollars
     // Uses shared pricing module for consistency
     // -------------------------------------------------------------------------
-    pub fn compute_cost_in_bling(
+    pub fn compute_cost_in_dollar(
         &self,
         post: &PostAccount,
         user_position: &VoterPostPosition,
@@ -221,7 +221,7 @@ impl Vote {
             post.relation.clone(),
         )?;
 
-        // Convert to BLING lamports
-        cost_in_bling(post_cost)
+        // Convert to dollar lamports
+        cost_in_dollar(post_cost)
     }
 }

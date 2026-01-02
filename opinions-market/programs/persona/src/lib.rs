@@ -6,7 +6,7 @@ pub mod instructions;
 pub mod middleware;
 pub mod pda_seeds;
 pub mod states;
-use constants::*;
+
 use instructions::*;
 use middleware::session::assert_session_or_wallet;
 use states::*;

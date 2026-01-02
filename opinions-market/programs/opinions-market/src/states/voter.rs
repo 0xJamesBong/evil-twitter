@@ -1,7 +1,7 @@
 use super::post::PostRelation;
 use super::post::Side;
 use crate::constants::PARAMS;
-use crate::math::vote_cost::{base_voter_cost, cost_in_bling, post_curve_cost};
+use crate::math::vote_cost::{base_voter_cost, cost_in_dollar, post_curve_cost};
 use anchor_lang::prelude::*;
 
 // -----------------------------------------------------------------------------
@@ -95,8 +95,8 @@ impl VoterAccount {
             PostRelation::Root,
         )?;
 
-        // Convert to BLING lamports
-        cost_in_bling(post_cost)
+        // Convert to dollar lamports
+        cost_in_dollar(post_cost)
     }
 }
 

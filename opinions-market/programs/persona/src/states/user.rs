@@ -5,6 +5,16 @@ use anchor_lang::prelude::*;
 // USER ACCOUNTS
 // -----------------------------------------------------------------------------
 
+#[account]
+#[derive(InitSpace, Copy, PartialEq, Eq, Debug)]
+pub struct SessionAuthority {
+    pub user: Pubkey,              // wallet being delegated
+    pub session_key: Pubkey,       // ephemeral pubkey authorized to act
+    pub expires_at: i64,           // timestamp
+    pub privileges_hash: [u8; 32], // optional whitelist hash
+    pub bump: u8,
+}
+
 #[derive(AnchorSerialize, AnchorDeserialize, InitSpace, Copy, PartialEq, Eq, Debug, Clone)]
 pub struct Health {
     pub enabled: bool,

@@ -574,7 +574,7 @@ export type OpinionsMarket = {
       "name": "createQuestion",
       "docs": [
         "Core MVP voting instruction.",
-        "User pays from their vault; everything is denominated in BLING."
+        "User pays from their vault; everything is denominated in dollars."
       ],
       "discriminator": [
         222,

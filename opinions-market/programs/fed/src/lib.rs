@@ -1,12 +1,12 @@
 use crate::pda_seeds::*;
 use anchor_lang::prelude::*;
 use anchor_lang::solana_program::pubkey::Pubkey;
-pub mod constants;
+
 pub mod instructions;
 pub mod math;
 pub mod pda_seeds;
 pub mod states;
-use constants::*;
+
 use instructions::*;
 use states::*;
 
@@ -77,17 +77,12 @@ pub enum ErrorCode {
 #[program]
 pub mod fed {
 
-    use crate::math::token_conversion::convert_bling_to_token_lamports;
+    use crate::math::token_conversion::convert_dollar_to_token_lamports;
 
     use super::*;
     // Don't import from instructions module - use re-exports from crate root
 
-    pub fn initialize(
-        ctx: Context<Initialize>,
-        // base_duration_secs: u32,
-        // max_duration_secs: u32,
-        // extension_per_vote_secs: u32,
-    ) -> Result<()> {
+    pub fn initialize(ctx: Context<Initialize>) -> Result<()> {
         let cfg = &mut ctx.accounts.fed_config;
 
         let new_cfg = FedConfig::new(
@@ -110,7 +105,7 @@ pub mod fed {
         let new_valid_payment = ValidPayment::new(ctx.accounts.bling_mint.key(), 1, true, false);
 
         valid_payment.token_mint = new_valid_payment.token_mint;
-        valid_payment.price_in_bling = new_valid_payment.price_in_bling;
+        valid_payment.price_in_dollar = new_valid_payment.price_in_dollar;
         valid_payment.enabled = new_valid_payment.enabled;
         valid_payment.withdrawable = new_valid_payment.withdrawable; // BLING is not withdrawable by default
         valid_payment.bump = ctx.bumps.valid_payment; // Use the actual bump from Anchor
@@ -120,8 +115,8 @@ pub mod fed {
 
     pub fn register_valid_payment(
         ctx: Context<RegisterValidPayment>,
-        price_in_bling: u64, // How much is 1 token in BLING -
-        withdrawable: bool,  // Whether this token can be withdrawn from vault
+        price_in_dollar: u64, // How much is 1 token in dollars
+        withdrawable: bool,   // Whether this token can be withdrawn from vault
     ) -> Result<()> {
         let cfg = &ctx.accounts.fed_config;
 
@@ -131,13 +126,13 @@ pub mod fed {
         let valid_payment = &mut ctx.accounts.valid_payment;
         let new_valid_payment = ValidPayment::new(
             ctx.accounts.token_mint.key(),
-            price_in_bling,
+            price_in_dollar,
             true,
             withdrawable,
         );
 
         valid_payment.token_mint = new_valid_payment.token_mint;
-        valid_payment.price_in_bling = new_valid_payment.price_in_bling;
+        valid_payment.price_in_dollar = new_valid_payment.price_in_dollar;
         valid_payment.enabled = new_valid_payment.enabled;
         valid_payment.withdrawable = new_valid_payment.withdrawable;
         valid_payment.bump = ctx.bumps.valid_payment; // Use the actual bump from Anchor
@@ -560,21 +555,21 @@ pub mod fed {
         Ok(())
     }
 
-    /// Convert BLING amount to token and charge from user vault to protocol treasury.
-    /// If bling_amount is 0, no charge is made.
-    pub fn convert_bling_and_charge_to_protocol_treasury(
-        ctx: Context<ConvertBlingAndChargeToProtocolTreasury>,
-        bling_amount: u64,
+    /// Convert dollar amount to token and charge from user vault to protocol treasury.
+    /// If dollar_amount is 0, no charge is made.
+    pub fn convert_dollar_and_charge_to_protocol_treasury(
+        ctx: Context<ConvertDollarAndChargeToProtocolTreasury>,
+        dollar_amount: u64,
     ) -> Result<u64> {
         // Skip if amount is 0
-        if bling_amount == 0 {
+        if dollar_amount == 0 {
             return Ok(0);
         }
 
-        // Convert BLING to token
-        let token_amount = convert_bling_to_token_lamports(
-            bling_amount,
-            ctx.accounts.valid_payment.price_in_bling,
+        // Convert dollar to token
+        let token_amount = convert_dollar_to_token_lamports(
+            dollar_amount,
+            ctx.accounts.valid_payment.price_in_dollar,
             ctx.accounts.token_mint.decimals,
         )?;
 
@@ -608,21 +603,21 @@ pub mod fed {
         Ok(token_amount)
     }
 
-    /// Convert BLING amount to token and transfer from user vault to external account.
-    /// If bling_amount is 0, no transfer is made.
-    pub fn convert_bling_and_transfer_out_of_fed_user_account(
-        ctx: Context<ConvertBlingAndTransferOutOfFedUserAccount>,
-        bling_amount: u64,
+    /// Convert dollar amount to token and transfer from user vault to external account.
+    /// If dollar_amount is 0, no transfer is made.
+    pub fn convert_dollar_and_transfer_out_of_fed_user_account(
+        ctx: Context<ConvertDollarAndTransferOutOfFedUserAccount>,
+        dollar_amount: u64,
     ) -> Result<u64> {
         // Skip if amount is 0
-        if bling_amount == 0 {
+        if dollar_amount == 0 {
             return Ok(0);
         }
 
-        // Convert BLING to token
-        let token_amount = convert_bling_to_token_lamports(
-            bling_amount,
-            ctx.accounts.valid_payment.price_in_bling,
+        // Convert dollar to token
+        let token_amount = convert_dollar_to_token_lamports(
+            dollar_amount,
+            ctx.accounts.valid_payment.price_in_dollar,
             ctx.accounts.token_mint.decimals,
         )?;
 
@@ -653,20 +648,20 @@ pub mod fed {
         Ok(token_amount)
     }
 
-    // for protocols that want to transfer BLING between Fed accounts - e.g. OM tells Fed to transfer BLING to creator vault
-    pub fn convert_bling_and_transfer_out_of_fed_user_account_to_fed_user_account(
-        ctx: Context<ConvertBlingAndTransferOutOfFedUserAccountToFedUserAccount>,
-        bling_amount: u64,
+    // for protocols that want to transfer dollars between Fed accounts - e.g. OM tells Fed to transfer dollars to creator vault
+    pub fn convert_dollar_and_transfer_out_of_fed_user_account_to_fed_user_account(
+        ctx: Context<ConvertDollarAndTransferOutOfFedUserAccountToFedUserAccount>,
+        dollar_amount: u64,
     ) -> Result<u64> {
         // Skip if amount is 0
-        if bling_amount == 0 {
+        if dollar_amount == 0 {
             return Ok(0);
         }
 
-        // Convert BLING to token
-        let token_amount = convert_bling_to_token_lamports(
-            bling_amount,
-            ctx.accounts.valid_payment.price_in_bling,
+        // Convert dollar to token
+        let token_amount = convert_dollar_to_token_lamports(
+            dollar_amount,
+            ctx.accounts.valid_payment.price_in_dollar,
             ctx.accounts.token_mint.decimals,
         )?;
 

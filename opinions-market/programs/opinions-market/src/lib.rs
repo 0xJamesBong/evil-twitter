@@ -177,7 +177,7 @@ pub mod opinions_market {
     }
 
     /// Core MVP voting instruction.
-    /// User pays from their vault; everything is denominated in BLING.
+    /// User pays from their vault; everything is denominated in dollars.
 
     pub fn create_question(ctx: Context<CreatePost>, post_id_hash: [u8; 32]) -> Result<()> {
         let clock = Clock::get()?;
@@ -385,38 +385,38 @@ pub mod opinions_market {
         }
 
         //
-        // ---- 1. Compute BLING cost ----
+        // ---- 1. Compute dollar cost ----
         //
 
         let vote = Vote::new(side, valid_votes, ctx.accounts.voter.key(), post.key());
         // get karma from persona
 
         let voter_account = ctx.accounts.voter_account.as_ref();
-        let cost_bling = vote.compute_cost_in_bling(post, pos, voter_account)?;
+        let cost_dollar = vote.compute_cost_in_dollar(post, pos, voter_account)?;
 
-        msg!("cost_bling: {}", cost_bling);
+        msg!("cost_dollar: {}", cost_dollar);
         msg!("post.upvotes BEFORE: {}", post.upvotes);
 
-        let protocol_fee = cost_bling * (PARAMS.protocol_vote_fee_bps as u64) / 10_000;
+        let protocol_fee = cost_dollar * (PARAMS.protocol_vote_fee_bps as u64) / 10_000;
         let creator_pump_fee = match side {
-            Side::Pump => cost_bling * (PARAMS.creator_pump_fee_bps as u64) / 10_000,
+            Side::Pump => cost_dollar * (PARAMS.creator_pump_fee_bps as u64) / 10_000,
             Side::Smack => 0,
         };
 
-        let pot_increment = cost_bling
+        let pot_increment = cost_dollar
             .checked_sub(protocol_fee + creator_pump_fee)
             .ok_or(ErrorCode::MathOverflow)?;
 
         //
-        // ---- 2. TRANSFERS via Fed (all in BLING) ----
+        // ---- 2. TRANSFERS via Fed (all in dollars) ----
         //
 
         // Protocol fee transfer (Fed vault → OM treasury)
         if protocol_fee > 0 {
-            fed::cpi::convert_bling_and_charge_to_protocol_treasury(
+            fed::cpi::convert_dollar_and_charge_to_protocol_treasury(
                 CpiContext::new(
                     ctx.accounts.fed_program.to_account_info(),
-                    fed::cpi::accounts::ConvertBlingAndChargeToProtocolTreasury {
+                    fed::cpi::accounts::ConvertDollarAndChargeToProtocolTreasury {
                         user: ctx.accounts.voter.to_account_info(),
                         from_user_vault_token_account: ctx
                             .accounts
@@ -445,10 +445,10 @@ pub mod opinions_market {
                 ErrorCode::MathOverflow // Using MathOverflow as a generic error
             );
 
-            fed::cpi::convert_bling_and_transfer_out_of_fed_user_account_to_fed_user_account(
+            fed::cpi::convert_dollar_and_transfer_out_of_fed_user_account_to_fed_user_account(
                 CpiContext::new(
                     ctx.accounts.fed_program.to_account_info(),
-                    fed::cpi::accounts::ConvertBlingAndTransferOutOfFedUserAccountToFedUserAccount {
+                    fed::cpi::accounts::ConvertDollarAndTransferOutOfFedUserAccountToFedUserAccount {
                         user_from: ctx.accounts.voter.to_account_info(),
                         user_to: ctx.accounts.creator_user.to_account_info(),
                         from_user_vault_token_account: ctx
@@ -469,12 +469,12 @@ pub mod opinions_market {
         }
 
         // Pot increment transfer (Fed vault → OM post pot)
-        // Note: pot_increment is in BLING, function will convert to token
+        // Note: pot_increment is in dollars, function will convert to token
         if pot_increment > 0 {
-            fed::cpi::convert_bling_and_transfer_out_of_fed_user_account(
+            fed::cpi::convert_dollar_and_transfer_out_of_fed_user_account(
                 CpiContext::new(
                     ctx.accounts.fed_program.to_account_info(),
-                    fed::cpi::accounts::ConvertBlingAndTransferOutOfFedUserAccount {
+                    fed::cpi::accounts::ConvertDollarAndTransferOutOfFedUserAccount {
                         user_from: ctx.accounts.voter.to_account_info(),
                         user: ctx.accounts.voter.to_account_info(),
                         from_user_vault_token_account: ctx

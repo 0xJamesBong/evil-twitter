@@ -143,26 +143,39 @@ pub async fn test_phenomena_add_valid_payment(
     payer: &Keypair,
     admin: &Keypair,
     new_token_mint: &Pubkey,
+    tokens: &HashMap<Pubkey, String>,
     fed_config_pda: &Pubkey,
 ) {
-    println!("adding {:} as an valid payment mint", new_token_mint);
+    let token_name = tokens.get(new_token_mint).unwrap();
+    println!("adding {:} as an valid payment mint", token_name);
 
-    // adding usdc as an valid payment mint
+    let rate = match token_name.as_str() {
+        "usdc" => RATES.usdc_to_dollar,
+        "stablecoin" => RATES.stablecoin_to_dollar,
+        "bling" => RATES.bling_to_dollar,
+        _ => panic!("Unknown token name: {}", token_name),
+    };
+
+    // adding new token as an valid payment mint
     let valid_payment_pda = Pubkey::find_program_address(
         &[fed::pda_seeds::VALID_PAYMENT_SEED, new_token_mint.as_ref()],
         &fed.id(),
     )
     .0;
 
-    // BEFORE: Verify USDC is NOT an valid payment mint (account doesn't exist)
+    // BEFORE: Verify new token is NOT an valid payment mint (account doesn't exist)
     let account_before = fed
         .account::<fed::states::ValidPayment>(valid_payment_pda)
         .await;
     assert!(
         account_before.is_err(),
-        "USDC should NOT be registered as valid payment before registration"
+        "{:} should NOT be registered as valid payment before registration",
+        token_name
     );
-    println!("✅ Verified: USDC is NOT registered before registration");
+    println!(
+        "✅ Verified: {:} is NOT registered before registration",
+        token_name
+    );
     let treasury_token_account_pda = Pubkey::find_program_address(
         &[
             fed::pda_seeds::PROTOCOL_TREASURY_TOKEN_ACCOUNT_SEED,
@@ -183,7 +196,7 @@ pub async fn test_phenomena_add_valid_payment(
             token_program: spl_token::ID,
         })
         .args(fed::instruction::RegisterValidPayment {
-            price_in_bling: RATES.usdc_to_bling,
+            price_in_dollar: rate,
             withdrawable: true, // USDC is withdrawable
         })
         .instructions()
@@ -213,7 +226,7 @@ pub async fn test_phenomena_add_valid_payment(
         "USDC should be enabled as valid payment"
     );
     assert_eq!(
-        account_after.price_in_bling, RATES.usdc_to_bling,
+        account_after.price_in_dollar, RATES.usdc_to_dollar,
         "Price in BLING should match the registered rate"
     );
 }

@@ -240,7 +240,7 @@ async fn main() {
             token_program: anchor_spl::token::spl_token::ID,
         })
         .args(fed::instruction::RegisterValidPayment {
-            price_in_bling: 10, // 1 USDC = 10 BLING
+            price_in_dollar: 1, // 1 USDC = 1 DOLLAR
             withdrawable: true, // USDC is withdrawable
         })
         .instructions()
@@ -288,8 +288,8 @@ async fn main() {
             token_program: anchor_spl::token::spl_token::ID,
         })
         .args(fed::instruction::RegisterValidPayment {
-            price_in_bling: 1000, // 1 STABLECOIN = 1000 BLING
-            withdrawable: true,   // STABLECOIN is withdrawable
+            price_in_dollar: 1, // 1 STABLECOIN = 1 DOLLAR
+            withdrawable: true, // STABLECOIN is withdrawable
         })
         .instructions()
         .unwrap();
