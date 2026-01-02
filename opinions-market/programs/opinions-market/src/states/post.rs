@@ -195,7 +195,7 @@ impl Vote {
     }
 
     // -------------------------------------------------------------------------
-    // FINAL COST = user-adjusted cost → post-adjusted cost → scaled to BLING
+    // FINAL COST = user-adjusted cost → post-adjusted cost → scaled to dollars
     // Uses shared pricing module for consistency
     // -------------------------------------------------------------------------
     pub fn compute_cost_in_dollar(
@@ -221,7 +221,7 @@ impl Vote {
             post.relation.clone(),
         )?;
 
-        // Convert to BLING lamports
+        // Convert to dollar lamports
         cost_in_dollar(post_cost)
     }
 }

@@ -177,7 +177,7 @@ pub mod opinions_market {
     }
 
     /// Core MVP voting instruction.
-    /// User pays from their vault; everything is denominated in BLING.
+    /// User pays from their vault; everything is denominated in dollars.
 
     pub fn create_question(ctx: Context<CreatePost>, post_id_hash: [u8; 32]) -> Result<()> {
         let clock = Clock::get()?;
@@ -385,7 +385,7 @@ pub mod opinions_market {
         }
 
         //
-        // ---- 1. Compute BLING cost ----
+        // ---- 1. Compute dollar cost ----
         //
 
         let vote = Vote::new(side, valid_votes, ctx.accounts.voter.key(), post.key());

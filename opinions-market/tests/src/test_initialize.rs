@@ -281,8 +281,17 @@ async fn test_setup() {
         )
         .await;
 
-        test_phenomena_add_valid_payment(&rpc, &fed, &payer, &admin, &usdc_pubkey, &fed_config_pda)
-            .await;
+        // Register USDC as a valid payment token
+        test_phenomena_add_valid_payment(
+            &rpc,
+            &fed,
+            &payer,
+            &admin,
+            &usdc_pubkey,
+            &tokens,
+            &fed_config_pda,
+        )
+        .await;
 
         // Register Stablecoin as a valid payment token
         test_phenomena_add_valid_payment(
@@ -291,6 +300,7 @@ async fn test_setup() {
             &payer,
             &admin,
             &stablecoin_pubkey,
+            &tokens,
             &fed_config_pda,
         )
         .await;

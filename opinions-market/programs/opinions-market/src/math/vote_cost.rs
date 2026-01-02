@@ -108,13 +108,13 @@ pub fn post_curve_cost(
     Ok(cost.max(1))
 }
 
-/// Convert vote cost from vote units to BLING lamports
+/// Convert vote cost from vote units to dollar lamports
 /// Applies the base cost multiplier and ensures minimum cost
 pub fn cost_in_dollar(raw_cost: u64) -> Result<u64> {
     let cost = raw_cost
         .checked_mul(PARAMS.dollar_per_vote_base_cost)
         .ok_or(ErrorCode::MathOverflow)?;
 
-    // Minimum cost is 1 SOL worth of BLING
+    // Minimum cost is 1 SOL worth of dollars
     Ok(cost.max(PARAMS.dollar_per_vote_base_cost))
 }

@@ -95,7 +95,7 @@ impl VoterAccount {
             PostRelation::Root,
         )?;
 
-        // Convert to BLING lamports
+        // Convert to dollar lamports
         cost_in_dollar(post_cost)
     }
 }
