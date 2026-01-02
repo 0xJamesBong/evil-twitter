@@ -12,34 +12,34 @@
 // ///
 // /// # Arguments
 // /// * `bling_lamports` - Amount in BLING lamports (9 decimals)
-// /// * `price_in_bling` - Price from ValidPayment: how many BLING (base units) = 1 token (base units)
-// ///   Example: if 1 USDC = 10,000 BLING, then price_in_bling = 10_000
+// /// * `price_in_dollar` - Price from ValidPayment: how many dollars (base units) = 1 token (base units)
+// ///   Example: if 1 USDC = 1 dollar, then price_in_dollar = 1
 // /// * `token_decimals` - Number of decimals for the target token (e.g., 6 for USDC, 9 for BLING)
 // ///
 // /// # Formula
-// /// token_lamports = (bling_lamports * 10^token_decimals) / (price_in_bling * 10^bling_decimals)
+// /// token_lamports = (dollar_lamports * 10^token_decimals) / (price_in_dollar * 10^dollar_decimals)
 // ///
 // /// # Returns
 // /// Amount in token lamports, or MathOverflow error
-// pub fn convert_bling_to_token_lamports(
-//     bling_lamports: u64,
-//     price_in_bling: u64,
+// pub fn convert_dollar_to_token_lamports(
+//     dollar_lamports: u64,
+//     price_in_dollar: u64,
 //     token_decimals: u8,
 // ) -> Result<u64> {
-//     // If converting to BLING, no conversion needed
-//     if token_decimals == BLING_DECIMALS && price_in_bling == 1 {
-//         return Ok(bling_lamports);
+//     // If converting to a token with same decimals and price of 1, no conversion needed
+//     if token_decimals == DOLLAR_DECIMALS && price_in_dollar == 1 {
+//         return Ok(dollar_lamports);
 //     }
 
-//     // Conversion formula: token_lamports = (bling_lamports * 10^token_decimals) / (price_in_bling * 10^bling_decimals)
-//     // price_in_bling is in base units (lamport-free), so we need to account for decimals
+//     // Conversion formula: token_lamports = (dollar_lamports * 10^token_decimals) / (price_in_dollar * 10^dollar_decimals)
+//     // price_in_dollar is in base units (lamport-free), so we need to account for decimals
 
-//     let numerator = bling_lamports
+//     let numerator = dollar_lamports
 //         .checked_mul(10u64.pow(token_decimals as u32))
 //         .ok_or_else(|| Error::from(ErrorCode::MathOverflow))?;
 
-//     let denominator = price_in_bling
-//         .checked_mul(10u64.pow(BLING_DECIMALS as u32))
+//     let denominator = price_in_dollar
+//         .checked_mul(10u64.pow(DOLLAR_DECIMALS as u32))
 //         .ok_or_else(|| Error::from(ErrorCode::MathOverflow))?;
 
 //     numerator
@@ -47,33 +47,33 @@
 //         .ok_or_else(|| Error::from(ErrorCode::MathOverflow))
 // }
 
-// /// Convert BLING lamports to USDC lamports
+// /// Convert dollar lamports to USDC lamports
 // ///
 // /// # Arguments
-// /// * `bling_lamports` - Amount in BLING lamports (9 decimals)
-// /// * `price_in_bling` - Price from ValidPayment: how many BLING (base units) = 1 USDC (base units)
+// /// * `dollar_lamports` - Amount in DOLLAR lamports (9 decimals)
+// /// * `price_in_dollar` - Price from ValidPayment: how many dollars (base units) = 1 USDC (base units)
 // ///
 // /// # Example
-// /// If 1 USDC = 10,000 BLING and you have 2 BLING (2_000_000_000 lamports):
-// /// convert_bling_to_usdc(2_000_000_000, 10_000) = 200 USDC lamports (0.0002 USDC)
-// pub fn convert_bling_to_usdc_lamports(bling_lamports: u64, price_in_bling: u64) -> Result<u64> {
-//     convert_bling_to_token_lamports(bling_lamports, price_in_bling, USDC_DECIMALS)
+// /// If 1 USDC = 1 dollar and you have 2 dollars (2_000_000_000 lamports):
+// /// convert_dollar_to_usdc(2_000_000_000, 1) = 2_000_000_000 USDC lamports (2 USDC)
+// pub fn convert_dollar_to_usdc_lamports(dollar_lamports: u64, price_in_dollar: u64) -> Result<u64> {
+//     convert_dollar_to_token_lamports(dollar_lamports, price_in_dollar, USDC_DECIMALS)
 // }
 
-// /// Convert BLING lamports to Stablecoin lamports
+// /// Convert dollar lamports to Stablecoin lamports
 // ///
 // /// # Arguments
-// /// * `bling_lamports` - Amount in BLING lamports (9 decimals)
-// /// * `price_in_bling` - Price from ValidPayment: how many BLING (base units) = 1 Stablecoin (base units)
+// /// * `dollar_lamports` - Amount in DOLLAR lamports (9 decimals)
+// /// * `price_in_dollar` - Price from ValidPayment: how many dollars (base units) = 1 Stablecoin (base units)
 // ///
 // /// # Example
-// /// If 1 Stablecoin = 10,000 BLING and you have 2 BLING (2_000_000_000 lamports):
-// /// convert_bling_to_stablecoin(2_000_000_000, 10_000) = 200 Stablecoin lamports (0.0002 Stablecoin)
-// pub fn convert_bling_to_stablecoin_lamports(
-//     bling_lamports: u64,
-//     price_in_bling: u64,
+// /// If 1 Stablecoin = 1 dollar and you have 2 dollars (2_000_000_000 lamports):
+// /// convert_dollar_to_stablecoin(2_000_000_000, 1) = 2_000_000_000 Stablecoin lamports (2 Stablecoin)
+// pub fn convert_dollar_to_stablecoin_lamports(
+//     dollar_lamports: u64,
+//     price_in_dollar: u64,
 // ) -> Result<u64> {
-//     convert_bling_to_token_lamports(bling_lamports, price_in_bling, STABLECOIN_DECIMALS)
+//     convert_dollar_to_token_lamports(dollar_lamports, price_in_dollar, STABLECOIN_DECIMALS)
 // }
 
 // #[cfg(test)]
@@ -81,23 +81,23 @@
 //     use super::*;
 
 //     #[test]
-//     fn test_convert_bling_to_usdc() {
-//         // Test: 2 BLING = 2_000_000_000 lamports
-//         // If 1 USDC = 10,000 BLING, then 2 BLING = 0.0002 USDC = 200 USDC lamports
-//         let bling_lamports = 2_000_000_000u64; // 2 BLING
-//         let price_in_bling = 10_000u64; // 1 USDC = 10,000 BLING
-//         let result = convert_bling_to_usdc_lamports(bling_lamports, price_in_bling).unwrap();
-//         assert_eq!(result, 200u64); // 0.0002 USDC = 200 lamports (6 decimals)
+//     fn test_convert_dollar_to_usdc() {
+//         // Test: 2 DOLLAR = 2_000_000_000 lamports
+//         // If 1 USDC = 1 dollar, then 2 dollars = 2 USDC = 2_000_000 USDC lamports
+//         let dollar_lamports = 2_000_000_000u64; // 2 DOLLAR
+//         let price_in_dollar = 1u64; // 1 USDC = 1 dollar
+//         let result = convert_dollar_to_usdc_lamports(dollar_lamports, price_in_dollar).unwrap();
+//         assert_eq!(result, 2_000_000u64); // 2 USDC = 2_000_000 lamports (6 decimals)
 //     }
 
 //     #[test]
-//     fn test_convert_bling_to_bling() {
-//         // Converting BLING to BLING should return the same amount
-//         let bling_lamports = 1_000_000_000u64; // 1 BLING
-//         let price_in_bling = 1u64; // 1 BLING = 1 BLING
+//     fn test_convert_dollar_to_dollar() {
+//         // Converting dollar to a token with same decimals and price of 1 should return the same amount
+//         let dollar_lamports = 1_000_000_000u64; // 1 DOLLAR
+//         let price_in_dollar = 1u64; // 1 token = 1 dollar
 //         let result =
-//             convert_bling_to_token_lamports(bling_lamports, price_in_bling, BLING_DECIMALS)
+//             convert_dollar_to_token_lamports(dollar_lamports, price_in_dollar, DOLLAR_DECIMALS)
 //                 .unwrap();
-//         assert_eq!(result, bling_lamports);
+//         assert_eq!(result, dollar_lamports);
 //     }
 // }

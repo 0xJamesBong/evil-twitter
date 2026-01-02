@@ -18,7 +18,7 @@ pub struct PayoutParams {
     pub creator_pump_fee_bps: u16,
     pub creator_pump_win_settlement_fee_bps: u16,
     // vote-tokenomics constants
-    pub bling_per_vote_base_cost: u64,
+    pub dollar_per_vote_base_cost: u64,
     // voter constants
     pub voter_initial_social_score: i64,
 }
@@ -28,6 +28,6 @@ pub const PARAMS: PayoutParams = PayoutParams {
     protocol_vote_settlement_fee_bps: 100, // 1% of every vote goes to the protocol
     creator_pump_fee_bps: 100,  // 1% of every pump vote goes to the creator
     creator_pump_win_settlement_fee_bps: 40, // 40% of the pot goes to the creator when the post is settled in favour of pump
-    bling_per_vote_base_cost: 1 * LAMPORTS_PER_SOL, // 1 vote = 1 * LAMPORTS_PER_SOL by default
+    dollar_per_vote_base_cost: 1 * LAMPORTS_PER_SOL, // 1 vote = 1 * LAMPORTS_PER_SOL by default
     voter_initial_social_score: 10_000, // 10_000 by default - already have room to decrease and die of bankruptcy
 };

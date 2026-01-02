@@ -120,7 +120,7 @@ pub mod fed {
 
     pub fn register_valid_payment(
         ctx: Context<RegisterValidPayment>,
-        price_in_dollar: u64, // How much is 1 token in BLING -
+        price_in_dollar: u64, // How much is 1 token in dollars
         withdrawable: bool,   // Whether this token can be withdrawn from vault
     ) -> Result<()> {
         let cfg = &ctx.accounts.fed_config;
@@ -560,20 +560,20 @@ pub mod fed {
         Ok(())
     }
 
-    /// Convert BLING amount to token and charge from user vault to protocol treasury.
-    /// If bling_amount is 0, no charge is made.
-    pub fn convert_bling_and_charge_to_protocol_treasury(
-        ctx: Context<ConvertBlingAndChargeToProtocolTreasury>,
-        bling_amount: u64,
+    /// Convert dollar amount to token and charge from user vault to protocol treasury.
+    /// If dollar_amount is 0, no charge is made.
+    pub fn convert_dollar_and_charge_to_protocol_treasury(
+        ctx: Context<ConvertDollarAndChargeToProtocolTreasury>,
+        dollar_amount: u64,
     ) -> Result<u64> {
         // Skip if amount is 0
-        if bling_amount == 0 {
+        if dollar_amount == 0 {
             return Ok(0);
         }
 
-        // Convert BLING to token
+        // Convert dollar to token
         let token_amount = convert_dollar_to_token_lamports(
-            bling_amount,
+            dollar_amount,
             ctx.accounts.valid_payment.price_in_dollar,
             ctx.accounts.token_mint.decimals,
         )?;
@@ -608,20 +608,20 @@ pub mod fed {
         Ok(token_amount)
     }
 
-    /// Convert BLING amount to token and transfer from user vault to external account.
-    /// If bling_amount is 0, no transfer is made.
-    pub fn convert_bling_and_transfer_out_of_fed_user_account(
-        ctx: Context<ConvertBlingAndTransferOutOfFedUserAccount>,
-        bling_amount: u64,
+    /// Convert dollar amount to token and transfer from user vault to external account.
+    /// If dollar_amount is 0, no transfer is made.
+    pub fn convert_dollar_and_transfer_out_of_fed_user_account(
+        ctx: Context<ConvertDollarAndTransferOutOfFedUserAccount>,
+        dollar_amount: u64,
     ) -> Result<u64> {
         // Skip if amount is 0
-        if bling_amount == 0 {
+        if dollar_amount == 0 {
             return Ok(0);
         }
 
-        // Convert BLING to token
+        // Convert dollar to token
         let token_amount = convert_dollar_to_token_lamports(
-            bling_amount,
+            dollar_amount,
             ctx.accounts.valid_payment.price_in_dollar,
             ctx.accounts.token_mint.decimals,
         )?;
@@ -653,19 +653,19 @@ pub mod fed {
         Ok(token_amount)
     }
 
-    // for protocols that want to transfer BLING between Fed accounts - e.g. OM tells Fed to transfer BLING to creator vault
-    pub fn convert_bling_and_transfer_out_of_fed_user_account_to_fed_user_account(
-        ctx: Context<ConvertBlingAndTransferOutOfFedUserAccountToFedUserAccount>,
-        bling_amount: u64,
+    // for protocols that want to transfer dollars between Fed accounts - e.g. OM tells Fed to transfer dollars to creator vault
+    pub fn convert_dollar_and_transfer_out_of_fed_user_account_to_fed_user_account(
+        ctx: Context<ConvertDollarAndTransferOutOfFedUserAccountToFedUserAccount>,
+        dollar_amount: u64,
     ) -> Result<u64> {
         // Skip if amount is 0
-        if bling_amount == 0 {
+        if dollar_amount == 0 {
             return Ok(0);
         }
 
-        // Convert BLING to token
+        // Convert dollar to token
         let token_amount = convert_dollar_to_token_lamports(
-            bling_amount,
+            dollar_amount,
             ctx.accounts.valid_payment.price_in_dollar,
             ctx.accounts.token_mint.decimals,
         )?;

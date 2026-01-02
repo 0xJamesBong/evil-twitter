@@ -563,9 +563,9 @@ pub struct TransferOutOfFedUserAccount<'info> {
 }
 
 
-/// Convert BLING to token and charge from user vault to protocol treasury.
+/// Convert dollar to token and charge from user vault to protocol treasury.
 #[derive(Accounts)]
-pub struct ConvertBlingAndChargeToProtocolTreasury<'info> {
+pub struct ConvertDollarAndChargeToProtocolTreasury<'info> {
     /// CHECK: User pubkey used to derive the user vault PDA
     #[account(mut)]
     pub user: UncheckedAccount<'info>,
@@ -623,9 +623,9 @@ pub struct ConvertBlingAndChargeToProtocolTreasury<'info> {
     pub token_program: Program<'info, Token>,
 }
 
-/// Convert BLING to token and transfer from user vault to external account.
+/// Convert dollar to token and transfer from user vault to external account.
 #[derive(Accounts)]
-pub struct ConvertBlingAndTransferOutOfFedUserAccount<'info> {
+pub struct ConvertDollarAndTransferOutOfFedUserAccount<'info> {
     /// CHECK: User pubkey used to derive the source vault PDA
     pub user_from: UncheckedAccount<'info>,
     
@@ -673,7 +673,7 @@ pub struct ConvertBlingAndTransferOutOfFedUserAccount<'info> {
 /// Account struct for transferring from Fed user vault to another Fed user vault
 /// Supports init_if_needed for the destination vault
 #[derive(Accounts)]
-pub struct ConvertBlingAndTransferOutOfFedUserAccountToFedUserAccount<'info> {
+pub struct ConvertDollarAndTransferOutOfFedUserAccountToFedUserAccount<'info> {
     /// CHECK: User pubkey used to derive the source vault PDA
     #[account(mut)]
     pub user_from: UncheckedAccount<'info>,
