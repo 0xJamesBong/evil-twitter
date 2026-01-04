@@ -168,8 +168,8 @@ pub mod opinions_market {
             let new_voter_account =
                 VoterAccount::default(ctx.accounts.user.key(), ctx.bumps.voter_account);
             voter_account.voter = new_voter_account.voter;
-            voter_account.social_score = new_voter_account.social_score;
-            voter_account.attack_surface = new_voter_account.attack_surface;
+            voter_account.appearance = new_voter_account.appearance;
+            voter_account.body = new_voter_account.body;
             voter_account.bump = new_voter_account.bump;
         }
 
@@ -243,8 +243,8 @@ pub mod opinions_market {
             let new_voter_account =
                 VoterAccount::default(ctx.accounts.user.key(), ctx.bumps.voter_account);
             voter_account.voter = new_voter_account.voter;
-            voter_account.social_score = new_voter_account.social_score;
-            voter_account.attack_surface = new_voter_account.attack_surface;
+            voter_account.appearance = new_voter_account.appearance;
+            voter_account.body = new_voter_account.body;
             voter_account.bump = new_voter_account.bump;
         }
 
@@ -924,4 +924,96 @@ pub mod opinions_market {
         claim.claimed = true;
         Ok(())
     }
+
+    // /// Updzate a voter stat (the only place mutation is allowed)
+    // /// Fields mutate only inside instruction handlers, via explicit matches, using saturating arithmetic.
+    // pub fn updzate_voter_stat(
+    //     ctx: Context<UpdateVoterStat>,
+    //     target: crate::states::StatTarget,
+    //     change: crate::states::StatChange,
+    // ) -> Result<()> {
+    //     use crate::states::voter::{
+    //         add_i16, add_u16, remove_i16, remove_u16, StatChange, StatTarget,
+    //     };
+
+    //     let voter_account = &mut ctx.accounts.voter_account;
+
+    //     match (target, change) {
+    //         // Body stats (u16)
+    //         (StatTarget::BodyHealth, StatChange::AddU16(x)) => {
+    //             add_u16(&mut voter_account.body.health, x);
+    //         }
+    //         (StatTarget::BodyHealth, StatChange::RemoveU16(x)) => {
+    //             remove_u16(&mut voter_account.body.health, x);
+    //         }
+    //         (StatTarget::BodyEnergy, StatChange::AddU16(x)) => {
+    //             add_u16(&mut voter_account.body.energy, x);
+    //         }
+    //         (StatTarget::BodyEnergy, StatChange::RemoveU16(x)) => {
+    //             remove_u16(&mut voter_account.body.energy, x);
+    //         }
+
+    //         // Appearance stats (i16)
+    //         (StatTarget::AppearanceFreshness, StatChange::AddI16(x)) => {
+    //             add_i16(&mut voter_account.appearance.freshness, x);
+    //         }
+    //         (StatTarget::AppearanceFreshness, StatChange::RemoveI16(x)) => {
+    //             remove_i16(&mut voter_account.appearance.freshness, x);
+    //         }
+    //         (StatTarget::AppearanceCharisma, StatChange::AddI16(x)) => {
+    //             add_i16(&mut voter_account.appearance.charisma, x);
+    //         }
+    //         (StatTarget::AppearanceCharisma, StatChange::RemoveI16(x)) => {
+    //             remove_i16(&mut voter_account.appearance.charisma, x);
+    //         }
+    //         (StatTarget::AppearanceOriginality, StatChange::AddI16(x)) => {
+    //             add_i16(&mut voter_account.appearance.originality, x);
+    //         }
+    //         (StatTarget::AppearanceOriginality, StatChange::RemoveI16(x)) => {
+    //             remove_i16(&mut voter_account.appearance.originality, x);
+    //         }
+    //         (StatTarget::AppearanceNpcNess, StatChange::AddI16(x)) => {
+    //             add_i16(&mut voter_account.appearance._npc_ness, x);
+    //         }
+    //         (StatTarget::AppearanceNpcNess, StatChange::RemoveI16(x)) => {
+    //             remove_i16(&mut voter_account.appearance._npc_ness, x);
+    //         }
+    //         (StatTarget::AppearanceBeauty, StatChange::AddI16(x)) => {
+    //             add_i16(&mut voter_account.appearance.beauty, x);
+    //         }
+    //         (StatTarget::AppearanceBeauty, StatChange::RemoveI16(x)) => {
+    //             remove_i16(&mut voter_account.appearance.beauty, x);
+    //         }
+    //         (StatTarget::AppearanceIntellectualism, StatChange::AddI16(x)) => {
+    //             add_i16(&mut voter_account.appearance.intellectualism, x);
+    //         }
+    //         (StatTarget::AppearanceIntellectualism, StatChange::RemoveI16(x)) => {
+    //             remove_i16(&mut voter_account.appearance.intellectualism, x);
+    //         }
+
+    //         // Invalid combinations (type mismatches) - these should never happen with proper type checking
+    //         (StatTarget::BodyHealth, StatChange::AddI16(_))
+    //         | (StatTarget::BodyHealth, StatChange::RemoveI16(_))
+    //         | (StatTarget::BodyEnergy, StatChange::AddI16(_))
+    //         | (StatTarget::BodyEnergy, StatChange::RemoveI16(_)) => {
+    //             return Err(ErrorCode::MathOverflow.into());
+    //         }
+    //         (StatTarget::AppearanceFreshness, StatChange::AddU16(_))
+    //         | (StatTarget::AppearanceFreshness, StatChange::RemoveU16(_))
+    //         | (StatTarget::AppearanceCharisma, StatChange::AddU16(_))
+    //         | (StatTarget::AppearanceCharisma, StatChange::RemoveU16(_))
+    //         | (StatTarget::AppearanceOriginality, StatChange::AddU16(_))
+    //         | (StatTarget::AppearanceOriginality, StatChange::RemoveU16(_))
+    //         | (StatTarget::AppearanceNpcNess, StatChange::AddU16(_))
+    //         | (StatTarget::AppearanceNpcNess, StatChange::RemoveU16(_))
+    //         | (StatTarget::AppearanceBeauty, StatChange::AddU16(_))
+    //         | (StatTarget::AppearanceBeauty, StatChange::RemoveU16(_))
+    //         | (StatTarget::AppearanceIntellectualism, StatChange::AddU16(_))
+    //         | (StatTarget::AppearanceIntellectualism, StatChange::RemoveU16(_)) => {
+    //             return Err(ErrorCode::MathOverflow.into());
+    //         }
+    //     }
+
+    //     Ok(())
+    // }
 }

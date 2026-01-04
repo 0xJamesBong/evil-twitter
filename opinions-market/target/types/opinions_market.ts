@@ -1947,6 +1947,72 @@ export type OpinionsMarket = {
   ],
   "types": [
     {
+      "name": "appearance",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "freshness",
+            "type": "i16"
+          },
+          {
+            "name": "charisma",
+            "type": "i16"
+          },
+          {
+            "name": "originality",
+            "type": "i16"
+          },
+          {
+            "name": "npcNess",
+            "type": "i16"
+          },
+          {
+            "name": "beauty",
+            "type": "i16"
+          },
+          {
+            "name": "intellectualism",
+            "type": "i16"
+          },
+          {
+            "name": "padding",
+            "type": {
+              "array": [
+                "u8",
+                31
+              ]
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "body",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "health",
+            "type": "u16"
+          },
+          {
+            "name": "energy",
+            "type": "u16"
+          },
+          {
+            "name": "padding",
+            "type": {
+              "array": [
+                "u8",
+                31
+              ]
+            }
+          }
+        ]
+      }
+    },
+    {
       "name": "forcedOutcome",
       "docs": [
         "Forced settlement outcome for Answers"
@@ -2238,77 +2304,24 @@ export type OpinionsMarket = {
             "type": "pubkey"
           },
           {
-            "name": "socialScore",
-            "type": "i64"
-          },
-          {
-            "name": "attackSurface",
+            "name": "appearance",
             "type": {
               "defined": {
-                "name": "voterAccountAttackSurface"
+                "name": "appearance"
+              }
+            }
+          },
+          {
+            "name": "body",
+            "type": {
+              "defined": {
+                "name": "body"
               }
             }
           },
           {
             "name": "bump",
             "type": "u8"
-          }
-        ]
-      }
-    },
-    {
-      "name": "voterAccountAttackSurface",
-      "type": {
-        "kind": "struct",
-        "fields": [
-          {
-            "name": "enabled",
-            "type": "bool"
-          },
-          {
-            "name": "surface1",
-            "type": "i16"
-          },
-          {
-            "name": "surface2",
-            "type": "i16"
-          },
-          {
-            "name": "surface3",
-            "type": "i16"
-          },
-          {
-            "name": "surface4",
-            "type": "i16"
-          },
-          {
-            "name": "surface5",
-            "type": "i16"
-          },
-          {
-            "name": "surface6",
-            "type": "i16"
-          },
-          {
-            "name": "surface7",
-            "type": "i16"
-          },
-          {
-            "name": "surface8",
-            "type": "i16"
-          },
-          {
-            "name": "surface9",
-            "type": "i16"
-          },
-          {
-            "name": "padding",
-            "type": {
-              "array": [
-                "u8",
-                31
-              ]
-            }
           }
         ]
       }
