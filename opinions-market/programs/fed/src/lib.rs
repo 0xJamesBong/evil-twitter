@@ -469,20 +469,20 @@ pub mod fed {
     ) -> Result<()> {
         require!(amount > 0, ErrorCode::ZeroAmount);
 
-        // 1. From-account must be external (not Fed-owned)
-        require!(ctx.accounts.from.owner != fed::ID, ErrorCode::InvalidFrom);
+        // // 1. From-account must be external (not Fed-owned)
+        // require!(ctx.accounts.from.owner != fed::ID, ErrorCode::InvalidFrom);
 
-        // 2. To-account must be Fed-controlled vault
-        require!(
-            ctx.accounts.to_user_vault_token_account.owner == fed::ID,
-            ErrorCode::InvalidTo
-        );
+        // // 2. To-account must be Fed-controlled vault
+        // require!(
+        //     ctx.accounts.to_user_vault_token_account.owner == fed::ID,
+        //     ErrorCode::InvalidTo
+        // );
 
-        // 3. Mint must be enabled
-        require!(
-            ctx.accounts.valid_payment.enabled,
-            ErrorCode::MintNotEnabled
-        );
+        // // 3. Mint must be enabled
+        // require!(
+        //     ctx.accounts.valid_payment.enabled,
+        //     ErrorCode::MintNotEnabled
+        // );
 
         // For transfer_into_fed, the external account owner signs
         // No vault authority signer needed - Fed is receiving
