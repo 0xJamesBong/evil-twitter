@@ -691,7 +691,6 @@ pub mod opinions_market {
 
         msg!("Distributing creator fee: {}", creator_fee);
 
-        // Transfer from post pot to creator vault (post pot is owned by OM, so handle directly)
         let post_key = ctx.accounts.post.key();
         let (_, post_pot_bump) = Pubkey::find_program_address(
             &[POST_POT_AUTHORITY_SEED, post_key.as_ref()],
@@ -700,22 +699,28 @@ pub mod opinions_market {
         let post_pot_authority_seeds: &[&[&[u8]]] =
             &[&[POST_POT_AUTHORITY_SEED, post_key.as_ref(), &[post_pot_bump]]];
 
-        fed::cpi::transfer(CpiContext::new(
-            ctx.accounts.fed_program.to_account_info(),
-            fed::cpi::accounts::Transfer {
-                from: ctx.accounts.post_pot_token_account.to_account_info(),
-                to: ctx.accounts.creator_vault_token_account.to_account_info(),
-            },
-        ))?;
-        //     let cpi = CpiContext::new_with_signer(
-        //         ctx.accounts.token_program.to_account_info(),
-        //         anchor_spl::token::Transfer {
-        //             from: ctx.accounts.post_pot_token_account.to_account_info(),
-        //             to: ctx.accounts.creator_vault_token_account.to_account_info(),
-        //             authority: ctx.accounts.post_pot_authority.to_account_info(),
-        //         },
-        //         seeds,
-        //     );
+        fed::cpi::transfer_into_fed_user_account(
+            CpiContext::new_with_signer(
+                ctx.accounts.fed_program.to_account_info(),
+                fed::cpi::accounts::TransferIntoFedUserAccount {
+                    from: ctx.accounts.post_pot_token_account.to_account_info(),
+                    from_authority: ctx.accounts.post_pot_authority.to_account_info(),
+                    user: ctx.accounts.creator_user.to_account_info(),
+                    to_user_vault_token_account: ctx
+                        .accounts
+                        .creator_vault_token_account
+                        .to_account_info(),
+                    valid_payment: ctx.accounts.valid_payment.to_account_info(),
+                    vault_authority: ctx.accounts.vault_authority.to_account_info(),
+                    token_mint: ctx.accounts.token_mint.to_account_info(),
+                    payer: ctx.accounts.payer.to_account_info(),
+                    token_program: ctx.accounts.token_program.to_account_info(),
+                    system_program: ctx.accounts.system_program.to_account_info(),
+                },
+                post_pot_authority_seeds,
+            ),
+            creator_fee,
+        )?;
 
         msg!("✅ Creator reward distributed successfully");
 

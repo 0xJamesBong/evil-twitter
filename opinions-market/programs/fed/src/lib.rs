@@ -469,23 +469,24 @@ pub mod fed {
     ) -> Result<()> {
         require!(amount > 0, ErrorCode::ZeroAmount);
 
-        // // 1. From-account must be external (not Fed-owned)
-        // require!(ctx.accounts.from.owner != fed::ID, ErrorCode::InvalidFrom);
+        // 1. From-account must be external (not Fed-owned)
+        require!(ctx.accounts.from.owner != fed::ID, ErrorCode::InvalidFrom);
 
-        // // 2. To-account must be Fed-controlled vault
-        // require!(
-        //     ctx.accounts.to_user_vault_token_account.owner == fed::ID,
-        //     ErrorCode::InvalidTo
-        // );
+        // 2. Mint must be enabled (already checked in account constraint, but explicit here)
+        require!(
+            ctx.accounts.valid_payment.enabled,
+            ErrorCode::MintNotEnabled
+        );
 
-        // // 3. Mint must be enabled
-        // require!(
-        //     ctx.accounts.valid_payment.enabled,
-        //     ErrorCode::MintNotEnabled
-        // );
+        // 3. Ensure from account mint matches token_mint
+        require!(
+            ctx.accounts.from.mint == ctx.accounts.token_mint.key(),
+            ErrorCode::Unauthorized
+        );
 
-        // For transfer_into_fed, the external account owner signs
-        // No vault authority signer needed - Fed is receiving
+        // For transfer_into_fed, the external account owner (from_authority) signs
+        // The from_authority is marked as #[account(signer)] so its signer status
+        // will be preserved in the nested CPI to the token program
         let cpi_accounts = anchor_spl::token::Transfer {
             from: ctx.accounts.from.to_account_info(),
             to: ctx.accounts.to_user_vault_token_account.to_account_info(),

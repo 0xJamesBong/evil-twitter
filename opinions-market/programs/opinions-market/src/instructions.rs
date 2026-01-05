@@ -314,17 +314,28 @@ pub struct DistributeCreatorReward<'info> {
     pub post_mint_payout: Account<'info, PostMintPayout>,
 
     // creator's vault for receiving creator fees
-    /// CHECK: SPL token account whose authority is the fed - cannot do #[account(owner = fed::ID)]
+    /// CHECK: may be uninitialized; Fed will init_if_needed and validate PDA
     #[account(mut)]
-    pub creator_vault_token_account: Account<'info, TokenAccount>,
+    pub creator_vault_token_account: UncheckedAccount<'info>,
+
+    /// CHECK: Creator user pubkey (used for PDA derivation in Fed, passed as account for convenience)
+    /// This is the creator of the post, used to derive the creator vault PDA
+    /// Marked as mut because Fed CPI requires it for init_if_needed on creator vault
+    #[account(mut, constraint = creator_user.key() == post.creator_user @ ErrorCode::Unauthorized)]
+    pub creator_user: UncheckedAccount<'info>,
 
     // Vault authority opague passed from the fed 
     /// CHECK: just a pda - can't require #[account(owner = fed::ID)]
     pub vault_authority: UncheckedAccount<'info>,
 
+    /// CHECK: Fed-owned ValidPayment account - let the fed check it
+    #[account(owner = fed::ID)]
+    pub valid_payment: UncheckedAccount<'info>,
+
     pub token_mint: Account<'info, Mint>,
     pub fed_program: Program<'info, fed::program::Fed>,
     pub token_program: Program<'info, Token>,
+    pub system_program: Program<'info, System>,
 }
 
 #[derive(Accounts)]

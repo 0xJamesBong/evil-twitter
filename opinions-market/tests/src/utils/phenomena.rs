@@ -2100,6 +2100,12 @@ pub async fn test_phenomena_settle_post(
             )
             .0;
 
+            let valid_payment_pda = Pubkey::find_program_address(
+                &[fed::pda_seeds::VALID_PAYMENT_SEED, token_mint.as_ref()],
+                &fed.id(),
+            )
+            .0;
+
             let distribute_creator_ix = opinions_market
                 .request()
                 .accounts(opinions_market::accounts::DistributeCreatorReward {
@@ -2109,10 +2115,13 @@ pub async fn test_phenomena_settle_post(
                     post_pot_authority: post_pot_authority_pda,
                     post_mint_payout: post_mint_payout_pda,
                     creator_vault_token_account: creator_vault_token_account_pda,
+                    creator_user: settled_post.creator_user,
                     vault_authority: vault_authority_pda,
+                    valid_payment: valid_payment_pda,
                     token_mint: *token_mint,
                     fed_program: fed.id(),
                     token_program: spl_token::ID,
+                    system_program: system_program::ID,
                 })
                 .args(opinions_market::instruction::DistributeCreatorReward {
                     post_id_hash: post_id_hash,

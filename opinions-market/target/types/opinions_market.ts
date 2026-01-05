@@ -708,6 +708,211 @@ export type OpinionsMarket = {
       ]
     },
     {
+      "name": "distributeCreatorReward",
+      "discriminator": [
+        236,
+        163,
+        223,
+        55,
+        91,
+        109,
+        80,
+        119
+      ],
+      "accounts": [
+        {
+          "name": "payer",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "post",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  111,
+                  115,
+                  116,
+                  95,
+                  97,
+                  99,
+                  99,
+                  111,
+                  117,
+                  110,
+                  116
+                ]
+              },
+              {
+                "kind": "arg",
+                "path": "postIdHash"
+              }
+            ]
+          }
+        },
+        {
+          "name": "postPotTokenAccount",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  111,
+                  115,
+                  116,
+                  95,
+                  112,
+                  111,
+                  116,
+                  95,
+                  116,
+                  111,
+                  107,
+                  101,
+                  110,
+                  95,
+                  97,
+                  99,
+                  99,
+                  111,
+                  117,
+                  110,
+                  116
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "post"
+              },
+              {
+                "kind": "account",
+                "path": "tokenMint"
+              }
+            ]
+          }
+        },
+        {
+          "name": "postPotAuthority",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  111,
+                  115,
+                  116,
+                  95,
+                  112,
+                  111,
+                  116,
+                  95,
+                  97,
+                  117,
+                  116,
+                  104,
+                  111,
+                  114,
+                  105,
+                  116,
+                  121
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "post"
+              }
+            ]
+          }
+        },
+        {
+          "name": "postMintPayout",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  111,
+                  115,
+                  116,
+                  95,
+                  109,
+                  105,
+                  110,
+                  116,
+                  95,
+                  112,
+                  97,
+                  121,
+                  111,
+                  117,
+                  116
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "post"
+              },
+              {
+                "kind": "account",
+                "path": "tokenMint"
+              }
+            ]
+          }
+        },
+        {
+          "name": "creatorVaultTokenAccount",
+          "writable": true
+        },
+        {
+          "name": "creatorUser",
+          "docs": [
+            "This is the creator of the post, used to derive the creator vault PDA",
+            "Marked as mut because Fed CPI requires it for init_if_needed on creator vault"
+          ],
+          "writable": true
+        },
+        {
+          "name": "vaultAuthority"
+        },
+        {
+          "name": "validPayment"
+        },
+        {
+          "name": "tokenMint"
+        },
+        {
+          "name": "fedProgram",
+          "address": "6p4L4eVGQtzYEnYFnSrEFGaZMqsrx7r1Emd5aPBAXXzC"
+        },
+        {
+          "name": "tokenProgram",
+          "address": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
+        },
+        {
+          "name": "systemProgram",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "postIdHash",
+          "type": {
+            "array": [
+              "u8",
+              32
+            ]
+          }
+        }
+      ]
+    },
+    {
       "name": "distributeParentPostShare",
       "docs": [
         "Distribute parent post share from frozen settlement.",
@@ -977,8 +1182,6 @@ export type OpinionsMarket = {
     {
       "name": "distributeProtocolFee",
       "docs": [
-        "Distribute creator reward from frozen settlement.",
-        "Reads creator_fee from PostMintPayout and transfers it to creator's vault.",
         "Distribute protocol fee from frozen settlement.",
         "Reads protocol_fee from PostMintPayout and transfers it to protocol treasury."
       ],
