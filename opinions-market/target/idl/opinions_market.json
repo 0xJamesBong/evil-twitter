@@ -254,6 +254,9 @@
           "name": "vault_authority"
         },
         {
+          "name": "valid_payment"
+        },
+        {
           "name": "token_mint"
         },
         {

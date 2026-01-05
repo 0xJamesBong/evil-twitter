@@ -260,6 +260,9 @@ export type OpinionsMarket = {
           "name": "vaultAuthority"
         },
         {
+          "name": "validPayment"
+        },
+        {
           "name": "tokenMint"
         },
         {

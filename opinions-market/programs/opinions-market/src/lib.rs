@@ -889,43 +889,41 @@ pub mod opinions_market {
         let post_pot_authority_seeds: &[&[&[u8]]] =
             &[&[POST_POT_AUTHORITY_SEED, post_key.as_ref(), &[post_pot_bump]]];
 
-        anchor_spl::token::transfer(
+        fed::cpi::transfer_into_fed_user_account(
             CpiContext::new_with_signer(
-                ctx.accounts.token_program.to_account_info(),
-                anchor_spl::token::Transfer {
+                ctx.accounts.fed_program.to_account_info(),
+                fed::cpi::accounts::TransferIntoFedUserAccount {
                     from: ctx.accounts.post_pot_token_account.to_account_info(),
-                    to: ctx.accounts.user_vault_token_account.to_account_info(),
-                    authority: ctx.accounts.post_pot_authority.to_account_info(),
+                    from_authority: ctx.accounts.post_pot_authority.to_account_info(),
+                    user: ctx.accounts.user.to_account_info(),
+                    to_user_vault_token_account: ctx
+                        .accounts
+                        .user_vault_token_account
+                        .to_account_info(),
+                    valid_payment: ctx.accounts.valid_payment.to_account_info(),
+                    vault_authority: ctx.accounts.vault_authority.to_account_info(),
+                    token_mint: ctx.accounts.token_mint.to_account_info(),
+                    payer: ctx.accounts.payer.to_account_info(),
+                    token_program: ctx.accounts.token_program.to_account_info(),
+                    system_program: ctx.accounts.system_program.to_account_info(),
                 },
                 post_pot_authority_seeds,
             ),
             reward,
         )?;
 
-        // {
-        //     // Transfer reward
-        //     let post_key = post.key();
-        //     let (_, bump) = Pubkey::find_program_address(
-        //         &[POST_POT_AUTHORITY_SEED, post_key.as_ref()],
-        //         ctx.program_id,
-        //     );
-
-        //     let bump_array = [bump];
-        //     let seeds_array = [POST_POT_AUTHORITY_SEED, post_key.as_ref(), &bump_array];
-        //     let seeds: &[&[&[u8]]] = &[&seeds_array];
-
-        //     let cpi = CpiContext::new_with_signer(
+        // anchor_spl::token::transfer(
+        //     CpiContext::new_with_signer(
         //         ctx.accounts.token_program.to_account_info(),
         //         anchor_spl::token::Transfer {
         //             from: ctx.accounts.post_pot_token_account.to_account_info(),
         //             to: ctx.accounts.user_vault_token_account.to_account_info(),
         //             authority: ctx.accounts.post_pot_authority.to_account_info(),
         //         },
-        //         seeds,
-        //     );
-
-        //     anchor_spl::token::transfer(cpi, reward)?;
-        // }
+        //         post_pot_authority_seeds,
+        //     ),
+        //     reward,
+        // )?;
 
         claim.claimed = true;
         Ok(())

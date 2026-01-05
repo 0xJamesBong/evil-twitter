@@ -2372,6 +2372,12 @@ pub async fn test_phenomena_claim_post_reward(
     let vault_authority_pda =
         Pubkey::find_program_address(&[fed::pda_seeds::VAULT_AUTHORITY_SEED], &fed.id()).0;
 
+    let valid_payment_pda = Pubkey::find_program_address(
+        &[fed::pda_seeds::VALID_PAYMENT_SEED, token_mint.as_ref()],
+        &fed.id(),
+    )
+    .0;
+
     // Get initial balances and state
     // Check if position exists (user must have voted on this post)
     let position_result = opinions_market
@@ -2459,6 +2465,7 @@ pub async fn test_phenomena_claim_post_reward(
             post_pot_authority: post_pot_authority_pda,
             user_vault_token_account: user_vault_token_account_pda,
             vault_authority: vault_authority_pda,
+            valid_payment: valid_payment_pda,
             token_mint: *token_mint,
             fed_program: fed.id(),
             persona_program: persona.id(),

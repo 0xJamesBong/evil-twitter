@@ -150,7 +150,7 @@ impl Body {
     }
 
     pub fn is_dead(&self) -> bool {
-        self.health == 0 || self.energy == 0
+        self.health == 0
     }
 
     pub fn is_exhausted(&self) -> bool {

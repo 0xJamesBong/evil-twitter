@@ -538,13 +538,17 @@ pub struct ClaimPostReward<'info> {
     pub post_pot_authority: UncheckedAccount<'info>,
 
 
-    /// CHECK: SPL token account whose authority is the fed - cannot do #[account(owner = fed::ID)]
+    /// CHECK: User vault token account (may be uninitialized; Fed will init_if_needed and validate PDA)
     #[account(mut)]
-    pub user_vault_token_account: Account<'info, TokenAccount>,
+    pub user_vault_token_account: UncheckedAccount<'info>,
 
     // Vault authority opague passed from the fed 
     /// CHECK: just a pda - can't require #[account(owner = fed::ID)]
     pub vault_authority: UncheckedAccount<'info>,
+
+    /// CHECK: Fed-owned ValidPayment account - let the fed check it
+    #[account(owner = fed::ID)]
+    pub valid_payment: UncheckedAccount<'info>,
 
     pub token_mint: Account<'info, Mint>,
     pub fed_program: Program<'info, fed::program::Fed>,
