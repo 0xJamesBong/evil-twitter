@@ -1,3 +1,4 @@
+// Prepare for NFTS
 // Core principle (do not violate this)
 
 // Weapons are not objects.

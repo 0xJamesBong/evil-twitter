@@ -993,4 +993,7 @@ pub mod opinions_market {
 
         Ok(())
     }
+
+    //
+    pub fn apply_modifier(ctx: Context<ApplyModifier>, modifier: Modifier) -> Result<()> {}
 }
