@@ -482,6 +482,7 @@ pub struct TransferIntoFedTreasuryAccount<'info> {
     
     /// CHECK: Authority of the `from` account (must sign the transaction)
     /// The token program will verify the signature
+    #[account(signer)]
     pub from_authority: UncheckedAccount<'info>,
     
     /// CHECK: Fed treasury token account (Fed-owned)

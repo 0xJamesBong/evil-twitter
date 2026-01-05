@@ -427,12 +427,6 @@ pub mod fed {
         // 1. From-account must be external (not Fed-owned)
         require!(ctx.accounts.from.owner != fed::ID, ErrorCode::InvalidFrom);
 
-        // 2. To-account must be Fed-controlled treasury
-        require!(
-            ctx.accounts.protocol_treasury_token_account.owner == fed::ID,
-            ErrorCode::InvalidTo
-        );
-
         // 3. Mint must be enabled
         require!(
             ctx.accounts.valid_payment.enabled,
