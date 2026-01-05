@@ -1156,6 +1156,24 @@ export type OpinionsMarket = {
           }
         },
         {
+          "name": "validPayment"
+        },
+        {
+          "name": "vaultAuthority"
+        },
+        {
+          "name": "creatorUser",
+          "docs": [
+            "This is the creator of the parent post, used to derive the creator vault PDA",
+            "Marked as mut because Fed CPI requires it for init_if_needed on creator vault"
+          ],
+          "writable": true
+        },
+        {
+          "name": "parentCreatorVaultTokenAccount",
+          "writable": true
+        },
+        {
           "name": "tokenMint"
         },
         {
@@ -1165,6 +1183,10 @@ export type OpinionsMarket = {
         {
           "name": "tokenProgram",
           "address": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
+        },
+        {
+          "name": "systemProgram",
+          "address": "11111111111111111111111111111111"
         }
       ],
       "args": [

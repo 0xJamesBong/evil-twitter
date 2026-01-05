@@ -2170,50 +2170,81 @@ pub async fn test_phenomena_settle_post(
             println!("  Added distribute_protocol_fee instruction");
         }
 
-        // // 3. Distribute parent post share (if mother fee > 0 and it's a child post)
-        // // DistributeParentPostShare requires parent accounts (no Option)
-        // if payout_account.mother_fee > 0 && parent_post_pda.is_some() {
-        //     let parent_post_pda_unwrapped = parent_post_pda.unwrap();
+        // 3. Distribute parent post share (if mother fee > 0 and it's a child post)
+        // DistributeParentPostShare requires parent accounts (no Option)
+        if payout_account.mother_fee > 0 && parent_post_pda.is_some() {
+            let parent_post_pda_unwrapped = parent_post_pda.unwrap();
 
-        //     let parent_post_pot_token_account_pda = Pubkey::find_program_address(
-        //         &[
-        //             POST_POT_TOKEN_ACCOUNT_SEED,
-        //             parent_post_pda_unwrapped.as_ref(),
-        //             token_mint.as_ref(),
-        //         ],
-        //         &opinions_market.id(),
-        //     )
-        //     .0;
+            // Fetch parent post to get creator_user
+            let parent_post_account = opinions_market
+                .account::<opinions_market::states::PostAccount>(parent_post_pda_unwrapped)
+                .await
+                .unwrap();
 
-        //     let parent_post_pot_authority_pda = Pubkey::find_program_address(
-        //         &[POST_POT_AUTHORITY_SEED, parent_post_pda_unwrapped.as_ref()],
-        //         &opinions_market.id(),
-        //     )
-        //     .0;
+            let parent_post_pot_token_account_pda = Pubkey::find_program_address(
+                &[
+                    POST_POT_TOKEN_ACCOUNT_SEED,
+                    parent_post_pda_unwrapped.as_ref(),
+                    token_mint.as_ref(),
+                ],
+                &opinions_market.id(),
+            )
+            .0;
 
-        //     let distribute_parent_ix = opinions_market
-        //         .request()
-        //         .accounts(opinions_market::accounts::DistributeParentPostShare {
-        //             payer: payer.pubkey(),
-        //             post: *post_pda,
-        //             post_pot_token_account: post_pot_token_account_pda,
-        //             post_pot_authority: post_pot_authority_pda,
-        //             post_mint_payout: post_mint_payout_pda,
-        //             parent_post: parent_post_pda_unwrapped, // Required, not Option
-        //             parent_post_pot_token_account: parent_post_pot_token_account_pda, // Required, not Option
-        //             parent_post_pot_authority: parent_post_pot_authority_pda, // Required, not Option
-        //             token_mint: *token_mint,
-        //             token_program: spl_token::ID,
-        //         })
-        //         .args(opinions_market::instruction::DistributeParentPostShare {
-        //             post_id_hash: post_id_hash,
-        //         })
-        //         .instructions()
-        //         .unwrap();
+            let parent_post_pot_authority_pda = Pubkey::find_program_address(
+                &[POST_POT_AUTHORITY_SEED, parent_post_pda_unwrapped.as_ref()],
+                &opinions_market.id(),
+            )
+            .0;
 
-        //     distribution_ixs.push(distribute_parent_ix);
-        //     println!("  Added distribute_parent_post_share instruction");
-        // }
+            let vault_authority_pda =
+                Pubkey::find_program_address(&[fed::pda_seeds::VAULT_AUTHORITY_SEED], &fed.id()).0;
+
+            let parent_creator_vault_token_account_pda = Pubkey::find_program_address(
+                &[
+                    fed::pda_seeds::USER_VAULT_TOKEN_ACCOUNT_SEED,
+                    parent_post_account.creator_user.as_ref(),
+                    token_mint.as_ref(),
+                ],
+                &fed.id(),
+            )
+            .0;
+
+            let valid_payment_pda = Pubkey::find_program_address(
+                &[fed::pda_seeds::VALID_PAYMENT_SEED, token_mint.as_ref()],
+                &fed.id(),
+            )
+            .0;
+
+            let distribute_parent_ix = opinions_market
+                .request()
+                .accounts(opinions_market::accounts::DistributeParentPostShare {
+                    payer: payer.pubkey(),
+                    post: *post_pda,
+                    post_pot_token_account: post_pot_token_account_pda,
+                    post_pot_authority: post_pot_authority_pda,
+                    post_mint_payout: post_mint_payout_pda,
+                    parent_post: parent_post_pda_unwrapped,
+                    parent_post_pot_token_account: parent_post_pot_token_account_pda,
+                    parent_post_pot_authority: parent_post_pot_authority_pda,
+                    vault_authority: vault_authority_pda,
+                    creator_user: parent_post_account.creator_user,
+                    parent_creator_vault_token_account: parent_creator_vault_token_account_pda,
+                    valid_payment: valid_payment_pda,
+                    token_mint: *token_mint,
+                    fed_program: fed.id(),
+                    token_program: spl_token::ID,
+                    system_program: system_program::ID,
+                })
+                .args(opinions_market::instruction::DistributeParentPostShare {
+                    post_id_hash: post_id_hash,
+                })
+                .instructions()
+                .unwrap();
+
+            distribution_ixs.push(distribute_parent_ix);
+            println!("  Added distribute_parent_post_share instruction");
+        }
 
         // Send all distribution instructions in one transaction
         if !distribution_ixs.is_empty() {

@@ -480,7 +480,7 @@ pub struct TransferIntoFedTreasuryAccount<'info> {
     #[account(mut)]
     pub from: Account<'info, TokenAccount>,
     
-    /// CHECK: Authority of the `from` account (must sign the transaction)
+    /// CHECK: MUST be signer (wallet or PDA via upstream CPI)
     /// The token program will verify the signature
     #[account(signer)]
     pub from_authority: UncheckedAccount<'info>,

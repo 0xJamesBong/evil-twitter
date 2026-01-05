@@ -446,9 +446,30 @@ pub struct DistributeParentPostShare<'info> {
     )]
     pub parent_post_pot_authority: UncheckedAccount<'info>,
 
+
+    /// CHECK: Fed-owned ValidPayment account - let the fed check it
+    #[account(owner = fed::ID)]
+    pub valid_payment: UncheckedAccount<'info>,
+    
+    // Vault authority opague passed from the fed 
+    /// CHECK: just a pda - can't require #[account(owner = fed::ID)]
+    pub vault_authority: UncheckedAccount<'info>,
+
+    /// CHECK: Creator user pubkey (used for PDA derivation in Fed, passed as account for convenience)
+    /// This is the creator of the parent post, used to derive the creator vault PDA
+    /// Marked as mut because Fed CPI requires it for init_if_needed on creator vault
+    #[account(mut, constraint = creator_user.key() == parent_post.creator_user @ ErrorCode::Unauthorized)]
+    pub creator_user: UncheckedAccount<'info>,
+
+    /// CHECK: Parent post creator's vault token account (may be uninitialized; Fed will init_if_needed and validate PDA)
+    #[account(mut)]
+    pub parent_creator_vault_token_account: UncheckedAccount<'info>,
+
+    
     pub token_mint: Account<'info, Mint>,
     pub fed_program: Program<'info, fed::program::Fed>,
     pub token_program: Program<'info, Token>,
+    pub system_program: Program<'info, System>,
 }
 
 // The User-uncheckedAccount and payer-Signer pattern is used to allow for dual signing - so the user doesn't need to see a signature prompt pop-up

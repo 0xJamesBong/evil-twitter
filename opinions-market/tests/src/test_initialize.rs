@@ -622,6 +622,18 @@ async fn test_setup() {
         //         Note: In a real test, you'd need to wait for the post to expire before settling
         // For now, we'll just show the settle function exists
         {
+            println!("Settling post P2");
+            test_phenomena_settle_post(
+                &rpc,
+                &opinions_market,
+                &fed,
+                &payer,
+                &post_p2_pda,
+                &tokens,
+                &om_config_pda,
+            )
+            .await;
+
             // wait_seconds(TIME_CONFIG_FAST.max_duration_secs as u64).await;
             println!("Settling post P1");
             test_phenomena_settle_post(

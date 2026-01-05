@@ -810,6 +810,7 @@ pub mod opinions_market {
         let post_pot_authority_seeds: &[&[&[u8]]] =
             &[&[POST_POT_AUTHORITY_SEED, post_key.as_ref(), &[post_pot_bump]]];
 
+        // not a CPI because we are not transferring money to the fed - we are just sending it to another post pot.
         anchor_spl::token::transfer(
             CpiContext::new_with_signer(
                 ctx.accounts.token_program.to_account_info(),
