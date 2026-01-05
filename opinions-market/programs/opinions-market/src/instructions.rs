@@ -431,9 +431,12 @@ pub struct DistributeParentPostShare<'info> {
     pub parent_post: Account<'info, PostAccount>,
 
     #[account(
-        mut,
+        init_if_needed,
+        payer = payer,
         seeds = [POST_POT_TOKEN_ACCOUNT_SEED, parent_post.key().as_ref(), token_mint.key().as_ref()],
         bump,
+        token::mint = token_mint,
+        token::authority = parent_post_pot_authority,
         constraint = parent_post_pot_token_account.mint == token_mint.key(),
         constraint = parent_post_pot_token_account.owner == parent_post_pot_authority.key(),
     )]
