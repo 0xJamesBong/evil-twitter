@@ -1460,8 +1460,141 @@
         {
           "name": "extension_per_vote_secs",
           "type": "u32"
+        },
+        {
+          "name": "resurrection_fee",
+          "type": "u64"
+        },
+        {
+          "name": "resurrection_fee_bling_premium",
+          "type": "u64"
         }
       ]
+    },
+    {
+      "name": "resurrect",
+      "discriminator": [
+        180,
+        81,
+        224,
+        113,
+        57,
+        255,
+        220,
+        197
+      ],
+      "accounts": [
+        {
+          "name": "om_config",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  111,
+                  109,
+                  95,
+                  99,
+                  111,
+                  110,
+                  102,
+                  105,
+                  103
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "user",
+          "writable": true
+        },
+        {
+          "name": "payer",
+          "writable": true
+        },
+        {
+          "name": "session_key",
+          "writable": true
+        },
+        {
+          "name": "session_authority"
+        },
+        {
+          "name": "user_account"
+        },
+        {
+          "name": "voter_account",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  118,
+                  111,
+                  116,
+                  101,
+                  114,
+                  95,
+                  97,
+                  99,
+                  99,
+                  111,
+                  117,
+                  110,
+                  116
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "user"
+              }
+            ]
+          }
+        },
+        {
+          "name": "user_vault_token_account",
+          "docs": [
+            "- keep opague so Fed TokenAccount cpi will initialize it and we won't be stopped by TokenAccount here"
+          ],
+          "writable": true
+        },
+        {
+          "name": "protocol_token_treasury_token_account",
+          "writable": true
+        },
+        {
+          "name": "vault_authority"
+        },
+        {
+          "name": "valid_payment"
+        },
+        {
+          "name": "fed_config"
+        },
+        {
+          "name": "token_mint"
+        },
+        {
+          "name": "token_program",
+          "address": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
+        },
+        {
+          "name": "fed_program",
+          "address": "6p4L4eVGQtzYEnYFnSrEFGaZMqsrx7r1Emd5aPBAXXzC"
+        },
+        {
+          "name": "persona_program",
+          "address": "3bE1UxZ4VFKbptUhpFwzA1AdXgdJENhRcLQApj9F9Z1d"
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": []
     },
     {
       "name": "settle_post",
@@ -2165,6 +2298,11 @@
       "code": 6025,
       "name": "TokenNotWithdrawable",
       "msg": "Token is not withdrawable"
+    },
+    {
+      "code": 6026,
+      "name": "NotDead",
+      "msg": "User is not dead"
     }
   ],
   "types": [
@@ -2271,6 +2409,14 @@
           {
             "name": "extension_per_vote_secs",
             "type": "u32"
+          },
+          {
+            "name": "resurrection_fee",
+            "type": "u64"
+          },
+          {
+            "name": "resurrection_fee_bling_premium",
+            "type": "u64"
           },
           {
             "name": "bump",

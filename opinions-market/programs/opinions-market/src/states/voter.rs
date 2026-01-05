@@ -130,6 +130,7 @@ impl Appearance {
 pub struct Body {
     pub health: u16,
     pub energy: u16,
+
     pub padding: [u8; 31],
 }
 
@@ -155,6 +156,13 @@ impl Body {
 
     pub fn is_exhausted(&self) -> bool {
         self.energy == 0
+    }
+    pub fn resurrect(&self) -> Self {
+        Self {
+            health: 10_000,
+            energy: 10_000,
+            padding: [0; 31],
+        }
     }
 }
 

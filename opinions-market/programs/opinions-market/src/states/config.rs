@@ -13,6 +13,8 @@ pub struct OMConfig {
     pub max_duration_secs: u32,
     pub extension_per_vote_secs: u32,
 
+    pub resurrection_fee: u64,
+    pub resurrection_fee_bling_premium: u64,
     pub bump: u8,
     pub padding: [u8; 7], // 7
 }
@@ -23,6 +25,8 @@ impl OMConfig {
         base_duration_secs: u32,
         max_duration_secs: u32,
         extension_per_vote_secs: u32,
+        resurrection_fee: u64,
+        resurrection_fee_bling_premium: u64,
         bump: u8,
         padding: [u8; 7],
     ) -> Self {
@@ -31,6 +35,8 @@ impl OMConfig {
             base_duration_secs,
             max_duration_secs,
             extension_per_vote_secs,
+            resurrection_fee,
+            resurrection_fee_bling_premium,
             bump,
             padding,
         }

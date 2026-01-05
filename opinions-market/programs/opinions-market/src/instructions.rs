@@ -556,3 +556,62 @@ pub struct ClaimPostReward<'info> {
     pub token_program: Program<'info, Token>,
     pub system_program: Program<'info, System>,
 }
+
+
+#[derive(Accounts)]
+pub struct Resurrect<'info> {
+    #[account(mut,
+        seeds = [OM_CONFIG_SEED],
+        bump,
+    )]
+    pub om_config: Account<'info, OMConfig>,
+    /// CHECK: real user identity (owner of UserAccount and vaults)
+    #[account(mut)]
+    pub user: UncheckedAccount<'info>,
+
+    /// CHECK: Signer paying the TX fee (user or backend)
+    #[account(mut)]
+    pub payer: UncheckedAccount<'info>,
+
+    /// CHECK: ephemeral delegated session key
+    #[account(mut)]
+    pub session_key: UncheckedAccount<'info>,
+
+    /// CHECK: persona-owned session authority (opaque)
+    #[account(owner = persona::ID)]
+    pub session_authority: AccountInfo<'info>,
+
+    /// CHECK: persona-owned user account (opaque) - used for checking authentication
+    #[account(owner = persona::ID)]
+    pub user_account: AccountInfo<'info>,
+
+    /// CHECK: owned by opinions market - this is the voter data 
+    #[account(mut, seeds = [VOTER_ACCOUNT_SEED, user.key().as_ref()], bump)]
+    pub voter_account: Account<'info, VoterAccount>,
+
+    /// CHECK: this is a token account, owned by the SPL program, but its authority is a pda inside the fed 
+    /// - keep opague so Fed TokenAccount cpi will initialize it and we won't be stopped by TokenAccount here
+    #[account(mut)]
+    pub user_vault_token_account: UncheckedAccount<'info>,
+
+    /// CHECK: SPL token account whose authority is the fed - cannot do #[account(owner = fed::ID)]
+    #[account(mut)]
+    pub protocol_token_treasury_token_account: UncheckedAccount<'info>,
+
+    // Vault authority opague passed from the fed 
+    /// CHECK: just a pda - can't require #[account(owner = fed::ID)]
+    pub vault_authority: UncheckedAccount<'info>,
+
+    /// CHECK: Fed-owned ValidPayment account - let the fed check it
+    #[account(owner = fed::ID)]
+    pub valid_payment: UncheckedAccount<'info>,
+
+    /// CHECK: Fed config PDA (authority of treasury token account) - let the fed check it
+    pub fed_config: UncheckedAccount<'info>,
+    
+    pub token_mint: Account<'info, Mint>,
+    pub token_program: Program<'info, Token>,
+    pub fed_program: Program<'info, fed::program::Fed>,
+    pub persona_program: Program<'info, persona::program::Persona>,
+    pub system_program: Program<'info, System>,
+}

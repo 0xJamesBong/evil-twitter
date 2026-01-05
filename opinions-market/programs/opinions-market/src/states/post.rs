@@ -1,4 +1,4 @@
-use super::tools::OMConfig;
+use super::config::OMConfig;
 use super::voter::{VoterAccount, VoterPostPosition};
 use crate::math::vote_cost::{base_voter_cost, cost_in_dollar, post_curve_cost};
 use anchor_lang::prelude::*;

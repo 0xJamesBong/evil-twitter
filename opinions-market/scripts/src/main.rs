@@ -116,6 +116,9 @@ async fn main() {
     let max_duration_secs = 24 * 3600; // 1 day
     let extension_per_vote_secs = 10; // 10 seconds
 
+    let resurrection_fee = 10 * LAMPORTS_PER_SOL; // 10 dollars - will be converted to 10 stables.
+    let resurrection_fee_bling_premium = 100_000 * LAMPORTS_PER_SOL; // 100,000 dollars
+
     // --- INITIALIZE FED PROGRAM FIRST ---
     println!("🌍 Initializing FED program...");
     let initialize_fed_ix = fed
@@ -155,6 +158,8 @@ async fn main() {
             base_duration_secs,
             max_duration_secs,
             extension_per_vote_secs,
+            resurrection_fee: resurrection_fee,
+            resurrection_fee_bling_premium: resurrection_fee_bling_premium,
         })
         .instructions()
         .unwrap();

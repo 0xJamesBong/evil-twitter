@@ -27,3 +27,6 @@ pub const RATES: Rates = Rates {
     sol_to_bling: 1_000_000_000,
     usdc_to_bling: 10_000,
 };
+
+pub const RESURRECTION_FEE: u64 = 10 * LAMPORTS_PER_SOL; // in dollars - 10 dollars
+pub const RESURRECTION_FEE_BLING_PREMIUM: u64 = 100_000 * LAMPORTS_PER_SOL; // in dollars - 100,000 dollars

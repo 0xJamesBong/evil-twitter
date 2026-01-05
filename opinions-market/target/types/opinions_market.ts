@@ -1466,8 +1466,141 @@ export type OpinionsMarket = {
         {
           "name": "extensionPerVoteSecs",
           "type": "u32"
+        },
+        {
+          "name": "resurrectionFee",
+          "type": "u64"
+        },
+        {
+          "name": "resurrectionFeeBlingPremium",
+          "type": "u64"
         }
       ]
+    },
+    {
+      "name": "resurrect",
+      "discriminator": [
+        180,
+        81,
+        224,
+        113,
+        57,
+        255,
+        220,
+        197
+      ],
+      "accounts": [
+        {
+          "name": "omConfig",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  111,
+                  109,
+                  95,
+                  99,
+                  111,
+                  110,
+                  102,
+                  105,
+                  103
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "user",
+          "writable": true
+        },
+        {
+          "name": "payer",
+          "writable": true
+        },
+        {
+          "name": "sessionKey",
+          "writable": true
+        },
+        {
+          "name": "sessionAuthority"
+        },
+        {
+          "name": "userAccount"
+        },
+        {
+          "name": "voterAccount",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  118,
+                  111,
+                  116,
+                  101,
+                  114,
+                  95,
+                  97,
+                  99,
+                  99,
+                  111,
+                  117,
+                  110,
+                  116
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "user"
+              }
+            ]
+          }
+        },
+        {
+          "name": "userVaultTokenAccount",
+          "docs": [
+            "- keep opague so Fed TokenAccount cpi will initialize it and we won't be stopped by TokenAccount here"
+          ],
+          "writable": true
+        },
+        {
+          "name": "protocolTokenTreasuryTokenAccount",
+          "writable": true
+        },
+        {
+          "name": "vaultAuthority"
+        },
+        {
+          "name": "validPayment"
+        },
+        {
+          "name": "fedConfig"
+        },
+        {
+          "name": "tokenMint"
+        },
+        {
+          "name": "tokenProgram",
+          "address": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
+        },
+        {
+          "name": "fedProgram",
+          "address": "6p4L4eVGQtzYEnYFnSrEFGaZMqsrx7r1Emd5aPBAXXzC"
+        },
+        {
+          "name": "personaProgram",
+          "address": "3bE1UxZ4VFKbptUhpFwzA1AdXgdJENhRcLQApj9F9Z1d"
+        },
+        {
+          "name": "systemProgram",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": []
     },
     {
       "name": "settlePost",
@@ -2171,6 +2304,11 @@ export type OpinionsMarket = {
       "code": 6025,
       "name": "tokenNotWithdrawable",
       "msg": "Token is not withdrawable"
+    },
+    {
+      "code": 6026,
+      "name": "notDead",
+      "msg": "User is not dead"
     }
   ],
   "types": [
@@ -2277,6 +2415,14 @@ export type OpinionsMarket = {
           {
             "name": "extensionPerVoteSecs",
             "type": "u32"
+          },
+          {
+            "name": "resurrectionFee",
+            "type": "u64"
+          },
+          {
+            "name": "resurrectionFeeBlingPremium",
+            "type": "u64"
           },
           {
             "name": "bump",

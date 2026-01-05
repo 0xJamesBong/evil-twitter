@@ -67,6 +67,8 @@ pub enum ErrorCode {
     CannotSendToSelf,
     #[msg("Token is not withdrawable")]
     TokenNotWithdrawable,
+    #[msg("User is not dead")]
+    NotDead,
 }
 
 #[program]
@@ -87,6 +89,8 @@ pub mod opinions_market {
         base_duration_secs: u32,
         max_duration_secs: u32,
         extension_per_vote_secs: u32,
+        resurrection_fee: u64,
+        resurrection_fee_bling_premium: u64,
     ) -> Result<()> {
         let om_config = &mut ctx.accounts.om_config;
 
@@ -95,6 +99,8 @@ pub mod opinions_market {
             base_duration_secs,
             max_duration_secs,
             extension_per_vote_secs,
+            resurrection_fee,
+            resurrection_fee_bling_premium,
             ctx.bumps.om_config,
             [0; 7],
         );
@@ -103,6 +109,8 @@ pub mod opinions_market {
         om_config.base_duration_secs = new_config.base_duration_secs;
         om_config.max_duration_secs = new_config.max_duration_secs;
         om_config.extension_per_vote_secs = new_config.extension_per_vote_secs;
+        om_config.resurrection_fee = new_config.resurrection_fee;
+        om_config.resurrection_fee_bling_premium = new_config.resurrection_fee_bling_premium;
         om_config.bump = new_config.bump;
         om_config.padding = new_config.padding;
 
@@ -929,95 +937,60 @@ pub mod opinions_market {
         Ok(())
     }
 
-    // /// Updzate a voter stat (the only place mutation is allowed)
-    // /// Fields mutate only inside instruction handlers, via explicit matches, using saturating arithmetic.
-    // pub fn updzate_voter_stat(
-    //     ctx: Context<UpdateVoterStat>,
-    //     target: crate::states::StatTarget,
-    //     change: crate::states::StatChange,
-    // ) -> Result<()> {
-    //     use crate::states::voter::{
-    //         add_i16, add_u16, remove_i16, remove_u16, StatChange, StatTarget,
-    //     };
+    pub fn resurrect(ctx: Context<Resurrect>) -> Result<()> {
+        // authenticate
+        let clock = Clock::get()?;
+        let now = clock.unix_timestamp;
+        persona::cpi::check_session_or_wallet(
+            CpiContext::new(
+                ctx.accounts.persona_program.to_account_info(),
+                persona::cpi::accounts::CheckSessionOrWallet {
+                    user: ctx.accounts.user.to_account_info(),
+                    session_key: ctx.accounts.session_key.to_account_info(),
+                    session_authority: ctx.accounts.session_authority.to_account_info(),
+                },
+            ),
+            now,
+        )?;
 
-    //     let voter_account = &mut ctx.accounts.voter_account;
+        // the idea is that if you pay in usd, it will be cheap, but if you want to pay in bling, it will be very pricey
+        let resurrection_fee_in_dollars = ctx.accounts.om_config.resurrection_fee;
+        let resurrection_fee_in_dollars_with_bling_premium =
+            ctx.accounts.om_config.resurrection_fee_bling_premium;
+        // Transfer tokens from the user's vault to the protocol treasury
+        fed::cpi::convert_dollar_with_bling_premium_and_charge_to_protocol_treasury(
+            CpiContext::new(
+                ctx.accounts.fed_program.to_account_info(),
+                fed::cpi::accounts::ConvertDollarAndChargeToProtocolTreasury {
+                    user: ctx.accounts.user.to_account_info(),
+                    from_user_vault_token_account: ctx
+                        .accounts
+                        .user_vault_token_account
+                        .to_account_info(),
+                    protocol_treasury_token_account: ctx
+                        .accounts
+                        .protocol_token_treasury_token_account
+                        .to_account_info(),
+                    valid_payment: ctx.accounts.valid_payment.to_account_info(),
+                    token_mint: ctx.accounts.token_mint.to_account_info(),
+                    fed_config: ctx.accounts.fed_config.to_account_info(),
+                    vault_authority: ctx.accounts.vault_authority.to_account_info(),
+                    token_program: ctx.accounts.token_program.to_account_info(),
+                },
+            ),
+            resurrection_fee_in_dollars,
+            resurrection_fee_in_dollars_with_bling_premium,
+        )?;
 
-    //     match (target, change) {
-    //         // Body stats (u16)
-    //         (StatTarget::BodyHealth, StatChange::AddU16(x)) => {
-    //             add_u16(&mut voter_account.body.health, x);
-    //         }
-    //         (StatTarget::BodyHealth, StatChange::RemoveU16(x)) => {
-    //             remove_u16(&mut voter_account.body.health, x);
-    //         }
-    //         (StatTarget::BodyEnergy, StatChange::AddU16(x)) => {
-    //             add_u16(&mut voter_account.body.energy, x);
-    //         }
-    //         (StatTarget::BodyEnergy, StatChange::RemoveU16(x)) => {
-    //             remove_u16(&mut voter_account.body.energy, x);
-    //         }
+        let body = &mut ctx.accounts.voter_account.body;
+        let is_dead = body.is_dead();
+        if !is_dead {
+            return Err(ErrorCode::NotDead.into());
+        }
+        let new_body = body.resurrect();
+        body.health = new_body.health;
+        body.energy = new_body.energy;
 
-    //         // Appearance stats (i16)
-    //         (StatTarget::AppearanceFreshness, StatChange::AddI16(x)) => {
-    //             add_i16(&mut voter_account.appearance.freshness, x);
-    //         }
-    //         (StatTarget::AppearanceFreshness, StatChange::RemoveI16(x)) => {
-    //             remove_i16(&mut voter_account.appearance.freshness, x);
-    //         }
-    //         (StatTarget::AppearanceCharisma, StatChange::AddI16(x)) => {
-    //             add_i16(&mut voter_account.appearance.charisma, x);
-    //         }
-    //         (StatTarget::AppearanceCharisma, StatChange::RemoveI16(x)) => {
-    //             remove_i16(&mut voter_account.appearance.charisma, x);
-    //         }
-    //         (StatTarget::AppearanceOriginality, StatChange::AddI16(x)) => {
-    //             add_i16(&mut voter_account.appearance.originality, x);
-    //         }
-    //         (StatTarget::AppearanceOriginality, StatChange::RemoveI16(x)) => {
-    //             remove_i16(&mut voter_account.appearance.originality, x);
-    //         }
-    //         (StatTarget::AppearanceNpcNess, StatChange::AddI16(x)) => {
-    //             add_i16(&mut voter_account.appearance._npc_ness, x);
-    //         }
-    //         (StatTarget::AppearanceNpcNess, StatChange::RemoveI16(x)) => {
-    //             remove_i16(&mut voter_account.appearance._npc_ness, x);
-    //         }
-    //         (StatTarget::AppearanceBeauty, StatChange::AddI16(x)) => {
-    //             add_i16(&mut voter_account.appearance.beauty, x);
-    //         }
-    //         (StatTarget::AppearanceBeauty, StatChange::RemoveI16(x)) => {
-    //             remove_i16(&mut voter_account.appearance.beauty, x);
-    //         }
-    //         (StatTarget::AppearanceIntellectualism, StatChange::AddI16(x)) => {
-    //             add_i16(&mut voter_account.appearance.intellectualism, x);
-    //         }
-    //         (StatTarget::AppearanceIntellectualism, StatChange::RemoveI16(x)) => {
-    //             remove_i16(&mut voter_account.appearance.intellectualism, x);
-    //         }
-
-    //         // Invalid combinations (type mismatches) - these should never happen with proper type checking
-    //         (StatTarget::BodyHealth, StatChange::AddI16(_))
-    //         | (StatTarget::BodyHealth, StatChange::RemoveI16(_))
-    //         | (StatTarget::BodyEnergy, StatChange::AddI16(_))
-    //         | (StatTarget::BodyEnergy, StatChange::RemoveI16(_)) => {
-    //             return Err(ErrorCode::MathOverflow.into());
-    //         }
-    //         (StatTarget::AppearanceFreshness, StatChange::AddU16(_))
-    //         | (StatTarget::AppearanceFreshness, StatChange::RemoveU16(_))
-    //         | (StatTarget::AppearanceCharisma, StatChange::AddU16(_))
-    //         | (StatTarget::AppearanceCharisma, StatChange::RemoveU16(_))
-    //         | (StatTarget::AppearanceOriginality, StatChange::AddU16(_))
-    //         | (StatTarget::AppearanceOriginality, StatChange::RemoveU16(_))
-    //         | (StatTarget::AppearanceNpcNess, StatChange::AddU16(_))
-    //         | (StatTarget::AppearanceNpcNess, StatChange::RemoveU16(_))
-    //         | (StatTarget::AppearanceBeauty, StatChange::AddU16(_))
-    //         | (StatTarget::AppearanceBeauty, StatChange::RemoveU16(_))
-    //         | (StatTarget::AppearanceIntellectualism, StatChange::AddU16(_))
-    //         | (StatTarget::AppearanceIntellectualism, StatChange::RemoveU16(_)) => {
-    //             return Err(ErrorCode::MathOverflow.into());
-    //         }
-    //     }
-
-    //     Ok(())
-    // }
+        Ok(())
+    }
 }
