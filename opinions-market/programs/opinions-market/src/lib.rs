@@ -13,64 +13,6 @@ use states::*;
 
 declare_id!("4z5rjroGdWmgGX13SdFsh4wRM4jJkMUrcvYrNpV3gezm");
 
-#[error_code]
-pub enum ErrorCode {
-    #[msg("Post is not open")]
-    PostNotOpen,
-    #[msg("Post is expired")]
-    PostExpired,
-    #[msg("Post already settled")]
-    PostAlreadySettled,
-    #[msg("Post not yet expired")]
-    PostNotExpired,
-    #[msg("Post not settled")]
-    PostNotSettled,
-    #[msg("No winner for this post")]
-    NoWinner,
-    #[msg("Reward already claimed")]
-    AlreadyClaimed,
-    #[msg("Math overflow")]
-    MathOverflow,
-    #[msg("Zero votes not allowed")]
-    ZeroVotes,
-    #[msg("Mint is not enabled")]
-    MintNotEnabled,
-    #[msg("BLING cannot be registered as an alternative payment")]
-    BlingCannotBeAlternativePayment,
-    #[msg("Alternative payment already registered for this mint")]
-    AlternativePaymentAlreadyRegistered,
-    #[msg("Unauthorized: user account does not belong to the payer")]
-    Unauthorized,
-    #[msg("Invalid parent post")]
-    InvalidParentPost,
-    #[msg("Invalid or missing Ed25519 signature verification instruction")]
-    InvalidSignatureInstruction,
-    #[msg("Session expired or invalid timestamp")]
-    SessionExpired,
-    #[msg("Unauthorized signer")]
-    UnauthorizedSigner,
-    #[msg("Invalid post relation")]
-    InvalidRelation,
-    #[msg("Answer must target a Question post")]
-    AnswerMustTargetQuestion,
-    #[msg("Answer target must be a Root post")]
-    AnswerTargetNotRoot,
-    #[msg("Zero tip amount not allowed")]
-    ZeroTipAmount,
-    #[msg("Cannot tip yourself")]
-    CannotTipSelf,
-    #[msg("No tips to claim")]
-    NoTipsToClaim,
-    #[msg("Zero amount not allowed")]
-    ZeroAmount,
-    #[msg("Cannot send tokens to yourself")]
-    CannotSendToSelf,
-    #[msg("Token is not withdrawable")]
-    TokenNotWithdrawable,
-    #[msg("User is not dead")]
-    NotDead,
-}
-
 #[program]
 pub mod opinions_market {
 
@@ -994,6 +936,90 @@ pub mod opinions_market {
         Ok(())
     }
 
-    //
-    pub fn apply_modifier(ctx: Context<ApplyModifier>, modifier: Modifier) -> Result<()> {}
+    // //
+    // pub fn grant_modifier(
+    //     ctx: Context<GrantModifier>,
+    //     target: Pubkey,
+    //     effect: ModifierEffect,
+    //     stack_rule: StackRule,
+    //     expires_at: i64,
+    // ) -> Result<()> {
+    //     // 1. Authorization
+    //     require!(
+    //         ctx.accounts
+    //             .om_config
+    //             .is_authorized_issuer(ctx.accounts.issuer.key()),
+    //         ErrorCode::UnauthorizedModifierIssuer
+    //     );
+
+    //     // 2. Create / overwrite ActiveModifier PDA
+    //     let modifier = &mut ctx.accounts.modifier;
+    //     modifier.target = target;
+    //     modifier.issuer = ctx.accounts.issuer.key();
+    //     modifier.effect = effect;
+    //     modifier.stack_rule = stack_rule;
+    //     modifier.expires_at = expires_at;
+
+    //     Ok(())
+    // }
+}
+
+#[error_code]
+pub enum ErrorCode {
+    #[msg("Post is not open")]
+    PostNotOpen,
+    #[msg("Post is expired")]
+    PostExpired,
+    #[msg("Post already settled")]
+    PostAlreadySettled,
+    #[msg("Post not yet expired")]
+    PostNotExpired,
+    #[msg("Post not settled")]
+    PostNotSettled,
+    #[msg("No winner for this post")]
+    NoWinner,
+    #[msg("Reward already claimed")]
+    AlreadyClaimed,
+    #[msg("Math overflow")]
+    MathOverflow,
+    #[msg("Zero votes not allowed")]
+    ZeroVotes,
+    #[msg("Mint is not enabled")]
+    MintNotEnabled,
+    #[msg("BLING cannot be registered as an alternative payment")]
+    BlingCannotBeAlternativePayment,
+    #[msg("Alternative payment already registered for this mint")]
+    AlternativePaymentAlreadyRegistered,
+    #[msg("Unauthorized: user account does not belong to the payer")]
+    Unauthorized,
+    #[msg("Invalid parent post")]
+    InvalidParentPost,
+    #[msg("Invalid or missing Ed25519 signature verification instruction")]
+    InvalidSignatureInstruction,
+    #[msg("Session expired or invalid timestamp")]
+    SessionExpired,
+    #[msg("Unauthorized signer")]
+    UnauthorizedSigner,
+    #[msg("Invalid post relation")]
+    InvalidRelation,
+    #[msg("Answer must target a Question post")]
+    AnswerMustTargetQuestion,
+    #[msg("Answer target must be a Root post")]
+    AnswerTargetNotRoot,
+    #[msg("Zero tip amount not allowed")]
+    ZeroTipAmount,
+    #[msg("Cannot tip yourself")]
+    CannotTipSelf,
+    #[msg("No tips to claim")]
+    NoTipsToClaim,
+    #[msg("Zero amount not allowed")]
+    ZeroAmount,
+    #[msg("Cannot send tokens to yourself")]
+    CannotSendToSelf,
+    #[msg("Token is not withdrawable")]
+    TokenNotWithdrawable,
+    #[msg("User is not dead")]
+    NotDead,
+    #[msg("Unauthorized modifier issuer")]
+    UnauthorizedModifierIssuer,
 }

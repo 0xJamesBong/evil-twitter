@@ -20,6 +20,7 @@ opinions_market = { path = "programs/opinions_market" }
 referrals = { path = "programs/referrals" }
 persona = { path = "programs/persona" }
 fed = { path = "programs/fed" }
+industrial-complex = { path = "programs/industrial-complex" }
 
 anchor-lang = "0.31.1"
 anchor-client = "0.31.1"

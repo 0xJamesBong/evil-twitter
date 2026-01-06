@@ -2303,6 +2303,11 @@
       "code": 6026,
       "name": "NotDead",
       "msg": "User is not dead"
+    },
+    {
+      "code": 6027,
+      "name": "UnauthorizedModifierIssuer",
+      "msg": "Unauthorized modifier issuer"
     }
   ],
   "types": [

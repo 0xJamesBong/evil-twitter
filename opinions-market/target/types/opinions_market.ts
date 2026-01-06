@@ -2309,6 +2309,11 @@ export type OpinionsMarket = {
       "code": 6026,
       "name": "notDead",
       "msg": "User is not dead"
+    },
+    {
+      "code": 6027,
+      "name": "unauthorizedModifierIssuer",
+      "msg": "Unauthorized modifier issuer"
     }
   ],
   "types": [
