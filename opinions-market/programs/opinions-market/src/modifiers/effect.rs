@@ -1,4 +1,4 @@
-// Prepare for NFTS
+// Let us now prepare to build a modifier system which can be owned by NFTs.
 // Core principle (do not violate this)
 
 // Weapons are not objects.
