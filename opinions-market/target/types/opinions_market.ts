@@ -260,6 +260,9 @@ export type OpinionsMarket = {
           "name": "vaultAuthority"
         },
         {
+          "name": "validPayment"
+        },
+        {
           "name": "tokenMint"
         },
         {
@@ -708,6 +711,211 @@ export type OpinionsMarket = {
       ]
     },
     {
+      "name": "distributeCreatorReward",
+      "discriminator": [
+        236,
+        163,
+        223,
+        55,
+        91,
+        109,
+        80,
+        119
+      ],
+      "accounts": [
+        {
+          "name": "payer",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "post",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  111,
+                  115,
+                  116,
+                  95,
+                  97,
+                  99,
+                  99,
+                  111,
+                  117,
+                  110,
+                  116
+                ]
+              },
+              {
+                "kind": "arg",
+                "path": "postIdHash"
+              }
+            ]
+          }
+        },
+        {
+          "name": "postPotTokenAccount",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  111,
+                  115,
+                  116,
+                  95,
+                  112,
+                  111,
+                  116,
+                  95,
+                  116,
+                  111,
+                  107,
+                  101,
+                  110,
+                  95,
+                  97,
+                  99,
+                  99,
+                  111,
+                  117,
+                  110,
+                  116
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "post"
+              },
+              {
+                "kind": "account",
+                "path": "tokenMint"
+              }
+            ]
+          }
+        },
+        {
+          "name": "postPotAuthority",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  111,
+                  115,
+                  116,
+                  95,
+                  112,
+                  111,
+                  116,
+                  95,
+                  97,
+                  117,
+                  116,
+                  104,
+                  111,
+                  114,
+                  105,
+                  116,
+                  121
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "post"
+              }
+            ]
+          }
+        },
+        {
+          "name": "postMintPayout",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  111,
+                  115,
+                  116,
+                  95,
+                  109,
+                  105,
+                  110,
+                  116,
+                  95,
+                  112,
+                  97,
+                  121,
+                  111,
+                  117,
+                  116
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "post"
+              },
+              {
+                "kind": "account",
+                "path": "tokenMint"
+              }
+            ]
+          }
+        },
+        {
+          "name": "creatorVaultTokenAccount",
+          "writable": true
+        },
+        {
+          "name": "creatorUser",
+          "docs": [
+            "This is the creator of the post, used to derive the creator vault PDA",
+            "Marked as mut because Fed CPI requires it for init_if_needed on creator vault"
+          ],
+          "writable": true
+        },
+        {
+          "name": "vaultAuthority"
+        },
+        {
+          "name": "validPayment"
+        },
+        {
+          "name": "tokenMint"
+        },
+        {
+          "name": "fedProgram",
+          "address": "6p4L4eVGQtzYEnYFnSrEFGaZMqsrx7r1Emd5aPBAXXzC"
+        },
+        {
+          "name": "tokenProgram",
+          "address": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
+        },
+        {
+          "name": "systemProgram",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "postIdHash",
+          "type": {
+            "array": [
+              "u8",
+              32
+            ]
+          }
+        }
+      ]
+    },
+    {
       "name": "distributeParentPostShare",
       "docs": [
         "Distribute parent post share from frozen settlement.",
@@ -951,6 +1159,24 @@ export type OpinionsMarket = {
           }
         },
         {
+          "name": "validPayment"
+        },
+        {
+          "name": "vaultAuthority"
+        },
+        {
+          "name": "creatorUser",
+          "docs": [
+            "This is the creator of the parent post, used to derive the creator vault PDA",
+            "Marked as mut because Fed CPI requires it for init_if_needed on creator vault"
+          ],
+          "writable": true
+        },
+        {
+          "name": "parentCreatorVaultTokenAccount",
+          "writable": true
+        },
+        {
           "name": "tokenMint"
         },
         {
@@ -960,6 +1186,10 @@ export type OpinionsMarket = {
         {
           "name": "tokenProgram",
           "address": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
+        },
+        {
+          "name": "systemProgram",
+          "address": "11111111111111111111111111111111"
         }
       ],
       "args": [
@@ -977,8 +1207,6 @@ export type OpinionsMarket = {
     {
       "name": "distributeProtocolFee",
       "docs": [
-        "Distribute creator reward from frozen settlement.",
-        "Reads creator_fee from PostMintPayout and transfers it to creator's vault.",
         "Distribute protocol fee from frozen settlement.",
         "Reads protocol_fee from PostMintPayout and transfers it to protocol treasury."
       ],
@@ -1238,8 +1466,141 @@ export type OpinionsMarket = {
         {
           "name": "extensionPerVoteSecs",
           "type": "u32"
+        },
+        {
+          "name": "resurrectionFee",
+          "type": "u64"
+        },
+        {
+          "name": "resurrectionFeeBlingPremium",
+          "type": "u64"
         }
       ]
+    },
+    {
+      "name": "resurrect",
+      "discriminator": [
+        180,
+        81,
+        224,
+        113,
+        57,
+        255,
+        220,
+        197
+      ],
+      "accounts": [
+        {
+          "name": "omConfig",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  111,
+                  109,
+                  95,
+                  99,
+                  111,
+                  110,
+                  102,
+                  105,
+                  103
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "user",
+          "writable": true
+        },
+        {
+          "name": "payer",
+          "writable": true
+        },
+        {
+          "name": "sessionKey",
+          "writable": true
+        },
+        {
+          "name": "sessionAuthority"
+        },
+        {
+          "name": "userAccount"
+        },
+        {
+          "name": "voterAccount",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  118,
+                  111,
+                  116,
+                  101,
+                  114,
+                  95,
+                  97,
+                  99,
+                  99,
+                  111,
+                  117,
+                  110,
+                  116
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "user"
+              }
+            ]
+          }
+        },
+        {
+          "name": "userVaultTokenAccount",
+          "docs": [
+            "- keep opague so Fed TokenAccount cpi will initialize it and we won't be stopped by TokenAccount here"
+          ],
+          "writable": true
+        },
+        {
+          "name": "protocolTokenTreasuryTokenAccount",
+          "writable": true
+        },
+        {
+          "name": "vaultAuthority"
+        },
+        {
+          "name": "validPayment"
+        },
+        {
+          "name": "fedConfig"
+        },
+        {
+          "name": "tokenMint"
+        },
+        {
+          "name": "tokenProgram",
+          "address": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
+        },
+        {
+          "name": "fedProgram",
+          "address": "6p4L4eVGQtzYEnYFnSrEFGaZMqsrx7r1Emd5aPBAXXzC"
+        },
+        {
+          "name": "personaProgram",
+          "address": "3bE1UxZ4VFKbptUhpFwzA1AdXgdJENhRcLQApj9F9Z1d"
+        },
+        {
+          "name": "systemProgram",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": []
     },
     {
       "name": "settlePost",
@@ -1943,9 +2304,85 @@ export type OpinionsMarket = {
       "code": 6025,
       "name": "tokenNotWithdrawable",
       "msg": "Token is not withdrawable"
+    },
+    {
+      "code": 6026,
+      "name": "notDead",
+      "msg": "User is not dead"
+    },
+    {
+      "code": 6027,
+      "name": "unauthorizedModifierIssuer",
+      "msg": "Unauthorized modifier issuer"
     }
   ],
   "types": [
+    {
+      "name": "appearance",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "freshness",
+            "type": "i16"
+          },
+          {
+            "name": "charisma",
+            "type": "i16"
+          },
+          {
+            "name": "originality",
+            "type": "i16"
+          },
+          {
+            "name": "npcNess",
+            "type": "i16"
+          },
+          {
+            "name": "beauty",
+            "type": "i16"
+          },
+          {
+            "name": "intellectualism",
+            "type": "i16"
+          },
+          {
+            "name": "padding",
+            "type": {
+              "array": [
+                "u8",
+                31
+              ]
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "body",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "health",
+            "type": "u16"
+          },
+          {
+            "name": "energy",
+            "type": "u16"
+          },
+          {
+            "name": "padding",
+            "type": {
+              "array": [
+                "u8",
+                31
+              ]
+            }
+          }
+        ]
+      }
+    },
     {
       "name": "forcedOutcome",
       "docs": [
@@ -1983,6 +2420,14 @@ export type OpinionsMarket = {
           {
             "name": "extensionPerVoteSecs",
             "type": "u32"
+          },
+          {
+            "name": "resurrectionFee",
+            "type": "u64"
+          },
+          {
+            "name": "resurrectionFeeBlingPremium",
+            "type": "u64"
           },
           {
             "name": "bump",
@@ -2238,77 +2683,24 @@ export type OpinionsMarket = {
             "type": "pubkey"
           },
           {
-            "name": "socialScore",
-            "type": "i64"
-          },
-          {
-            "name": "attackSurface",
+            "name": "appearance",
             "type": {
               "defined": {
-                "name": "voterAccountAttackSurface"
+                "name": "appearance"
+              }
+            }
+          },
+          {
+            "name": "body",
+            "type": {
+              "defined": {
+                "name": "body"
               }
             }
           },
           {
             "name": "bump",
             "type": "u8"
-          }
-        ]
-      }
-    },
-    {
-      "name": "voterAccountAttackSurface",
-      "type": {
-        "kind": "struct",
-        "fields": [
-          {
-            "name": "enabled",
-            "type": "bool"
-          },
-          {
-            "name": "surface1",
-            "type": "i16"
-          },
-          {
-            "name": "surface2",
-            "type": "i16"
-          },
-          {
-            "name": "surface3",
-            "type": "i16"
-          },
-          {
-            "name": "surface4",
-            "type": "i16"
-          },
-          {
-            "name": "surface5",
-            "type": "i16"
-          },
-          {
-            "name": "surface6",
-            "type": "i16"
-          },
-          {
-            "name": "surface7",
-            "type": "i16"
-          },
-          {
-            "name": "surface8",
-            "type": "i16"
-          },
-          {
-            "name": "surface9",
-            "type": "i16"
-          },
-          {
-            "name": "padding",
-            "type": {
-              "array": [
-                "u8",
-                31
-              ]
-            }
           }
         ]
       }

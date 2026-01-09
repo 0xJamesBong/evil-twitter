@@ -314,17 +314,28 @@ pub struct DistributeCreatorReward<'info> {
     pub post_mint_payout: Account<'info, PostMintPayout>,
 
     // creator's vault for receiving creator fees
-    /// CHECK: SPL token account whose authority is the fed - cannot do #[account(owner = fed::ID)]
+    /// CHECK: may be uninitialized; Fed will init_if_needed and validate PDA
     #[account(mut)]
-    pub creator_vault_token_account: Account<'info, TokenAccount>,
+    pub creator_vault_token_account: UncheckedAccount<'info>,
+
+    /// CHECK: Creator user pubkey (used for PDA derivation in Fed, passed as account for convenience)
+    /// This is the creator of the post, used to derive the creator vault PDA
+    /// Marked as mut because Fed CPI requires it for init_if_needed on creator vault
+    #[account(mut, constraint = creator_user.key() == post.creator_user @ ErrorCode::Unauthorized)]
+    pub creator_user: UncheckedAccount<'info>,
 
     // Vault authority opague passed from the fed 
     /// CHECK: just a pda - can't require #[account(owner = fed::ID)]
     pub vault_authority: UncheckedAccount<'info>,
 
+    /// CHECK: Fed-owned ValidPayment account - let the fed check it
+    #[account(owner = fed::ID)]
+    pub valid_payment: UncheckedAccount<'info>,
+
     pub token_mint: Account<'info, Mint>,
     pub fed_program: Program<'info, fed::program::Fed>,
     pub token_program: Program<'info, Token>,
+    pub system_program: Program<'info, System>,
 }
 
 #[derive(Accounts)]
@@ -420,9 +431,12 @@ pub struct DistributeParentPostShare<'info> {
     pub parent_post: Account<'info, PostAccount>,
 
     #[account(
-        mut,
+        init_if_needed,
+        payer = payer,
         seeds = [POST_POT_TOKEN_ACCOUNT_SEED, parent_post.key().as_ref(), token_mint.key().as_ref()],
         bump,
+        token::mint = token_mint,
+        token::authority = parent_post_pot_authority,
         constraint = parent_post_pot_token_account.mint == token_mint.key(),
         constraint = parent_post_pot_token_account.owner == parent_post_pot_authority.key(),
     )]
@@ -435,9 +449,30 @@ pub struct DistributeParentPostShare<'info> {
     )]
     pub parent_post_pot_authority: UncheckedAccount<'info>,
 
+
+    /// CHECK: Fed-owned ValidPayment account - let the fed check it
+    #[account(owner = fed::ID)]
+    pub valid_payment: UncheckedAccount<'info>,
+    
+    // Vault authority opague passed from the fed 
+    /// CHECK: just a pda - can't require #[account(owner = fed::ID)]
+    pub vault_authority: UncheckedAccount<'info>,
+
+    /// CHECK: Creator user pubkey (used for PDA derivation in Fed, passed as account for convenience)
+    /// This is the creator of the parent post, used to derive the creator vault PDA
+    /// Marked as mut because Fed CPI requires it for init_if_needed on creator vault
+    #[account(mut, constraint = creator_user.key() == parent_post.creator_user @ ErrorCode::Unauthorized)]
+    pub creator_user: UncheckedAccount<'info>,
+
+    /// CHECK: Parent post creator's vault token account (may be uninitialized; Fed will init_if_needed and validate PDA)
+    #[account(mut)]
+    pub parent_creator_vault_token_account: UncheckedAccount<'info>,
+
+    
     pub token_mint: Account<'info, Mint>,
     pub fed_program: Program<'info, fed::program::Fed>,
     pub token_program: Program<'info, Token>,
+    pub system_program: Program<'info, System>,
 }
 
 // The User-uncheckedAccount and payer-Signer pattern is used to allow for dual signing - so the user doesn't need to see a signature prompt pop-up
@@ -503,17 +538,80 @@ pub struct ClaimPostReward<'info> {
     pub post_pot_authority: UncheckedAccount<'info>,
 
 
-    /// CHECK: SPL token account whose authority is the fed - cannot do #[account(owner = fed::ID)]
+    /// CHECK: User vault token account (may be uninitialized; Fed will init_if_needed and validate PDA)
     #[account(mut)]
-    pub user_vault_token_account: Account<'info, TokenAccount>,
+    pub user_vault_token_account: UncheckedAccount<'info>,
 
     // Vault authority opague passed from the fed 
     /// CHECK: just a pda - can't require #[account(owner = fed::ID)]
     pub vault_authority: UncheckedAccount<'info>,
 
+    /// CHECK: Fed-owned ValidPayment account - let the fed check it
+    #[account(owner = fed::ID)]
+    pub valid_payment: UncheckedAccount<'info>,
+
     pub token_mint: Account<'info, Mint>,
     pub fed_program: Program<'info, fed::program::Fed>,
     pub persona_program: Program<'info, persona::program::Persona>,
     pub token_program: Program<'info, Token>,
+    pub system_program: Program<'info, System>,
+}
+
+
+#[derive(Accounts)]
+pub struct Resurrect<'info> {
+    #[account(mut,
+        seeds = [OM_CONFIG_SEED],
+        bump,
+    )]
+    pub om_config: Account<'info, OMConfig>,
+    /// CHECK: real user identity (owner of UserAccount and vaults)
+    #[account(mut)]
+    pub user: UncheckedAccount<'info>,
+
+    /// CHECK: Signer paying the TX fee (user or backend)
+    #[account(mut)]
+    pub payer: UncheckedAccount<'info>,
+
+    /// CHECK: ephemeral delegated session key
+    #[account(mut)]
+    pub session_key: UncheckedAccount<'info>,
+
+    /// CHECK: persona-owned session authority (opaque)
+    #[account(owner = persona::ID)]
+    pub session_authority: AccountInfo<'info>,
+
+    /// CHECK: persona-owned user account (opaque) - used for checking authentication
+    #[account(owner = persona::ID)]
+    pub user_account: AccountInfo<'info>,
+
+    /// CHECK: owned by opinions market - this is the voter data 
+    #[account(mut, seeds = [VOTER_ACCOUNT_SEED, user.key().as_ref()], bump)]
+    pub voter_account: Account<'info, VoterAccount>,
+
+    /// CHECK: this is a token account, owned by the SPL program, but its authority is a pda inside the fed 
+    /// - keep opague so Fed TokenAccount cpi will initialize it and we won't be stopped by TokenAccount here
+    #[account(mut)]
+    pub user_vault_token_account: UncheckedAccount<'info>,
+
+    /// CHECK: SPL token account whose authority is the fed - cannot do #[account(owner = fed::ID)]
+    #[account(mut)]
+    pub protocol_token_treasury_token_account: UncheckedAccount<'info>,
+
+    // Vault authority opague passed from the fed 
+    /// CHECK: just a pda - can't require #[account(owner = fed::ID)]
+    pub vault_authority: UncheckedAccount<'info>,
+
+    /// CHECK: Fed-owned ValidPayment account - let the fed check it
+    #[account(owner = fed::ID)]
+    pub valid_payment: UncheckedAccount<'info>,
+
+    /// CHECK: Fed config PDA (authority of treasury token account) - let the fed check it
+    pub fed_config: UncheckedAccount<'info>,
+    
+    pub token_mint: Account<'info, Mint>,
+    pub token_program: Program<'info, Token>,
+    pub fed_program: Program<'info, fed::program::Fed>,
+    pub persona_program: Program<'info, persona::program::Persona>,
     pub system_program: Program<'info, System>,
 }

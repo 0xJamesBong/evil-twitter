@@ -11,7 +11,7 @@ use solana_sdk::{
     signature::{Keypair, Signer},
 }; // Add this import
 
-use crate::config::TIME_CONFIG_FAST;
+use crate::config::{RESURRECTION_FEE, RESURRECTION_FEE_BLING_PREMIUM, TIME_CONFIG_FAST};
 use crate::utils::phenomena::{
     test_phenomena_add_valid_payment, test_phenomena_claim_post_reward,
     test_phenomena_create_answer, test_phenomena_create_post, test_phenomena_create_question,
@@ -253,6 +253,8 @@ async fn test_setup() {
                 base_duration_secs: TIME_CONFIG_FAST.base_duration_secs,
                 max_duration_secs: TIME_CONFIG_FAST.max_duration_secs,
                 extension_per_vote_secs: TIME_CONFIG_FAST.extension_per_vote_secs,
+                resurrection_fee: RESURRECTION_FEE,
+                resurrection_fee_bling_premium: RESURRECTION_FEE_BLING_PREMIUM,
             })
             .instructions()
             .unwrap();
@@ -622,6 +624,18 @@ async fn test_setup() {
         //         Note: In a real test, you'd need to wait for the post to expire before settling
         // For now, we'll just show the settle function exists
         {
+            println!("Settling post P2");
+            test_phenomena_settle_post(
+                &rpc,
+                &opinions_market,
+                &fed,
+                &payer,
+                &post_p2_pda,
+                &tokens,
+                &om_config_pda,
+            )
+            .await;
+
             // wait_seconds(TIME_CONFIG_FAST.max_duration_secs as u64).await;
             println!("Settling post P1");
             test_phenomena_settle_post(

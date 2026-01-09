@@ -11,7 +11,9 @@ use anchor_lang::prelude::*;
 /// - score 0 → 20_000 BPS (200% = 2.0x multiplier)
 /// - score -100 → 5_000 BPS (50% = 0.5x multiplier)
 pub fn social_score_multiplier(voter_account: &VoterAccount) -> Result<u64> {
-    let score = voter_account.social_score;
+    let (positive, negative) = voter_account.social_score();
+    // Todo! this needs to be improved
+    let score = if positive > 0 { positive } else { negative };
 
     let mult_bps = if score >= 0 {
         // score 0 → 20_000 BPS (200% = 2.0x)

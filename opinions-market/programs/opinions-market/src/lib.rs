@@ -13,62 +13,6 @@ use states::*;
 
 declare_id!("4z5rjroGdWmgGX13SdFsh4wRM4jJkMUrcvYrNpV3gezm");
 
-#[error_code]
-pub enum ErrorCode {
-    #[msg("Post is not open")]
-    PostNotOpen,
-    #[msg("Post is expired")]
-    PostExpired,
-    #[msg("Post already settled")]
-    PostAlreadySettled,
-    #[msg("Post not yet expired")]
-    PostNotExpired,
-    #[msg("Post not settled")]
-    PostNotSettled,
-    #[msg("No winner for this post")]
-    NoWinner,
-    #[msg("Reward already claimed")]
-    AlreadyClaimed,
-    #[msg("Math overflow")]
-    MathOverflow,
-    #[msg("Zero votes not allowed")]
-    ZeroVotes,
-    #[msg("Mint is not enabled")]
-    MintNotEnabled,
-    #[msg("BLING cannot be registered as an alternative payment")]
-    BlingCannotBeAlternativePayment,
-    #[msg("Alternative payment already registered for this mint")]
-    AlternativePaymentAlreadyRegistered,
-    #[msg("Unauthorized: user account does not belong to the payer")]
-    Unauthorized,
-    #[msg("Invalid parent post")]
-    InvalidParentPost,
-    #[msg("Invalid or missing Ed25519 signature verification instruction")]
-    InvalidSignatureInstruction,
-    #[msg("Session expired or invalid timestamp")]
-    SessionExpired,
-    #[msg("Unauthorized signer")]
-    UnauthorizedSigner,
-    #[msg("Invalid post relation")]
-    InvalidRelation,
-    #[msg("Answer must target a Question post")]
-    AnswerMustTargetQuestion,
-    #[msg("Answer target must be a Root post")]
-    AnswerTargetNotRoot,
-    #[msg("Zero tip amount not allowed")]
-    ZeroTipAmount,
-    #[msg("Cannot tip yourself")]
-    CannotTipSelf,
-    #[msg("No tips to claim")]
-    NoTipsToClaim,
-    #[msg("Zero amount not allowed")]
-    ZeroAmount,
-    #[msg("Cannot send tokens to yourself")]
-    CannotSendToSelf,
-    #[msg("Token is not withdrawable")]
-    TokenNotWithdrawable,
-}
-
 #[program]
 pub mod opinions_market {
 
@@ -87,6 +31,8 @@ pub mod opinions_market {
         base_duration_secs: u32,
         max_duration_secs: u32,
         extension_per_vote_secs: u32,
+        resurrection_fee: u64,
+        resurrection_fee_bling_premium: u64,
     ) -> Result<()> {
         let om_config = &mut ctx.accounts.om_config;
 
@@ -95,6 +41,8 @@ pub mod opinions_market {
             base_duration_secs,
             max_duration_secs,
             extension_per_vote_secs,
+            resurrection_fee,
+            resurrection_fee_bling_premium,
             ctx.bumps.om_config,
             [0; 7],
         );
@@ -103,6 +51,8 @@ pub mod opinions_market {
         om_config.base_duration_secs = new_config.base_duration_secs;
         om_config.max_duration_secs = new_config.max_duration_secs;
         om_config.extension_per_vote_secs = new_config.extension_per_vote_secs;
+        om_config.resurrection_fee = new_config.resurrection_fee;
+        om_config.resurrection_fee_bling_premium = new_config.resurrection_fee_bling_premium;
         om_config.bump = new_config.bump;
         om_config.padding = new_config.padding;
 
@@ -168,8 +118,8 @@ pub mod opinions_market {
             let new_voter_account =
                 VoterAccount::default(ctx.accounts.user.key(), ctx.bumps.voter_account);
             voter_account.voter = new_voter_account.voter;
-            voter_account.social_score = new_voter_account.social_score;
-            voter_account.attack_surface = new_voter_account.attack_surface;
+            voter_account.appearance = new_voter_account.appearance;
+            voter_account.body = new_voter_account.body;
             voter_account.bump = new_voter_account.bump;
         }
 
@@ -243,8 +193,8 @@ pub mod opinions_market {
             let new_voter_account =
                 VoterAccount::default(ctx.accounts.user.key(), ctx.bumps.voter_account);
             voter_account.voter = new_voter_account.voter;
-            voter_account.social_score = new_voter_account.social_score;
-            voter_account.attack_surface = new_voter_account.attack_surface;
+            voter_account.appearance = new_voter_account.appearance;
+            voter_account.body = new_voter_account.body;
             voter_account.bump = new_voter_account.bump;
         }
 
@@ -674,53 +624,58 @@ pub mod opinions_market {
         Ok(())
     }
 
-    /// Distribute creator reward from frozen settlement.
-    /// Reads creator_fee from PostMintPayout and transfers it to creator's vault.
-    // pub fn distribute_creator_reward(
-    //     ctx: Context<DistributeCreatorReward>,
-    //     post_id_hash: [u8; 32],
-    // ) -> Result<()> {
-    //     let payout = &ctx.accounts.post_mint_payout;
-    //     require!(payout.frozen, ErrorCode::PostNotSettled);
+    // / Distribute creator reward from frozen settlement.
+    // / Reads creator_fee from PostMintPayout and transfers it to creator's vault.
+    pub fn distribute_creator_reward(
+        ctx: Context<DistributeCreatorReward>,
+        post_id_hash: [u8; 32],
+    ) -> Result<()> {
+        let payout = &ctx.accounts.post_mint_payout;
+        require!(payout.frozen, ErrorCode::PostNotSettled);
 
-    //     let creator_fee = payout.creator_fee;
-    //     if creator_fee == 0 {
-    //         msg!("No creator fee to distribute");
-    //         return Ok(());
-    //     }
+        let creator_fee = payout.creator_fee;
+        if creator_fee == 0 {
+            msg!("No creator fee to distribute");
+            return Ok(());
+        }
 
-    //     msg!("Distributing creator fee: {}", creator_fee);
+        msg!("Distributing creator fee: {}", creator_fee);
 
-    //     // Transfer from post pot to creator vault (post pot is owned by OM, so handle directly)
-    //     let post_key = ctx.accounts.post.key();
-    //     let (_, post_pot_bump) = Pubkey::find_program_address(
-    //         &[POST_POT_AUTHORITY_SEED, post_key.as_ref()],
-    //         ctx.program_id,
-    //     );
-    //     let post_pot_authority_seeds: &[&[&[u8]]] =
-    //         &[&[POST_POT_AUTHORITY_SEED, post_key.as_ref(), &[post_pot_bump]]];
+        let post_key = ctx.accounts.post.key();
+        let (_, post_pot_bump) = Pubkey::find_program_address(
+            &[POST_POT_AUTHORITY_SEED, post_key.as_ref()],
+            ctx.program_id,
+        );
+        let post_pot_authority_seeds: &[&[&[u8]]] =
+            &[&[POST_POT_AUTHORITY_SEED, post_key.as_ref(), &[post_pot_bump]]];
 
-    //     fed::cpi::transfer(CpiContext::new(
-    //         ctx.accounts.fed_program.to_account_info(),
-    //         fed::cpi::accounts::Transfer {
-    //             from: ctx.accounts.post_pot_token_account.to_account_info(),
-    //             to: ctx.accounts.creator_vault_token_account.to_account_info(),
-    //         },
-    //     ))?;
-    //     //     let cpi = CpiContext::new_with_signer(
-    //     //         ctx.accounts.token_program.to_account_info(),
-    //     //         anchor_spl::token::Transfer {
-    //     //             from: ctx.accounts.post_pot_token_account.to_account_info(),
-    //     //             to: ctx.accounts.creator_vault_token_account.to_account_info(),
-    //     //             authority: ctx.accounts.post_pot_authority.to_account_info(),
-    //     //         },
-    //     //         seeds,
-    //     //     );
+        fed::cpi::transfer_into_fed_user_account(
+            CpiContext::new_with_signer(
+                ctx.accounts.fed_program.to_account_info(),
+                fed::cpi::accounts::TransferIntoFedUserAccount {
+                    from: ctx.accounts.post_pot_token_account.to_account_info(),
+                    from_authority: ctx.accounts.post_pot_authority.to_account_info(),
+                    user: ctx.accounts.creator_user.to_account_info(),
+                    to_user_vault_token_account: ctx
+                        .accounts
+                        .creator_vault_token_account
+                        .to_account_info(),
+                    valid_payment: ctx.accounts.valid_payment.to_account_info(),
+                    vault_authority: ctx.accounts.vault_authority.to_account_info(),
+                    token_mint: ctx.accounts.token_mint.to_account_info(),
+                    payer: ctx.accounts.payer.to_account_info(),
+                    token_program: ctx.accounts.token_program.to_account_info(),
+                    system_program: ctx.accounts.system_program.to_account_info(),
+                },
+                post_pot_authority_seeds,
+            ),
+            creator_fee,
+        )?;
 
-    //     msg!("✅ Creator reward distributed successfully");
+        msg!("✅ Creator reward distributed successfully");
 
-    //     Ok(())
-    // }
+        Ok(())
+    }
 
     /// Distribute protocol fee from frozen settlement.
     /// Reads protocol_fee from PostMintPayout and transfers it to protocol treasury.
@@ -805,6 +760,7 @@ pub mod opinions_market {
         let post_pot_authority_seeds: &[&[&[u8]]] =
             &[&[POST_POT_AUTHORITY_SEED, post_key.as_ref(), &[post_pot_bump]]];
 
+        // not a CPI because we are not transferring money to the fed - we are just sending it to another post pot.
         anchor_spl::token::transfer(
             CpiContext::new_with_signer(
                 ctx.accounts.token_program.to_account_info(),
@@ -883,45 +839,187 @@ pub mod opinions_market {
         let post_pot_authority_seeds: &[&[&[u8]]] =
             &[&[POST_POT_AUTHORITY_SEED, post_key.as_ref(), &[post_pot_bump]]];
 
-        anchor_spl::token::transfer(
+        fed::cpi::transfer_into_fed_user_account(
             CpiContext::new_with_signer(
-                ctx.accounts.token_program.to_account_info(),
-                anchor_spl::token::Transfer {
+                ctx.accounts.fed_program.to_account_info(),
+                fed::cpi::accounts::TransferIntoFedUserAccount {
                     from: ctx.accounts.post_pot_token_account.to_account_info(),
-                    to: ctx.accounts.user_vault_token_account.to_account_info(),
-                    authority: ctx.accounts.post_pot_authority.to_account_info(),
+                    from_authority: ctx.accounts.post_pot_authority.to_account_info(),
+                    user: ctx.accounts.user.to_account_info(),
+                    to_user_vault_token_account: ctx
+                        .accounts
+                        .user_vault_token_account
+                        .to_account_info(),
+                    valid_payment: ctx.accounts.valid_payment.to_account_info(),
+                    vault_authority: ctx.accounts.vault_authority.to_account_info(),
+                    token_mint: ctx.accounts.token_mint.to_account_info(),
+                    payer: ctx.accounts.payer.to_account_info(),
+                    token_program: ctx.accounts.token_program.to_account_info(),
+                    system_program: ctx.accounts.system_program.to_account_info(),
                 },
                 post_pot_authority_seeds,
             ),
             reward,
         )?;
 
-        // {
-        //     // Transfer reward
-        //     let post_key = post.key();
-        //     let (_, bump) = Pubkey::find_program_address(
-        //         &[POST_POT_AUTHORITY_SEED, post_key.as_ref()],
-        //         ctx.program_id,
-        //     );
-
-        //     let bump_array = [bump];
-        //     let seeds_array = [POST_POT_AUTHORITY_SEED, post_key.as_ref(), &bump_array];
-        //     let seeds: &[&[&[u8]]] = &[&seeds_array];
-
-        //     let cpi = CpiContext::new_with_signer(
+        // anchor_spl::token::transfer(
+        //     CpiContext::new_with_signer(
         //         ctx.accounts.token_program.to_account_info(),
         //         anchor_spl::token::Transfer {
         //             from: ctx.accounts.post_pot_token_account.to_account_info(),
         //             to: ctx.accounts.user_vault_token_account.to_account_info(),
         //             authority: ctx.accounts.post_pot_authority.to_account_info(),
         //         },
-        //         seeds,
-        //     );
-
-        //     anchor_spl::token::transfer(cpi, reward)?;
-        // }
+        //         post_pot_authority_seeds,
+        //     ),
+        //     reward,
+        // )?;
 
         claim.claimed = true;
         Ok(())
     }
+
+    pub fn resurrect(ctx: Context<Resurrect>) -> Result<()> {
+        // authenticate
+        let clock = Clock::get()?;
+        let now = clock.unix_timestamp;
+        persona::cpi::check_session_or_wallet(
+            CpiContext::new(
+                ctx.accounts.persona_program.to_account_info(),
+                persona::cpi::accounts::CheckSessionOrWallet {
+                    user: ctx.accounts.user.to_account_info(),
+                    session_key: ctx.accounts.session_key.to_account_info(),
+                    session_authority: ctx.accounts.session_authority.to_account_info(),
+                },
+            ),
+            now,
+        )?;
+
+        // the idea is that if you pay in usd, it will be cheap, but if you want to pay in bling, it will be very pricey
+        let resurrection_fee_in_dollars = ctx.accounts.om_config.resurrection_fee;
+        let resurrection_fee_in_dollars_with_bling_premium =
+            ctx.accounts.om_config.resurrection_fee_bling_premium;
+        // Transfer tokens from the user's vault to the protocol treasury
+        fed::cpi::convert_dollar_with_bling_premium_and_charge_to_protocol_treasury(
+            CpiContext::new(
+                ctx.accounts.fed_program.to_account_info(),
+                fed::cpi::accounts::ConvertDollarAndChargeToProtocolTreasury {
+                    user: ctx.accounts.user.to_account_info(),
+                    from_user_vault_token_account: ctx
+                        .accounts
+                        .user_vault_token_account
+                        .to_account_info(),
+                    protocol_treasury_token_account: ctx
+                        .accounts
+                        .protocol_token_treasury_token_account
+                        .to_account_info(),
+                    valid_payment: ctx.accounts.valid_payment.to_account_info(),
+                    token_mint: ctx.accounts.token_mint.to_account_info(),
+                    fed_config: ctx.accounts.fed_config.to_account_info(),
+                    vault_authority: ctx.accounts.vault_authority.to_account_info(),
+                    token_program: ctx.accounts.token_program.to_account_info(),
+                },
+            ),
+            resurrection_fee_in_dollars,
+            resurrection_fee_in_dollars_with_bling_premium,
+        )?;
+
+        let body = &mut ctx.accounts.voter_account.body;
+        let is_dead = body.is_dead();
+        if !is_dead {
+            return Err(ErrorCode::NotDead.into());
+        }
+        let new_body = body.resurrect();
+        body.health = new_body.health;
+        body.energy = new_body.energy;
+
+        Ok(())
+    }
+
+    // //
+    // pub fn grant_modifier(
+    //     ctx: Context<GrantModifier>,
+    //     target: Pubkey,
+    //     effect: ModifierEffect,
+    //     stack_rule: StackRule,
+    //     expires_at: i64,
+    // ) -> Result<()> {
+    //     // 1. Authorization
+    //     require!(
+    //         ctx.accounts
+    //             .om_config
+    //             .is_authorized_issuer(ctx.accounts.issuer.key()),
+    //         ErrorCode::UnauthorizedModifierIssuer
+    //     );
+
+    //     // 2. Create / overwrite ActiveModifier PDA
+    //     let modifier = &mut ctx.accounts.modifier;
+    //     modifier.target = target;
+    //     modifier.issuer = ctx.accounts.issuer.key();
+    //     modifier.effect = effect;
+    //     modifier.stack_rule = stack_rule;
+    //     modifier.expires_at = expires_at;
+
+    //     Ok(())
+    // }
+}
+
+#[error_code]
+pub enum ErrorCode {
+    #[msg("Post is not open")]
+    PostNotOpen,
+    #[msg("Post is expired")]
+    PostExpired,
+    #[msg("Post already settled")]
+    PostAlreadySettled,
+    #[msg("Post not yet expired")]
+    PostNotExpired,
+    #[msg("Post not settled")]
+    PostNotSettled,
+    #[msg("No winner for this post")]
+    NoWinner,
+    #[msg("Reward already claimed")]
+    AlreadyClaimed,
+    #[msg("Math overflow")]
+    MathOverflow,
+    #[msg("Zero votes not allowed")]
+    ZeroVotes,
+    #[msg("Mint is not enabled")]
+    MintNotEnabled,
+    #[msg("BLING cannot be registered as an alternative payment")]
+    BlingCannotBeAlternativePayment,
+    #[msg("Alternative payment already registered for this mint")]
+    AlternativePaymentAlreadyRegistered,
+    #[msg("Unauthorized: user account does not belong to the payer")]
+    Unauthorized,
+    #[msg("Invalid parent post")]
+    InvalidParentPost,
+    #[msg("Invalid or missing Ed25519 signature verification instruction")]
+    InvalidSignatureInstruction,
+    #[msg("Session expired or invalid timestamp")]
+    SessionExpired,
+    #[msg("Unauthorized signer")]
+    UnauthorizedSigner,
+    #[msg("Invalid post relation")]
+    InvalidRelation,
+    #[msg("Answer must target a Question post")]
+    AnswerMustTargetQuestion,
+    #[msg("Answer target must be a Root post")]
+    AnswerTargetNotRoot,
+    #[msg("Zero tip amount not allowed")]
+    ZeroTipAmount,
+    #[msg("Cannot tip yourself")]
+    CannotTipSelf,
+    #[msg("No tips to claim")]
+    NoTipsToClaim,
+    #[msg("Zero amount not allowed")]
+    ZeroAmount,
+    #[msg("Cannot send tokens to yourself")]
+    CannotSendToSelf,
+    #[msg("Token is not withdrawable")]
+    TokenNotWithdrawable,
+    #[msg("User is not dead")]
+    NotDead,
+    #[msg("Unauthorized modifier issuer")]
+    UnauthorizedModifierIssuer,
 }

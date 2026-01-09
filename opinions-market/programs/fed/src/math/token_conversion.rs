@@ -25,6 +25,7 @@ pub const STABLECOIN_DECIMALS: u8 = 6;
 ///
 /// # Returns
 /// Amount in token lamports, or MathOverflow error
+
 pub fn convert_dollar_to_token_lamports(
     dollar_lamports: u64,
     price_in_dollar: u64,

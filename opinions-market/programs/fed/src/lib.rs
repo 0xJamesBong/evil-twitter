@@ -72,6 +72,8 @@ pub enum ErrorCode {
     BadAuthority,
     #[msg("Invalid to account - must be Fed-owned for transfer_into_fed")]
     InvalidTo,
+    #[msg("Insufficient funds in user vault")]
+    InsufficientFundsInUserVault,
 }
 
 #[program]
@@ -427,12 +429,6 @@ pub mod fed {
         // 1. From-account must be external (not Fed-owned)
         require!(ctx.accounts.from.owner != fed::ID, ErrorCode::InvalidFrom);
 
-        // 2. To-account must be Fed-controlled treasury
-        require!(
-            ctx.accounts.protocol_treasury_token_account.owner == fed::ID,
-            ErrorCode::InvalidTo
-        );
-
         // 3. Mint must be enabled
         require!(
             ctx.accounts.valid_payment.enabled,
@@ -472,20 +468,21 @@ pub mod fed {
         // 1. From-account must be external (not Fed-owned)
         require!(ctx.accounts.from.owner != fed::ID, ErrorCode::InvalidFrom);
 
-        // 2. To-account must be Fed-controlled vault
-        require!(
-            ctx.accounts.to_user_vault_token_account.owner == fed::ID,
-            ErrorCode::InvalidTo
-        );
-
-        // 3. Mint must be enabled
+        // 2. Mint must be enabled (already checked in account constraint, but explicit here)
         require!(
             ctx.accounts.valid_payment.enabled,
             ErrorCode::MintNotEnabled
         );
 
-        // For transfer_into_fed, the external account owner signs
-        // No vault authority signer needed - Fed is receiving
+        // 3. Ensure from account mint matches token_mint
+        require!(
+            ctx.accounts.from.mint == ctx.accounts.token_mint.key(),
+            ErrorCode::Unauthorized
+        );
+
+        // For transfer_into_fed, the external account owner (from_authority) signs
+        // The from_authority is marked as #[account(signer)] so its signer status
+        // will be preserved in the nested CPI to the token program
         let cpi_accounts = anchor_spl::token::Transfer {
             from: ctx.accounts.from.to_account_info(),
             to: ctx.accounts.to_user_vault_token_account.to_account_info(),
@@ -553,6 +550,71 @@ pub mod fed {
         anchor_spl::token::transfer(cpi_ctx, amount)?;
 
         Ok(())
+    }
+
+    /// This function is basically identical to convert_dollar_and_charge_to_protocol_treasury except that this function allows other contracts to pay an excessive amount of non-dollar tokens
+    ///
+    /// Charges a protocol fee denominated in dollars from a user's vault,
+    /// applying an asset-specific premium when payment is made in BLING.
+    ///
+    /// The premium is enforced by substituting a higher effective dollar
+    /// amount prior to token conversion. All conversions and transfers
+    /// follow the standard payment pipeline.
+
+    pub fn convert_dollar_with_bling_premium_and_charge_to_protocol_treasury(
+        ctx: Context<ConvertDollarAndChargeToProtocolTreasury>,
+        dollar_amount: u64,
+        bling_premium_dollar_amount: u64,
+    ) -> Result<u64> {
+        // Skip if amount is 0
+        if dollar_amount == 0 {
+            return Ok(0);
+        }
+
+        let token_mint = ctx.accounts.valid_payment.token_mint;
+        let fed_config = &ctx.accounts.fed_config;
+        let bling_mint = fed_config.bling_mint.key();
+        let dollar_amount_to_charge = if token_mint == bling_mint {
+            bling_premium_dollar_amount
+        } else {
+            dollar_amount
+        };
+
+        // Convert dollar to token
+        let token_amount = convert_dollar_to_token_lamports(
+            dollar_amount_to_charge,
+            ctx.accounts.valid_payment.price_in_dollar,
+            ctx.accounts.token_mint.decimals,
+        )?;
+
+        require!(token_amount > 0, ErrorCode::ZeroAmount);
+
+        // Check user vault has sufficient balance
+        require!(
+            ctx.accounts.from_user_vault_token_account.amount >= token_amount,
+            ErrorCode::InsufficientFundsInUserVault
+        );
+
+        // Charge (transfer) from user vault to protocol treasury
+        let authority_bump = ctx.bumps.vault_authority;
+        let authority_seeds: &[&[&[u8]]] = &[&[VAULT_AUTHORITY_SEED, &[authority_bump]]];
+
+        let cpi_accounts = anchor_spl::token::Transfer {
+            from: ctx.accounts.from_user_vault_token_account.to_account_info(),
+            to: ctx
+                .accounts
+                .protocol_treasury_token_account
+                .to_account_info(),
+            authority: ctx.accounts.vault_authority.to_account_info(),
+        };
+        let cpi_ctx = CpiContext::new_with_signer(
+            ctx.accounts.token_program.to_account_info(),
+            cpi_accounts,
+            authority_seeds,
+        );
+        anchor_spl::token::transfer(cpi_ctx, token_amount)?;
+
+        Ok(token_amount)
     }
 
     /// Convert dollar amount to token and charge from user vault to protocol treasury.

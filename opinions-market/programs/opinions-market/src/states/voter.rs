@@ -5,38 +5,162 @@ use crate::math::vote_cost::{base_voter_cost, cost_in_dollar, post_curve_cost};
 use anchor_lang::prelude::*;
 
 // -----------------------------------------------------------------------------
+// MUTATION HELPERS (Pure arithmetic gates)
+// -----------------------------------------------------------------------------
+
+#[inline(always)]
+pub fn add_u16(value: &mut u16, amount: u16) {
+    *value = value.saturating_add(amount);
+}
+
+#[inline(always)]
+pub fn remove_u16(value: &mut u16, amount: u16) {
+    *value = value.saturating_sub(amount);
+}
+
+#[inline(always)]
+pub fn add_i16(value: &mut i16, amount: i16) {
+    *value = value.saturating_add(amount);
+}
+
+#[inline(always)]
+pub fn remove_i16(value: &mut i16, amount: i16) {
+    *value = value.saturating_sub(amount);
+}
+
+// -----------------------------------------------------------------------------
+// MUTATION TARGETS (What can be changed)
+// -----------------------------------------------------------------------------
+
+#[derive(AnchorSerialize, AnchorDeserialize, Clone, Copy, PartialEq, Eq, Debug)]
+pub enum StatTarget {
+    // Body stats
+    BodyHealth,
+    BodyEnergy,
+    // Appearance stats
+    AppearanceFreshness,
+    AppearanceCharisma,
+    AppearanceOriginality,
+    AppearanceNpcNess,
+    AppearanceBeauty,
+    AppearanceIntellectualism,
+}
+
+#[derive(AnchorSerialize, AnchorDeserialize, Clone, Copy, PartialEq, Eq, Debug)]
+pub enum StatChange {
+    AddU16(u16),
+    RemoveU16(u16),
+    AddI16(i16),
+    RemoveI16(i16),
+}
+
+// -----------------------------------------------------------------------------
 // USER ACCOUNTS
 // -----------------------------------------------------------------------------
 
 #[derive(AnchorSerialize, AnchorDeserialize, InitSpace, Copy, PartialEq, Eq, Debug, Clone)]
-pub struct VoterAccountAttackSurface {
-    pub enabled: bool,
-    // future:
-    pub surface_1: i16,
-    pub surface_2: i16,
-    pub surface_3: i16,
-    pub surface_4: i16,
-    pub surface_5: i16,
-    pub surface_6: i16,
-    pub surface_7: i16,
-    pub surface_8: i16,
-    pub surface_9: i16,
+pub struct Appearance {
+    pub freshness: i16,
+    pub charisma: i16,
+    pub originality: i16,
+    pub _npc_ness: i16,
+    pub beauty: i16,
+    pub intellectualism: i16,
     pub padding: [u8; 31],
 }
 
-impl VoterAccountAttackSurface {
-    pub fn new(enabled: bool) -> Self {
+impl Appearance {
+    pub fn default() -> Self {
         Self {
-            enabled,
-            surface_1: 10_000,
-            surface_2: 10_000,
-            surface_3: 10_000,
-            surface_4: 10_000,
-            surface_5: 10_000,
-            surface_6: 10_000,
-            surface_7: 10_000,
-            surface_8: 10_000,
-            surface_9: 10_000,
+            freshness: 20_000,
+            charisma: 0,
+            originality: 0,
+            _npc_ness: 10_000,
+            beauty: 0,
+            intellectualism: 0,
+            padding: [0; 31],
+        }
+    }
+    pub fn new(
+        freshness: i16,
+        charisma: i16,
+        originality: i16,
+        _npc_ness: i16,
+        beauty: i16,
+        intellectualism: i16,
+    ) -> Self {
+        Self {
+            freshness,
+            charisma,
+            originality,
+            _npc_ness,
+            beauty,
+            intellectualism,
+            padding: [0; 31],
+        }
+    }
+
+    pub fn social_score(&self) -> (i64, i64) {
+        let add = self.freshness as i64
+            + self.charisma as i64
+            + self.originality as i64
+            + self.beauty as i64
+            + self.intellectualism as i64;
+        let subtract = self._npc_ness as i64;
+
+        if add > subtract {
+            return (add - subtract, 0);
+        } else {
+            // (0, 0) would be in this case.
+            return (0, subtract - add);
+        }
+    }
+
+    pub fn is_outcast(&self) -> bool {
+        let (positive, negative) = self.social_score();
+        if positive == 0 && negative > 0 {
+            return true;
+        } else {
+            return false;
+        }
+    }
+}
+
+#[derive(AnchorSerialize, AnchorDeserialize, InitSpace, Copy, PartialEq, Eq, Debug, Clone)]
+pub struct Body {
+    pub health: u16,
+    pub energy: u16,
+
+    pub padding: [u8; 31],
+}
+
+impl Body {
+    pub fn default() -> Self {
+        Self {
+            health: 10_000,
+            energy: 10_000,
+            padding: [0; 31],
+        }
+    }
+    pub fn new(health: u16, energy: u16) -> Self {
+        Self {
+            health: 10_000,
+            energy: 10_000,
+            padding: [0; 31],
+        }
+    }
+
+    pub fn is_dead(&self) -> bool {
+        self.health == 0
+    }
+
+    pub fn is_exhausted(&self) -> bool {
+        self.energy == 0
+    }
+    pub fn resurrect(&self) -> Self {
+        Self {
+            health: 10_000,
+            energy: 10_000,
             padding: [0; 31],
         }
     }
@@ -45,9 +169,10 @@ impl VoterAccountAttackSurface {
 #[account]
 #[derive(InitSpace, Copy, PartialEq, Eq, Debug)]
 pub struct VoterAccount {
-    pub voter: Pubkey,     // voter wallet pubkey
-    pub social_score: i64, // can drive withdraw penalty etc.
-    pub attack_surface: VoterAccountAttackSurface,
+    pub voter: Pubkey, // voter wallet pubkey
+
+    pub appearance: Appearance,
+    pub body: Body,
     pub bump: u8,
 }
 
@@ -55,24 +180,25 @@ impl VoterAccount {
     pub fn default(voter: Pubkey, bump: u8) -> Self {
         Self {
             voter,
-            social_score: PARAMS.voter_initial_social_score,
-            attack_surface: VoterAccountAttackSurface::new(true),
+            appearance: Appearance::default(),
+            body: Body::default(),
             bump,
         }
     }
 
-    pub fn new(
-        voter: Pubkey,
-        social_score: i64,
-        attack_surface: VoterAccountAttackSurface,
-        bump: u8,
-    ) -> Self {
+    pub fn new(voter: Pubkey, appearance: Appearance, body: Body, bump: u8) -> Self {
         Self {
             voter,
-            social_score,
-            attack_surface,
+            appearance: appearance,
+            body: body,
             bump,
         }
+    }
+
+    /// Compute social score from appearance fields
+    /// Returns (positive_score, negative_score) as i64
+    pub fn social_score(&self) -> (i64, i64) {
+        self.appearance.social_score()
     }
 
     /// Calculate canonical vote cost for this voter
