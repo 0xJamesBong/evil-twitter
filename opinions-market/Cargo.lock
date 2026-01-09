@@ -1994,6 +1994,7 @@ dependencies = [
  "bytemuck",
  "fed",
  "hex",
+ "opinions-market",
  "persona",
  "spl-pod",
  "spl-tlv-account-resolution 0.10.0",

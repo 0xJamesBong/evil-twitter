@@ -5,56 +5,6 @@ use crate::math::vote_cost::{base_voter_cost, cost_in_dollar, post_curve_cost};
 use anchor_lang::prelude::*;
 
 // -----------------------------------------------------------------------------
-// MUTATION HELPERS (Pure arithmetic gates)
-// -----------------------------------------------------------------------------
-
-#[inline(always)]
-pub fn add_u16(value: &mut u16, amount: u16) {
-    *value = value.saturating_add(amount);
-}
-
-#[inline(always)]
-pub fn remove_u16(value: &mut u16, amount: u16) {
-    *value = value.saturating_sub(amount);
-}
-
-#[inline(always)]
-pub fn add_i16(value: &mut i16, amount: i16) {
-    *value = value.saturating_add(amount);
-}
-
-#[inline(always)]
-pub fn remove_i16(value: &mut i16, amount: i16) {
-    *value = value.saturating_sub(amount);
-}
-
-// -----------------------------------------------------------------------------
-// MUTATION TARGETS (What can be changed)
-// -----------------------------------------------------------------------------
-
-#[derive(AnchorSerialize, AnchorDeserialize, Clone, Copy, PartialEq, Eq, Debug)]
-pub enum StatTarget {
-    // Body stats
-    BodyHealth,
-    BodyEnergy,
-    // Appearance stats
-    AppearanceFreshness,
-    AppearanceCharisma,
-    AppearanceOriginality,
-    AppearanceNpcNess,
-    AppearanceBeauty,
-    AppearanceIntellectualism,
-}
-
-#[derive(AnchorSerialize, AnchorDeserialize, Clone, Copy, PartialEq, Eq, Debug)]
-pub enum StatChange {
-    AddU16(u16),
-    RemoveU16(u16),
-    AddI16(i16),
-    RemoveI16(i16),
-}
-
-// -----------------------------------------------------------------------------
 // USER ACCOUNTS
 // -----------------------------------------------------------------------------
 
@@ -193,6 +143,29 @@ impl VoterAccount {
             body: body,
             bump,
         }
+    }
+
+    pub fn resolve_user_field_base(&self, field: UserEffectField) -> i64 {
+        match field {
+            UserEffectField::AppearanceFreshness => self.appearance.freshness as i64,
+            UserEffectField::AppearanceCharisma => self.appearance.charisma as i64,
+            UserEffectField::AppearanceOriginality => self.appearance.originality as i64,
+            UserEffectField::AppearanceNpcNess => self.appearance._npc_ness as i64,
+            UserEffectField::AppearanceBeauty => self.appearance.beauty as i64,
+            UserEffectField::AppearanceIntellectualism => self.appearance.intellectualism as i64,
+            UserEffectField::BodyHealth => self.body.health as i64,
+            UserEffectField::BodyEnergy => self.body.energy as i64,
+        }
+    }
+
+    pub fn resolve_user_field(
+        &self,
+        field: UserEffectField,
+        effects: impl Iterator<Item = &ActiveModifier>,
+        now: i64,
+    ) -> i64 {
+        let base = self.resolve_user_field_base(field);
+        resolve_user_effect(base, effects, field, now)
     }
 
     /// Compute social score from appearance fields

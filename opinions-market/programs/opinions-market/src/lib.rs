@@ -936,32 +936,32 @@ pub mod opinions_market {
         Ok(())
     }
 
-    // //
-    // pub fn grant_modifier(
-    //     ctx: Context<GrantModifier>,
-    //     target: Pubkey,
-    //     effect: ModifierEffect,
-    //     stack_rule: StackRule,
-    //     expires_at: i64,
-    // ) -> Result<()> {
-    //     // 1. Authorization
-    //     require!(
-    //         ctx.accounts
-    //             .om_config
-    //             .is_authorized_issuer(ctx.accounts.issuer.key()),
-    //         ErrorCode::UnauthorizedModifierIssuer
-    //     );
+    //
+    pub fn grant_modifier(
+        ctx: Context<GrantModifier>,
+        target: Pubkey,
+        effect: ModifierEffect,
+        stack_rule: StackRule,
+        expires_at: i64,
+    ) -> Result<()> {
+        // 1. Authorization
+        require!(
+            ctx.accounts
+                .om_config
+                .is_authorized_issuer(ctx.accounts.issuer.key()),
+            ErrorCode::UnauthorizedModifierIssuer
+        );
 
-    //     // 2. Create / overwrite ActiveModifier PDA
-    //     let modifier = &mut ctx.accounts.modifier;
-    //     modifier.target = target;
-    //     modifier.issuer = ctx.accounts.issuer.key();
-    //     modifier.effect = effect;
-    //     modifier.stack_rule = stack_rule;
-    //     modifier.expires_at = expires_at;
+        // 2. Create / overwrite ActiveModifier PDA
+        let modifier = &mut ctx.accounts.modifier;
+        modifier.target = target;
+        modifier.issuer = ctx.accounts.issuer.key();
+        modifier.effect = effect;
+        modifier.stack_rule = stack_rule;
+        modifier.expires_at = expires_at;
 
-    //     Ok(())
-    // }
+        Ok(())
+    }
 }
 
 #[error_code]

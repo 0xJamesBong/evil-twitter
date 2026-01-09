@@ -17,9 +17,9 @@ pub enum ModifierCategory {
 }
 pub enum ModifierTarget {
     User,
-    Post,
-    Organization,
-    Tools,
+    // Post,
+    // Organization,
+    // Tools,
 }
 
 pub enum ModifierStyle {
@@ -30,11 +30,26 @@ pub enum ModifierStyle {
     Shield,
 }
 pub enum UserEffectField {
-    VoteCost,
-    ExchangeRate,
-    SocialScore,
-    AttackSurface(u8), // maps to surface_1..surface_9
+    AppearanceFreshness,
+    AppearanceCharisma,
+    AppearanceOriginality,
+    AppearanceNpcNess,
+    AppearanceBeauty,
+    AppearanceIntellectualism,
+    BodyHealth,
+    BodyEnergy,
 }
+
+// pub enum PostEffectField {
+//     Shit,
+// }
+// pub enum OrganizationEffectField {
+//     Shit,
+// }
+
+// pub enum ToolsEffectField {
+//     Shit,
+// }
 
 pub struct ModifierEffect {
     pub category: ModifierCategory,
@@ -61,6 +76,15 @@ pub struct ActiveModifier {
     pub expires_at: i64,
 }
 
+/// Computes a derived value by applying active modifiers to a base value.
+///
+/// This function:
+/// - Starts from a base canonical value
+/// - Iterates over active modifiers
+/// - Filters out modifiers that are expired, target a different field, or are cosmetic-only
+/// - Applies each modifier's magnitude using its StackRule
+/// - Returns the final resolved value
+/// Therefore this must live on opinions market.
 pub fn resolve_user_effect(
     base: i64,
     effects: impl Iterator<Item = &ActiveModifier>,
