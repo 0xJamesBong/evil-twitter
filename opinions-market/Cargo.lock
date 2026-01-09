@@ -649,6 +649,7 @@ dependencies = [
  "anchor-lang",
  "anchor-spl",
  "fed",
+ "industrial-complex",
  "opinions-market",
  "solana-client",
  "solana-sdk",
@@ -2534,20 +2535,6 @@ dependencies = [
  "fed",
  "hex",
  "persona",
- "spl-pod",
- "spl-tlv-account-resolution 0.10.0",
- "spl-transfer-hook-interface 0.10.0",
- "spl-type-length-value 0.8.0",
-]
-
-[[package]]
-name = "opinions-market-old"
-version = "0.1.0"
-dependencies = [
- "anchor-lang",
- "anchor-spl",
- "bytemuck",
- "hex",
  "spl-pod",
  "spl-tlv-account-resolution 0.10.0",
  "spl-transfer-hook-interface 0.10.0",
@@ -6272,6 +6259,7 @@ dependencies = [
  "anyhow",
  "fed",
  "hex",
+ "industrial-complex",
  "opinions-market",
  "persona",
  "rand 0.8.5",

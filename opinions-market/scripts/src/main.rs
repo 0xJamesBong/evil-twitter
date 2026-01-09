@@ -150,6 +150,7 @@ async fn main() {
         .request()
         .accounts(opinions_market::accounts::Initialize {
             admin: admin_pubkey,
+            authorized_issuer: industrial_complex::ID,
             payer: payer.pubkey(),
             om_config: om_config_pda,
             system_program: anchor_lang::solana_program::system_program::ID,

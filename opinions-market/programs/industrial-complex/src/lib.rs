@@ -1,11 +1,12 @@
-// use crate::pda_seeds::*;
 use anchor_lang::prelude::*;
 use anchor_lang::solana_program::pubkey::Pubkey;
+use opinions_market::modifiers::effect::*;
 
 pub mod instructions;
+pub mod pda_seeds;
 
 use instructions::*;
-// use states::*;
+use pda_seeds::*;
 
 declare_id!("8fFaxfts8bmTt8MaRMKXs1VakW4mXbBnySXyxUExkAdg");
 
@@ -17,35 +18,59 @@ pub mod industrial_complex {
     use anchor_lang::solana_program::sysvar::instructions::load_instruction_at_checked;
 
     use super::*;
-    pub fn design_nft() -> Result<()>;
 
-    pub fn buy_nft() -> Result<()>;
-    pub fn deposit_nft() -> Result<()>;
-    pub fn withdraw_nft() -> Result<()>;
-
-    pub fn use_nft(ctx: Context<AttackVoter>, target: Pubkey) -> Result<()> {
-        // 1. Verify attack owns weapons NFT
-        verify_nft(&ctx.accounts.weapon_nft, &ctx.accounts.attacker)?;
-
-        // 2. Check cooldown / charges
-        enforce_cooldown();
-
-        // 3. Enforce PvP rules
-        require!(
-            ctx.accounts.ic_config.pvp_enabled,
-            ArmouryError::PvPDisabled
-        );
-
-        // 4. Build effect
-        let effect = ModifierEffect {
-            category: ModifierCategory::Control,
-            style: ModifierStyle::Curse,
-            target: ModifierTarget::User,
-            field: UserEffectField,
+    /// Attacks a user's appearance freshness by applying a permanent curse effect.
+    pub fn attack_appearance_freshness(
+        ctx: Context<AttackAppearanceFreshness>,
+        target: Pubkey,
+        magnitude: i16,
+    ) -> Result<()> {
+        // Build the permanent effect
+        let effect = PermanentEffect {
+            category: PermanentEffectCategory::Control,
+            style: PermanentEffectStyle::Curse,
+            target: PermanentEffectTarget::User,
+            stack_rule: StackRule::Subtract,
+            field: UserEffectField::AppearanceFreshness,
+            magnitude,
         };
+
+        // IC PDA signs the CPI to apply the mutation
+        let bump = ctx.bumps.issue_authority;
+        let signer_seeds: &[&[&[u8]]] = &[&[ISSUE_AUTHORITY_SEED, &[bump]]];
+
+        opinions_market::cpi::apply_mutation(
+            CpiContext::new_with_signer(
+                ctx.accounts.opinions_market_program.to_account_info(),
+                opinions_market::cpi::accounts::ApplyMutation {
+                    om_config: ctx.accounts.om_config.to_account_info(),
+                    issue_authority: ctx.accounts.issue_authority.to_account_info(),
+                    voter_account: ctx.accounts.voter_account.to_account_info(),
+                    system_program: ctx.accounts.system_program.to_account_info(),
+                },
+                signer_seeds,
+            ),
+            target,
+            effect,
+        )?;
 
         Ok(())
     }
+    //     require!(
+    //         ctx.accounts.ic_config.pvp_enabled,
+    //         ArmouryError::PvPDisabled
+    //     );
+
+    //     // 4. Build effect
+    //     let effect = ModifierEffect {
+    //         category: ModifierCategory::Control,
+    //         style: ModifierStyle::Curse,
+    //         target: ModifierTarget::User,
+    //         field: UserEffectField,
+    //     };
+
+    //     Ok(())
+    // }
 }
 
 #[error_code]

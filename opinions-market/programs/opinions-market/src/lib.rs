@@ -4,9 +4,10 @@ use anchor_lang::solana_program::pubkey::Pubkey;
 pub mod constants;
 pub mod instructions;
 pub mod math;
-
+pub mod modifiers;
 pub mod pda_seeds;
 pub mod states;
+use crate::modifiers::effect::PermanentEffect;
 use constants::*;
 use instructions::*;
 use states::*;
@@ -38,6 +39,7 @@ pub mod opinions_market {
 
         let new_config = OMConfig::new(
             ctx.accounts.admin.key(),
+            ctx.accounts.authorized_issuer.key(),
             base_duration_secs,
             max_duration_secs,
             extension_per_vote_secs,
@@ -48,6 +50,7 @@ pub mod opinions_market {
         );
 
         om_config.admin = new_config.admin;
+        om_config.authorized_issuer = new_config.authorized_issuer;
         om_config.base_duration_secs = new_config.base_duration_secs;
         om_config.max_duration_secs = new_config.max_duration_secs;
         om_config.extension_per_vote_secs = new_config.extension_per_vote_secs;
@@ -936,29 +939,29 @@ pub mod opinions_market {
         Ok(())
     }
 
-    //
-    pub fn grant_modifier(
-        ctx: Context<GrantModifier>,
+    /// Apply a permanent effect directly to canonical voter state.
+    /// Effects are mutations, not stored state. They are applied at write-time.
+    pub fn apply_mutation(
+        ctx: Context<ApplyMutation>,
         target: Pubkey,
-        effect: ModifierEffect,
-        stack_rule: StackRule,
-        expires_at: i64,
+        effect: PermanentEffect,
     ) -> Result<()> {
         // 1. Authorization
+        // require!(
+        //     ctx.accounts
+        //         .om_config
+        //         .is_authorized_issuer(ctx.accounts.issuer.key()),
+        //     ErrorCode::UnauthorizedModifierIssuer
+        // );
+
+        // 2. Validate target matches voter account
         require!(
-            ctx.accounts
-                .om_config
-                .is_authorized_issuer(ctx.accounts.issuer.key()),
-            ErrorCode::UnauthorizedModifierIssuer
+            target == ctx.accounts.voter_account.voter,
+            ErrorCode::Unauthorized
         );
 
-        // 2. Create / overwrite ActiveModifier PDA
-        let modifier = &mut ctx.accounts.modifier;
-        modifier.target = target;
-        modifier.issuer = ctx.accounts.issuer.key();
-        modifier.effect = effect;
-        modifier.stack_rule = stack_rule;
-        modifier.expires_at = expires_at;
+        // 3. Apply effect directly to canonical state
+        ctx.accounts.voter_account.apply_effect(effect);
 
         Ok(())
     }
@@ -1022,4 +1025,6 @@ pub enum ErrorCode {
     NotDead,
     #[msg("Unauthorized modifier issuer")]
     UnauthorizedModifierIssuer,
+    #[msg("Unauthorized issuer")]
+    UnauthorizedIssuer,
 }

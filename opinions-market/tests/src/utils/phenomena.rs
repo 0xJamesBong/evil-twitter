@@ -2526,3 +2526,95 @@ pub async fn test_phenomena_claim_post_reward(
 
     println!("✅ Post reward claimed successfully");
 }
+
+pub async fn attack_appearance_freshness(
+    rpc: &RpcClient,
+    industrial_complex: &Program<&Keypair>,
+    opinions_market: &Program<&Keypair>,
+    payer: &Keypair,
+    target: &Pubkey,
+    om_config_pda: &Pubkey,
+) {
+    println!("🎯 Attacking appearance freshness for user: {}", target);
+
+    // Derive voter account PDA (where the permanent effect will be applied)
+    let voter_account_pda = Pubkey::find_program_address(
+        &[VOTER_ACCOUNT_SEED, target.as_ref()],
+        &opinions_market.id(),
+    )
+    .0;
+
+    // Read stats before attack
+    let voter_account_before = opinions_market
+        .account::<opinions_market::states::VoterAccount>(voter_account_pda)
+        .await
+        .unwrap();
+
+    let freshness_before = voter_account_before.appearance.freshness;
+    println!("📊 Voter stats BEFORE attack:");
+    println!("   - Appearance freshness: {}", freshness_before);
+
+    // Derive issue authority PDA (IC's signing authority)
+    let (issue_authority_pda, _) = Pubkey::find_program_address(
+        &[industrial_complex::pda_seeds::ISSUE_AUTHORITY_SEED],
+        &industrial_complex.id(),
+    );
+
+    let magnitude = 100i16;
+
+    let attack_ix = industrial_complex
+        .request()
+        .accounts(industrial_complex::accounts::AttackAppearanceFreshness {
+            opinions_market_program: opinions_market.id(),
+            om_config: *om_config_pda,
+            issue_authority: issue_authority_pda,
+            voter_account: voter_account_pda,
+            system_program: system_program::ID,
+        })
+        .args(industrial_complex::instruction::AttackAppearanceFreshness {
+            target: *target,
+            magnitude,
+        })
+        .instructions()
+        .unwrap();
+
+    let attack_tx = send_tx(rpc, attack_ix, &payer.pubkey(), &[payer])
+        .await
+        .unwrap();
+
+    // Read stats after attack
+    let voter_account_after = opinions_market
+        .account::<opinions_market::states::VoterAccount>(voter_account_pda)
+        .await
+        .unwrap();
+
+    let freshness_after = voter_account_after.appearance.freshness;
+
+    println!("📊 Voter stats AFTER attack:");
+    println!("   - Appearance freshness: {}", freshness_after);
+    println!(
+        "   - Change: {} (expected: -{})",
+        freshness_after - freshness_before,
+        magnitude
+    );
+
+    // Assert the change matches the magnitude (subtract operation)
+    let expected_freshness = freshness_before.saturating_sub(magnitude);
+    assert_eq!(
+        freshness_after, expected_freshness,
+        "Freshness should decrease by {} (from {} to {}), but got {}",
+        magnitude, freshness_before, expected_freshness, freshness_after
+    );
+
+    // Effect is permanently applied to canonical state
+    println!("✅ Attack transaction: {:?}", attack_tx);
+    println!("   - Magnitude: {}", magnitude);
+    println!(
+        "   - Effect permanently applied to voter account: {}",
+        voter_account_pda
+    );
+    println!(
+        "   ✅ Assertion passed: Freshness correctly decreased by {}",
+        magnitude
+    );
+}

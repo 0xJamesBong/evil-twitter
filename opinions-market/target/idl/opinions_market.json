@@ -8,6 +8,101 @@
   },
   "instructions": [
     {
+      "name": "apply_mutation",
+      "docs": [
+        "Apply a permanent effect directly to canonical voter state.",
+        "Effects are mutations, not stored state. They are applied at write-time."
+      ],
+      "discriminator": [
+        101,
+        40,
+        14,
+        241,
+        91,
+        225,
+        79,
+        73
+      ],
+      "accounts": [
+        {
+          "name": "om_config",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  111,
+                  109,
+                  95,
+                  99,
+                  111,
+                  110,
+                  102,
+                  105,
+                  103
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "issue_authority"
+        },
+        {
+          "name": "voter_account",
+          "docs": [
+            "Target voter whose canonical state is mutated"
+          ],
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  118,
+                  111,
+                  116,
+                  101,
+                  114,
+                  95,
+                  97,
+                  99,
+                  99,
+                  111,
+                  117,
+                  110,
+                  116
+                ]
+              },
+              {
+                "kind": "arg",
+                "path": "target"
+              }
+            ]
+          }
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "target",
+          "type": "pubkey"
+        },
+        {
+          "name": "effect",
+          "type": {
+            "defined": {
+              "name": "PermanentEffect"
+            }
+          }
+        }
+      ]
+    },
+    {
       "name": "claim_post_reward",
       "discriminator": [
         225,
@@ -1417,6 +1512,9 @@
           "signer": true
         },
         {
+          "name": "authorized_issuer"
+        },
+        {
           "name": "payer",
           "writable": true,
           "signer": true
@@ -2308,6 +2406,11 @@
       "code": 6027,
       "name": "UnauthorizedModifierIssuer",
       "msg": "Unauthorized modifier issuer"
+    },
+    {
+      "code": 6028,
+      "name": "UnauthorizedIssuer",
+      "msg": "Unauthorized issuer"
     }
   ],
   "types": [
@@ -2404,6 +2507,10 @@
             "type": "pubkey"
           },
           {
+            "name": "authorized_issuer",
+            "type": "pubkey"
+          },
+          {
             "name": "base_duration_secs",
             "type": "u32"
           },
@@ -2435,6 +2542,112 @@
                 7
               ]
             }
+          }
+        ]
+      }
+    },
+    {
+      "name": "PermanentEffect",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "category",
+            "type": {
+              "defined": {
+                "name": "PermanentEffectCategory"
+              }
+            }
+          },
+          {
+            "name": "style",
+            "type": {
+              "defined": {
+                "name": "PermanentEffectStyle"
+              }
+            }
+          },
+          {
+            "name": "target",
+            "type": {
+              "defined": {
+                "name": "PermanentEffectTarget"
+              }
+            }
+          },
+          {
+            "name": "stack_rule",
+            "type": {
+              "defined": {
+                "name": "StackRule"
+              }
+            }
+          },
+          {
+            "name": "field",
+            "type": {
+              "defined": {
+                "name": "UserEffectField"
+              }
+            }
+          },
+          {
+            "name": "magnitude",
+            "type": "i16"
+          }
+        ]
+      }
+    },
+    {
+      "name": "PermanentEffectCategory",
+      "type": {
+        "kind": "enum",
+        "variants": [
+          {
+            "name": "Cosmetic"
+          },
+          {
+            "name": "Economic"
+          },
+          {
+            "name": "Reputational"
+          },
+          {
+            "name": "Control"
+          }
+        ]
+      }
+    },
+    {
+      "name": "PermanentEffectStyle",
+      "type": {
+        "kind": "enum",
+        "variants": [
+          {
+            "name": "Curse"
+          },
+          {
+            "name": "Honour"
+          },
+          {
+            "name": "Slur"
+          },
+          {
+            "name": "Medicine"
+          },
+          {
+            "name": "Shield"
+          }
+        ]
+      }
+    },
+    {
+      "name": "PermanentEffectTarget",
+      "type": {
+        "kind": "enum",
+        "variants": [
+          {
+            "name": "User"
           }
         ]
       }
@@ -2663,6 +2876,52 @@
           },
           {
             "name": "Smack"
+          }
+        ]
+      }
+    },
+    {
+      "name": "StackRule",
+      "type": {
+        "kind": "enum",
+        "variants": [
+          {
+            "name": "Add"
+          },
+          {
+            "name": "Subtract"
+          }
+        ]
+      }
+    },
+    {
+      "name": "UserEffectField",
+      "type": {
+        "kind": "enum",
+        "variants": [
+          {
+            "name": "AppearanceFreshness"
+          },
+          {
+            "name": "AppearanceCharisma"
+          },
+          {
+            "name": "AppearanceOriginality"
+          },
+          {
+            "name": "AppearanceNpcNess"
+          },
+          {
+            "name": "AppearanceBeauty"
+          },
+          {
+            "name": "AppearanceIntellectualism"
+          },
+          {
+            "name": "BodyHealth"
+          },
+          {
+            "name": "BodyEnergy"
           }
         ]
       }

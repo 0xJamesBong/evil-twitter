@@ -2,6 +2,9 @@ use super::post::PostRelation;
 use super::post::Side;
 use crate::constants::PARAMS;
 use crate::math::vote_cost::{base_voter_cost, cost_in_dollar, post_curve_cost};
+use crate::modifiers::effect::{
+    PermanentEffect, PermanentEffectCategory, StackRule, UserEffectField,
+};
 use anchor_lang::prelude::*;
 
 // -----------------------------------------------------------------------------
@@ -145,27 +148,63 @@ impl VoterAccount {
         }
     }
 
-    pub fn resolve_user_field_base(&self, field: UserEffectField) -> i64 {
-        match field {
-            UserEffectField::AppearanceFreshness => self.appearance.freshness as i64,
-            UserEffectField::AppearanceCharisma => self.appearance.charisma as i64,
-            UserEffectField::AppearanceOriginality => self.appearance.originality as i64,
-            UserEffectField::AppearanceNpcNess => self.appearance._npc_ness as i64,
-            UserEffectField::AppearanceBeauty => self.appearance.beauty as i64,
-            UserEffectField::AppearanceIntellectualism => self.appearance.intellectualism as i64,
-            UserEffectField::BodyHealth => self.body.health as i64,
-            UserEffectField::BodyEnergy => self.body.energy as i64,
+    /// Apply a permanent effect directly to canonical state.
+    /// Effects are applied at write-time, not resolved at read-time.
+    pub fn apply_effect(&mut self, effect: PermanentEffect) {
+        // Skip cosmetic effects (they don't mutate state)
+        if effect.category == PermanentEffectCategory::Cosmetic {
+            return;
+        }
+
+        match effect.field {
+            UserEffectField::AppearanceFreshness => {
+                Self::apply_i16(&mut self.appearance.freshness, effect);
+            }
+            UserEffectField::AppearanceCharisma => {
+                Self::apply_i16(&mut self.appearance.charisma, effect);
+            }
+            UserEffectField::AppearanceOriginality => {
+                Self::apply_i16(&mut self.appearance.originality, effect);
+            }
+            UserEffectField::AppearanceNpcNess => {
+                Self::apply_i16(&mut self.appearance._npc_ness, effect);
+            }
+            UserEffectField::AppearanceBeauty => {
+                Self::apply_i16(&mut self.appearance.beauty, effect);
+            }
+            UserEffectField::AppearanceIntellectualism => {
+                Self::apply_i16(&mut self.appearance.intellectualism, effect);
+            }
+            UserEffectField::BodyHealth => {
+                Self::apply_u16(&mut self.body.health, effect);
+            }
+            UserEffectField::BodyEnergy => {
+                Self::apply_u16(&mut self.body.energy, effect);
+            }
         }
     }
 
-    pub fn resolve_user_field(
-        &self,
-        field: UserEffectField,
-        effects: impl Iterator<Item = &ActiveModifier>,
-        now: i64,
-    ) -> i64 {
-        let base = self.resolve_user_field_base(field);
-        resolve_user_effect(base, effects, field, now)
+    fn apply_i16(field: &mut i16, effect: PermanentEffect) {
+        match effect.stack_rule {
+            StackRule::Add => {
+                *field = field.saturating_add(effect.magnitude);
+            }
+            StackRule::Subtract => {
+                *field = field.saturating_sub(effect.magnitude);
+            }
+        }
+    }
+
+    fn apply_u16(field: &mut u16, effect: PermanentEffect) {
+        let m = effect.magnitude.max(0) as u16;
+        match effect.stack_rule {
+            StackRule::Add => {
+                *field = field.saturating_add(m);
+            }
+            StackRule::Subtract => {
+                *field = field.saturating_sub(m);
+            }
+        }
     }
 
     /// Compute social score from appearance fields

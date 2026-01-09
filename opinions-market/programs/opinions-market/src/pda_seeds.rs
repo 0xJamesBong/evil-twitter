@@ -13,3 +13,5 @@ pub const PROTOCOL_VOTE_TREASURY_TOKEN_ACCOUNT_SEED: &[u8] =
 pub const POST_MINT_PAYOUT_SEED: &[u8] = b"post_mint_payout";
 
 pub const VOTER_POST_MINT_CLAIM_SEED: &[u8] = b"voter_post_mint_claim";
+
+pub const MODIFIER_EFFECT_SEED: &[u8] = b"modifier_effect";

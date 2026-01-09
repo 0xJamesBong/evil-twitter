@@ -1,6 +1,8 @@
 use crate::pda_seeds::*;
 use crate::states::*;
+use crate::modifiers::effect::*;
 use crate::ErrorCode;
+
 use anchor_lang::prelude::*;
 use anchor_lang::solana_program::sysvar::instructions;
 use anchor_spl::token::{Mint, Token, TokenAccount};
@@ -13,6 +15,11 @@ use anchor_spl::token::{Mint, Token, TokenAccount};
 pub struct Initialize<'info> {
     #[account(mut)]
     pub admin: Signer<'info>,
+
+    /// CHECK: The authorized issuer pubkey (stored in OMConfig, validated during initialization)
+    #[account()]
+    pub authorized_issuer: UncheckedAccount<'info>,
+
     #[account(mut)]
     pub payer: Signer<'info>,
     #[account(init, payer = payer, seeds = [OM_CONFIG_SEED], bump, space = 8 + OMConfig::INIT_SPACE)]
@@ -615,3 +622,27 @@ pub struct Resurrect<'info> {
     pub persona_program: Program<'info, persona::program::Persona>,
     pub system_program: Program<'info, System>,
 }
+
+#[derive(Accounts)]
+#[instruction(target: Pubkey, effect: PermanentEffect)]
+pub struct ApplyMutation<'info> {
+    #[account(mut, seeds = [OM_CONFIG_SEED], bump)]
+    pub om_config: Account<'info, OMConfig>,
+    
+    /// CHECK: issuing authority PDA (must be authorized in OMConfig)
+    #[account(
+            constraint = om_config.is_authorized_issuer(issue_authority.key())
+                @ ErrorCode::UnauthorizedIssuer
+    )]
+        pub issue_authority: UncheckedAccount<'info>,
+    /// Target voter whose canonical state is mutated
+    #[account(
+        mut,
+        seeds = [VOTER_ACCOUNT_SEED, target.as_ref()],
+        bump
+    )]
+    pub voter_account: Account<'info, VoterAccount>,
+    pub system_program: Program<'info, System>,
+}
+
+
