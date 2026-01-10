@@ -22,7 +22,6 @@ pub mod industrial_complex {
     /// Attacks a user's appearance freshness by applying a permanent curse effect.
     pub fn attack_appearance_freshness(
         ctx: Context<AttackAppearanceFreshness>,
-        target: Pubkey,
         magnitude: i16,
     ) -> Result<()> {
         // Build the permanent effect
@@ -44,13 +43,16 @@ pub mod industrial_complex {
                 ctx.accounts.opinions_market_program.to_account_info(),
                 opinions_market::cpi::accounts::ApplyMutation {
                     om_config: ctx.accounts.om_config.to_account_info(),
+                    target_user: ctx.accounts.target_user.to_account_info(),
+                    target_user_voter_account: ctx
+                        .accounts
+                        .target_user_voter_account
+                        .to_account_info(),
                     issue_authority: ctx.accounts.issue_authority.to_account_info(),
-                    voter_account: ctx.accounts.voter_account.to_account_info(),
                     system_program: ctx.accounts.system_program.to_account_info(),
                 },
                 signer_seeds,
             ),
-            target,
             effect,
         )?;
 

@@ -47,10 +47,11 @@
           }
         },
         {
-          "name": "issue_authority"
+          "name": "target_user",
+          "writable": true
         },
         {
-          "name": "voter_account",
+          "name": "target_user_voter_account",
           "docs": [
             "Target voter whose canonical state is mutated"
           ],
@@ -76,11 +77,14 @@
                 ]
               },
               {
-                "kind": "arg",
-                "path": "target"
+                "kind": "account",
+                "path": "target_user"
               }
             ]
           }
+        },
+        {
+          "name": "issue_authority"
         },
         {
           "name": "system_program",
@@ -88,10 +92,6 @@
         }
       ],
       "args": [
-        {
-          "name": "target",
-          "type": "pubkey"
-        },
         {
           "name": "effect",
           "type": {

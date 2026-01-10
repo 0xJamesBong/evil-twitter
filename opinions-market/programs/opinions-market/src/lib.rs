@@ -941,27 +941,15 @@ pub mod opinions_market {
 
     /// Apply a permanent effect directly to canonical voter state.
     /// Effects are mutations, not stored state. They are applied at write-time.
-    pub fn apply_mutation(
-        ctx: Context<ApplyMutation>,
-        target: Pubkey,
-        effect: PermanentEffect,
-    ) -> Result<()> {
-        // 1. Authorization
-        // require!(
-        //     ctx.accounts
-        //         .om_config
-        //         .is_authorized_issuer(ctx.accounts.issuer.key()),
-        //     ErrorCode::UnauthorizedModifierIssuer
-        // );
-
-        // 2. Validate target matches voter account
+    pub fn apply_mutation(ctx: Context<ApplyMutation>, effect: PermanentEffect) -> Result<()> {
+        // 1. Validate user matches voter account
         require!(
-            target == ctx.accounts.voter_account.voter,
+            ctx.accounts.target_user.key() == ctx.accounts.target_user_voter_account.voter,
             ErrorCode::Unauthorized
         );
 
-        // 3. Apply effect directly to canonical state
-        ctx.accounts.voter_account.apply_effect(effect);
+        // 2. Apply effect directly to canonical state
+        ctx.accounts.target_user_voter_account.apply_effect(effect);
 
         Ok(())
     }

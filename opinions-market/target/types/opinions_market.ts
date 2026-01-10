@@ -53,10 +53,11 @@ export type OpinionsMarket = {
           }
         },
         {
-          "name": "issueAuthority"
+          "name": "targetUser",
+          "writable": true
         },
         {
-          "name": "voterAccount",
+          "name": "targetUserVoterAccount",
           "docs": [
             "Target voter whose canonical state is mutated"
           ],
@@ -82,11 +83,14 @@ export type OpinionsMarket = {
                 ]
               },
               {
-                "kind": "arg",
-                "path": "target"
+                "kind": "account",
+                "path": "targetUser"
               }
             ]
           }
+        },
+        {
+          "name": "issueAuthority"
         },
         {
           "name": "systemProgram",
@@ -94,10 +98,6 @@ export type OpinionsMarket = {
         }
       ],
       "args": [
-        {
-          "name": "target",
-          "type": "pubkey"
-        },
         {
           "name": "effect",
           "type": {

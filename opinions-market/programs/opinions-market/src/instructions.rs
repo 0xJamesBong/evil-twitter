@@ -624,24 +624,28 @@ pub struct Resurrect<'info> {
 }
 
 #[derive(Accounts)]
-#[instruction(target: Pubkey, effect: PermanentEffect)]
 pub struct ApplyMutation<'info> {
     #[account(mut, seeds = [OM_CONFIG_SEED], bump)]
     pub om_config: Account<'info, OMConfig>,
     
-    /// CHECK: issuing authority PDA (must be authorized in OMConfig)
-    #[account(
-            constraint = om_config.is_authorized_issuer(issue_authority.key())
-                @ ErrorCode::UnauthorizedIssuer
-    )]
-        pub issue_authority: UncheckedAccount<'info>,
+    /// CHECK: Target user pubkey (validated against voter_account.voter in handler)
+    #[account(mut)]
+    pub target_user: UncheckedAccount<'info>,
+
     /// Target voter whose canonical state is mutated
     #[account(
         mut,
-        seeds = [VOTER_ACCOUNT_SEED, target.as_ref()],
+        seeds = [VOTER_ACCOUNT_SEED, target_user.key().as_ref()],
         bump
     )]
-    pub voter_account: Account<'info, VoterAccount>,
+    pub target_user_voter_account: Account<'info, VoterAccount>,
+
+    /// CHECK: issuing authority PDA (must be authorized in OMConfig)
+    #[account(
+        constraint = om_config.is_authorized_issuer(issue_authority.key())
+            @ ErrorCode::UnauthorizedIssuer
+)]
+pub issue_authority: UncheckedAccount<'info>,
     pub system_program: Program<'info, System>,
 }
 

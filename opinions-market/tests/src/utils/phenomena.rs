@@ -2568,13 +2568,11 @@ pub async fn attack_appearance_freshness(
             opinions_market_program: opinions_market.id(),
             om_config: *om_config_pda,
             issue_authority: issue_authority_pda,
-            voter_account: voter_account_pda,
+            target_user: *target,
+            target_user_voter_account: voter_account_pda,
             system_program: system_program::ID,
         })
-        .args(industrial_complex::instruction::AttackAppearanceFreshness {
-            target: *target,
-            magnitude,
-        })
+        .args(industrial_complex::instruction::AttackAppearanceFreshness { magnitude })
         .instructions()
         .unwrap();
 
