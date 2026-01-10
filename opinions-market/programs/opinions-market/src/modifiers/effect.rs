@@ -60,7 +60,7 @@ pub enum StackRule {
 
 // PermanentEffect is a write-time mutation command, not stored state.
 // Effects are applied directly to canonical state at instruction time.
-#[derive(AnchorSerialize, AnchorDeserialize, Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(AnchorSerialize, AnchorDeserialize, Clone, Copy, Debug, PartialEq, Eq, InitSpace)]
 pub struct PermanentEffect {
     pub category: PermanentEffectCategory,
     pub style: PermanentEffectStyle,

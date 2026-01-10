@@ -223,7 +223,6 @@ pub struct Tip<'info> {
     #[account(mut)]
     pub session_key: UncheckedAccount<'info>,
 
-
     /// CHECK: persona-owned session authority (opaque)
     #[account(owner = persona::ID)]
     pub session_authority: AccountInfo<'info>,
