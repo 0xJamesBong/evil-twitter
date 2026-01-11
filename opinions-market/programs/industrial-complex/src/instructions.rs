@@ -65,6 +65,13 @@ pub struct CreateItemDefinition<'info> {
     #[account(mut)]
     pub payer: Signer<'info>,
 
+    #[account(
+        init,
+        payer = payer,
+        space = 8 + ItemDefinition::INIT_SPACE,
+    )]
+    pub item_definition: Box<Account<'info, ItemDefinition>>,
+
     /// Collection mint - created as part of this instruction
     #[account(mut)]
     pub collection_mint: Account<'info, Mint>,
@@ -80,16 +87,7 @@ pub struct CreateItemDefinition<'info> {
     /// CHECK: Token Metadata program
     #[account(address = TOKEN_METADATA_ID)]
     pub token_metadata_program: UncheckedAccount<'info>,
-
     pub token_program: Program<'info, Token>,
-
-    #[account(
-        init,
-        payer = payer,
-        space = 8 + ItemDefinition::INIT_SPACE,
-    )]
-    pub item_definition: Account<'info, ItemDefinition>,
-
     pub system_program: Program<'info, System>,
 
     /// CHECK: sysvar instructions account
@@ -116,194 +114,194 @@ pub struct MintItem<'info> {
     pub token_program: Program<'info, Token>,
 }
 
-#[derive(Accounts)]
-pub struct DepositItem<'info> {
-    #[account(mut)]
-    pub user: Signer<'info>,
+// #[derive(Accounts)]
+// pub struct DepositItem<'info> {
+//     #[account(mut)]
+//     pub user: Signer<'info>,
 
-    #[account(mut)]
-    pub user_token_account: Account<'info, TokenAccount>,
+//     #[account(mut)]
+//     pub user_token_account: Account<'info, TokenAccount>,
 
-    #[account(mut)]
-    pub vault_token_account: Account<'info, TokenAccount>,
+//     #[account(mut)]
+//     pub vault_token_account: Account<'info, TokenAccount>,
 
-    pub token_program: Program<'info, Token>,
-}
+//     pub token_program: Program<'info, Token>,
+// }
 
-// InitializeCollection removed - collection creation is now part of create_item_definition
-// to ensure atomic creation and proper lifecycle management.
+// // InitializeCollection removed - collection creation is now part of create_item_definition
+// // to ensure atomic creation and proper lifecycle management.
 
-#[derive(Accounts)]
-pub struct BuyItem<'info> {
-    #[account(mut)]
-    pub ic_config: Account<'info, IcConfig>,
+// #[derive(Accounts)]
+// pub struct BuyItem<'info> {
+//     #[account(mut)]
+//     pub ic_config: Box<Account<'info, IcConfig>>,
 
-    #[account(mut)]
-    pub item_definition: Account<'info, ItemDefinition>,
+//     #[account(mut)]
+//     pub item_definition: Box<Account<'info, ItemDefinition>>,
 
-    /// CHECK: Collection mint (validated against item_definition.collection)
-    #[account(mut)]
-    pub collection_mint: Account<'info, Mint>,
+//     /// CHECK: Collection mint (validated against item_definition.collection)
+//     #[account(mut)]
+//     pub collection_mint: Account<'info, Mint>,
 
-    /// CHECK: PDA metadata account for collection NFT
-    #[account(mut)]
-    pub collection_metadata: UncheckedAccount<'info>,
+//     /// CHECK: PDA metadata account for collection NFT
+//     #[account(mut)]
+//     pub collection_metadata: UncheckedAccount<'info>,
 
-    /// CHECK: PDA ["metadata", TOKEN_METADATA_ID, collection_mint, "edition"]
-    #[account(mut)]
-    pub collection_master_edition: UncheckedAccount<'info>,
+//     /// CHECK: PDA ["metadata", TOKEN_METADATA_ID, collection_mint, "edition"]
+//     #[account(mut)]
+//     pub collection_master_edition: UncheckedAccount<'info>,
 
-    #[account(mut)]
-    pub user: Signer<'info>,
+//     #[account(mut)]
+//     pub user: Signer<'info>,
 
-    /// New NFT mint - created on purchase
-    #[account(
-        init,
-        payer = payer,
-        mint::decimals = 0,
-        mint::authority = ic_vault_authority,
-        mint::freeze_authority = ic_vault_authority
-    )]
-    pub mint: Account<'info, Mint>,
+//     /// New NFT mint - created on purchase
+//     #[account(
+//         init,
+//         payer = payer,
+//         mint::decimals = 0,
+//         mint::authority = ic_vault_authority,
+//         mint::freeze_authority = ic_vault_authority
+//     )]
+//     pub mint: Account<'info, Mint>,
 
-    /// CHECK: derived off-chain
-    #[account(mut)]
-    pub metadata: UncheckedAccount<'info>,
+//     /// CHECK: derived off-chain
+//     #[account(mut)]
+//     pub metadata: UncheckedAccount<'info>,
 
-    /// CHECK: derived off-chain
-    #[account(mut)]
-    pub master_edition: UncheckedAccount<'info>,
+//     /// CHECK: derived off-chain
+//     #[account(mut)]
+//     pub master_edition: UncheckedAccount<'info>,
 
-    /// CHECK: User NFT vault token account (IC-owned)
-    /// Token account owner: IC vault authority PDA
-    /// Account owner (program owner): SPL Token program
-    #[account(
-        init_if_needed,
-        payer = payer,
-        seeds = [IC_USER_NFT_VAULT_SEED, user.key().as_ref(), mint.key().as_ref()],
-        bump,
-        token::mint = mint,
-        token::authority = ic_vault_authority,
-    )]
-    pub user_nft_vault_token_account: Account<'info, TokenAccount>,
+//     /// CHECK: User NFT vault token account (IC-owned)
+//     /// Token account owner: IC vault authority PDA
+//     /// Account owner (program owner): SPL Token program
+//     #[account(
+//         init_if_needed,
+//         payer = payer,
+//         seeds = [IC_USER_NFT_VAULT_SEED, user.key().as_ref(), mint.key().as_ref()],
+//         bump,
+//         token::mint = mint,
+//         token::authority = ic_vault_authority,
+//     )]
+//     pub user_nft_vault_token_account: Account<'info, TokenAccount>,
 
-    /// CHECK: IC vault authority PDA (single-purpose, deterministic)
-    #[account(
-        seeds = [IC_TOKEN_VAULT_AUTHORITY_SEED],
-        bump
-    )]
-    pub ic_vault_authority: UncheckedAccount<'info>,
+//     /// CHECK: IC vault authority PDA (single-purpose, deterministic)
+//     #[account(
+//         seeds = [IC_TOKEN_VAULT_AUTHORITY_SEED],
+//         bump
+//     )]
+//     pub ic_vault_authority: UncheckedAccount<'info>,
 
-    /// CHECK: Token Metadata program
-    #[account(address = TOKEN_METADATA_ID)]
-    pub token_metadata_program: UncheckedAccount<'info>,
+//     /// CHECK: Token Metadata program
+//     #[account(address = TOKEN_METADATA_ID)]
+//     pub token_metadata_program: UncheckedAccount<'info>,
 
-    pub token_program: Program<'info, Token>,
-    pub associated_token_program: Program<'info, anchor_spl::associated_token::AssociatedToken>,
-    pub system_program: Program<'info, System>,
+//     pub token_program: Program<'info, Token>,
+//     pub associated_token_program: Program<'info, anchor_spl::associated_token::AssociatedToken>,
+//     pub system_program: Program<'info, System>,
 
-    /// CHECK: sysvar instructions account
-    #[account(address = anchor_lang::solana_program::sysvar::instructions::ID)]
-    pub sysvar_instructions: UncheckedAccount<'info>,
+//     /// CHECK: sysvar instructions account
+//     #[account(address = anchor_lang::solana_program::sysvar::instructions::ID)]
+//     pub sysvar_instructions: UncheckedAccount<'info>,
 
-    pub rent: Sysvar<'info, Rent>,
+//     pub rent: Sysvar<'info, Rent>,
 
-    // Fed accounts for payment
-    /// CHECK: Fed program
-    pub fed_program: Program<'info, fed::program::Fed>,
+//     // Fed accounts for payment
+//     /// CHECK: Fed program
+//     pub fed_program: Program<'info, fed::program::Fed>,
 
-    /// CHECK: User pubkey for Fed vault
-    #[account(mut)]
-    pub fed_user: UncheckedAccount<'info>,
+//     /// CHECK: User pubkey for Fed vault
+//     #[account(mut)]
+//     pub fed_user: UncheckedAccount<'info>,
 
-    /// CHECK: User vault token account (Fed-owned, source of charge)
-    #[account(
-        mut,
-        seeds = [
-            fed::pda_seeds::FED_USER_VAULT_TOKEN_ACCOUNT_SEED,
-            fed_user.key().as_ref(),
-            token_mint.key().as_ref()
-        ],
-        bump,
-        token::mint = token_mint,
-        token::authority = fed_vault_authority,
-    )]
-    pub from_user_vault_token_account: Account<'info, TokenAccount>,
+//     /// CHECK: User vault token account (Fed-owned, source of charge)
+//     #[account(
+//         mut,
+//         seeds = [
+//             fed::pda_seeds::FED_USER_VAULT_TOKEN_ACCOUNT_SEED,
+//             fed_user.key().as_ref(),
+//             token_mint.key().as_ref()
+//         ],
+//         bump,
+//         token::mint = token_mint,
+//         token::authority = fed_vault_authority,
+//     )]
+//     pub from_user_vault_token_account: Account<'info, TokenAccount>,
 
-    /// CHECK: Protocol treasury token account (Fed-owned, destination for charged tokens)
-    #[account(
-        mut,
-        seeds = [
-            fed::pda_seeds::FED_PROTOCOL_TREASURY_TOKEN_ACCOUNT_SEED,
-            token_mint.key().as_ref()
-        ],
-        bump,
-        token::mint = token_mint,
-        token::authority = fed_config,
-    )]
-    pub protocol_treasury_token_account: Account<'info, TokenAccount>,
+//     /// CHECK: Protocol treasury token account (Fed-owned, destination for charged tokens)
+//     #[account(
+//         mut,
+//         seeds = [
+//             fed::pda_seeds::FED_PROTOCOL_TREASURY_TOKEN_ACCOUNT_SEED,
+//             token_mint.key().as_ref()
+//         ],
+//         bump,
+//         token::mint = token_mint,
+//         token::authority = fed_config,
+//     )]
+//     pub protocol_treasury_token_account: Account<'info, TokenAccount>,
 
-    #[account(
-        seeds = [fed::pda_seeds::FED_VALID_PAYMENT_SEED, token_mint.key().as_ref()],
-        bump = valid_payment.bump,
-        constraint = valid_payment.enabled @ ErrorCode::InsufficientFunds,
-    )]
-    pub valid_payment: Box<Account<'info, fed::states::ValidPayment>>,
+//     #[account(
+//         seeds = [fed::pda_seeds::FED_VALID_PAYMENT_SEED, token_mint.key().as_ref()],
+//         bump = valid_payment.bump,
+//         constraint = valid_payment.enabled @ ErrorCode::InsufficientFunds,
+//     )]
+//     pub valid_payment: Box<Account<'info, fed::states::ValidPayment>>,
 
-    pub token_mint: Account<'info, Mint>,
+//     pub token_mint: Account<'info, Mint>,
 
-    /// CHECK: Config PDA (authority of treasury token account)
-    #[account(
-        seeds = [fed::pda_seeds::FED_CONFIG_SEED],
-        bump,
-    )]
-    pub fed_config: Account<'info, fed::states::FedConfig>,
+//     /// CHECK: Config PDA (authority of treasury token account)
+//     #[account(
+//         seeds = [fed::pda_seeds::FED_CONFIG_SEED],
+//         bump,
+//     )]
+//     pub fed_config: Account<'info, fed::states::FedConfig>,
 
-    /// CHECK: Vault authority PDA (Fed-owned, signs the transfer)
-    #[account(
-        seeds = [fed::pda_seeds::FED_VAULT_AUTHORITY_SEED],
-        bump,
-    )]
-    pub fed_vault_authority: UncheckedAccount<'info>,
+//     /// CHECK: Vault authority PDA (Fed-owned, signs the transfer)
+//     #[account(
+//         seeds = [fed::pda_seeds::FED_VAULT_AUTHORITY_SEED],
+//         bump,
+//     )]
+//     pub fed_vault_authority: UncheckedAccount<'info>,
 
-    #[account(mut)]
-    pub payer: Signer<'info>,
-}
+//     #[account(mut)]
+//     pub payer: Signer<'info>,
+// }
 
-#[derive(Accounts)]
-pub struct WithdrawItem<'info> {
-    #[account(mut)]
-    pub user: Signer<'info>,
+// #[derive(Accounts)]
+// pub struct WithdrawItem<'info> {
+//     #[account(mut)]
+//     pub user: Signer<'info>,
 
-    /// CHECK: IC vault authority PDA (single-purpose, deterministic)
-    #[account(
-        seeds = [IC_TOKEN_VAULT_AUTHORITY_SEED],
-        bump
-    )]
-    pub ic_vault_authority: UncheckedAccount<'info>,
+//     /// CHECK: IC vault authority PDA (single-purpose, deterministic)
+//     #[account(
+//         seeds = [IC_TOKEN_VAULT_AUTHORITY_SEED],
+//         bump
+//     )]
+//     pub ic_vault_authority: UncheckedAccount<'info>,
 
-    /// CHECK: User NFT vault token account (IC-owned, source)
-    #[account(
-        mut,
-        seeds = [IC_USER_NFT_VAULT_SEED, user.key().as_ref(), mint.key().as_ref()],
-        bump,
-        token::mint = mint,
-        token::authority = ic_vault_authority,
-    )]
-    pub user_nft_vault_token_account: Account<'info, TokenAccount>,
+//     /// CHECK: User NFT vault token account (IC-owned, source)
+//     #[account(
+//         mut,
+//         seeds = [IC_USER_NFT_VAULT_SEED, user.key().as_ref(), mint.key().as_ref()],
+//         bump,
+//         token::mint = mint,
+//         token::authority = ic_vault_authority,
+//     )]
+//     pub user_nft_vault_token_account: Account<'info, TokenAccount>,
 
-    /// User's ATA (destination)
-    #[account(
-        init_if_needed,
-        payer = user,
-        associated_token::mint = mint,
-        associated_token::authority = user,
-    )]
-    pub user_token_account: Account<'info, TokenAccount>,
+//     /// User's ATA (destination)
+//     #[account(
+//         init_if_needed,
+//         payer = user,
+//         associated_token::mint = mint,
+//         associated_token::authority = user,
+//     )]
+//     pub user_token_account: Account<'info, TokenAccount>,
 
-    pub mint: Account<'info, Mint>,
+//     pub mint: Account<'info, Mint>,
 
-    pub token_program: Program<'info, Token>,
-    pub associated_token_program: Program<'info, anchor_spl::associated_token::AssociatedToken>,
-    pub system_program: Program<'info, System>,
-}
+//     pub token_program: Program<'info, Token>,
+//     pub associated_token_program: Program<'info, anchor_spl::associated_token::AssociatedToken>,
+//     pub system_program: Program<'info, System>,
+// }

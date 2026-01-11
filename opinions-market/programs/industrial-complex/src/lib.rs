@@ -132,153 +132,153 @@ pub mod industrial_complex {
         Ok(())
     }
 
-    /// BuyItem - Purchase an item that gets minted as a unique NFT stored in IC vault.
-    /// Strict ordering: validate supply -> charge payment -> create mint -> create metadata -> mint to vault -> increment count
-    pub fn buy_item(
-        ctx: Context<BuyItem>,
-        name: String,
-        symbol: String,
-        uri: String,
-    ) -> Result<()> {
-        let item_def = &mut ctx.accounts.item_definition;
+    // /// BuyItem - Purchase an item that gets minted as a unique NFT stored in IC vault.
+    // /// Strict ordering: validate supply -> charge payment -> create mint -> create metadata -> mint to vault -> increment count
+    // pub fn buy_item(
+    //     ctx: Context<BuyItem>,
+    //     name: String,
+    //     symbol: String,
+    //     uri: String,
+    // ) -> Result<()> {
+    //     let item_def = &mut ctx.accounts.item_definition;
 
-        // 1. Validate supply (CRITICAL: must be first)
-        require!(
-            item_def.minted_count < item_def.max_supply,
-            ErrorCode::ItemSoldOut
-        );
+    //     // 1. Validate supply (CRITICAL: must be first)
+    //     require!(
+    //         item_def.minted_count < item_def.max_supply,
+    //         ErrorCode::ItemSoldOut
+    //     );
 
-        // 2. Validate collection matches
-        require!(
-            item_def.collection == ctx.accounts.collection_mint.key(),
-            ErrorCode::InvalidCollection
-        );
+    //     // 2. Validate collection matches
+    //     require!(
+    //         item_def.collection == ctx.accounts.collection_mint.key(),
+    //         ErrorCode::InvalidCollection
+    //     );
 
-        // 3. Payment via Fed CPI (CRITICAL: must happen before minting)
-        fed::cpi::convert_dollar_and_charge_to_protocol_treasury(
-            CpiContext::new(
-                ctx.accounts.fed_program.to_account_info(),
-                fed::cpi::accounts::ConvertDollarAndChargeToProtocolTreasury {
-                    user: ctx.accounts.fed_user.to_account_info(),
-                    from_user_vault_token_account: ctx
-                        .accounts
-                        .from_user_vault_token_account
-                        .to_account_info(),
-                    protocol_treasury_token_account: ctx
-                        .accounts
-                        .protocol_treasury_token_account
-                        .to_account_info(),
-                    valid_payment: ctx.accounts.valid_payment.to_account_info(),
-                    token_mint: ctx.accounts.token_mint.to_account_info(),
-                    fed_config: ctx.accounts.fed_config.to_account_info(),
-                    vault_authority: ctx.accounts.fed_vault_authority.to_account_info(),
-                    token_program: ctx.accounts.token_program.to_account_info(),
-                },
-            ),
-            item_def.price_dollars,
-        )?;
+    //     // 3. Payment via Fed CPI (CRITICAL: must happen before minting)
+    //     fed::cpi::convert_dollar_and_charge_to_protocol_treasury(
+    //         CpiContext::new(
+    //             ctx.accounts.fed_program.to_account_info(),
+    //             fed::cpi::accounts::ConvertDollarAndChargeToProtocolTreasury {
+    //                 user: ctx.accounts.fed_user.to_account_info(),
+    //                 from_user_vault_token_account: ctx
+    //                     .accounts
+    //                     .from_user_vault_token_account
+    //                     .to_account_info(),
+    //                 protocol_treasury_token_account: ctx
+    //                     .accounts
+    //                     .protocol_treasury_token_account
+    //                     .to_account_info(),
+    //                 valid_payment: ctx.accounts.valid_payment.to_account_info(),
+    //                 token_mint: ctx.accounts.token_mint.to_account_info(),
+    //                 fed_config: ctx.accounts.fed_config.to_account_info(),
+    //                 vault_authority: ctx.accounts.fed_vault_authority.to_account_info(),
+    //                 token_program: ctx.accounts.token_program.to_account_info(),
+    //             },
+    //         ),
+    //         item_def.price_dollars,
+    //     )?;
 
-        // 4. Create metadata using CreateV1CpiBuilder
-        let payer_info = ctx.accounts.payer.to_account_info();
-        let mint_info = ctx.accounts.mint.to_account_info();
-        let metadata_info = ctx.accounts.metadata.to_account_info();
-        let master_edition_info = ctx.accounts.master_edition.to_account_info();
-        let collection_mint_info = ctx.accounts.collection_mint.to_account_info();
-        let system_program_info = ctx.accounts.system_program.to_account_info();
-        let token_program_info = ctx.accounts.token_program.to_account_info();
-        let sysvar_instructions_info = ctx.accounts.sysvar_instructions.to_account_info();
-        let token_metadata_program_info = ctx.accounts.token_metadata_program.to_account_info();
+    //     // 4. Create metadata using CreateV1CpiBuilder
+    //     let payer_info = ctx.accounts.payer.to_account_info();
+    //     let mint_info = ctx.accounts.mint.to_account_info();
+    //     let metadata_info = ctx.accounts.metadata.to_account_info();
+    //     let master_edition_info = ctx.accounts.master_edition.to_account_info();
+    //     let collection_mint_info = ctx.accounts.collection_mint.to_account_info();
+    //     let system_program_info = ctx.accounts.system_program.to_account_info();
+    //     let token_program_info = ctx.accounts.token_program.to_account_info();
+    //     let sysvar_instructions_info = ctx.accounts.sysvar_instructions.to_account_info();
+    //     let token_metadata_program_info = ctx.accounts.token_metadata_program.to_account_info();
 
-        let mut create_cpi = CreateV1CpiBuilder::new(&token_metadata_program_info);
+    //     let mut create_cpi = CreateV1CpiBuilder::new(&token_metadata_program_info);
 
-        create_cpi
-            .metadata(&metadata_info)
-            .master_edition(Some(&master_edition_info))
-            .mint(&mint_info, true) // mint is signer in this ix
-            .authority(&payer_info)
-            .payer(&payer_info)
-            .update_authority(&payer_info, true)
-            .system_program(&system_program_info)
-            .sysvar_instructions(&sysvar_instructions_info)
-            .spl_token_program(Some(&token_program_info))
-            .name(name)
-            .symbol(symbol)
-            .uri(uri)
-            .seller_fee_basis_points(0)
-            .token_standard(TokenStandard::NonFungible)
-            .print_supply(PrintSupply::Zero)
-            .collection(Collection {
-                key: collection_mint_info.key(),
-                verified: false,
-            });
+    //     create_cpi
+    //         .metadata(&metadata_info)
+    //         .master_edition(Some(&master_edition_info))
+    //         .mint(&mint_info, true) // mint is signer in this ix
+    //         .authority(&payer_info)
+    //         .payer(&payer_info)
+    //         .update_authority(&payer_info, true)
+    //         .system_program(&system_program_info)
+    //         .sysvar_instructions(&sysvar_instructions_info)
+    //         .spl_token_program(Some(&token_program_info))
+    //         .name(name)
+    //         .symbol(symbol)
+    //         .uri(uri)
+    //         .seller_fee_basis_points(0)
+    //         .token_standard(TokenStandard::NonFungible)
+    //         .print_supply(PrintSupply::Zero)
+    //         .collection(Collection {
+    //             key: collection_mint_info.key(),
+    //             verified: false,
+    //         });
 
-        create_cpi.invoke()?;
+    //     create_cpi.invoke()?;
 
-        // 5. Mint NFT to user's IC vault token account (signed by IC vault authority)
-        let vault_authority_bump = ctx.bumps.ic_vault_authority;
-        let vault_authority_seeds: &[&[&[u8]]] =
-            &[&[IC_TOKEN_VAULT_AUTHORITY_SEED, &[vault_authority_bump]]];
+    //     // 5. Mint NFT to user's IC vault token account (signed by IC vault authority)
+    //     let vault_authority_bump = ctx.bumps.ic_vault_authority;
+    //     let vault_authority_seeds: &[&[&[u8]]] =
+    //         &[&[IC_TOKEN_VAULT_AUTHORITY_SEED, &[vault_authority_bump]]];
 
-        let ata_info = ctx.accounts.user_nft_vault_token_account.to_account_info();
-        let associated_token_program_info = ctx.accounts.associated_token_program.to_account_info();
-        let ic_vault_authority_info = ctx.accounts.ic_vault_authority.to_account_info();
+    //     let ata_info = ctx.accounts.user_nft_vault_token_account.to_account_info();
+    //     let associated_token_program_info = ctx.accounts.associated_token_program.to_account_info();
+    //     let ic_vault_authority_info = ctx.accounts.ic_vault_authority.to_account_info();
 
-        let mut mint_cpi = MintV1CpiBuilder::new(&token_metadata_program_info);
+    //     let mut mint_cpi = MintV1CpiBuilder::new(&token_metadata_program_info);
 
-        mint_cpi
-            .token(&ata_info)
-            .token_owner(Some(&payer_info))
-            .metadata(&metadata_info)
-            .master_edition(Some(&master_edition_info))
-            .mint(&mint_info)
-            .payer(&payer_info)
-            .authority(&ic_vault_authority_info)
-            .system_program(&system_program_info)
-            .sysvar_instructions(&sysvar_instructions_info)
-            .spl_token_program(&token_program_info)
-            .spl_ata_program(&associated_token_program_info)
-            .amount(1);
+    //     mint_cpi
+    //         .token(&ata_info)
+    //         .token_owner(Some(&payer_info))
+    //         .metadata(&metadata_info)
+    //         .master_edition(Some(&master_edition_info))
+    //         .mint(&mint_info)
+    //         .payer(&payer_info)
+    //         .authority(&ic_vault_authority_info)
+    //         .system_program(&system_program_info)
+    //         .sysvar_instructions(&sysvar_instructions_info)
+    //         .spl_token_program(&token_program_info)
+    //         .spl_ata_program(&associated_token_program_info)
+    //         .amount(1);
 
-        mint_cpi.invoke_signed(vault_authority_seeds)?;
+    //     mint_cpi.invoke_signed(vault_authority_seeds)?;
 
-        // 6. Update minted_count (CRITICAL: only after mint succeeds)
-        item_def.minted_count = item_def
-            .minted_count
-            .checked_add(1)
-            .ok_or(ErrorCode::ItemSoldOut)?;
+    //     // 6. Update minted_count (CRITICAL: only after mint succeeds)
+    //     item_def.minted_count = item_def
+    //         .minted_count
+    //         .checked_add(1)
+    //         .ok_or(ErrorCode::ItemSoldOut)?;
 
-        Ok(())
-    }
+    //     Ok(())
+    // }
 
-    /// WithdrawItem - Transfer NFT from IC vault to user's wallet.
-    /// Policy: NFTs are freely withdrawable. Ownership ≠ activation. Using an item requires custody in IC vault.
-    pub fn withdraw_item(ctx: Context<WithdrawItem>) -> Result<()> {
-        // Validate user owns at least 1 NFT in vault
-        require!(
-            ctx.accounts.user_nft_vault_token_account.amount >= 1,
-            ErrorCode::InvalidNFT
-        );
+    // /// WithdrawItem - Transfer NFT from IC vault to user's wallet.
+    // /// Policy: NFTs are freely withdrawable. Ownership ≠ activation. Using an item requires custody in IC vault.
+    // pub fn withdraw_item(ctx: Context<WithdrawItem>) -> Result<()> {
+    //     // Validate user owns at least 1 NFT in vault
+    //     require!(
+    //         ctx.accounts.user_nft_vault_token_account.amount >= 1,
+    //         ErrorCode::InvalidNFT
+    //     );
 
-        // Transfer from IC vault to user's ATA
-        let vault_authority_bump = ctx.bumps.ic_vault_authority;
-        let vault_authority_seeds: &[&[&[u8]]] =
-            &[&[IC_TOKEN_VAULT_AUTHORITY_SEED, &[vault_authority_bump]]];
+    //     // Transfer from IC vault to user's ATA
+    //     let vault_authority_bump = ctx.bumps.ic_vault_authority;
+    //     let vault_authority_seeds: &[&[&[u8]]] =
+    //         &[&[IC_TOKEN_VAULT_AUTHORITY_SEED, &[vault_authority_bump]]];
 
-        anchor_spl::token::transfer(
-            CpiContext::new_with_signer(
-                ctx.accounts.token_program.to_account_info(),
-                anchor_spl::token::Transfer {
-                    from: ctx.accounts.user_nft_vault_token_account.to_account_info(),
-                    to: ctx.accounts.user_token_account.to_account_info(),
-                    authority: ctx.accounts.ic_vault_authority.to_account_info(),
-                },
-                vault_authority_seeds,
-            ),
-            1, // Transfer 1 NFT
-        )?;
+    //     anchor_spl::token::transfer(
+    //         CpiContext::new_with_signer(
+    //             ctx.accounts.token_program.to_account_info(),
+    //             anchor_spl::token::Transfer {
+    //                 from: ctx.accounts.user_nft_vault_token_account.to_account_info(),
+    //                 to: ctx.accounts.user_token_account.to_account_info(),
+    //                 authority: ctx.accounts.ic_vault_authority.to_account_info(),
+    //             },
+    //             vault_authority_seeds,
+    //         ),
+    //         1, // Transfer 1 NFT
+    //     )?;
 
-        Ok(())
-    }
+    //     Ok(())
+    // }
 
     // pub fn mint_item(ctx: Context<MintItem>) -> Result<()> {
     //     let item = &mut ctx.accounts.item_definition;
