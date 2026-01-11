@@ -10,7 +10,7 @@ fed = "6p4L4eVGQtzYEnYFnSrEFGaZMqsrx7r1Emd5aPBAXXzC"
 opinions_market = "4z5rjroGdWmgGX13SdFsh4wRM4jJkMUrcvYrNpV3gezm"
 persona = "3bE1UxZ4VFKbptUhpFwzA1AdXgdJENhRcLQApj9F9Z1d"
 referrals = "44Ti52xtPRNGHBrWWpWFFWHzngCQChCzoEPeLWxeRFxC"
-industrial-complex = "8fFaxfts8bmTt8MaRMKXs1VakW4mXbBnySXyxUExkAdg"
+industrial_complex = "8fFaxfts8bmTt8MaRMKXs1VakW4mXbBnySXyxUExkAdg"
 
 [registry]
 url = "https://api.apr.dev"

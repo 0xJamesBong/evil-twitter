@@ -97,7 +97,7 @@ async fn main() {
     let om_config_pda = Pubkey::find_program_address(&[OM_CONFIG_SEED], &program_id).0;
     let protocol_bling_treasury = Pubkey::find_program_address(
         &[
-            fed::pda_seeds::PROTOCOL_TREASURY_TOKEN_ACCOUNT_SEED,
+            fed::pda_seeds::FED_PROTOCOL_TREASURY_TOKEN_ACCOUNT_SEED,
             bling_mint.pubkey().as_ref(),
         ],
         &fed_program_id,
@@ -105,7 +105,7 @@ async fn main() {
     .0;
     let valid_payment_pda = Pubkey::find_program_address(
         &[
-            fed::pda_seeds::VALID_PAYMENT_SEED,
+            fed::pda_seeds::FED_VALID_PAYMENT_SEED,
             bling_mint.pubkey().as_ref(),
         ],
         &fed_program_id,
@@ -150,6 +150,7 @@ async fn main() {
         .request()
         .accounts(opinions_market::accounts::Initialize {
             admin: admin_pubkey,
+            authorized_issuer: industrial_complex::ID,
             payer: payer.pubkey(),
             om_config: om_config_pda,
             system_program: anchor_lang::solana_program::system_program::ID,
@@ -219,7 +220,7 @@ async fn main() {
     println!("🌍 Registering USDC as valid payment...");
     let usdc_valid_payment_pda = Pubkey::find_program_address(
         &[
-            fed::pda_seeds::VALID_PAYMENT_SEED,
+            fed::pda_seeds::FED_VALID_PAYMENT_SEED,
             usdc_mint.pubkey().as_ref(),
         ],
         &fed_program_id,
@@ -227,7 +228,7 @@ async fn main() {
     .0;
     let usdc_treasury_pda = Pubkey::find_program_address(
         &[
-            fed::pda_seeds::PROTOCOL_TREASURY_TOKEN_ACCOUNT_SEED,
+            fed::pda_seeds::FED_PROTOCOL_TREASURY_TOKEN_ACCOUNT_SEED,
             usdc_mint.pubkey().as_ref(),
         ],
         &fed_program_id,
@@ -267,7 +268,7 @@ async fn main() {
     println!("🌍 Registering STABLECOIN as valid payment...");
     let stablecoin_valid_payment_pda = Pubkey::find_program_address(
         &[
-            fed::pda_seeds::VALID_PAYMENT_SEED,
+            fed::pda_seeds::FED_VALID_PAYMENT_SEED,
             stablecoin_mint.pubkey().as_ref(),
         ],
         &fed_program_id,
@@ -275,7 +276,7 @@ async fn main() {
     .0;
     let stablecoin_treasury_pda = Pubkey::find_program_address(
         &[
-            fed::pda_seeds::PROTOCOL_TREASURY_TOKEN_ACCOUNT_SEED,
+            fed::pda_seeds::FED_PROTOCOL_TREASURY_TOKEN_ACCOUNT_SEED,
             stablecoin_mint.pubkey().as_ref(),
         ],
         &fed_program_id,

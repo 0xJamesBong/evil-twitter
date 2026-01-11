@@ -34,7 +34,7 @@ pub struct Initialize<'info> {
     #[account(
         init,
         payer = payer,
-        seeds = [VALID_PAYMENT_SEED, bling_mint.key().as_ref()],
+        seeds = [FED_VALID_PAYMENT_SEED, bling_mint.key().as_ref()],
         bump,
         space = 8 + ValidPayment::INIT_SPACE, 
     )]
@@ -43,7 +43,7 @@ pub struct Initialize<'info> {
     #[account(
         init,
         payer = payer,
-        seeds = [PROTOCOL_TREASURY_TOKEN_ACCOUNT_SEED, bling_mint.key().as_ref()],bump,
+        seeds = [FED_PROTOCOL_TREASURY_TOKEN_ACCOUNT_SEED, bling_mint.key().as_ref()],bump,
         token::mint = bling_mint,
         token::authority = fed_config,
     )]
@@ -66,7 +66,7 @@ pub struct RegisterValidPayment<'info> {
     #[account(
         init,
         payer = admin,
-        seeds = [VALID_PAYMENT_SEED, token_mint.key().as_ref()],
+        seeds = [FED_VALID_PAYMENT_SEED, token_mint.key().as_ref()],
         bump,
         space = 8 + ValidPayment::INIT_SPACE,
         constraint = token_mint.key() != fed_config.bling_mint @ ErrorCode::BlingCannotBeAlternativePayment,
@@ -77,7 +77,7 @@ pub struct RegisterValidPayment<'info> {
     #[account(
         init,
         payer = admin,
-        seeds = [PROTOCOL_TREASURY_TOKEN_ACCOUNT_SEED, token_mint.key().as_ref()],
+        seeds = [FED_PROTOCOL_TREASURY_TOKEN_ACCOUNT_SEED, token_mint.key().as_ref()],
         bump,
         token::mint = token_mint,
         token::authority = fed_config, // <-- SPL owner = fed_config PDA
@@ -106,7 +106,7 @@ pub struct ModifyAcceptedMint<'info> {
 
     #[account(
         mut,
-        seeds = [VALID_PAYMENT_SEED, mint.key().as_ref()],
+        seeds = [FED_VALID_PAYMENT_SEED, mint.key().as_ref()],
         bump = accepted_mint.bump,
     )]
     pub accepted_mint: Account<'info, ValidPayment>,
@@ -134,7 +134,7 @@ pub struct Deposit<'info> {
     pub token_mint: Account<'info, Mint>,
 
     #[account(
-        seeds = [VALID_PAYMENT_SEED, token_mint.key().as_ref()],
+        seeds = [FED_VALID_PAYMENT_SEED, token_mint.key().as_ref()],
         bump = valid_payment.bump,
         constraint = valid_payment.enabled @ ErrorCode::MintNotEnabled,
     )]
@@ -145,7 +145,7 @@ pub struct Deposit<'info> {
 
     /// CHECK: Vault authority PDA derived from seeds
     #[account(
-        seeds = [VAULT_AUTHORITY_SEED],
+        seeds = [FED_VAULT_AUTHORITY_SEED],
         bump,
     )]
     pub vault_authority: UncheckedAccount<'info>,
@@ -153,7 +153,7 @@ pub struct Deposit<'info> {
     #[account(
         init_if_needed,
         payer = payer,
-        seeds = [USER_VAULT_TOKEN_ACCOUNT_SEED, user.key().as_ref(), token_mint.key().as_ref()],
+        seeds = [FED_USER_VAULT_TOKEN_ACCOUNT_SEED, user.key().as_ref(), token_mint.key().as_ref()],
         bump,
         token::mint = token_mint,
         token::authority = vault_authority,
@@ -189,7 +189,7 @@ pub struct Withdraw<'info> {
 
     #[account(
         mut,
-        seeds = [USER_VAULT_TOKEN_ACCOUNT_SEED, user.key().as_ref(), token_mint.key().as_ref()],
+        seeds = [FED_USER_VAULT_TOKEN_ACCOUNT_SEED, user.key().as_ref(), token_mint.key().as_ref()],
         bump,
         constraint = user_vault_token_account.owner == vault_authority.key(),
         constraint = user_vault_token_account.mint == token_mint.key(),
@@ -198,7 +198,7 @@ pub struct Withdraw<'info> {
 
     /// CHECK: Global vault authority PDA derived from seeds
     #[account(
-        seeds = [VAULT_AUTHORITY_SEED],
+        seeds = [FED_VAULT_AUTHORITY_SEED],
         bump,
     )]
     pub vault_authority: UncheckedAccount<'info>,
@@ -223,7 +223,6 @@ pub struct Tip<'info> {
     #[account(mut)]
     pub session_key: UncheckedAccount<'info>,
 
-
     /// CHECK: persona-owned session authority (opaque)
     #[account(owner = persona::ID)]
     pub session_authority: AccountInfo<'info>,
@@ -236,7 +235,7 @@ pub struct Tip<'info> {
     pub token_mint: Account<'info, Mint>,
 
     #[account(
-        seeds = [VALID_PAYMENT_SEED, token_mint.key().as_ref()],
+        seeds = [FED_VALID_PAYMENT_SEED, token_mint.key().as_ref()],
         bump = valid_payment.bump,
         constraint = valid_payment.enabled @ ErrorCode::MintNotEnabled,
     )]
@@ -244,7 +243,7 @@ pub struct Tip<'info> {
 
     #[account(
         mut,
-        seeds = [USER_VAULT_TOKEN_ACCOUNT_SEED, sender.key().as_ref(), token_mint.key().as_ref()],
+        seeds = [FED_USER_VAULT_TOKEN_ACCOUNT_SEED, sender.key().as_ref(), token_mint.key().as_ref()],
         bump,
         token::mint = token_mint,
         token::authority = vault_authority,
@@ -253,7 +252,7 @@ pub struct Tip<'info> {
 
     /// CHECK: Global vault authority PDA
     #[account(
-        seeds = [VAULT_AUTHORITY_SEED],
+        seeds = [FED_VAULT_AUTHORITY_SEED],
         bump,
     )]
     pub vault_authority: UncheckedAccount<'info>,
@@ -261,7 +260,7 @@ pub struct Tip<'info> {
     #[account(
         init_if_needed,
         payer = payer,
-        seeds = [TIP_VAULT_SEED, recipient.key().as_ref(), token_mint.key().as_ref()],
+        seeds = [FED_TIP_VAULT_SEED, recipient.key().as_ref(), token_mint.key().as_ref()],
         bump,
         space = 8 + TipVault::INIT_SPACE,
     )]
@@ -270,7 +269,7 @@ pub struct Tip<'info> {
     #[account(
         init_if_needed,
         payer = payer,
-        seeds = [TIP_VAULT_TOKEN_ACCOUNT_SEED, recipient.key().as_ref(), token_mint.key().as_ref()],
+        seeds = [FED_TIP_VAULT_TOKEN_ACCOUNT_SEED, recipient.key().as_ref(), token_mint.key().as_ref()],
         bump,
         token::mint = token_mint,
         token::authority = vault_authority,
@@ -308,14 +307,14 @@ pub struct ClaimTips<'info> {
 
     #[account(
         mut,
-        seeds = [TIP_VAULT_SEED, owner.key().as_ref(), token_mint.key().as_ref()],
+        seeds = [FED_TIP_VAULT_SEED, owner.key().as_ref(), token_mint.key().as_ref()],
         bump,
     )]
     pub tip_vault: Account<'info, TipVault>,
 
     #[account(
         mut,
-        seeds = [TIP_VAULT_TOKEN_ACCOUNT_SEED, owner.key().as_ref(), token_mint.key().as_ref()],
+        seeds = [FED_TIP_VAULT_TOKEN_ACCOUNT_SEED, owner.key().as_ref(), token_mint.key().as_ref()],
         bump,
         token::mint = token_mint,
         token::authority = vault_authority,
@@ -324,7 +323,7 @@ pub struct ClaimTips<'info> {
 
     /// CHECK: Global vault authority PDA
     #[account(
-        seeds = [VAULT_AUTHORITY_SEED],
+        seeds = [FED_VAULT_AUTHORITY_SEED],
         bump,
     )]
     pub vault_authority: UncheckedAccount<'info>,
@@ -332,7 +331,7 @@ pub struct ClaimTips<'info> {
     #[account(
         init_if_needed,
         payer = payer,
-        seeds = [USER_VAULT_TOKEN_ACCOUNT_SEED, owner.key().as_ref(), token_mint.key().as_ref()],
+        seeds = [FED_USER_VAULT_TOKEN_ACCOUNT_SEED, owner.key().as_ref(), token_mint.key().as_ref()],
         bump,
         token::mint = token_mint,
         token::authority = vault_authority,
@@ -375,7 +374,7 @@ pub struct SendToken<'info> {
     pub token_mint: Account<'info, Mint>,
 
     #[account(
-        seeds = [VALID_PAYMENT_SEED, token_mint.key().as_ref()],
+        seeds = [FED_VALID_PAYMENT_SEED, token_mint.key().as_ref()],
         bump = valid_payment.bump,
         constraint = valid_payment.enabled @ ErrorCode::MintNotEnabled,
     )]
@@ -383,7 +382,7 @@ pub struct SendToken<'info> {
 
     #[account(
         mut,
-        seeds = [USER_VAULT_TOKEN_ACCOUNT_SEED, sender.key().as_ref(), token_mint.key().as_ref()],
+        seeds = [FED_USER_VAULT_TOKEN_ACCOUNT_SEED, sender.key().as_ref(), token_mint.key().as_ref()],
         bump,
         token::mint = token_mint,
         token::authority = vault_authority,
@@ -392,7 +391,7 @@ pub struct SendToken<'info> {
 
     /// CHECK: Global vault authority PDA
     #[account(
-        seeds = [VAULT_AUTHORITY_SEED],
+        seeds = [FED_VAULT_AUTHORITY_SEED],
         bump,
     )]
     pub vault_authority: UncheckedAccount<'info>,
@@ -400,7 +399,7 @@ pub struct SendToken<'info> {
     #[account(
         init_if_needed,
         payer = payer,
-        seeds = [USER_VAULT_TOKEN_ACCOUNT_SEED, recipient.key().as_ref(), token_mint.key().as_ref()],
+        seeds = [FED_USER_VAULT_TOKEN_ACCOUNT_SEED, recipient.key().as_ref(), token_mint.key().as_ref()],
         bump,
         token::mint = token_mint,
         token::authority = vault_authority,
@@ -437,7 +436,7 @@ pub struct TransferIntoFedUserAccount<'info> {
             init_if_needed,
             payer = payer,
     seeds = [
-        USER_VAULT_TOKEN_ACCOUNT_SEED,
+        FED_USER_VAULT_TOKEN_ACCOUNT_SEED,
         user.key().as_ref(),
         token_mint.key().as_ref()
     ],
@@ -449,7 +448,7 @@ pub struct TransferIntoFedUserAccount<'info> {
 
 
     #[account(
-        seeds = [VALID_PAYMENT_SEED, token_mint.key().as_ref()],
+        seeds = [FED_VALID_PAYMENT_SEED, token_mint.key().as_ref()],
         bump = valid_payment.bump,
         constraint = valid_payment.enabled @ ErrorCode::MintNotEnabled,
     )]
@@ -457,7 +456,7 @@ pub struct TransferIntoFedUserAccount<'info> {
     
     /// CHECK: Vault authority PDA (Fed-owned, signs the transfer)
     #[account(
-    seeds = [VAULT_AUTHORITY_SEED],
+    seeds = [FED_VAULT_AUTHORITY_SEED],
     bump,
     )]
     pub vault_authority: UncheckedAccount<'info>,
@@ -489,7 +488,7 @@ pub struct TransferIntoFedTreasuryAccount<'info> {
     #[account(
         mut,
         seeds = [
-            PROTOCOL_TREASURY_TOKEN_ACCOUNT_SEED,
+            FED_PROTOCOL_TREASURY_TOKEN_ACCOUNT_SEED,
             token_mint.key().as_ref()
         ],
         bump,
@@ -499,7 +498,7 @@ pub struct TransferIntoFedTreasuryAccount<'info> {
     pub protocol_treasury_token_account: Account<'info, TokenAccount>,
 
     #[account(
-        seeds = [VALID_PAYMENT_SEED, token_mint.key().as_ref()],
+        seeds = [FED_VALID_PAYMENT_SEED, token_mint.key().as_ref()],
         bump = valid_payment.bump,
         constraint = valid_payment.enabled @ ErrorCode::MintNotEnabled,
     )]
@@ -532,7 +531,7 @@ pub struct TransferOutOfFedUserAccount<'info> {
     #[account(
     mut,
     seeds = [
-        USER_VAULT_TOKEN_ACCOUNT_SEED,
+        FED_USER_VAULT_TOKEN_ACCOUNT_SEED,
         user.key().as_ref(),
         token_mint.key().as_ref()
     ],
@@ -546,7 +545,7 @@ pub struct TransferOutOfFedUserAccount<'info> {
     pub to: Account<'info, TokenAccount>,
 
     #[account(
-        seeds = [VALID_PAYMENT_SEED, token_mint.key().as_ref()],
+        seeds = [FED_VALID_PAYMENT_SEED, token_mint.key().as_ref()],
         bump = valid_payment.bump,
         constraint = valid_payment.enabled @ ErrorCode::MintNotEnabled,
     )]
@@ -556,7 +555,7 @@ pub struct TransferOutOfFedUserAccount<'info> {
 
     /// CHECK: Vault authority PDA (Fed-owned, signs the transfer)
     #[account(
-        seeds = [VAULT_AUTHORITY_SEED],
+        seeds = [FED_VAULT_AUTHORITY_SEED],
         bump,
     )]
     pub vault_authority: UncheckedAccount<'info>,
@@ -576,7 +575,7 @@ pub struct ConvertDollarAndChargeToProtocolTreasury<'info> {
     #[account(
         mut,
         seeds = [
-            USER_VAULT_TOKEN_ACCOUNT_SEED,
+            FED_USER_VAULT_TOKEN_ACCOUNT_SEED,
             user.key().as_ref(),
             token_mint.key().as_ref()
         ],
@@ -590,7 +589,7 @@ pub struct ConvertDollarAndChargeToProtocolTreasury<'info> {
     #[account(
         mut,
         seeds = [
-            PROTOCOL_TREASURY_TOKEN_ACCOUNT_SEED,
+            FED_PROTOCOL_TREASURY_TOKEN_ACCOUNT_SEED,
             token_mint.key().as_ref()
         ],
         bump,
@@ -600,7 +599,7 @@ pub struct ConvertDollarAndChargeToProtocolTreasury<'info> {
     pub protocol_treasury_token_account: Account<'info, TokenAccount>,
 
     #[account(
-        seeds = [VALID_PAYMENT_SEED, token_mint.key().as_ref()],
+        seeds = [FED_VALID_PAYMENT_SEED, token_mint.key().as_ref()],
         bump = valid_payment.bump,
         constraint = valid_payment.enabled @ ErrorCode::MintNotEnabled,
     )]
@@ -617,7 +616,7 @@ pub struct ConvertDollarAndChargeToProtocolTreasury<'info> {
 
     /// CHECK: Vault authority PDA (Fed-owned, signs the transfer)
     #[account(
-        seeds = [VAULT_AUTHORITY_SEED],
+        seeds = [FED_VAULT_AUTHORITY_SEED],
         bump,
     )]
     pub vault_authority: UncheckedAccount<'info>,
@@ -639,7 +638,7 @@ pub struct ConvertDollarAndTransferOutOfFedUserAccount<'info> {
     #[account(
         mut,
         seeds = [
-            USER_VAULT_TOKEN_ACCOUNT_SEED,
+            FED_USER_VAULT_TOKEN_ACCOUNT_SEED,
             user.key().as_ref(),
             token_mint.key().as_ref()
         ],
@@ -654,7 +653,7 @@ pub struct ConvertDollarAndTransferOutOfFedUserAccount<'info> {
     pub to: Account<'info, TokenAccount>,
 
     #[account(
-        seeds = [VALID_PAYMENT_SEED, token_mint.key().as_ref()],
+        seeds = [FED_VALID_PAYMENT_SEED, token_mint.key().as_ref()],
         bump = valid_payment.bump,
         constraint = valid_payment.enabled @ ErrorCode::MintNotEnabled,
     )]
@@ -664,7 +663,7 @@ pub struct ConvertDollarAndTransferOutOfFedUserAccount<'info> {
 
     /// CHECK: Vault authority PDA (Fed-owned, signs the transfer)
     #[account(
-        seeds = [VAULT_AUTHORITY_SEED],
+        seeds = [FED_VAULT_AUTHORITY_SEED],
         bump,
     )]
     pub vault_authority: UncheckedAccount<'info>,
@@ -688,7 +687,7 @@ pub struct ConvertDollarAndTransferOutOfFedUserAccountToFedUserAccount<'info> {
     #[account(
         mut,
         seeds = [
-            USER_VAULT_TOKEN_ACCOUNT_SEED,
+            FED_USER_VAULT_TOKEN_ACCOUNT_SEED,
             user_from.key().as_ref(),
             token_mint.key().as_ref()
         ],
@@ -704,7 +703,7 @@ pub struct ConvertDollarAndTransferOutOfFedUserAccountToFedUserAccount<'info> {
         init_if_needed,
         payer = payer,
         seeds = [
-            USER_VAULT_TOKEN_ACCOUNT_SEED,
+            FED_USER_VAULT_TOKEN_ACCOUNT_SEED,
             user_to.key().as_ref(),
             token_mint.key().as_ref()
         ],
@@ -715,7 +714,7 @@ pub struct ConvertDollarAndTransferOutOfFedUserAccountToFedUserAccount<'info> {
     pub to_user_vault_token_account: Account<'info, TokenAccount>,
 
     #[account(
-        seeds = [VALID_PAYMENT_SEED, token_mint.key().as_ref()],
+        seeds = [FED_VALID_PAYMENT_SEED, token_mint.key().as_ref()],
         bump = valid_payment.bump,
         constraint = valid_payment.enabled @ ErrorCode::MintNotEnabled,
     )]
@@ -725,7 +724,7 @@ pub struct ConvertDollarAndTransferOutOfFedUserAccountToFedUserAccount<'info> {
 
     /// CHECK: Vault authority PDA (Fed-owned, signs the transfer)
     #[account(
-        seeds = [VAULT_AUTHORITY_SEED],
+        seeds = [FED_VAULT_AUTHORITY_SEED],
         bump,
     )]
     pub vault_authority: UncheckedAccount<'info>,
@@ -749,7 +748,7 @@ pub struct CheckTransfer<'info> {
     pub to: Account<'info, TokenAccount>,
 
     #[account(
-        seeds = [VALID_PAYMENT_SEED, token_mint.key().as_ref()],
+        seeds = [FED_VALID_PAYMENT_SEED, token_mint.key().as_ref()],
         bump = valid_payment.bump,
         constraint = valid_payment.enabled @ ErrorCode::MintNotEnabled,
     )]

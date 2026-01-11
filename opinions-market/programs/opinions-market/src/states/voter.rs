@@ -2,57 +2,10 @@ use super::post::PostRelation;
 use super::post::Side;
 use crate::constants::PARAMS;
 use crate::math::vote_cost::{base_voter_cost, cost_in_dollar, post_curve_cost};
+use crate::modifiers::effect::{
+    PermanentEffect, PermanentEffectCategory, StackRule, UserEffectField,
+};
 use anchor_lang::prelude::*;
-
-// -----------------------------------------------------------------------------
-// MUTATION HELPERS (Pure arithmetic gates)
-// -----------------------------------------------------------------------------
-
-#[inline(always)]
-pub fn add_u16(value: &mut u16, amount: u16) {
-    *value = value.saturating_add(amount);
-}
-
-#[inline(always)]
-pub fn remove_u16(value: &mut u16, amount: u16) {
-    *value = value.saturating_sub(amount);
-}
-
-#[inline(always)]
-pub fn add_i16(value: &mut i16, amount: i16) {
-    *value = value.saturating_add(amount);
-}
-
-#[inline(always)]
-pub fn remove_i16(value: &mut i16, amount: i16) {
-    *value = value.saturating_sub(amount);
-}
-
-// -----------------------------------------------------------------------------
-// MUTATION TARGETS (What can be changed)
-// -----------------------------------------------------------------------------
-
-#[derive(AnchorSerialize, AnchorDeserialize, Clone, Copy, PartialEq, Eq, Debug)]
-pub enum StatTarget {
-    // Body stats
-    BodyHealth,
-    BodyEnergy,
-    // Appearance stats
-    AppearanceFreshness,
-    AppearanceCharisma,
-    AppearanceOriginality,
-    AppearanceNpcNess,
-    AppearanceBeauty,
-    AppearanceIntellectualism,
-}
-
-#[derive(AnchorSerialize, AnchorDeserialize, Clone, Copy, PartialEq, Eq, Debug)]
-pub enum StatChange {
-    AddU16(u16),
-    RemoveU16(u16),
-    AddI16(i16),
-    RemoveI16(i16),
-}
 
 // -----------------------------------------------------------------------------
 // USER ACCOUNTS
@@ -192,6 +145,65 @@ impl VoterAccount {
             appearance: appearance,
             body: body,
             bump,
+        }
+    }
+
+    /// Apply a permanent effect directly to canonical state.
+    /// Effects are applied at write-time, not resolved at read-time.
+    pub fn apply_effect(&mut self, effect: PermanentEffect) {
+        // Skip cosmetic effects (they don't mutate state)
+        if effect.category == PermanentEffectCategory::Cosmetic {
+            return;
+        }
+
+        match effect.field {
+            UserEffectField::AppearanceFreshness => {
+                Self::apply_i16(&mut self.appearance.freshness, effect);
+            }
+            UserEffectField::AppearanceCharisma => {
+                Self::apply_i16(&mut self.appearance.charisma, effect);
+            }
+            UserEffectField::AppearanceOriginality => {
+                Self::apply_i16(&mut self.appearance.originality, effect);
+            }
+            UserEffectField::AppearanceNpcNess => {
+                Self::apply_i16(&mut self.appearance._npc_ness, effect);
+            }
+            UserEffectField::AppearanceBeauty => {
+                Self::apply_i16(&mut self.appearance.beauty, effect);
+            }
+            UserEffectField::AppearanceIntellectualism => {
+                Self::apply_i16(&mut self.appearance.intellectualism, effect);
+            }
+            UserEffectField::BodyHealth => {
+                Self::apply_u16(&mut self.body.health, effect);
+            }
+            UserEffectField::BodyEnergy => {
+                Self::apply_u16(&mut self.body.energy, effect);
+            }
+        }
+    }
+
+    fn apply_i16(field: &mut i16, effect: PermanentEffect) {
+        match effect.stack_rule {
+            StackRule::Add => {
+                *field = field.saturating_add(effect.magnitude);
+            }
+            StackRule::Subtract => {
+                *field = field.saturating_sub(effect.magnitude);
+            }
+        }
+    }
+
+    fn apply_u16(field: &mut u16, effect: PermanentEffect) {
+        let m = effect.magnitude.max(0) as u16;
+        match effect.stack_rule {
+            StackRule::Add => {
+                *field = field.saturating_add(m);
+            }
+            StackRule::Subtract => {
+                *field = field.saturating_sub(m);
+            }
         }
     }
 

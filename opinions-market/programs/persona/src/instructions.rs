@@ -41,7 +41,7 @@ pub struct CreateUser<'info> {
     #[account(
         init,
         payer = payer,
-        seeds = [USER_ACCOUNT_SEED, user.key().as_ref()],
+        seeds = [PERSONA_USER_ACCOUNT_SEED, user.key().as_ref()],
         bump,
         space = 8 + UserAccount::INIT_SPACE,
     )]
@@ -66,7 +66,7 @@ pub struct RegisterSession<'info> {
     #[account(
         init_if_needed,
         payer = payer,
-        seeds = [SESSION_AUTHORITY_SEED, user.key().as_ref(), session_key.key().as_ref()],
+        seeds = [PERSONA_SESSION_AUTHORITY_SEED, user.key().as_ref(), session_key.key().as_ref()],
         bump,
         space = 8 + SessionAuthority::INIT_SPACE,
     )]
@@ -89,7 +89,7 @@ pub struct CheckSessionOrWallet<'info> {
 
     /// CHECK: persona-owned session authority (opaque)
     #[account(
-        seeds = [SESSION_AUTHORITY_SEED, user.key().as_ref(), session_key.key().as_ref()],
+        seeds = [PERSONA_SESSION_AUTHORITY_SEED, user.key().as_ref(), session_key.key().as_ref()],
         bump,
     )]
     pub session_authority: Account<'info, SessionAuthority>,

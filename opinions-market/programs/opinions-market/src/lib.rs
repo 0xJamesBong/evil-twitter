@@ -4,9 +4,10 @@ use anchor_lang::solana_program::pubkey::Pubkey;
 pub mod constants;
 pub mod instructions;
 pub mod math;
-
+pub mod modifiers;
 pub mod pda_seeds;
 pub mod states;
+use crate::modifiers::effect::PermanentEffect;
 use constants::*;
 use instructions::*;
 use states::*;
@@ -38,6 +39,7 @@ pub mod opinions_market {
 
         let new_config = OMConfig::new(
             ctx.accounts.admin.key(),
+            ctx.accounts.authorized_issuer.key(),
             base_duration_secs,
             max_duration_secs,
             extension_per_vote_secs,
@@ -48,6 +50,7 @@ pub mod opinions_market {
         );
 
         om_config.admin = new_config.admin;
+        om_config.authorized_issuer = new_config.authorized_issuer;
         om_config.base_duration_secs = new_config.base_duration_secs;
         om_config.max_duration_secs = new_config.max_duration_secs;
         om_config.extension_per_vote_secs = new_config.extension_per_vote_secs;
@@ -643,11 +646,14 @@ pub mod opinions_market {
 
         let post_key = ctx.accounts.post.key();
         let (_, post_pot_bump) = Pubkey::find_program_address(
-            &[POST_POT_AUTHORITY_SEED, post_key.as_ref()],
+            &[OM_POST_POT_AUTHORITY_SEED, post_key.as_ref()],
             ctx.program_id,
         );
-        let post_pot_authority_seeds: &[&[&[u8]]] =
-            &[&[POST_POT_AUTHORITY_SEED, post_key.as_ref(), &[post_pot_bump]]];
+        let post_pot_authority_seeds: &[&[&[u8]]] = &[&[
+            OM_POST_POT_AUTHORITY_SEED,
+            post_key.as_ref(),
+            &[post_pot_bump],
+        ]];
 
         fed::cpi::transfer_into_fed_user_account(
             CpiContext::new_with_signer(
@@ -699,11 +705,14 @@ pub mod opinions_market {
         // post_pot_authority is a PDA, so we need to sign with seeds
         let post_key = ctx.accounts.post.key();
         let (_, post_pot_bump) = Pubkey::find_program_address(
-            &[POST_POT_AUTHORITY_SEED, post_key.as_ref()],
+            &[OM_POST_POT_AUTHORITY_SEED, post_key.as_ref()],
             ctx.program_id,
         );
-        let post_pot_authority_seeds: &[&[&[u8]]] =
-            &[&[POST_POT_AUTHORITY_SEED, post_key.as_ref(), &[post_pot_bump]]];
+        let post_pot_authority_seeds: &[&[&[u8]]] = &[&[
+            OM_POST_POT_AUTHORITY_SEED,
+            post_key.as_ref(),
+            &[post_pot_bump],
+        ]];
 
         fed::cpi::transfer_into_fed_treasury_account(
             CpiContext::new_with_signer(
@@ -754,11 +763,14 @@ pub mod opinions_market {
         // Transfer from child post pot to parent post pot (post pots are owned by OM, so handle directly)
         let post_key = ctx.accounts.post.key();
         let (_, post_pot_bump) = Pubkey::find_program_address(
-            &[POST_POT_AUTHORITY_SEED, post_key.as_ref()],
+            &[OM_POST_POT_AUTHORITY_SEED, post_key.as_ref()],
             ctx.program_id,
         );
-        let post_pot_authority_seeds: &[&[&[u8]]] =
-            &[&[POST_POT_AUTHORITY_SEED, post_key.as_ref(), &[post_pot_bump]]];
+        let post_pot_authority_seeds: &[&[&[u8]]] = &[&[
+            OM_POST_POT_AUTHORITY_SEED,
+            post_key.as_ref(),
+            &[post_pot_bump],
+        ]];
 
         // not a CPI because we are not transferring money to the fed - we are just sending it to another post pot.
         anchor_spl::token::transfer(
@@ -833,11 +845,14 @@ pub mod opinions_market {
         // Transfer from post pot to user vault (post pot is owned by OM, so handle directly)
         let post_key = post.key();
         let (_, post_pot_bump) = Pubkey::find_program_address(
-            &[POST_POT_AUTHORITY_SEED, post_key.as_ref()],
+            &[OM_POST_POT_AUTHORITY_SEED, post_key.as_ref()],
             ctx.program_id,
         );
-        let post_pot_authority_seeds: &[&[&[u8]]] =
-            &[&[POST_POT_AUTHORITY_SEED, post_key.as_ref(), &[post_pot_bump]]];
+        let post_pot_authority_seeds: &[&[&[u8]]] = &[&[
+            OM_POST_POT_AUTHORITY_SEED,
+            post_key.as_ref(),
+            &[post_pot_bump],
+        ]];
 
         fed::cpi::transfer_into_fed_user_account(
             CpiContext::new_with_signer(
@@ -936,32 +951,20 @@ pub mod opinions_market {
         Ok(())
     }
 
-    // //
-    // pub fn grant_modifier(
-    //     ctx: Context<GrantModifier>,
-    //     target: Pubkey,
-    //     effect: ModifierEffect,
-    //     stack_rule: StackRule,
-    //     expires_at: i64,
-    // ) -> Result<()> {
-    //     // 1. Authorization
-    //     require!(
-    //         ctx.accounts
-    //             .om_config
-    //             .is_authorized_issuer(ctx.accounts.issuer.key()),
-    //         ErrorCode::UnauthorizedModifierIssuer
-    //     );
+    /// Apply a permanent effect directly to canonical voter state.
+    /// Effects are mutations, not stored state. They are applied at write-time.
+    pub fn apply_mutation(ctx: Context<ApplyMutation>, effect: PermanentEffect) -> Result<()> {
+        // 1. Validate user matches voter account
+        require!(
+            ctx.accounts.target_user.key() == ctx.accounts.target_user_voter_account.voter,
+            ErrorCode::Unauthorized
+        );
 
-    //     // 2. Create / overwrite ActiveModifier PDA
-    //     let modifier = &mut ctx.accounts.modifier;
-    //     modifier.target = target;
-    //     modifier.issuer = ctx.accounts.issuer.key();
-    //     modifier.effect = effect;
-    //     modifier.stack_rule = stack_rule;
-    //     modifier.expires_at = expires_at;
+        // 2. Apply effect directly to canonical state
+        ctx.accounts.target_user_voter_account.apply_effect(effect);
 
-    //     Ok(())
-    // }
+        Ok(())
+    }
 }
 
 #[error_code]
@@ -1022,4 +1025,6 @@ pub enum ErrorCode {
     NotDead,
     #[msg("Unauthorized modifier issuer")]
     UnauthorizedModifierIssuer,
+    #[msg("Unauthorized issuer")]
+    UnauthorizedIssuer,
 }

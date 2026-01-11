@@ -29,7 +29,7 @@ pub async fn test_phenomena_turn_on_withdrawable(
     println!("turning on withdrawable for {:}", token_mint);
 
     let valid_payment_pda = Pubkey::find_program_address(
-        &[fed::pda_seeds::VALID_PAYMENT_SEED, token_mint.as_ref()],
+        &[fed::pda_seeds::FED_VALID_PAYMENT_SEED, token_mint.as_ref()],
         &fed.id(),
     )
     .0;
@@ -88,7 +88,7 @@ pub async fn test_phenomena_turn_off_withdrawable(
     // let config_pda = Pubkey::find_program_address(&[b"config"], &fed.id()).0;
 
     let valid_payment_pda = Pubkey::find_program_address(
-        &[fed::pda_seeds::VALID_PAYMENT_SEED, token_mint.as_ref()],
+        &[fed::pda_seeds::FED_VALID_PAYMENT_SEED, token_mint.as_ref()],
         &fed.id(),
     )
     .0;
@@ -158,7 +158,10 @@ pub async fn test_phenomena_add_valid_payment(
 
     // adding new token as an valid payment mint
     let valid_payment_pda = Pubkey::find_program_address(
-        &[fed::pda_seeds::VALID_PAYMENT_SEED, new_token_mint.as_ref()],
+        &[
+            fed::pda_seeds::FED_VALID_PAYMENT_SEED,
+            new_token_mint.as_ref(),
+        ],
         &fed.id(),
     )
     .0;
@@ -178,7 +181,7 @@ pub async fn test_phenomena_add_valid_payment(
     );
     let treasury_token_account_pda = Pubkey::find_program_address(
         &[
-            fed::pda_seeds::PROTOCOL_TREASURY_TOKEN_ACCOUNT_SEED,
+            fed::pda_seeds::FED_PROTOCOL_TREASURY_TOKEN_ACCOUNT_SEED,
             new_token_mint.as_ref(),
         ],
         &fed.id(),
@@ -241,7 +244,7 @@ pub async fn test_phenomena_create_user(
     println!("creating user {:}", user.pubkey());
     let user_account_pda = Pubkey::find_program_address(
         &[
-            persona::pda_seeds::USER_ACCOUNT_SEED,
+            persona::pda_seeds::PERSONA_USER_ACCOUNT_SEED,
             user.pubkey().as_ref(),
         ],
         &persona.id(),
@@ -292,7 +295,7 @@ pub async fn test_phenomena_create_user(
     // Derive session authority PDA
     let (session_authority_pda, _) = Pubkey::find_program_address(
         &[
-            persona::pda_seeds::SESSION_AUTHORITY_SEED,
+            persona::pda_seeds::PERSONA_SESSION_AUTHORITY_SEED,
             user.pubkey().as_ref(),
             session_key.pubkey().as_ref(),
         ],
@@ -357,7 +360,7 @@ pub async fn test_phenomena_deposit(
 
     let user_account_pda = Pubkey::find_program_address(
         &[
-            persona::pda_seeds::USER_ACCOUNT_SEED,
+            persona::pda_seeds::PERSONA_USER_ACCOUNT_SEED,
             user.pubkey().as_ref(),
         ],
         &persona.id(),
@@ -365,11 +368,11 @@ pub async fn test_phenomena_deposit(
     .0;
 
     let vault_authority_pda =
-        Pubkey::find_program_address(&[fed::pda_seeds::VAULT_AUTHORITY_SEED], &fed.id()).0;
+        Pubkey::find_program_address(&[fed::pda_seeds::FED_VAULT_AUTHORITY_SEED], &fed.id()).0;
 
     let vault_token_account_pda = Pubkey::find_program_address(
         &[
-            fed::pda_seeds::USER_VAULT_TOKEN_ACCOUNT_SEED,
+            fed::pda_seeds::FED_USER_VAULT_TOKEN_ACCOUNT_SEED,
             user.pubkey().as_ref(),
             token_mint.as_ref(),
         ],
@@ -378,7 +381,7 @@ pub async fn test_phenomena_deposit(
     .0;
 
     let valid_payment_pda = Pubkey::find_program_address(
-        &[fed::pda_seeds::VALID_PAYMENT_SEED, token_mint.as_ref()],
+        &[fed::pda_seeds::FED_VALID_PAYMENT_SEED, token_mint.as_ref()],
         &fed.id(),
     )
     .0;
@@ -441,7 +444,7 @@ pub async fn test_phenomena_withdraw(
 
     let user_account_pda = Pubkey::find_program_address(
         &[
-            persona::pda_seeds::USER_ACCOUNT_SEED,
+            persona::pda_seeds::PERSONA_USER_ACCOUNT_SEED,
             user.pubkey().as_ref(),
         ],
         &persona.id(),
@@ -449,11 +452,11 @@ pub async fn test_phenomena_withdraw(
     .0;
 
     let vault_authority_pda =
-        Pubkey::find_program_address(&[fed::pda_seeds::VAULT_AUTHORITY_SEED], &fed.id()).0;
+        Pubkey::find_program_address(&[fed::pda_seeds::FED_VAULT_AUTHORITY_SEED], &fed.id()).0;
 
     let vault_token_account_pda = Pubkey::find_program_address(
         &[
-            fed::pda_seeds::USER_VAULT_TOKEN_ACCOUNT_SEED,
+            fed::pda_seeds::FED_USER_VAULT_TOKEN_ACCOUNT_SEED,
             user.pubkey().as_ref(),
             token_mint.as_ref(),
         ],
@@ -533,7 +536,7 @@ pub async fn test_phenomena_tip(
     // Derive PDAs
     let sender_user_account_pda = Pubkey::find_program_address(
         &[
-            persona::pda_seeds::USER_ACCOUNT_SEED,
+            persona::pda_seeds::PERSONA_USER_ACCOUNT_SEED,
             sender.pubkey().as_ref(),
         ],
         &persona.id(),
@@ -542,7 +545,7 @@ pub async fn test_phenomena_tip(
 
     let sender_vault_token_account_pda = Pubkey::find_program_address(
         &[
-            fed::pda_seeds::USER_VAULT_TOKEN_ACCOUNT_SEED,
+            fed::pda_seeds::FED_USER_VAULT_TOKEN_ACCOUNT_SEED,
             sender.pubkey().as_ref(),
             token_mint.as_ref(),
         ],
@@ -552,7 +555,7 @@ pub async fn test_phenomena_tip(
 
     let tip_vault_pda = Pubkey::find_program_address(
         &[
-            fed::pda_seeds::TIP_VAULT_SEED,
+            fed::pda_seeds::FED_TIP_VAULT_SEED,
             recipient.pubkey().as_ref(),
             token_mint.as_ref(),
         ],
@@ -562,7 +565,7 @@ pub async fn test_phenomena_tip(
 
     let tip_vault_token_account_pda = Pubkey::find_program_address(
         &[
-            fed::pda_seeds::TIP_VAULT_TOKEN_ACCOUNT_SEED,
+            fed::pda_seeds::FED_TIP_VAULT_TOKEN_ACCOUNT_SEED,
             recipient.pubkey().as_ref(),
             token_mint.as_ref(),
         ],
@@ -571,17 +574,17 @@ pub async fn test_phenomena_tip(
     .0;
 
     let vault_authority_pda =
-        Pubkey::find_program_address(&[fed::pda_seeds::VAULT_AUTHORITY_SEED], &fed.id()).0;
+        Pubkey::find_program_address(&[fed::pda_seeds::FED_VAULT_AUTHORITY_SEED], &fed.id()).0;
 
     let valid_payment_pda = Pubkey::find_program_address(
-        &[fed::pda_seeds::VALID_PAYMENT_SEED, token_mint.as_ref()],
+        &[fed::pda_seeds::FED_VALID_PAYMENT_SEED, token_mint.as_ref()],
         &fed.id(),
     )
     .0;
 
     let session_authority_pda = Pubkey::find_program_address(
         &[
-            persona::pda_seeds::SESSION_AUTHORITY_SEED,
+            persona::pda_seeds::PERSONA_SESSION_AUTHORITY_SEED,
             sender.pubkey().as_ref(),
             session_key.pubkey().as_ref(),
         ],
@@ -728,7 +731,7 @@ pub async fn test_phenomena_claim_tips(
     // Derive PDAs
     let user_account_pda = Pubkey::find_program_address(
         &[
-            persona::pda_seeds::USER_ACCOUNT_SEED,
+            persona::pda_seeds::PERSONA_USER_ACCOUNT_SEED,
             owner.pubkey().as_ref(),
         ],
         &persona.id(),
@@ -737,7 +740,7 @@ pub async fn test_phenomena_claim_tips(
 
     let tip_vault_pda = Pubkey::find_program_address(
         &[
-            fed::pda_seeds::TIP_VAULT_SEED,
+            fed::pda_seeds::FED_TIP_VAULT_SEED,
             owner.pubkey().as_ref(),
             token_mint.as_ref(),
         ],
@@ -747,7 +750,7 @@ pub async fn test_phenomena_claim_tips(
 
     let tip_vault_token_account_pda = Pubkey::find_program_address(
         &[
-            fed::pda_seeds::TIP_VAULT_TOKEN_ACCOUNT_SEED,
+            fed::pda_seeds::FED_TIP_VAULT_TOKEN_ACCOUNT_SEED,
             owner.pubkey().as_ref(),
             token_mint.as_ref(),
         ],
@@ -757,7 +760,7 @@ pub async fn test_phenomena_claim_tips(
 
     let owner_vault_token_account_pda = Pubkey::find_program_address(
         &[
-            fed::pda_seeds::USER_VAULT_TOKEN_ACCOUNT_SEED,
+            fed::pda_seeds::FED_USER_VAULT_TOKEN_ACCOUNT_SEED,
             owner.pubkey().as_ref(),
             token_mint.as_ref(),
         ],
@@ -766,11 +769,11 @@ pub async fn test_phenomena_claim_tips(
     .0;
 
     let vault_authority_pda =
-        Pubkey::find_program_address(&[fed::pda_seeds::VAULT_AUTHORITY_SEED], &fed.id()).0;
+        Pubkey::find_program_address(&[fed::pda_seeds::FED_VAULT_AUTHORITY_SEED], &fed.id()).0;
 
     let session_authority_pda = Pubkey::find_program_address(
         &[
-            persona::pda_seeds::SESSION_AUTHORITY_SEED,
+            persona::pda_seeds::PERSONA_SESSION_AUTHORITY_SEED,
             owner.pubkey().as_ref(),
             session_key.pubkey().as_ref(),
         ],
@@ -914,7 +917,7 @@ pub async fn test_phenomena_send_token(
     // Derive PDAs
     let sender_user_account_pda = Pubkey::find_program_address(
         &[
-            persona::pda_seeds::USER_ACCOUNT_SEED,
+            persona::pda_seeds::PERSONA_USER_ACCOUNT_SEED,
             sender.pubkey().as_ref(),
         ],
         &persona.id(),
@@ -923,7 +926,7 @@ pub async fn test_phenomena_send_token(
 
     let sender_vault_token_account_pda = Pubkey::find_program_address(
         &[
-            fed::pda_seeds::USER_VAULT_TOKEN_ACCOUNT_SEED,
+            fed::pda_seeds::FED_USER_VAULT_TOKEN_ACCOUNT_SEED,
             sender.pubkey().as_ref(),
             token_mint.as_ref(),
         ],
@@ -933,7 +936,7 @@ pub async fn test_phenomena_send_token(
 
     let recipient_vault_token_account_pda = Pubkey::find_program_address(
         &[
-            fed::pda_seeds::USER_VAULT_TOKEN_ACCOUNT_SEED,
+            fed::pda_seeds::FED_USER_VAULT_TOKEN_ACCOUNT_SEED,
             recipient.pubkey().as_ref(),
             token_mint.as_ref(),
         ],
@@ -942,17 +945,17 @@ pub async fn test_phenomena_send_token(
     .0;
 
     let vault_authority_pda =
-        Pubkey::find_program_address(&[fed::pda_seeds::VAULT_AUTHORITY_SEED], &fed.id()).0;
+        Pubkey::find_program_address(&[fed::pda_seeds::FED_VAULT_AUTHORITY_SEED], &fed.id()).0;
 
     let valid_payment_pda = Pubkey::find_program_address(
-        &[fed::pda_seeds::VALID_PAYMENT_SEED, token_mint.as_ref()],
+        &[fed::pda_seeds::FED_VALID_PAYMENT_SEED, token_mint.as_ref()],
         &fed.id(),
     )
     .0;
 
     let session_authority_pda = Pubkey::find_program_address(
         &[
-            persona::pda_seeds::SESSION_AUTHORITY_SEED,
+            persona::pda_seeds::PERSONA_SESSION_AUTHORITY_SEED,
             sender.pubkey().as_ref(),
             session_key.pubkey().as_ref(),
         ],
@@ -1064,7 +1067,7 @@ pub async fn test_phenomena_create_post(
 
     let user_account_pda = Pubkey::find_program_address(
         &[
-            persona::pda_seeds::USER_ACCOUNT_SEED,
+            persona::pda_seeds::PERSONA_USER_ACCOUNT_SEED,
             creator.pubkey().as_ref(),
         ],
         &persona.id(),
@@ -1072,16 +1075,19 @@ pub async fn test_phenomena_create_post(
     .0;
 
     let voter_account_pda = Pubkey::find_program_address(
-        &[VOTER_ACCOUNT_SEED, creator.pubkey().as_ref()],
+        &[OM_VOTER_ACCOUNT_SEED, creator.pubkey().as_ref()],
         &opinions_market.id(),
     )
     .0;
 
-    let post_pda =
-        Pubkey::find_program_address(&[POST_ACCOUNT_SEED, hash.as_ref()], &opinions_market.id()).0;
+    let post_pda = Pubkey::find_program_address(
+        &[OM_POST_ACCOUNT_SEED, hash.as_ref()],
+        &opinions_market.id(),
+    )
+    .0;
     let session_authority_pda = Pubkey::find_program_address(
         &[
-            persona::pda_seeds::SESSION_AUTHORITY_SEED,
+            persona::pda_seeds::PERSONA_SESSION_AUTHORITY_SEED,
             creator.pubkey().as_ref(),
             session_key.pubkey().as_ref(),
         ],
@@ -1270,7 +1276,7 @@ pub async fn test_phenomena_vote_on_post(
 
     println!("post_pda passed in: {}", post_pda);
     let expected = Pubkey::find_program_address(
-        &[POST_ACCOUNT_SEED, post_id_hash.as_ref()],
+        &[OM_POST_ACCOUNT_SEED, post_id_hash.as_ref()],
         &opinions_market.id(),
     )
     .0;
@@ -1319,7 +1325,7 @@ pub async fn test_phenomena_vote_on_post(
 
     let voter_user_account_pda = Pubkey::find_program_address(
         &[
-            persona::pda_seeds::USER_ACCOUNT_SEED,
+            persona::pda_seeds::PERSONA_USER_ACCOUNT_SEED,
             voter.pubkey().as_ref(),
         ],
         &persona.id(),
@@ -1327,14 +1333,14 @@ pub async fn test_phenomena_vote_on_post(
     .0;
 
     let voter_account_pda = Pubkey::find_program_address(
-        &[VOTER_ACCOUNT_SEED, voter.pubkey().as_ref()],
+        &[OM_VOTER_ACCOUNT_SEED, voter.pubkey().as_ref()],
         &opinions_market.id(),
     )
     .0;
 
     let user_vault_token_account_pda = Pubkey::find_program_address(
         &[
-            fed::pda_seeds::USER_VAULT_TOKEN_ACCOUNT_SEED,
+            fed::pda_seeds::FED_USER_VAULT_TOKEN_ACCOUNT_SEED,
             voter.pubkey().as_ref(),
             token_mint.as_ref(),
         ],
@@ -1344,7 +1350,7 @@ pub async fn test_phenomena_vote_on_post(
 
     let position_pda = Pubkey::find_program_address(
         &[
-            POSITION_SEED,
+            OM_POSITION_SEED,
             post_pda.as_ref(),
             voter.pubkey().as_ref(), // Use voter's wallet pubkey, not user_account PDA
         ],
@@ -1373,13 +1379,13 @@ pub async fn test_phenomena_vote_on_post(
     );
 
     let vault_authority_pda =
-        Pubkey::find_program_address(&[fed::pda_seeds::VAULT_AUTHORITY_SEED], &fed.id()).0;
+        Pubkey::find_program_address(&[fed::pda_seeds::FED_VAULT_AUTHORITY_SEED], &fed.id()).0;
 
     let creator_user = post_account_before.creator_user; // this is a wallet pubkey
 
     let creator_vault_token_account_pda = Pubkey::find_program_address(
         &[
-            fed::pda_seeds::USER_VAULT_TOKEN_ACCOUNT_SEED,
+            fed::pda_seeds::FED_USER_VAULT_TOKEN_ACCOUNT_SEED,
             creator_user.as_ref(),
             token_mint.as_ref(),
         ],
@@ -1388,14 +1394,14 @@ pub async fn test_phenomena_vote_on_post(
     .0;
 
     let post_pot_authority_pda = Pubkey::find_program_address(
-        &[POST_POT_AUTHORITY_SEED, post_pda.as_ref()],
+        &[OM_POST_POT_AUTHORITY_SEED, post_pda.as_ref()],
         &opinions_market.id(),
     )
     .0;
 
     let post_pot_token_account_pda = Pubkey::find_program_address(
         &[
-            POST_POT_TOKEN_ACCOUNT_SEED,
+            OM_POST_POT_TOKEN_ACCOUNT_SEED,
             post_pda.as_ref(),
             token_mint.as_ref(),
         ],
@@ -1405,7 +1411,7 @@ pub async fn test_phenomena_vote_on_post(
 
     let protocol_treasury_token_account_pda = Pubkey::find_program_address(
         &[
-            fed::pda_seeds::PROTOCOL_TREASURY_TOKEN_ACCOUNT_SEED,
+            fed::pda_seeds::FED_PROTOCOL_TREASURY_TOKEN_ACCOUNT_SEED,
             token_mint.as_ref(),
         ],
         &fed.id(),
@@ -1413,14 +1419,14 @@ pub async fn test_phenomena_vote_on_post(
     .0;
 
     let valid_payment_pda = Pubkey::find_program_address(
-        &[fed::pda_seeds::VALID_PAYMENT_SEED, token_mint.as_ref()],
+        &[fed::pda_seeds::FED_VALID_PAYMENT_SEED, token_mint.as_ref()],
         &fed.id(),
     )
     .0;
 
     let session_authority_pda = Pubkey::find_program_address(
         &[
-            persona::pda_seeds::SESSION_AUTHORITY_SEED,
+            persona::pda_seeds::PERSONA_SESSION_AUTHORITY_SEED,
             voter.pubkey().as_ref(),
             session_key.pubkey().as_ref(),
         ],
@@ -1601,7 +1607,7 @@ pub async fn test_phenomena_create_question(
 
     let user_account_pda = Pubkey::find_program_address(
         &[
-            persona::pda_seeds::USER_ACCOUNT_SEED,
+            persona::pda_seeds::PERSONA_USER_ACCOUNT_SEED,
             creator.pubkey().as_ref(),
         ],
         &persona.id(),
@@ -1609,16 +1615,19 @@ pub async fn test_phenomena_create_question(
     .0;
 
     let voter_account_pda = Pubkey::find_program_address(
-        &[VOTER_ACCOUNT_SEED, creator.pubkey().as_ref()],
+        &[OM_VOTER_ACCOUNT_SEED, creator.pubkey().as_ref()],
         &opinions_market.id(),
     )
     .0;
 
-    let post_pda =
-        Pubkey::find_program_address(&[POST_ACCOUNT_SEED, hash.as_ref()], &opinions_market.id()).0;
+    let post_pda = Pubkey::find_program_address(
+        &[OM_POST_ACCOUNT_SEED, hash.as_ref()],
+        &opinions_market.id(),
+    )
+    .0;
     let session_authority_pda = Pubkey::find_program_address(
         &[
-            persona::pda_seeds::SESSION_AUTHORITY_SEED,
+            persona::pda_seeds::PERSONA_SESSION_AUTHORITY_SEED,
             creator.pubkey().as_ref(),
             session_key.pubkey().as_ref(),
         ],
@@ -1766,7 +1775,7 @@ pub async fn test_phenomena_create_answer(
 
     let user_account_pda = Pubkey::find_program_address(
         &[
-            persona::pda_seeds::USER_ACCOUNT_SEED,
+            persona::pda_seeds::PERSONA_USER_ACCOUNT_SEED,
             creator.pubkey().as_ref(),
         ],
         &persona.id(),
@@ -1774,13 +1783,13 @@ pub async fn test_phenomena_create_answer(
     .0;
 
     let answer_pda = Pubkey::find_program_address(
-        &[POST_ACCOUNT_SEED, answer_hash.as_ref()],
+        &[OM_POST_ACCOUNT_SEED, answer_hash.as_ref()],
         &opinions_market.id(),
     )
     .0;
     let session_authority_pda = Pubkey::find_program_address(
         &[
-            persona::pda_seeds::SESSION_AUTHORITY_SEED,
+            persona::pda_seeds::PERSONA_SESSION_AUTHORITY_SEED,
             creator.pubkey().as_ref(),
             session_key.pubkey().as_ref(),
         ],
@@ -1944,7 +1953,7 @@ pub async fn test_phenomena_settle_post(
 
         let post_pot_token_account_pda = Pubkey::find_program_address(
             &[
-                POST_POT_TOKEN_ACCOUNT_SEED,
+                OM_POST_POT_TOKEN_ACCOUNT_SEED,
                 post_pda.as_ref(),
                 token_mint.as_ref(),
             ],
@@ -1978,14 +1987,14 @@ pub async fn test_phenomena_settle_post(
         }
 
         let post_pot_authority_pda = Pubkey::find_program_address(
-            &[POST_POT_AUTHORITY_SEED, post_pda.as_ref()],
+            &[OM_POST_POT_AUTHORITY_SEED, post_pda.as_ref()],
             &opinions_market.id(),
         )
         .0;
 
         let post_mint_payout_pda = Pubkey::find_program_address(
             &[
-                POST_MINT_PAYOUT_SEED,
+                OM_POST_MINT_PAYOUT_SEED,
                 post_pda.as_ref(),
                 token_mint.as_ref(),
             ],
@@ -1995,7 +2004,7 @@ pub async fn test_phenomena_settle_post(
 
         let protocol_treasury_token_account_pda = Pubkey::find_program_address(
             &[
-                fed::pda_seeds::PROTOCOL_TREASURY_TOKEN_ACCOUNT_SEED,
+                fed::pda_seeds::FED_PROTOCOL_TREASURY_TOKEN_ACCOUNT_SEED,
                 token_mint.as_ref(),
             ],
             &fed.id(),
@@ -2087,12 +2096,15 @@ pub async fn test_phenomena_settle_post(
 
         // 1. Distribute creator reward (if creator fee > 0)
         if payout_account.creator_fee > 0 {
-            let vault_authority_pda =
-                Pubkey::find_program_address(&[fed::pda_seeds::VAULT_AUTHORITY_SEED], &fed.id()).0;
+            let vault_authority_pda = Pubkey::find_program_address(
+                &[fed::pda_seeds::FED_VAULT_AUTHORITY_SEED],
+                &fed.id(),
+            )
+            .0;
 
             let creator_vault_token_account_pda = Pubkey::find_program_address(
                 &[
-                    fed::pda_seeds::USER_VAULT_TOKEN_ACCOUNT_SEED,
+                    fed::pda_seeds::FED_USER_VAULT_TOKEN_ACCOUNT_SEED,
                     settled_post.creator_user.as_ref(),
                     token_mint.as_ref(),
                 ],
@@ -2101,7 +2113,7 @@ pub async fn test_phenomena_settle_post(
             .0;
 
             let valid_payment_pda = Pubkey::find_program_address(
-                &[fed::pda_seeds::VALID_PAYMENT_SEED, token_mint.as_ref()],
+                &[fed::pda_seeds::FED_VALID_PAYMENT_SEED, token_mint.as_ref()],
                 &fed.id(),
             )
             .0;
@@ -2136,7 +2148,7 @@ pub async fn test_phenomena_settle_post(
         // 2. Distribute protocol fee (if protocol fee > 0)
         if payout_account.protocol_fee > 0 {
             let valid_payment_pda = Pubkey::find_program_address(
-                &[fed::pda_seeds::VALID_PAYMENT_SEED, token_mint.as_ref()],
+                &[fed::pda_seeds::FED_VALID_PAYMENT_SEED, token_mint.as_ref()],
                 &fed.id(),
             )
             .0;
@@ -2183,7 +2195,7 @@ pub async fn test_phenomena_settle_post(
 
             let parent_post_pot_token_account_pda = Pubkey::find_program_address(
                 &[
-                    POST_POT_TOKEN_ACCOUNT_SEED,
+                    OM_POST_POT_TOKEN_ACCOUNT_SEED,
                     parent_post_pda_unwrapped.as_ref(),
                     token_mint.as_ref(),
                 ],
@@ -2192,17 +2204,23 @@ pub async fn test_phenomena_settle_post(
             .0;
 
             let parent_post_pot_authority_pda = Pubkey::find_program_address(
-                &[POST_POT_AUTHORITY_SEED, parent_post_pda_unwrapped.as_ref()],
+                &[
+                    OM_POST_POT_AUTHORITY_SEED,
+                    parent_post_pda_unwrapped.as_ref(),
+                ],
                 &opinions_market.id(),
             )
             .0;
 
-            let vault_authority_pda =
-                Pubkey::find_program_address(&[fed::pda_seeds::VAULT_AUTHORITY_SEED], &fed.id()).0;
+            let vault_authority_pda = Pubkey::find_program_address(
+                &[fed::pda_seeds::FED_VAULT_AUTHORITY_SEED],
+                &fed.id(),
+            )
+            .0;
 
             let parent_creator_vault_token_account_pda = Pubkey::find_program_address(
                 &[
-                    fed::pda_seeds::USER_VAULT_TOKEN_ACCOUNT_SEED,
+                    fed::pda_seeds::FED_USER_VAULT_TOKEN_ACCOUNT_SEED,
                     parent_post_account.creator_user.as_ref(),
                     token_mint.as_ref(),
                 ],
@@ -2211,7 +2229,7 @@ pub async fn test_phenomena_settle_post(
             .0;
 
             let valid_payment_pda = Pubkey::find_program_address(
-                &[fed::pda_seeds::VALID_PAYMENT_SEED, token_mint.as_ref()],
+                &[fed::pda_seeds::FED_VALID_PAYMENT_SEED, token_mint.as_ref()],
                 &fed.id(),
             )
             .0;
@@ -2308,14 +2326,14 @@ pub async fn test_phenomena_claim_post_reward(
 
     // Derive all necessary PDAs
     let position_pda = Pubkey::find_program_address(
-        &[POSITION_SEED, post_pda.as_ref(), user.pubkey().as_ref()],
+        &[OM_POSITION_SEED, post_pda.as_ref(), user.pubkey().as_ref()],
         &opinions_market.id(),
     )
     .0;
 
     let voter_post_mint_claim_pda = Pubkey::find_program_address(
         &[
-            VOTER_POST_MINT_CLAIM_SEED,
+            OM_VOTER_POST_MINT_CLAIM_SEED,
             post_pda.as_ref(),
             token_mint.as_ref(),
         ],
@@ -2325,7 +2343,7 @@ pub async fn test_phenomena_claim_post_reward(
 
     let post_mint_payout_pda = Pubkey::find_program_address(
         &[
-            POST_MINT_PAYOUT_SEED,
+            OM_POST_MINT_PAYOUT_SEED,
             post_pda.as_ref(),
             token_mint.as_ref(),
         ],
@@ -2335,7 +2353,7 @@ pub async fn test_phenomena_claim_post_reward(
 
     let post_pot_token_account_pda = Pubkey::find_program_address(
         &[
-            POST_POT_TOKEN_ACCOUNT_SEED,
+            OM_POST_POT_TOKEN_ACCOUNT_SEED,
             post_pda.as_ref(),
             token_mint.as_ref(),
         ],
@@ -2344,14 +2362,14 @@ pub async fn test_phenomena_claim_post_reward(
     .0;
 
     let post_pot_authority_pda = Pubkey::find_program_address(
-        &[POST_POT_AUTHORITY_SEED, post_pda.as_ref()],
+        &[OM_POST_POT_AUTHORITY_SEED, post_pda.as_ref()],
         &opinions_market.id(),
     )
     .0;
 
     let user_vault_token_account_pda = Pubkey::find_program_address(
         &[
-            fed::pda_seeds::USER_VAULT_TOKEN_ACCOUNT_SEED,
+            fed::pda_seeds::FED_USER_VAULT_TOKEN_ACCOUNT_SEED,
             user.pubkey().as_ref(),
             token_mint.as_ref(),
         ],
@@ -2361,7 +2379,7 @@ pub async fn test_phenomena_claim_post_reward(
 
     let session_authority_pda = Pubkey::find_program_address(
         &[
-            persona::pda_seeds::SESSION_AUTHORITY_SEED,
+            persona::pda_seeds::PERSONA_SESSION_AUTHORITY_SEED,
             user.pubkey().as_ref(),
             session_key.pubkey().as_ref(),
         ],
@@ -2370,10 +2388,10 @@ pub async fn test_phenomena_claim_post_reward(
     .0;
 
     let vault_authority_pda =
-        Pubkey::find_program_address(&[fed::pda_seeds::VAULT_AUTHORITY_SEED], &fed.id()).0;
+        Pubkey::find_program_address(&[fed::pda_seeds::FED_VAULT_AUTHORITY_SEED], &fed.id()).0;
 
     let valid_payment_pda = Pubkey::find_program_address(
-        &[fed::pda_seeds::VALID_PAYMENT_SEED, token_mint.as_ref()],
+        &[fed::pda_seeds::FED_VALID_PAYMENT_SEED, token_mint.as_ref()],
         &fed.id(),
     )
     .0;
@@ -2525,4 +2543,94 @@ pub async fn test_phenomena_claim_post_reward(
     }
 
     println!("✅ Post reward claimed successfully");
+}
+
+pub async fn attack_appearance_freshness(
+    rpc: &RpcClient,
+    industrial_complex: &Program<&Keypair>,
+    opinions_market: &Program<&Keypair>,
+    payer: &Keypair,
+    target: &Pubkey,
+    om_config_pda: &Pubkey,
+) {
+    println!("🎯 Attacking appearance freshness for user: {}", target);
+
+    // Derive voter account PDA (where the permanent effect will be applied)
+    let voter_account_pda = Pubkey::find_program_address(
+        &[OM_VOTER_ACCOUNT_SEED, target.as_ref()],
+        &opinions_market.id(),
+    )
+    .0;
+
+    // Read stats before attack
+    let voter_account_before = opinions_market
+        .account::<opinions_market::states::VoterAccount>(voter_account_pda)
+        .await
+        .unwrap();
+
+    let freshness_before = voter_account_before.appearance.freshness;
+    println!("📊 Voter stats BEFORE attack:");
+    println!("   - Appearance freshness: {}", freshness_before);
+
+    // Derive issue authority PDA (IC's signing authority)
+    let (issue_authority_pda, _) = Pubkey::find_program_address(
+        &[industrial_complex::pda_seeds::IC_ISSUE_AUTHORITY_SEED],
+        &industrial_complex.id(),
+    );
+
+    let magnitude = 100i16;
+
+    let attack_ix = industrial_complex
+        .request()
+        .accounts(industrial_complex::accounts::AttackAppearanceFreshness {
+            opinions_market_program: opinions_market.id(),
+            om_config: *om_config_pda,
+            issue_authority: issue_authority_pda,
+            target_user: *target,
+            target_user_voter_account: voter_account_pda,
+            system_program: system_program::ID,
+        })
+        .args(industrial_complex::instruction::AttackAppearanceFreshness { magnitude })
+        .instructions()
+        .unwrap();
+
+    let attack_tx = send_tx(rpc, attack_ix, &payer.pubkey(), &[payer])
+        .await
+        .unwrap();
+
+    // Read stats after attack
+    let voter_account_after = opinions_market
+        .account::<opinions_market::states::VoterAccount>(voter_account_pda)
+        .await
+        .unwrap();
+
+    let freshness_after = voter_account_after.appearance.freshness;
+
+    println!("📊 Voter stats AFTER attack:");
+    println!("   - Appearance freshness: {}", freshness_after);
+    println!(
+        "   - Change: {} (expected: -{})",
+        freshness_after - freshness_before,
+        magnitude
+    );
+
+    // Assert the change matches the magnitude (subtract operation)
+    let expected_freshness = freshness_before.saturating_sub(magnitude);
+    assert_eq!(
+        freshness_after, expected_freshness,
+        "Freshness should decrease by {} (from {} to {}), but got {}",
+        magnitude, freshness_before, expected_freshness, freshness_after
+    );
+
+    // Effect is permanently applied to canonical state
+    println!("✅ Attack transaction: {:?}", attack_tx);
+    println!("   - Magnitude: {}", magnitude);
+    println!(
+        "   - Effect permanently applied to voter account: {}",
+        voter_account_pda
+    );
+    println!(
+        "   ✅ Assertion passed: Freshness correctly decreased by {}",
+        magnitude
+    );
 }

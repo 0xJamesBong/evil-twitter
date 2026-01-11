@@ -151,18 +151,6 @@ pub mod fed {
         valid_payment.withdrawable = withdrawable;
         Ok(())
     }
-    // /// User deposits from their wallet into the program-controlled vault.
-    // pub fn deposit(ctx: Context<Deposit>, amount: u64) -> Result<()> {
-    //     // No logic needed—Anchor already checked mint is allowed.
-    //     let cpi_accounts = anchor_spl::token::Transfer {
-    //         from: ctx.accounts.user_token_ata.to_account_info(),
-    //         to: ctx.accounts.user_vault_token_account.to_account_info(),
-    //         authority: ctx.accounts.user.to_account_info(),
-    //     };
-    //     let cpi_ctx = CpiContext::new(ctx.accounts.token_program.to_account_info(), cpi_accounts);
-    //     anchor_spl::token::transfer(cpi_ctx, amount)?;
-    //     Ok(())
-    // }
 
     pub fn deposit(ctx: Context<Deposit>, amount: u64) -> Result<()> {
         require!(amount > 0, ErrorCode::ZeroAmount);
@@ -187,7 +175,7 @@ pub mod fed {
         let effective_amount = amount;
 
         let vault_bump = ctx.bumps.vault_authority;
-        let seeds: &[&[&[u8]]] = &[&[VAULT_AUTHORITY_SEED, &[vault_bump]]];
+        let seeds: &[&[&[u8]]] = &[&[FED_VAULT_AUTHORITY_SEED, &[vault_bump]]];
 
         let cpi_accounts = anchor_spl::token::Transfer {
             from: ctx.accounts.user_vault_token_account.to_account_info(),
@@ -259,7 +247,7 @@ pub mod fed {
 
         // Transfer from sender's vault to tip vault
         let vault_bump = ctx.bumps.vault_authority;
-        let vault_authority_seeds: &[&[&[u8]]] = &[&[VAULT_AUTHORITY_SEED, &[vault_bump]]];
+        let vault_authority_seeds: &[&[&[u8]]] = &[&[FED_VAULT_AUTHORITY_SEED, &[vault_bump]]];
 
         let cpi_accounts = anchor_spl::token::Transfer {
             from: ctx
@@ -330,7 +318,7 @@ pub mod fed {
 
         // Transfer from tip vault to owner's main vault
         let vault_bump = ctx.bumps.vault_authority;
-        let vault_authority_seeds: &[&[&[u8]]] = &[&[VAULT_AUTHORITY_SEED, &[vault_bump]]];
+        let vault_authority_seeds: &[&[&[u8]]] = &[&[FED_VAULT_AUTHORITY_SEED, &[vault_bump]]];
 
         let cpi_accounts = anchor_spl::token::Transfer {
             from: ctx.accounts.tip_vault_token_account.to_account_info(),
@@ -389,7 +377,7 @@ pub mod fed {
 
         // Transfer from sender's vault to recipient's vault
         let vault_bump = ctx.bumps.vault_authority;
-        let vault_authority_seeds: &[&[&[u8]]] = &[&[VAULT_AUTHORITY_SEED, &[vault_bump]]];
+        let vault_authority_seeds: &[&[&[u8]]] = &[&[FED_VAULT_AUTHORITY_SEED, &[vault_bump]]];
 
         let cpi_accounts = anchor_spl::token::Transfer {
             from: ctx
@@ -521,7 +509,7 @@ pub mod fed {
         // // 3. Vault authority must be the Fed vault authority
         // // Anchor already verifies the PDA via #[account] constraint, but we double-check
         // let (expected_authority, _) =
-        //     Pubkey::find_program_address(&[VAULT_AUTHORITY_SEED], &fed::ID);
+        //     Pubkey::find_program_address(&[FED_VAULT_AUTHORITY_SEED], &fed::ID);
         // require!(
         //     ctx.accounts.vault_authority.key() == expected_authority,
         //     ErrorCode::BadAuthority
@@ -535,7 +523,7 @@ pub mod fed {
 
         // Transfer using vault authority as signer
         let authority_bump = ctx.bumps.vault_authority;
-        let authority_seeds: &[&[&[u8]]] = &[&[VAULT_AUTHORITY_SEED, &[authority_bump]]];
+        let authority_seeds: &[&[&[u8]]] = &[&[FED_VAULT_AUTHORITY_SEED, &[authority_bump]]];
 
         let cpi_accounts = anchor_spl::token::Transfer {
             from: ctx.accounts.from_user_vault_token_account.to_account_info(),
@@ -597,7 +585,7 @@ pub mod fed {
 
         // Charge (transfer) from user vault to protocol treasury
         let authority_bump = ctx.bumps.vault_authority;
-        let authority_seeds: &[&[&[u8]]] = &[&[VAULT_AUTHORITY_SEED, &[authority_bump]]];
+        let authority_seeds: &[&[&[u8]]] = &[&[FED_VAULT_AUTHORITY_SEED, &[authority_bump]]];
 
         let cpi_accounts = anchor_spl::token::Transfer {
             from: ctx.accounts.from_user_vault_token_account.to_account_info(),
@@ -645,7 +633,7 @@ pub mod fed {
 
         // Charge (transfer) from user vault to protocol treasury
         let authority_bump = ctx.bumps.vault_authority;
-        let authority_seeds: &[&[&[u8]]] = &[&[VAULT_AUTHORITY_SEED, &[authority_bump]]];
+        let authority_seeds: &[&[&[u8]]] = &[&[FED_VAULT_AUTHORITY_SEED, &[authority_bump]]];
 
         let cpi_accounts = anchor_spl::token::Transfer {
             from: ctx.accounts.from_user_vault_token_account.to_account_info(),
@@ -693,7 +681,7 @@ pub mod fed {
 
         // Transfer from user vault to destination
         let authority_bump = ctx.bumps.vault_authority;
-        let authority_seeds: &[&[&[u8]]] = &[&[VAULT_AUTHORITY_SEED, &[authority_bump]]];
+        let authority_seeds: &[&[&[u8]]] = &[&[FED_VAULT_AUTHORITY_SEED, &[authority_bump]]];
 
         let cpi_accounts = anchor_spl::token::Transfer {
             from: ctx.accounts.from_user_vault_token_account.to_account_info(),
@@ -737,7 +725,7 @@ pub mod fed {
 
         // Transfer from user vault to destination
         let authority_bump = ctx.bumps.vault_authority;
-        let authority_seeds: &[&[&[u8]]] = &[&[VAULT_AUTHORITY_SEED, &[authority_bump]]];
+        let authority_seeds: &[&[&[u8]]] = &[&[FED_VAULT_AUTHORITY_SEED, &[authority_bump]]];
 
         let cpi_accounts = anchor_spl::token::Transfer {
             from: ctx.accounts.from_user_vault_token_account.to_account_info(),

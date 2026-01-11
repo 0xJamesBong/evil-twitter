@@ -13,11 +13,11 @@ use solana_sdk::{
 
 use crate::config::{RESURRECTION_FEE, RESURRECTION_FEE_BLING_PREMIUM, TIME_CONFIG_FAST};
 use crate::utils::phenomena::{
-    test_phenomena_add_valid_payment, test_phenomena_claim_post_reward,
-    test_phenomena_create_answer, test_phenomena_create_post, test_phenomena_create_question,
-    test_phenomena_create_user, test_phenomena_deposit, test_phenomena_send_token,
-    test_phenomena_settle_post, test_phenomena_tip, test_phenomena_turn_on_withdrawable,
-    test_phenomena_vote_on_post, test_phenomena_withdraw,
+    attack_appearance_freshness, test_phenomena_add_valid_payment,
+    test_phenomena_claim_post_reward, test_phenomena_create_answer, test_phenomena_create_post,
+    test_phenomena_create_question, test_phenomena_create_user, test_phenomena_deposit,
+    test_phenomena_send_token, test_phenomena_settle_post, test_phenomena_tip,
+    test_phenomena_turn_on_withdrawable, test_phenomena_vote_on_post, test_phenomena_withdraw,
 };
 use crate::utils::utils::{
     airdrop_sol_to_users, send_tx, setup_token_mint, setup_token_mint_ata_and_mint_to_many_users,
@@ -85,8 +85,8 @@ use std::collections::HashMap;
 async fn test_setup() {
     let opinions_market_program_id = opinions_market::ID;
     let persona_program_id = persona::ID;
-    let referrals_program_id = referrals::ID;
     let fed_program_id = fed::ID;
+    let industrial_complex_program_id = industrial_complex::ID;
 
     let anchor_wallet = std::env::var("ANCHOR_WALLET").unwrap();
     let payer = read_keypair_file(&anchor_wallet).unwrap();
@@ -116,7 +116,7 @@ async fn test_setup() {
     let fed = client.program(fed_program_id).unwrap();
     let opinions_market = client.program(opinions_market_program_id).unwrap();
     let persona = client.program(persona_program_id).unwrap();
-    let referrals = client.program(referrals_program_id).unwrap();
+    let industrial_complex = client.program(industrial_complex_program_id).unwrap();
 
     let rpc = opinions_market.rpc();
 
@@ -201,76 +201,88 @@ async fn test_setup() {
     .0;
 
     {
-        println!("initializing fed engine");
-        let protocol_bling_treasury_pda = Pubkey::find_program_address(
-            &[
-                fed::pda_seeds::PROTOCOL_TREASURY_TOKEN_ACCOUNT_SEED,
-                bling_pubkey.as_ref(),
-            ],
-            &fed_program_id,
-        )
-        .0;
+        {
+            println!("initializing fed engine");
+            let protocol_bling_treasury_pda = Pubkey::find_program_address(
+                &[
+                    fed::pda_seeds::FED_PROTOCOL_TREASURY_TOKEN_ACCOUNT_SEED,
+                    bling_pubkey.as_ref(),
+                ],
+                &fed_program_id,
+            )
+            .0;
 
-        let valid_payment_pda = Pubkey::find_program_address(
-            &[fed::pda_seeds::VALID_PAYMENT_SEED, bling_pubkey.as_ref()],
-            &fed_program_id,
-        )
-        .0;
+            let valid_payment_pda = Pubkey::find_program_address(
+                &[
+                    fed::pda_seeds::FED_VALID_PAYMENT_SEED,
+                    bling_pubkey.as_ref(),
+                ],
+                &fed_program_id,
+            )
+            .0;
 
-        let initialize_fed_ix = fed
-            .request()
-            .accounts(fed::accounts::Initialize {
-                admin: admin_pubkey,
-                payer: payer_pubkey.clone(),
-                fed_config: fed_config_pda,
-                bling_mint: bling_pubkey,
-                usdc_mint: usdc_pubkey,
-                protocol_bling_treasury: protocol_bling_treasury_pda,
-                valid_payment: valid_payment_pda,
-                system_program: system_program::ID,
-                token_program: spl_token::ID,
-            })
-            .args(fed::instruction::Initialize {})
-            .instructions()
-            .unwrap();
-
-        let initialize_fed_tx =
-            send_tx(&rpc, initialize_fed_ix, &payer.pubkey(), &[&payer, &admin])
-                .await
+            let initialize_fed_ix = fed
+                .request()
+                .accounts(fed::accounts::Initialize {
+                    admin: admin_pubkey,
+                    payer: payer_pubkey.clone(),
+                    fed_config: fed_config_pda,
+                    bling_mint: bling_pubkey,
+                    usdc_mint: usdc_pubkey,
+                    protocol_bling_treasury: protocol_bling_treasury_pda,
+                    valid_payment: valid_payment_pda,
+                    system_program: system_program::ID,
+                    token_program: spl_token::ID,
+                })
+                .args(fed::instruction::Initialize {})
+                .instructions()
                 .unwrap();
-        println!("initialize fed tx: {:?}", initialize_fed_tx);
 
-        println!("initializing opinions market engine");
-        let initialize_opinions_market_ix = opinions_market
-            .request()
-            .accounts(opinions_market::accounts::Initialize {
-                admin: admin_pubkey,
-                payer: payer_pubkey.clone(),
-                om_config: om_config_pda,
-                system_program: anchor_client::solana_sdk::system_program::ID,
-            })
-            .args(opinions_market::instruction::Initialize {
-                base_duration_secs: TIME_CONFIG_FAST.base_duration_secs,
-                max_duration_secs: TIME_CONFIG_FAST.max_duration_secs,
-                extension_per_vote_secs: TIME_CONFIG_FAST.extension_per_vote_secs,
-                resurrection_fee: RESURRECTION_FEE,
-                resurrection_fee_bling_premium: RESURRECTION_FEE_BLING_PREMIUM,
-            })
-            .instructions()
+            let initialize_fed_tx =
+                send_tx(&rpc, initialize_fed_ix, &payer.pubkey(), &[&payer, &admin])
+                    .await
+                    .unwrap();
+            println!("initialize fed tx: {:?}", initialize_fed_tx);
+
+            println!("initializing opinions market engine");
+            // Derive the issue_authority PDA from industrial_complex (this will be the authorized issuer)
+            let (issue_authority_pda, _) = Pubkey::find_program_address(
+                &[industrial_complex::pda_seeds::IC_ISSUE_AUTHORITY_SEED],
+                &industrial_complex_program_id,
+            );
+
+            let initialize_opinions_market_ix = opinions_market
+                .request()
+                .accounts(opinions_market::accounts::Initialize {
+                    admin: admin_pubkey,
+                    authorized_issuer: issue_authority_pda,
+                    payer: payer_pubkey.clone(),
+                    om_config: om_config_pda,
+                    system_program: anchor_client::solana_sdk::system_program::ID,
+                })
+                .args(opinions_market::instruction::Initialize {
+                    base_duration_secs: TIME_CONFIG_FAST.base_duration_secs,
+                    max_duration_secs: TIME_CONFIG_FAST.max_duration_secs,
+                    extension_per_vote_secs: TIME_CONFIG_FAST.extension_per_vote_secs,
+                    resurrection_fee: RESURRECTION_FEE,
+                    resurrection_fee_bling_premium: RESURRECTION_FEE_BLING_PREMIUM,
+                })
+                .instructions()
+                .unwrap();
+
+            let initialize_opinions_market_tx = send_tx(
+                &rpc,
+                initialize_opinions_market_ix,
+                &payer.pubkey(),
+                &[&payer, &admin],
+            )
+            .await
             .unwrap();
-
-        let initialize_opinions_market_tx = send_tx(
-            &rpc,
-            initialize_opinions_market_ix,
-            &payer.pubkey(),
-            &[&payer, &admin],
-        )
-        .await
-        .unwrap();
-        println!(
-            "initialize opinions market tx: {:?}",
-            initialize_opinions_market_tx
-        );
+            println!(
+                "initialize opinions market tx: {:?}",
+                initialize_opinions_market_tx
+            );
+        }
 
         // make bling withdrawable
         test_phenomena_turn_on_withdrawable(
@@ -473,6 +485,26 @@ async fn test_setup() {
             )
             .await
         };
+
+        {
+            println!("attacking user 1's appearance freshness");
+            attack_appearance_freshness(
+                &rpc,
+                &industrial_complex,
+                &opinions_market,
+                &payer,
+                &user_1_pubkey,
+                &om_config_pda,
+            )
+            .await;
+        }
+        {
+            println!("\n\n");
+            println!(" 🟪🟪🟪🟪🟪🟪🟪🟪🟪🟪🟪🟪🟪🟪🟪🟪🟪");
+            println!(" 🟪 🟪 🟪 🟪 GOD LOVES ME 🟪 🟪 🟪 🟪");
+            println!(" 🟪🟪🟪🟪🟪🟪🟪🟪🟪🟪🟪🟪🟪🟪🟪🟪🟪");
+            panic!();
+        }
 
         let (post_p2_pda, post_p2_id_hash) = {
             println!("user 2 creates a child post P2 of user 1's post P1");
@@ -733,13 +765,6 @@ async fn test_setup() {
             )
             .await;
         };
-        {
-            println!("\n\n");
-            println!(" 🟪🟪🟪🟪🟪🟪🟪🟪🟪🟪🟪🟪🟪🟪🟪🟪🟪");
-            println!(" 🟪 🟪 🟪 🟪 GOD LOVES ME 🟪 🟪 🟪 🟪");
-            println!(" 🟪🟪🟪🟪🟪🟪🟪🟪🟪🟪🟪🟪🟪🟪🟪🟪🟪");
-            panic!();
-        }
 
         // {
         //     println!("user 3 trying to make a post");

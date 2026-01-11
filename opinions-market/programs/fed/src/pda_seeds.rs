@@ -1,25 +1,10 @@
 pub const FED_CONFIG_SEED: &[u8] = b"fed_config";
 
-// pub const SESSION_AUTHORITY_SEED: &[u8] = b"session_authority";
+pub const FED_VALID_PAYMENT_SEED: &[u8] = b"fed_valid_payment";
+pub const FED_VAULT_AUTHORITY_SEED: &[u8] = b"fed_vault_authority";
+pub const FED_USER_VAULT_TOKEN_ACCOUNT_SEED: &[u8] = b"fed_user_vault_token_account";
 
-pub const VALID_PAYMENT_SEED: &[u8] = b"valid_payment";
-// pub const USER_ACCOUNT_SEED: &[u8] = b"user_account";
-pub const VAULT_AUTHORITY_SEED: &[u8] = b"vault_authority";
-pub const USER_VAULT_TOKEN_ACCOUNT_SEED: &[u8] = b"user_vault_token_account";
-// pub const POST_ACCOUNT_SEED: &[u8] = b"post_account";
-// pub const POSITION_SEED: &[u8] = b"position";
+pub const FED_PROTOCOL_TREASURY_TOKEN_ACCOUNT_SEED: &[u8] = b"fed_protocol_treasury";
 
-// pub const POST_POT_AUTHORITY_SEED: &[u8] = b"post_pot_authority";
-// pub const POST_POT_TOKEN_ACCOUNT_SEED: &[u8] = b"post_pot_token_account";
-pub const PROTOCOL_TREASURY_TOKEN_ACCOUNT_SEED: &[u8] = b"protocol_treasury_token_account";
-
-// pub const POST_MINT_PAYOUT_SEED: &[u8] = b"post_mint_payout";
-
-// pub const USER_POST_MINT_CLAIM_SEED: &[u8] = b"user_post_mint_claim";
-
-pub const TIP_VAULT_SEED: &[u8] = b"tip_vault";
-pub const TIP_VAULT_TOKEN_ACCOUNT_SEED: &[u8] = b"tip_vault_token_account";
-
-// Note: POST_POT_AUTHORITY_SEED is owned by Opinions Market, not Fed
-// This is only here for reference if Fed needs to verify post pot authority
-// pub const POST_POT_AUTHORITY_SEED: &[u8] = b"post_pot_authority";
+pub const FED_TIP_VAULT_SEED: &[u8] = b"fed_tip_vault";
+pub const FED_TIP_VAULT_TOKEN_ACCOUNT_SEED: &[u8] = b"fed_tip_vault_token_account";

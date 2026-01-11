@@ -1,6 +1,8 @@
 use crate::pda_seeds::*;
 use crate::states::*;
+use crate::modifiers::effect::*;
 use crate::ErrorCode;
+
 use anchor_lang::prelude::*;
 use anchor_lang::solana_program::sysvar::instructions;
 use anchor_spl::token::{Mint, Token, TokenAccount};
@@ -13,6 +15,11 @@ use anchor_spl::token::{Mint, Token, TokenAccount};
 pub struct Initialize<'info> {
     #[account(mut)]
     pub admin: Signer<'info>,
+
+    /// CHECK: The authorized issuer pubkey (stored in OMConfig, validated during initialization)
+    #[account()]
+    pub authorized_issuer: UncheckedAccount<'info>,
+
     #[account(mut)]
     pub payer: Signer<'info>,
     #[account(init, payer = payer, seeds = [OM_CONFIG_SEED], bump, space = 8 + OMConfig::INIT_SPACE)]
@@ -49,13 +56,13 @@ pub struct CreatePost<'info> {
     pub user_account: AccountInfo<'info>,
 
     /// CHECK: owned by opinions market - this is the voter data 
-    #[account(init_if_needed, payer = payer, seeds = [VOTER_ACCOUNT_SEED, user.key().as_ref()], bump, space = 8 + VoterAccount::INIT_SPACE)]
+    #[account(init_if_needed, payer = payer, seeds = [OM_VOTER_ACCOUNT_SEED, user.key().as_ref()], bump, space = 8 + VoterAccount::INIT_SPACE)]
     pub voter_account: Account<'info, VoterAccount>,
 
     #[account(
         init,
         payer = payer,
-        seeds = [POST_ACCOUNT_SEED, post_id_hash.as_ref()],
+        seeds = [OM_POST_ACCOUNT_SEED, post_id_hash.as_ref()],
         bump,
         space = 8 + PostAccount::INIT_SPACE,
     )]
@@ -95,7 +102,7 @@ pub struct CreateAnswer<'info> {
     #[account(
         init,
         payer = payer,
-        seeds = [POST_ACCOUNT_SEED, answer_post_id_hash.as_ref()],
+        seeds = [OM_POST_ACCOUNT_SEED, answer_post_id_hash.as_ref()],
         bump,
         space = 8 + PostAccount::INIT_SPACE,
     )]
@@ -103,7 +110,7 @@ pub struct CreateAnswer<'info> {
 
     /// CHECK: The question post this answer targets
     #[account(
-        seeds = [POST_ACCOUNT_SEED, question_post_id_hash.as_ref()],
+        seeds = [OM_POST_ACCOUNT_SEED, question_post_id_hash.as_ref()],
         bump,
     )]
     pub question_post: Account<'info, PostAccount>,
@@ -140,7 +147,7 @@ pub struct VoteOnPost<'info> {
 
     #[account(
         mut,
-        seeds = [POST_ACCOUNT_SEED, post_id_hash.as_ref()],
+        seeds = [OM_POST_ACCOUNT_SEED, post_id_hash.as_ref()],
         bump,
         constraint = post.state == PostState::Open @ ErrorCode::PostNotOpen,
     )]
@@ -152,7 +159,7 @@ pub struct VoteOnPost<'info> {
 
     /// CHECK: owned by opinions market - this is the voter data 
     #[account(init_if_needed, payer = payer, 
-        seeds = [VOTER_ACCOUNT_SEED, voter.key().as_ref()], bump, space = 8 + VoterAccount::INIT_SPACE)]
+        seeds = [OM_VOTER_ACCOUNT_SEED, voter.key().as_ref()], bump, space = 8 + VoterAccount::INIT_SPACE)]
     pub voter_account: Account<'info, VoterAccount>,
 
     /// CHECK: this is a token account, owned by the SPL program, but its authority is a pda inside the fed 
@@ -163,7 +170,7 @@ pub struct VoteOnPost<'info> {
     #[account(
         init_if_needed,
         payer = payer,
-        seeds = [POSITION_SEED, post.key().as_ref(), voter.key().as_ref()],
+        seeds = [OM_POSITION_SEED, post.key().as_ref(), voter.key().as_ref()],
         bump,
         space = 8 + VoterPostPosition::INIT_SPACE,
     )]
@@ -178,7 +185,7 @@ pub struct VoteOnPost<'info> {
     #[account(
         init_if_needed,
         payer = payer,
-        seeds = [POST_POT_TOKEN_ACCOUNT_SEED, post.key().as_ref(), token_mint.key().as_ref()],
+        seeds = [OM_POST_POT_TOKEN_ACCOUNT_SEED, post.key().as_ref(), token_mint.key().as_ref()],
         bump,
         token::mint = token_mint,
         token::authority = post_pot_authority,
@@ -187,7 +194,7 @@ pub struct VoteOnPost<'info> {
 
     /// CHECK: Post pot authority PDA derived from seeds
     #[account(
-        seeds = [POST_POT_AUTHORITY_SEED, post.key().as_ref()],
+        seeds = [OM_POST_POT_AUTHORITY_SEED, post.key().as_ref()],
         bump,
     )]
     pub post_pot_authority: UncheckedAccount<'info>,
@@ -233,14 +240,14 @@ pub struct SettlePost<'info> {
 
     #[account(
         mut,
-        seeds = [POST_ACCOUNT_SEED, post_id_hash.as_ref()],
+        seeds = [OM_POST_ACCOUNT_SEED, post_id_hash.as_ref()],
         bump,
     )]
     pub post: Account<'info, PostAccount>,
 
     #[account(
         mut,
-        seeds = [POST_POT_TOKEN_ACCOUNT_SEED, post.key().as_ref(), token_mint.key().as_ref()],
+        seeds = [OM_POST_POT_TOKEN_ACCOUNT_SEED, post.key().as_ref(), token_mint.key().as_ref()],
         bump,
         constraint = post_pot_token_account.mint == token_mint.key(),
         constraint = post_pot_token_account.owner == post_pot_authority.key(),
@@ -249,7 +256,7 @@ pub struct SettlePost<'info> {
 
     /// CHECK: Post pot authority PDA derived from seeds
     #[account(
-        seeds = [POST_POT_AUTHORITY_SEED, post.key().as_ref()],
+        seeds = [OM_POST_POT_AUTHORITY_SEED, post.key().as_ref()],
         bump,
     )]
     pub post_pot_authority: UncheckedAccount<'info>,
@@ -258,7 +265,7 @@ pub struct SettlePost<'info> {
     #[account(
         init_if_needed,
         payer = payer,
-        seeds = [POST_MINT_PAYOUT_SEED, post.key().as_ref(), token_mint.key().as_ref()],
+        seeds = [OM_POST_MINT_PAYOUT_SEED, post.key().as_ref(), token_mint.key().as_ref()],
         bump,
         space = 8 + PostMintPayout::INIT_SPACE
     )]
@@ -286,14 +293,14 @@ pub struct DistributeCreatorReward<'info> {
     pub payer: Signer<'info>,
 
     #[account(
-        seeds = [POST_ACCOUNT_SEED, post_id_hash.as_ref()],
+        seeds = [OM_POST_ACCOUNT_SEED, post_id_hash.as_ref()],
         bump,
     )]
     pub post: Account<'info, PostAccount>,
 
     #[account(
         mut,
-        seeds = [POST_POT_TOKEN_ACCOUNT_SEED, post.key().as_ref(), token_mint.key().as_ref()],
+        seeds = [OM_POST_POT_TOKEN_ACCOUNT_SEED, post.key().as_ref(), token_mint.key().as_ref()],
         bump,
         constraint = post_pot_token_account.mint == token_mint.key(),
         constraint = post_pot_token_account.owner == post_pot_authority.key(),
@@ -302,13 +309,13 @@ pub struct DistributeCreatorReward<'info> {
 
     /// CHECK: Post pot authority PDA
     #[account(
-        seeds = [POST_POT_AUTHORITY_SEED, post.key().as_ref()],
+        seeds = [OM_POST_POT_AUTHORITY_SEED, post.key().as_ref()],
         bump,
     )]
     pub post_pot_authority: UncheckedAccount<'info>,
 
     #[account(
-        seeds = [POST_MINT_PAYOUT_SEED, post.key().as_ref(), token_mint.key().as_ref()],
+        seeds = [OM_POST_MINT_PAYOUT_SEED, post.key().as_ref(), token_mint.key().as_ref()],
         bump = post_mint_payout.bump,
     )]
     pub post_mint_payout: Account<'info, PostMintPayout>,
@@ -346,14 +353,14 @@ pub struct DistributeProtocolFee<'info> {
     pub payer: Signer<'info>,
 
     #[account(
-        seeds = [POST_ACCOUNT_SEED, post_id_hash.as_ref()],
+        seeds = [OM_POST_ACCOUNT_SEED, post_id_hash.as_ref()],
         bump,
     )]
     pub post: Account<'info, PostAccount>,
 
     #[account(
         mut,
-        seeds = [POST_POT_TOKEN_ACCOUNT_SEED, post.key().as_ref(), token_mint.key().as_ref()],
+        seeds = [OM_POST_POT_TOKEN_ACCOUNT_SEED, post.key().as_ref(), token_mint.key().as_ref()],
         bump,
         constraint = post_pot_token_account.mint == token_mint.key(),
         constraint = post_pot_token_account.owner == post_pot_authority.key(),
@@ -362,13 +369,13 @@ pub struct DistributeProtocolFee<'info> {
 
     /// CHECK: Post pot authority PDA
     #[account(
-        seeds = [POST_POT_AUTHORITY_SEED, post.key().as_ref()],
+        seeds = [OM_POST_POT_AUTHORITY_SEED, post.key().as_ref()],
         bump,
     )]
     pub post_pot_authority: UncheckedAccount<'info>,
 
     #[account(
-        seeds = [POST_MINT_PAYOUT_SEED, post.key().as_ref(), token_mint.key().as_ref()],
+        seeds = [OM_POST_MINT_PAYOUT_SEED, post.key().as_ref(), token_mint.key().as_ref()],
         bump = post_mint_payout.bump,
     )]
     pub post_mint_payout: Account<'info, PostMintPayout>,
@@ -400,14 +407,14 @@ pub struct DistributeParentPostShare<'info> {
     pub payer: Signer<'info>,
 
     #[account(
-        seeds = [POST_ACCOUNT_SEED, post_id_hash.as_ref()],
+        seeds = [OM_POST_ACCOUNT_SEED, post_id_hash.as_ref()],
         bump,
     )]
     pub post: Account<'info, PostAccount>,
 
     #[account(
         mut,
-        seeds = [POST_POT_TOKEN_ACCOUNT_SEED, post.key().as_ref(), token_mint.key().as_ref()],
+        seeds = [OM_POST_POT_TOKEN_ACCOUNT_SEED, post.key().as_ref(), token_mint.key().as_ref()],
         bump,
         constraint = post_pot_token_account.mint == token_mint.key(),
         constraint = post_pot_token_account.owner == post_pot_authority.key(),
@@ -416,13 +423,13 @@ pub struct DistributeParentPostShare<'info> {
 
     /// CHECK: Post pot authority PDA
     #[account(
-        seeds = [POST_POT_AUTHORITY_SEED, post.key().as_ref()],
+        seeds = [OM_POST_POT_AUTHORITY_SEED, post.key().as_ref()],
         bump,
     )]
     pub post_pot_authority: UncheckedAccount<'info>,
 
     #[account(
-        seeds = [POST_MINT_PAYOUT_SEED, post.key().as_ref(), token_mint.key().as_ref()],
+        seeds = [OM_POST_MINT_PAYOUT_SEED, post.key().as_ref(), token_mint.key().as_ref()],
         bump = post_mint_payout.bump,
     )]
     pub post_mint_payout: Account<'info, PostMintPayout>,
@@ -433,7 +440,7 @@ pub struct DistributeParentPostShare<'info> {
     #[account(
         init_if_needed,
         payer = payer,
-        seeds = [POST_POT_TOKEN_ACCOUNT_SEED, parent_post.key().as_ref(), token_mint.key().as_ref()],
+        seeds = [OM_POST_POT_TOKEN_ACCOUNT_SEED, parent_post.key().as_ref(), token_mint.key().as_ref()],
         bump,
         token::mint = token_mint,
         token::authority = parent_post_pot_authority,
@@ -444,7 +451,7 @@ pub struct DistributeParentPostShare<'info> {
 
     /// CHECK: Parent post pot authority PDA
     #[account(
-        seeds = [POST_POT_AUTHORITY_SEED, parent_post.key().as_ref()],
+        seeds = [OM_POST_POT_AUTHORITY_SEED, parent_post.key().as_ref()],
         bump,
     )]
     pub parent_post_pot_authority: UncheckedAccount<'info>,
@@ -503,7 +510,7 @@ pub struct ClaimPostReward<'info> {
 
     #[account(
         mut,
-        seeds = [POST_ACCOUNT_SEED, post_id_hash.as_ref()],
+        seeds = [OM_POST_ACCOUNT_SEED, post_id_hash.as_ref()],
         bump,
     )]
     pub post: Account<'info, PostAccount>,
@@ -512,18 +519,18 @@ pub struct ClaimPostReward<'info> {
     #[account(
         init_if_needed,
         payer = payer,
-        seeds = [VOTER_POST_MINT_CLAIM_SEED, post.key().as_ref(), token_mint.key().as_ref()], bump, space = 8 + VoterPostMintClaim::INIT_SPACE)]
+        seeds = [OM_VOTER_POST_MINT_CLAIM_SEED, post.key().as_ref(), token_mint.key().as_ref()], bump, space = 8 + VoterPostMintClaim::INIT_SPACE)]
         pub voter_post_mint_claim: Account<'info, VoterPostMintClaim>,
 
     #[account(
-        seeds = [POST_MINT_PAYOUT_SEED, post.key().as_ref(), token_mint.key().as_ref()],
+        seeds = [OM_POST_MINT_PAYOUT_SEED, post.key().as_ref(), token_mint.key().as_ref()],
         bump = post_mint_payout.bump,
     )]
     pub post_mint_payout: Account<'info, PostMintPayout>,
 
     #[account(
         mut,
-        seeds = [POST_POT_TOKEN_ACCOUNT_SEED, post.key().as_ref(), token_mint.key().as_ref()],
+        seeds = [OM_POST_POT_TOKEN_ACCOUNT_SEED, post.key().as_ref(), token_mint.key().as_ref()],
         bump,
         constraint = post_pot_token_account.owner == post_pot_authority.key(),
         constraint = post_pot_token_account.mint == token_mint.key(),
@@ -532,7 +539,7 @@ pub struct ClaimPostReward<'info> {
 
     /// CHECK: Post pot authority PDA derived from seeds
     #[account(
-        seeds = [POST_POT_AUTHORITY_SEED, post.key().as_ref()],
+        seeds = [OM_POST_POT_AUTHORITY_SEED, post.key().as_ref()],
         bump,
     )]
     pub post_pot_authority: UncheckedAccount<'info>,
@@ -586,7 +593,7 @@ pub struct Resurrect<'info> {
     pub user_account: AccountInfo<'info>,
 
     /// CHECK: owned by opinions market - this is the voter data 
-    #[account(mut, seeds = [VOTER_ACCOUNT_SEED, user.key().as_ref()], bump)]
+    #[account(mut, seeds = [OM_VOTER_ACCOUNT_SEED, user.key().as_ref()], bump)]
     pub voter_account: Account<'info, VoterAccount>,
 
     /// CHECK: this is a token account, owned by the SPL program, but its authority is a pda inside the fed 
@@ -615,3 +622,31 @@ pub struct Resurrect<'info> {
     pub persona_program: Program<'info, persona::program::Persona>,
     pub system_program: Program<'info, System>,
 }
+
+#[derive(Accounts)]
+pub struct ApplyMutation<'info> {
+    #[account(mut, seeds = [OM_CONFIG_SEED], bump)]
+    pub om_config: Account<'info, OMConfig>,
+    
+    /// CHECK: Target user pubkey (validated against voter_account.voter in handler)
+    #[account(mut)]
+    pub target_user: UncheckedAccount<'info>,
+
+    /// Target voter whose canonical state is mutated
+    #[account(
+        mut,
+        seeds = [OM_VOTER_ACCOUNT_SEED, target_user.key().as_ref()],
+        bump
+    )]
+    pub target_user_voter_account: Account<'info, VoterAccount>,
+
+    /// CHECK: issuing authority PDA (must be authorized in OMConfig)
+    #[account(
+        constraint = om_config.is_authorized_issuer(issue_authority.key())
+            @ ErrorCode::UnauthorizedIssuer
+)]
+pub issue_authority: UncheckedAccount<'info>,
+    pub system_program: Program<'info, System>,
+}
+
+

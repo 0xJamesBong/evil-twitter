@@ -14,6 +14,104 @@ export type OpinionsMarket = {
   },
   "instructions": [
     {
+      "name": "applyMutation",
+      "docs": [
+        "Apply a permanent effect directly to canonical voter state.",
+        "Effects are mutations, not stored state. They are applied at write-time."
+      ],
+      "discriminator": [
+        101,
+        40,
+        14,
+        241,
+        91,
+        225,
+        79,
+        73
+      ],
+      "accounts": [
+        {
+          "name": "omConfig",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  111,
+                  109,
+                  95,
+                  99,
+                  111,
+                  110,
+                  102,
+                  105,
+                  103
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "targetUser",
+          "writable": true
+        },
+        {
+          "name": "targetUserVoterAccount",
+          "docs": [
+            "Target voter whose canonical state is mutated"
+          ],
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  111,
+                  109,
+                  95,
+                  118,
+                  111,
+                  116,
+                  101,
+                  114,
+                  95,
+                  97,
+                  99,
+                  99,
+                  111,
+                  117,
+                  110,
+                  116
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "targetUser"
+              }
+            ]
+          }
+        },
+        {
+          "name": "issueAuthority"
+        },
+        {
+          "name": "systemProgram",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "effect",
+          "type": {
+            "defined": {
+              "name": "permanentEffect"
+            }
+          }
+        }
+      ]
+    },
+    {
       "name": "claimPostReward",
       "discriminator": [
         225,
@@ -72,6 +170,9 @@ export type OpinionsMarket = {
               {
                 "kind": "const",
                 "value": [
+                  111,
+                  109,
+                  95,
                   112,
                   111,
                   115,
@@ -105,6 +206,9 @@ export type OpinionsMarket = {
               {
                 "kind": "const",
                 "value": [
+                  111,
+                  109,
+                  95,
                   118,
                   111,
                   116,
@@ -146,6 +250,9 @@ export type OpinionsMarket = {
               {
                 "kind": "const",
                 "value": [
+                  111,
+                  109,
+                  95,
                   112,
                   111,
                   115,
@@ -183,6 +290,9 @@ export type OpinionsMarket = {
               {
                 "kind": "const",
                 "value": [
+                  111,
+                  109,
+                  95,
                   112,
                   111,
                   115,
@@ -225,6 +335,9 @@ export type OpinionsMarket = {
               {
                 "kind": "const",
                 "value": [
+                  111,
+                  109,
+                  95,
                   112,
                   111,
                   115,
@@ -355,6 +468,9 @@ export type OpinionsMarket = {
               {
                 "kind": "const",
                 "value": [
+                  111,
+                  109,
+                  95,
                   112,
                   111,
                   115,
@@ -383,6 +499,9 @@ export type OpinionsMarket = {
               {
                 "kind": "const",
                 "value": [
+                  111,
+                  109,
+                  95,
                   112,
                   111,
                   115,
@@ -495,6 +614,9 @@ export type OpinionsMarket = {
               {
                 "kind": "const",
                 "value": [
+                  111,
+                  109,
+                  95,
                   118,
                   111,
                   116,
@@ -525,6 +647,9 @@ export type OpinionsMarket = {
               {
                 "kind": "const",
                 "value": [
+                  111,
+                  109,
+                  95,
                   112,
                   111,
                   115,
@@ -638,6 +763,9 @@ export type OpinionsMarket = {
               {
                 "kind": "const",
                 "value": [
+                  111,
+                  109,
+                  95,
                   118,
                   111,
                   116,
@@ -668,6 +796,9 @@ export type OpinionsMarket = {
               {
                 "kind": "const",
                 "value": [
+                  111,
+                  109,
+                  95,
                   112,
                   111,
                   115,
@@ -735,6 +866,9 @@ export type OpinionsMarket = {
               {
                 "kind": "const",
                 "value": [
+                  111,
+                  109,
+                  95,
                   112,
                   111,
                   115,
@@ -764,6 +898,9 @@ export type OpinionsMarket = {
               {
                 "kind": "const",
                 "value": [
+                  111,
+                  109,
+                  95,
                   112,
                   111,
                   115,
@@ -806,6 +943,9 @@ export type OpinionsMarket = {
               {
                 "kind": "const",
                 "value": [
+                  111,
+                  109,
+                  95,
                   112,
                   111,
                   115,
@@ -840,6 +980,9 @@ export type OpinionsMarket = {
               {
                 "kind": "const",
                 "value": [
+                  111,
+                  109,
+                  95,
                   112,
                   111,
                   115,
@@ -944,6 +1087,9 @@ export type OpinionsMarket = {
               {
                 "kind": "const",
                 "value": [
+                  111,
+                  109,
+                  95,
                   112,
                   111,
                   115,
@@ -973,6 +1119,9 @@ export type OpinionsMarket = {
               {
                 "kind": "const",
                 "value": [
+                  111,
+                  109,
+                  95,
                   112,
                   111,
                   115,
@@ -1015,6 +1164,9 @@ export type OpinionsMarket = {
               {
                 "kind": "const",
                 "value": [
+                  111,
+                  109,
+                  95,
                   112,
                   111,
                   115,
@@ -1049,6 +1201,9 @@ export type OpinionsMarket = {
               {
                 "kind": "const",
                 "value": [
+                  111,
+                  109,
+                  95,
                   112,
                   111,
                   115,
@@ -1089,6 +1244,9 @@ export type OpinionsMarket = {
               {
                 "kind": "const",
                 "value": [
+                  111,
+                  109,
+                  95,
                   112,
                   111,
                   115,
@@ -1131,6 +1289,9 @@ export type OpinionsMarket = {
               {
                 "kind": "const",
                 "value": [
+                  111,
+                  109,
+                  95,
                   112,
                   111,
                   115,
@@ -1233,6 +1394,9 @@ export type OpinionsMarket = {
               {
                 "kind": "const",
                 "value": [
+                  111,
+                  109,
+                  95,
                   112,
                   111,
                   115,
@@ -1262,6 +1426,9 @@ export type OpinionsMarket = {
               {
                 "kind": "const",
                 "value": [
+                  111,
+                  109,
+                  95,
                   112,
                   111,
                   115,
@@ -1304,6 +1471,9 @@ export type OpinionsMarket = {
               {
                 "kind": "const",
                 "value": [
+                  111,
+                  109,
+                  95,
                   112,
                   111,
                   115,
@@ -1338,6 +1508,9 @@ export type OpinionsMarket = {
               {
                 "kind": "const",
                 "value": [
+                  111,
+                  109,
+                  95,
                   112,
                   111,
                   115,
@@ -1421,6 +1594,9 @@ export type OpinionsMarket = {
           "name": "admin",
           "writable": true,
           "signer": true
+        },
+        {
+          "name": "authorizedIssuer"
         },
         {
           "name": "payer",
@@ -1538,6 +1714,9 @@ export type OpinionsMarket = {
               {
                 "kind": "const",
                 "value": [
+                  111,
+                  109,
+                  95,
                   118,
                   111,
                   116,
@@ -1628,6 +1807,9 @@ export type OpinionsMarket = {
               {
                 "kind": "const",
                 "value": [
+                  111,
+                  109,
+                  95,
                   112,
                   111,
                   115,
@@ -1657,6 +1839,9 @@ export type OpinionsMarket = {
               {
                 "kind": "const",
                 "value": [
+                  111,
+                  109,
+                  95,
                   112,
                   111,
                   115,
@@ -1699,6 +1884,9 @@ export type OpinionsMarket = {
               {
                 "kind": "const",
                 "value": [
+                  111,
+                  109,
+                  95,
                   112,
                   111,
                   115,
@@ -1734,6 +1922,9 @@ export type OpinionsMarket = {
               {
                 "kind": "const",
                 "value": [
+                  111,
+                  109,
+                  95,
                   112,
                   111,
                   115,
@@ -1857,6 +2048,9 @@ export type OpinionsMarket = {
               {
                 "kind": "const",
                 "value": [
+                  111,
+                  109,
+                  95,
                   112,
                   111,
                   115,
@@ -1889,6 +2083,9 @@ export type OpinionsMarket = {
               {
                 "kind": "const",
                 "value": [
+                  111,
+                  109,
+                  95,
                   118,
                   111,
                   116,
@@ -1926,6 +2123,9 @@ export type OpinionsMarket = {
               {
                 "kind": "const",
                 "value": [
+                  111,
+                  109,
+                  95,
                   112,
                   111,
                   115,
@@ -1958,6 +2158,9 @@ export type OpinionsMarket = {
               {
                 "kind": "const",
                 "value": [
+                  111,
+                  109,
+                  95,
                   112,
                   111,
                   115,
@@ -2000,6 +2203,9 @@ export type OpinionsMarket = {
               {
                 "kind": "const",
                 "value": [
+                  111,
+                  109,
+                  95,
                   112,
                   111,
                   115,
@@ -2314,6 +2520,11 @@ export type OpinionsMarket = {
       "code": 6027,
       "name": "unauthorizedModifierIssuer",
       "msg": "Unauthorized modifier issuer"
+    },
+    {
+      "code": 6028,
+      "name": "unauthorizedIssuer",
+      "msg": "Unauthorized issuer"
     }
   ],
   "types": [
@@ -2410,6 +2621,10 @@ export type OpinionsMarket = {
             "type": "pubkey"
           },
           {
+            "name": "authorizedIssuer",
+            "type": "pubkey"
+          },
+          {
             "name": "baseDurationSecs",
             "type": "u32"
           },
@@ -2441,6 +2656,112 @@ export type OpinionsMarket = {
                 7
               ]
             }
+          }
+        ]
+      }
+    },
+    {
+      "name": "permanentEffect",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "category",
+            "type": {
+              "defined": {
+                "name": "permanentEffectCategory"
+              }
+            }
+          },
+          {
+            "name": "style",
+            "type": {
+              "defined": {
+                "name": "permanentEffectStyle"
+              }
+            }
+          },
+          {
+            "name": "target",
+            "type": {
+              "defined": {
+                "name": "permanentEffectTarget"
+              }
+            }
+          },
+          {
+            "name": "stackRule",
+            "type": {
+              "defined": {
+                "name": "stackRule"
+              }
+            }
+          },
+          {
+            "name": "field",
+            "type": {
+              "defined": {
+                "name": "userEffectField"
+              }
+            }
+          },
+          {
+            "name": "magnitude",
+            "type": "i16"
+          }
+        ]
+      }
+    },
+    {
+      "name": "permanentEffectCategory",
+      "type": {
+        "kind": "enum",
+        "variants": [
+          {
+            "name": "cosmetic"
+          },
+          {
+            "name": "economic"
+          },
+          {
+            "name": "reputational"
+          },
+          {
+            "name": "control"
+          }
+        ]
+      }
+    },
+    {
+      "name": "permanentEffectStyle",
+      "type": {
+        "kind": "enum",
+        "variants": [
+          {
+            "name": "curse"
+          },
+          {
+            "name": "honour"
+          },
+          {
+            "name": "slur"
+          },
+          {
+            "name": "medicine"
+          },
+          {
+            "name": "shield"
+          }
+        ]
+      }
+    },
+    {
+      "name": "permanentEffectTarget",
+      "type": {
+        "kind": "enum",
+        "variants": [
+          {
+            "name": "user"
           }
         ]
       }
@@ -2669,6 +2990,52 @@ export type OpinionsMarket = {
           },
           {
             "name": "smack"
+          }
+        ]
+      }
+    },
+    {
+      "name": "stackRule",
+      "type": {
+        "kind": "enum",
+        "variants": [
+          {
+            "name": "add"
+          },
+          {
+            "name": "subtract"
+          }
+        ]
+      }
+    },
+    {
+      "name": "userEffectField",
+      "type": {
+        "kind": "enum",
+        "variants": [
+          {
+            "name": "appearanceFreshness"
+          },
+          {
+            "name": "appearanceCharisma"
+          },
+          {
+            "name": "appearanceOriginality"
+          },
+          {
+            "name": "appearanceNpcNess"
+          },
+          {
+            "name": "appearanceBeauty"
+          },
+          {
+            "name": "appearanceIntellectualism"
+          },
+          {
+            "name": "bodyHealth"
+          },
+          {
+            "name": "bodyEnergy"
           }
         ]
       }
