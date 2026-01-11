@@ -244,7 +244,7 @@ async fn test_setup() {
             println!("initializing opinions market engine");
             // Derive the issue_authority PDA from industrial_complex (this will be the authorized issuer)
             let (issue_authority_pda, _) = Pubkey::find_program_address(
-                &[industrial_complex::pda_seeds::ISSUE_AUTHORITY_SEED],
+                &[industrial_complex::pda_seeds::IC_ISSUE_AUTHORITY_SEED],
                 &industrial_complex_program_id,
             );
 

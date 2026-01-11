@@ -2556,7 +2556,7 @@ pub async fn attack_appearance_freshness(
 
     // Derive issue authority PDA (IC's signing authority)
     let (issue_authority_pda, _) = Pubkey::find_program_address(
-        &[industrial_complex::pda_seeds::ISSUE_AUTHORITY_SEED],
+        &[industrial_complex::pda_seeds::IC_ISSUE_AUTHORITY_SEED],
         &industrial_complex.id(),
     );
 
