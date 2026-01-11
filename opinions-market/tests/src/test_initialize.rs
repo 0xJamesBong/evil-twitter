@@ -205,7 +205,7 @@ async fn test_setup() {
             println!("initializing fed engine");
             let protocol_bling_treasury_pda = Pubkey::find_program_address(
                 &[
-                    fed::pda_seeds::PROTOCOL_TREASURY_TOKEN_ACCOUNT_SEED,
+                    fed::pda_seeds::FED_PROTOCOL_TREASURY_TOKEN_ACCOUNT_SEED,
                     bling_pubkey.as_ref(),
                 ],
                 &fed_program_id,
@@ -213,7 +213,10 @@ async fn test_setup() {
             .0;
 
             let valid_payment_pda = Pubkey::find_program_address(
-                &[fed::pda_seeds::VALID_PAYMENT_SEED, bling_pubkey.as_ref()],
+                &[
+                    fed::pda_seeds::FED_VALID_PAYMENT_SEED,
+                    bling_pubkey.as_ref(),
+                ],
                 &fed_program_id,
             )
             .0;

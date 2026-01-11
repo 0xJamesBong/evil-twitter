@@ -220,7 +220,7 @@ pub struct BuyItem<'info> {
     #[account(
         mut,
         seeds = [
-            fed::pda_seeds::USER_VAULT_TOKEN_ACCOUNT_SEED,
+            fed::pda_seeds::FED_USER_VAULT_TOKEN_ACCOUNT_SEED,
             fed_user.key().as_ref(),
             token_mint.key().as_ref()
         ],
@@ -234,7 +234,7 @@ pub struct BuyItem<'info> {
     #[account(
         mut,
         seeds = [
-            fed::pda_seeds::PROTOCOL_TREASURY_TOKEN_ACCOUNT_SEED,
+            fed::pda_seeds::FED_PROTOCOL_TREASURY_TOKEN_ACCOUNT_SEED,
             token_mint.key().as_ref()
         ],
         bump,
@@ -244,7 +244,7 @@ pub struct BuyItem<'info> {
     pub protocol_treasury_token_account: Account<'info, TokenAccount>,
 
     #[account(
-        seeds = [fed::pda_seeds::VALID_PAYMENT_SEED, token_mint.key().as_ref()],
+        seeds = [fed::pda_seeds::FED_VALID_PAYMENT_SEED, token_mint.key().as_ref()],
         bump = valid_payment.bump,
         constraint = valid_payment.enabled @ ErrorCode::InsufficientFunds,
     )]
@@ -261,7 +261,7 @@ pub struct BuyItem<'info> {
 
     /// CHECK: Vault authority PDA (Fed-owned, signs the transfer)
     #[account(
-        seeds = [fed::pda_seeds::VAULT_AUTHORITY_SEED],
+        seeds = [fed::pda_seeds::FED_VAULT_AUTHORITY_SEED],
         bump,
     )]
     pub fed_vault_authority: UncheckedAccount<'info>,

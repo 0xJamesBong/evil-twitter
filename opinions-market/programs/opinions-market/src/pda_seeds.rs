@@ -7,8 +7,7 @@ pub const OM_POSITION_SEED: &[u8] = b"om_position";
 
 pub const OM_POST_POT_AUTHORITY_SEED: &[u8] = b"om_post_pot_authority";
 pub const OM_POST_POT_TOKEN_ACCOUNT_SEED: &[u8] = b"om_post_pot_token_account";
-pub const OM_PROTOCOL_VOTE_TREASURY_TOKEN_ACCOUNT_SEED: &[u8] =
-    b"om_protocol_vote_treasury_token_account";
+pub const OM_PROTOCOL_VOTE_TREASURY_TOKEN_ACCOUNT_SEED: &[u8] = b"om_protocol_vote_treasury";
 
 pub const OM_POST_MINT_PAYOUT_SEED: &[u8] = b"om_post_mint_payout";
 
