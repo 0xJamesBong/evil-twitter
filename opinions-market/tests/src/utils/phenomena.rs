@@ -1072,13 +1072,16 @@ pub async fn test_phenomena_create_post(
     .0;
 
     let voter_account_pda = Pubkey::find_program_address(
-        &[VOTER_ACCOUNT_SEED, creator.pubkey().as_ref()],
+        &[OM_VOTER_ACCOUNT_SEED, creator.pubkey().as_ref()],
         &opinions_market.id(),
     )
     .0;
 
-    let post_pda =
-        Pubkey::find_program_address(&[POST_ACCOUNT_SEED, hash.as_ref()], &opinions_market.id()).0;
+    let post_pda = Pubkey::find_program_address(
+        &[OM_POST_ACCOUNT_SEED, hash.as_ref()],
+        &opinions_market.id(),
+    )
+    .0;
     let session_authority_pda = Pubkey::find_program_address(
         &[
             persona::pda_seeds::SESSION_AUTHORITY_SEED,
@@ -1270,7 +1273,7 @@ pub async fn test_phenomena_vote_on_post(
 
     println!("post_pda passed in: {}", post_pda);
     let expected = Pubkey::find_program_address(
-        &[POST_ACCOUNT_SEED, post_id_hash.as_ref()],
+        &[OM_POST_ACCOUNT_SEED, post_id_hash.as_ref()],
         &opinions_market.id(),
     )
     .0;
@@ -1327,7 +1330,7 @@ pub async fn test_phenomena_vote_on_post(
     .0;
 
     let voter_account_pda = Pubkey::find_program_address(
-        &[VOTER_ACCOUNT_SEED, voter.pubkey().as_ref()],
+        &[OM_VOTER_ACCOUNT_SEED, voter.pubkey().as_ref()],
         &opinions_market.id(),
     )
     .0;
@@ -1344,7 +1347,7 @@ pub async fn test_phenomena_vote_on_post(
 
     let position_pda = Pubkey::find_program_address(
         &[
-            POSITION_SEED,
+            OM_POSITION_SEED,
             post_pda.as_ref(),
             voter.pubkey().as_ref(), // Use voter's wallet pubkey, not user_account PDA
         ],
@@ -1388,14 +1391,14 @@ pub async fn test_phenomena_vote_on_post(
     .0;
 
     let post_pot_authority_pda = Pubkey::find_program_address(
-        &[POST_POT_AUTHORITY_SEED, post_pda.as_ref()],
+        &[OM_POST_POT_AUTHORITY_SEED, post_pda.as_ref()],
         &opinions_market.id(),
     )
     .0;
 
     let post_pot_token_account_pda = Pubkey::find_program_address(
         &[
-            POST_POT_TOKEN_ACCOUNT_SEED,
+            OM_POST_POT_TOKEN_ACCOUNT_SEED,
             post_pda.as_ref(),
             token_mint.as_ref(),
         ],
@@ -1609,13 +1612,16 @@ pub async fn test_phenomena_create_question(
     .0;
 
     let voter_account_pda = Pubkey::find_program_address(
-        &[VOTER_ACCOUNT_SEED, creator.pubkey().as_ref()],
+        &[OM_VOTER_ACCOUNT_SEED, creator.pubkey().as_ref()],
         &opinions_market.id(),
     )
     .0;
 
-    let post_pda =
-        Pubkey::find_program_address(&[POST_ACCOUNT_SEED, hash.as_ref()], &opinions_market.id()).0;
+    let post_pda = Pubkey::find_program_address(
+        &[OM_POST_ACCOUNT_SEED, hash.as_ref()],
+        &opinions_market.id(),
+    )
+    .0;
     let session_authority_pda = Pubkey::find_program_address(
         &[
             persona::pda_seeds::SESSION_AUTHORITY_SEED,
@@ -1774,7 +1780,7 @@ pub async fn test_phenomena_create_answer(
     .0;
 
     let answer_pda = Pubkey::find_program_address(
-        &[POST_ACCOUNT_SEED, answer_hash.as_ref()],
+        &[OM_POST_ACCOUNT_SEED, answer_hash.as_ref()],
         &opinions_market.id(),
     )
     .0;
@@ -1944,7 +1950,7 @@ pub async fn test_phenomena_settle_post(
 
         let post_pot_token_account_pda = Pubkey::find_program_address(
             &[
-                POST_POT_TOKEN_ACCOUNT_SEED,
+                OM_POST_POT_TOKEN_ACCOUNT_SEED,
                 post_pda.as_ref(),
                 token_mint.as_ref(),
             ],
@@ -1978,14 +1984,14 @@ pub async fn test_phenomena_settle_post(
         }
 
         let post_pot_authority_pda = Pubkey::find_program_address(
-            &[POST_POT_AUTHORITY_SEED, post_pda.as_ref()],
+            &[OM_POST_POT_AUTHORITY_SEED, post_pda.as_ref()],
             &opinions_market.id(),
         )
         .0;
 
         let post_mint_payout_pda = Pubkey::find_program_address(
             &[
-                POST_MINT_PAYOUT_SEED,
+                OM_POST_MINT_PAYOUT_SEED,
                 post_pda.as_ref(),
                 token_mint.as_ref(),
             ],
@@ -2183,7 +2189,7 @@ pub async fn test_phenomena_settle_post(
 
             let parent_post_pot_token_account_pda = Pubkey::find_program_address(
                 &[
-                    POST_POT_TOKEN_ACCOUNT_SEED,
+                    OM_POST_POT_TOKEN_ACCOUNT_SEED,
                     parent_post_pda_unwrapped.as_ref(),
                     token_mint.as_ref(),
                 ],
@@ -2192,7 +2198,10 @@ pub async fn test_phenomena_settle_post(
             .0;
 
             let parent_post_pot_authority_pda = Pubkey::find_program_address(
-                &[POST_POT_AUTHORITY_SEED, parent_post_pda_unwrapped.as_ref()],
+                &[
+                    OM_POST_POT_AUTHORITY_SEED,
+                    parent_post_pda_unwrapped.as_ref(),
+                ],
                 &opinions_market.id(),
             )
             .0;
@@ -2308,14 +2317,14 @@ pub async fn test_phenomena_claim_post_reward(
 
     // Derive all necessary PDAs
     let position_pda = Pubkey::find_program_address(
-        &[POSITION_SEED, post_pda.as_ref(), user.pubkey().as_ref()],
+        &[OM_POSITION_SEED, post_pda.as_ref(), user.pubkey().as_ref()],
         &opinions_market.id(),
     )
     .0;
 
     let voter_post_mint_claim_pda = Pubkey::find_program_address(
         &[
-            VOTER_POST_MINT_CLAIM_SEED,
+            OM_VOTER_POST_MINT_CLAIM_SEED,
             post_pda.as_ref(),
             token_mint.as_ref(),
         ],
@@ -2325,7 +2334,7 @@ pub async fn test_phenomena_claim_post_reward(
 
     let post_mint_payout_pda = Pubkey::find_program_address(
         &[
-            POST_MINT_PAYOUT_SEED,
+            OM_POST_MINT_PAYOUT_SEED,
             post_pda.as_ref(),
             token_mint.as_ref(),
         ],
@@ -2335,7 +2344,7 @@ pub async fn test_phenomena_claim_post_reward(
 
     let post_pot_token_account_pda = Pubkey::find_program_address(
         &[
-            POST_POT_TOKEN_ACCOUNT_SEED,
+            OM_POST_POT_TOKEN_ACCOUNT_SEED,
             post_pda.as_ref(),
             token_mint.as_ref(),
         ],
@@ -2344,7 +2353,7 @@ pub async fn test_phenomena_claim_post_reward(
     .0;
 
     let post_pot_authority_pda = Pubkey::find_program_address(
-        &[POST_POT_AUTHORITY_SEED, post_pda.as_ref()],
+        &[OM_POST_POT_AUTHORITY_SEED, post_pda.as_ref()],
         &opinions_market.id(),
     )
     .0;
@@ -2539,7 +2548,7 @@ pub async fn attack_appearance_freshness(
 
     // Derive voter account PDA (where the permanent effect will be applied)
     let voter_account_pda = Pubkey::find_program_address(
-        &[VOTER_ACCOUNT_SEED, target.as_ref()],
+        &[OM_VOTER_ACCOUNT_SEED, target.as_ref()],
         &opinions_market.id(),
     )
     .0;

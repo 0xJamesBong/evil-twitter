@@ -646,11 +646,14 @@ pub mod opinions_market {
 
         let post_key = ctx.accounts.post.key();
         let (_, post_pot_bump) = Pubkey::find_program_address(
-            &[POST_POT_AUTHORITY_SEED, post_key.as_ref()],
+            &[OM_POST_POT_AUTHORITY_SEED, post_key.as_ref()],
             ctx.program_id,
         );
-        let post_pot_authority_seeds: &[&[&[u8]]] =
-            &[&[POST_POT_AUTHORITY_SEED, post_key.as_ref(), &[post_pot_bump]]];
+        let post_pot_authority_seeds: &[&[&[u8]]] = &[&[
+            OM_POST_POT_AUTHORITY_SEED,
+            post_key.as_ref(),
+            &[post_pot_bump],
+        ]];
 
         fed::cpi::transfer_into_fed_user_account(
             CpiContext::new_with_signer(
@@ -702,11 +705,14 @@ pub mod opinions_market {
         // post_pot_authority is a PDA, so we need to sign with seeds
         let post_key = ctx.accounts.post.key();
         let (_, post_pot_bump) = Pubkey::find_program_address(
-            &[POST_POT_AUTHORITY_SEED, post_key.as_ref()],
+            &[OM_POST_POT_AUTHORITY_SEED, post_key.as_ref()],
             ctx.program_id,
         );
-        let post_pot_authority_seeds: &[&[&[u8]]] =
-            &[&[POST_POT_AUTHORITY_SEED, post_key.as_ref(), &[post_pot_bump]]];
+        let post_pot_authority_seeds: &[&[&[u8]]] = &[&[
+            OM_POST_POT_AUTHORITY_SEED,
+            post_key.as_ref(),
+            &[post_pot_bump],
+        ]];
 
         fed::cpi::transfer_into_fed_treasury_account(
             CpiContext::new_with_signer(
@@ -757,11 +763,14 @@ pub mod opinions_market {
         // Transfer from child post pot to parent post pot (post pots are owned by OM, so handle directly)
         let post_key = ctx.accounts.post.key();
         let (_, post_pot_bump) = Pubkey::find_program_address(
-            &[POST_POT_AUTHORITY_SEED, post_key.as_ref()],
+            &[OM_POST_POT_AUTHORITY_SEED, post_key.as_ref()],
             ctx.program_id,
         );
-        let post_pot_authority_seeds: &[&[&[u8]]] =
-            &[&[POST_POT_AUTHORITY_SEED, post_key.as_ref(), &[post_pot_bump]]];
+        let post_pot_authority_seeds: &[&[&[u8]]] = &[&[
+            OM_POST_POT_AUTHORITY_SEED,
+            post_key.as_ref(),
+            &[post_pot_bump],
+        ]];
 
         // not a CPI because we are not transferring money to the fed - we are just sending it to another post pot.
         anchor_spl::token::transfer(
@@ -836,11 +845,14 @@ pub mod opinions_market {
         // Transfer from post pot to user vault (post pot is owned by OM, so handle directly)
         let post_key = post.key();
         let (_, post_pot_bump) = Pubkey::find_program_address(
-            &[POST_POT_AUTHORITY_SEED, post_key.as_ref()],
+            &[OM_POST_POT_AUTHORITY_SEED, post_key.as_ref()],
             ctx.program_id,
         );
-        let post_pot_authority_seeds: &[&[&[u8]]] =
-            &[&[POST_POT_AUTHORITY_SEED, post_key.as_ref(), &[post_pot_bump]]];
+        let post_pot_authority_seeds: &[&[&[u8]]] = &[&[
+            OM_POST_POT_AUTHORITY_SEED,
+            post_key.as_ref(),
+            &[post_pot_bump],
+        ]];
 
         fed::cpi::transfer_into_fed_user_account(
             CpiContext::new_with_signer(

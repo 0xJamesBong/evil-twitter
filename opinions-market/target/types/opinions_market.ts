@@ -67,6 +67,9 @@ export type OpinionsMarket = {
               {
                 "kind": "const",
                 "value": [
+                  111,
+                  109,
+                  95,
                   118,
                   111,
                   116,
@@ -167,6 +170,9 @@ export type OpinionsMarket = {
               {
                 "kind": "const",
                 "value": [
+                  111,
+                  109,
+                  95,
                   112,
                   111,
                   115,
@@ -200,6 +206,9 @@ export type OpinionsMarket = {
               {
                 "kind": "const",
                 "value": [
+                  111,
+                  109,
+                  95,
                   118,
                   111,
                   116,
@@ -241,6 +250,9 @@ export type OpinionsMarket = {
               {
                 "kind": "const",
                 "value": [
+                  111,
+                  109,
+                  95,
                   112,
                   111,
                   115,
@@ -278,6 +290,9 @@ export type OpinionsMarket = {
               {
                 "kind": "const",
                 "value": [
+                  111,
+                  109,
+                  95,
                   112,
                   111,
                   115,
@@ -320,6 +335,9 @@ export type OpinionsMarket = {
               {
                 "kind": "const",
                 "value": [
+                  111,
+                  109,
+                  95,
                   112,
                   111,
                   115,
@@ -450,6 +468,9 @@ export type OpinionsMarket = {
               {
                 "kind": "const",
                 "value": [
+                  111,
+                  109,
+                  95,
                   112,
                   111,
                   115,
@@ -478,6 +499,9 @@ export type OpinionsMarket = {
               {
                 "kind": "const",
                 "value": [
+                  111,
+                  109,
+                  95,
                   112,
                   111,
                   115,
@@ -590,6 +614,9 @@ export type OpinionsMarket = {
               {
                 "kind": "const",
                 "value": [
+                  111,
+                  109,
+                  95,
                   118,
                   111,
                   116,
@@ -620,6 +647,9 @@ export type OpinionsMarket = {
               {
                 "kind": "const",
                 "value": [
+                  111,
+                  109,
+                  95,
                   112,
                   111,
                   115,
@@ -733,6 +763,9 @@ export type OpinionsMarket = {
               {
                 "kind": "const",
                 "value": [
+                  111,
+                  109,
+                  95,
                   118,
                   111,
                   116,
@@ -763,6 +796,9 @@ export type OpinionsMarket = {
               {
                 "kind": "const",
                 "value": [
+                  111,
+                  109,
+                  95,
                   112,
                   111,
                   115,
@@ -830,6 +866,9 @@ export type OpinionsMarket = {
               {
                 "kind": "const",
                 "value": [
+                  111,
+                  109,
+                  95,
                   112,
                   111,
                   115,
@@ -859,6 +898,9 @@ export type OpinionsMarket = {
               {
                 "kind": "const",
                 "value": [
+                  111,
+                  109,
+                  95,
                   112,
                   111,
                   115,
@@ -901,6 +943,9 @@ export type OpinionsMarket = {
               {
                 "kind": "const",
                 "value": [
+                  111,
+                  109,
+                  95,
                   112,
                   111,
                   115,
@@ -935,6 +980,9 @@ export type OpinionsMarket = {
               {
                 "kind": "const",
                 "value": [
+                  111,
+                  109,
+                  95,
                   112,
                   111,
                   115,
@@ -1039,6 +1087,9 @@ export type OpinionsMarket = {
               {
                 "kind": "const",
                 "value": [
+                  111,
+                  109,
+                  95,
                   112,
                   111,
                   115,
@@ -1068,6 +1119,9 @@ export type OpinionsMarket = {
               {
                 "kind": "const",
                 "value": [
+                  111,
+                  109,
+                  95,
                   112,
                   111,
                   115,
@@ -1110,6 +1164,9 @@ export type OpinionsMarket = {
               {
                 "kind": "const",
                 "value": [
+                  111,
+                  109,
+                  95,
                   112,
                   111,
                   115,
@@ -1144,6 +1201,9 @@ export type OpinionsMarket = {
               {
                 "kind": "const",
                 "value": [
+                  111,
+                  109,
+                  95,
                   112,
                   111,
                   115,
@@ -1184,6 +1244,9 @@ export type OpinionsMarket = {
               {
                 "kind": "const",
                 "value": [
+                  111,
+                  109,
+                  95,
                   112,
                   111,
                   115,
@@ -1226,6 +1289,9 @@ export type OpinionsMarket = {
               {
                 "kind": "const",
                 "value": [
+                  111,
+                  109,
+                  95,
                   112,
                   111,
                   115,
@@ -1328,6 +1394,9 @@ export type OpinionsMarket = {
               {
                 "kind": "const",
                 "value": [
+                  111,
+                  109,
+                  95,
                   112,
                   111,
                   115,
@@ -1357,6 +1426,9 @@ export type OpinionsMarket = {
               {
                 "kind": "const",
                 "value": [
+                  111,
+                  109,
+                  95,
                   112,
                   111,
                   115,
@@ -1399,6 +1471,9 @@ export type OpinionsMarket = {
               {
                 "kind": "const",
                 "value": [
+                  111,
+                  109,
+                  95,
                   112,
                   111,
                   115,
@@ -1433,6 +1508,9 @@ export type OpinionsMarket = {
               {
                 "kind": "const",
                 "value": [
+                  111,
+                  109,
+                  95,
                   112,
                   111,
                   115,
@@ -1636,6 +1714,9 @@ export type OpinionsMarket = {
               {
                 "kind": "const",
                 "value": [
+                  111,
+                  109,
+                  95,
                   118,
                   111,
                   116,
@@ -1726,6 +1807,9 @@ export type OpinionsMarket = {
               {
                 "kind": "const",
                 "value": [
+                  111,
+                  109,
+                  95,
                   112,
                   111,
                   115,
@@ -1755,6 +1839,9 @@ export type OpinionsMarket = {
               {
                 "kind": "const",
                 "value": [
+                  111,
+                  109,
+                  95,
                   112,
                   111,
                   115,
@@ -1797,6 +1884,9 @@ export type OpinionsMarket = {
               {
                 "kind": "const",
                 "value": [
+                  111,
+                  109,
+                  95,
                   112,
                   111,
                   115,
@@ -1832,6 +1922,9 @@ export type OpinionsMarket = {
               {
                 "kind": "const",
                 "value": [
+                  111,
+                  109,
+                  95,
                   112,
                   111,
                   115,
@@ -1955,6 +2048,9 @@ export type OpinionsMarket = {
               {
                 "kind": "const",
                 "value": [
+                  111,
+                  109,
+                  95,
                   112,
                   111,
                   115,
@@ -1987,6 +2083,9 @@ export type OpinionsMarket = {
               {
                 "kind": "const",
                 "value": [
+                  111,
+                  109,
+                  95,
                   118,
                   111,
                   116,
@@ -2024,6 +2123,9 @@ export type OpinionsMarket = {
               {
                 "kind": "const",
                 "value": [
+                  111,
+                  109,
+                  95,
                   112,
                   111,
                   115,
@@ -2056,6 +2158,9 @@ export type OpinionsMarket = {
               {
                 "kind": "const",
                 "value": [
+                  111,
+                  109,
+                  95,
                   112,
                   111,
                   115,
@@ -2098,6 +2203,9 @@ export type OpinionsMarket = {
               {
                 "kind": "const",
                 "value": [
+                  111,
+                  109,
+                  95,
                   112,
                   111,
                   115,
