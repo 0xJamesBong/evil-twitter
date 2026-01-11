@@ -2299,13 +2299,14 @@ dependencies = [
 ]
 
 [[package]]
-name = "nft-bank"
+name = "nft-freeport"
 version = "0.1.0"
 dependencies = [
  "anchor-lang",
  "anchor-spl",
  "bytemuck",
  "hex",
+ "opinions-market",
  "persona",
  "spl-pod",
  "spl-tlv-account-resolution 0.10.0",
@@ -6300,7 +6301,7 @@ dependencies = [
  "fed",
  "hex",
  "industrial-complex",
- "nft-bank",
+ "nft-freeport",
  "opinions-market",
  "persona",
  "rand 0.8.5",

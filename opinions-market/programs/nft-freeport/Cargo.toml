@@ -1,12 +1,12 @@
 [package]
-name = "nft-bank"
+name = "nft-freeport"
 version = "0.1.0"
 description = "Created with Anchor"
 edition = "2021"
 
 [lib]
 crate-type = ["cdylib", "lib"]
-name = "nft_bank"
+name = "nft_freeport"
 
 [features]
 default = []
@@ -21,6 +21,7 @@ idl-build = ["anchor-lang/idl-build", "anchor-spl/idl-build"]
 anchor-lang = { workspace = true, features = ["init-if-needed"] }
 anchor-spl = { workspace = true, features = ["token_2022_extensions"] }
 persona = { path = "../persona", features = ["cpi"] }
+opinions-market = { path = "../opinions-market", features = ["cpi"] }
 
 
 spl-tlv-account-resolution = "0.10.0"
