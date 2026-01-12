@@ -14,66 +14,12 @@ declare_id!("H4Ubn85Eo9rqaSyb9menXWFuDguK1Bc9XrRAyS9pESpX");
 
 #[error_code]
 pub enum ErrorCode {
-    #[msg("Post is not open")]
-    PostNotOpen,
-    #[msg("Post is expired")]
-    PostExpired,
-    #[msg("Post already settled")]
-    PostAlreadySettled,
-    #[msg("Post not yet expired")]
-    PostNotExpired,
-    #[msg("Post not settled")]
-    PostNotSettled,
-    #[msg("No winner for this post")]
-    NoWinner,
-    #[msg("Reward already claimed")]
-    AlreadyClaimed,
-    #[msg("Math overflow")]
-    MathOverflow,
-    #[msg("Zero votes not allowed")]
-    ZeroVotes,
     #[msg("Mint is not enabled")]
     MintNotEnabled,
-    #[msg("BLING cannot be registered as an alternative payment")]
-    BlingCannotBeAlternativePayment,
-    #[msg("Alternative payment already registered for this mint")]
-    AlternativePaymentAlreadyRegistered,
-    #[msg("Unauthorized: user account does not belong to the payer")]
-    Unauthorized,
-    #[msg("Invalid parent post")]
-    InvalidParentPost,
-    #[msg("Invalid or missing Ed25519 signature verification instruction")]
-    InvalidSignatureInstruction,
-    #[msg("Session expired or invalid timestamp")]
-    SessionExpired,
-    #[msg("Unauthorized signer")]
-    UnauthorizedSigner,
-    #[msg("Invalid post relation")]
-    InvalidRelation,
-    #[msg("Answer must target a Question post")]
-    AnswerMustTargetQuestion,
-    #[msg("Answer target must be a Root post")]
-    AnswerTargetNotRoot,
-    #[msg("Zero tip amount not allowed")]
-    ZeroTipAmount,
-    #[msg("Cannot tip yourself")]
-    CannotTipSelf,
-    #[msg("No tips to claim")]
-    NoTipsToClaim,
     #[msg("Zero amount not allowed")]
     ZeroAmount,
     #[msg("Cannot send tokens to yourself")]
     CannotSendToSelf,
-    #[msg("Token is not withdrawable")]
-    TokenNotWithdrawable,
-    #[msg("Invalid from account - must be Fed-owned for transfer_out_of_fed")]
-    InvalidFrom,
-    #[msg("Invalid vault authority")]
-    BadAuthority,
-    #[msg("Invalid to account - must be Fed-owned for transfer_into_fed")]
-    InvalidTo,
-    #[msg("Insufficient funds in user vault")]
-    InsufficientFundsInUserVault,
 }
 
 #[program]
