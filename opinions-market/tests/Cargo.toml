@@ -15,7 +15,7 @@ persona = { version = "0.1.0", path = "../programs/persona" }
 fed = { version = "0.1.0", path = "../programs/fed" }
 referrals = { version = "0.1.0", path = "../programs/referrals" }
 industrial-complex = { version = "0.1.0", path = "../programs/industrial-complex" }
-nft-freeport = { version = "0.1.0", path = "../programs/nft-freeport" }
+freeport = { version = "0.1.0", path = "../programs/freeport" }
 
 rand = "0.8"
 tokio = { version = "1", features = ["macros"] }

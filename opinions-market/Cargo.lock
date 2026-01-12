@@ -1465,6 +1465,22 @@ dependencies = [
 ]
 
 [[package]]
+name = "freeport"
+version = "0.1.0"
+dependencies = [
+ "anchor-lang",
+ "anchor-spl",
+ "bytemuck",
+ "hex",
+ "opinions-market",
+ "persona",
+ "spl-pod",
+ "spl-tlv-account-resolution 0.10.0",
+ "spl-transfer-hook-interface 0.10.0",
+ "spl-type-length-value 0.8.0",
+]
+
+[[package]]
 name = "futures"
 version = "0.3.31"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2296,22 +2312,6 @@ dependencies = [
  "num-traits",
  "solana-program",
  "thiserror 1.0.69",
-]
-
-[[package]]
-name = "nft-freeport"
-version = "0.1.0"
-dependencies = [
- "anchor-lang",
- "anchor-spl",
- "bytemuck",
- "hex",
- "opinions-market",
- "persona",
- "spl-pod",
- "spl-tlv-account-resolution 0.10.0",
- "spl-transfer-hook-interface 0.10.0",
- "spl-type-length-value 0.8.0",
 ]
 
 [[package]]
@@ -6299,9 +6299,9 @@ dependencies = [
  "anchor-spl",
  "anyhow",
  "fed",
+ "freeport",
  "hex",
  "industrial-complex",
- "nft-freeport",
  "opinions-market",
  "persona",
  "rand 0.8.5",

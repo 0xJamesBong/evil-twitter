@@ -77,76 +77,56 @@ pub enum ErrorCode {
 }
 
 #[program]
-pub mod nft_freeport {
+pub mod freeport {
 
     use super::*;
     // Don't import from instructions module - use re-exports from crate root
 
     pub fn initialize(ctx: Context<Initialize>) -> Result<()> {
-        let cfg = &mut ctx.accounts.fed_config;
+        let cfg = &mut ctx.accounts.freeport_config;
 
-        let new_cfg = FedConfig::new(
+        let new_cfg = FreeportConfig::new(
             *ctx.accounts.admin.key,
             ctx.accounts.payer.key(),
-            ctx.accounts.bling_mint.key(),
-            ctx.bumps.fed_config,
+            ctx.bumps.freeport_config,
             [0; 7],
         );
 
         cfg.admin = new_cfg.admin;
         cfg.payer_authroity = new_cfg.payer_authroity;
-        cfg.bling_mint = new_cfg.bling_mint;
 
         cfg.bump = new_cfg.bump;
         cfg.padding = new_cfg.padding;
 
-        let valid_payment = &mut ctx.accounts.valid_payment;
-
-        let new_valid_payment = ValidPayment::new(ctx.accounts.bling_mint.key(), 1, true, false);
-
-        valid_payment.token_mint = new_valid_payment.token_mint;
-        valid_payment.price_in_dollar = new_valid_payment.price_in_dollar;
-        valid_payment.enabled = new_valid_payment.enabled;
-        valid_payment.withdrawable = new_valid_payment.withdrawable; // BLING is not withdrawable by default
-        valid_payment.bump = ctx.bumps.valid_payment; // Use the actual bump from Anchor
-
         Ok(())
     }
 
-    pub fn register_valid_payment(
-        ctx: Context<RegisterValidPayment>,
-        price_in_dollar: u64, // How much is 1 token in dollars
-        withdrawable: bool,   // Whether this token can be withdrawn from vault
+    pub fn register_valid_collection(
+        ctx: Context<RegisterValidCollection>,
+        base_price_in_dollar: u64,
+        enabled: bool,
+        allow_deposit: bool,
+        allow_withdraw: bool,
     ) -> Result<()> {
-        let cfg = &ctx.accounts.fed_config;
-
-        // Note: Duplicate registration is prevented by the `init` constraint on alternative_payment account.
+        // Note: Duplicate registration is prevented by the `init` constraint on valid_collection account.
         // If the account already exists (same PDA seeds), init will fail before this function is called.
 
-        let valid_payment = &mut ctx.accounts.valid_payment;
-        let new_valid_payment = ValidPayment::new(
-            ctx.accounts.token_mint.key(),
-            price_in_dollar,
-            true,
-            withdrawable,
+        let valid_collection = &mut ctx.accounts.valid_collection;
+        let new_valid_collection = ValidCollection::new(
+            ctx.accounts.collection_mint.key(),
+            base_price_in_dollar,
+            enabled,
+            allow_deposit,
+            allow_withdraw,
         );
 
-        valid_payment.token_mint = new_valid_payment.token_mint;
-        valid_payment.price_in_dollar = new_valid_payment.price_in_dollar;
-        valid_payment.enabled = new_valid_payment.enabled;
-        valid_payment.withdrawable = new_valid_payment.withdrawable;
-        valid_payment.bump = ctx.bumps.valid_payment; // Use the actual bump from Anchor
+        valid_collection.nft_mint = new_valid_collection.nft_mint;
+        valid_collection.base_price_in_dollar = new_valid_collection.base_price_in_dollar;
+        valid_collection.enabled = new_valid_collection.enabled;
+        valid_collection.allow_deposit = new_valid_collection.allow_deposit;
+        valid_collection.allow_withdraw = new_valid_collection.allow_withdraw;
+        valid_collection.bump = ctx.bumps.valid_collection;
 
-        Ok(())
-    }
-
-    /// Update the withdrawable flag for a valid payment token
-    pub fn update_valid_payment_withdrawable(
-        ctx: Context<ModifyAcceptedMint>,
-        withdrawable: bool,
-    ) -> Result<()> {
-        let valid_payment = &mut ctx.accounts.accepted_mint;
-        valid_payment.withdrawable = withdrawable;
         Ok(())
     }
 
@@ -173,7 +153,7 @@ pub mod nft_freeport {
         let effective_amount = amount;
 
         let vault_bump = ctx.bumps.vault_authority;
-        let seeds: &[&[&[u8]]] = &[&[FED_VAULT_AUTHORITY_SEED, &[vault_bump]]];
+        let seeds: &[&[&[u8]]] = &[&[FREEPORT_VAULT_AUTHORITY_SEED, &[vault_bump]]];
 
         let cpi_accounts = anchor_spl::token::Transfer {
             from: ctx.accounts.user_vault_token_account.to_account_info(),
@@ -218,7 +198,7 @@ pub mod nft_freeport {
 
         // Transfer from sender's vault to recipient's vault
         let vault_bump = ctx.bumps.vault_authority;
-        let vault_authority_seeds: &[&[&[u8]]] = &[&[FED_VAULT_AUTHORITY_SEED, &[vault_bump]]];
+        let vault_authority_seeds: &[&[&[u8]]] = &[&[FREEPORT_VAULT_AUTHORITY_SEED, &[vault_bump]]];
 
         let cpi_accounts = anchor_spl::token::Transfer {
             from: ctx

@@ -23,121 +23,88 @@ pub struct Initialize<'info> {
     #[account(
         init,
         payer = payer,  
-        seeds = [NF_CONFIG_SEED],
+        seeds = [FREEPORT_CONFIG_SEED],
         bump,
-        space = 8 + FedConfig::INIT_SPACE,
+        space = 8 + FreeportConfig::INIT_SPACE,
     )]
-    pub fed_config: Account<'info, FedConfig>,
-    pub bling_mint: Account<'info, Mint>,
-    pub usdc_mint: Account<'info, Mint>,
+    pub freeport_config: Account<'info,  FreeportConfig>,
     
-    #[account(
-        init,
-        payer = payer,
-        seeds = [NF_VALID_PAYMENT_SEED, bling_mint.key().as_ref()],
-        bump,
-        space = 8 + ValidPayment::INIT_SPACE, 
-    )]
-    pub valid_payment: Account<'info, ValidPayment>,
-
-    #[account(
-        init,
-        payer = payer,
-        seeds = [NF_PROTOCOL_TREASURY_TOKEN_ACCOUNT_SEED, bling_mint.key().as_ref()],bump,
-        token::mint = bling_mint,
-        token::authority = fed_config,
-    )]
-    pub protocol_bling_treasury: Account<'info, TokenAccount>,
-
+    // #[account(
+    //     init,
+    //     payer = payer,
+    //     seeds = [FREEPORT_VALID_COLLECTION_SEED, nft_mint.key().as_ref()],
+    //     bump,
+    //     space = 8 + ValidCollection::INIT_SPACE, 
+    // )]
+    // pub valid_collection: Account<'info, ValidCollection>,
+    
     // DO NOT ADD USDC HERE, TREAT IT AS AN ALTERNATIVE PAYMENT MINT 
     pub system_program: Program<'info, System>,
     pub token_program: Program<'info, Token>,
 }
 
 #[derive(Accounts)]
-pub struct RegisterValidPayment<'info> {
-    #[account(mut,
-    constraint = fed_config.admin == admin.key())]
-    pub fed_config: Account<'info, FedConfig>,
-    // we need to require this to be the admin of the fed_config account
+pub struct RegisterValidCollection<'info> {
+    #[account(
+        seeds = [FREEPORT_CONFIG_SEED],
+        bump,
+        constraint = freeport_config.admin == admin.key(),
+    )]
+    pub freeport_config: Account<'info, FreeportConfig>,
+
     #[account(mut)]
     pub admin: Signer<'info>,
-    pub token_mint: Account<'info, Mint>,
-    #[account(
-        init,
-        payer = admin,
-        seeds = [NF_VALID_PAYMENT_SEED, token_mint.key().as_ref()],
-        bump,
-        space = 8 + ValidPayment::INIT_SPACE,
-        constraint = token_mint.key() != fed_config.bling_mint @ ErrorCode::BlingCannotBeAlternativePayment,
-    )]
-    pub valid_payment: Account<'info, ValidPayment>,
 
-    /// NEW treasury token account for this mint, canonical PDA.
+    /// Metaplex collection mint
+    pub collection_mint: Account<'info, Mint>,
+
     #[account(
         init,
         payer = admin,
-        seeds = [NF_PROTOCOL_TREASURY_TOKEN_ACCOUNT_SEED, token_mint.key().as_ref()],
+        seeds = [FREEPORT_VALID_COLLECTION_SEED, collection_mint.key().as_ref()],
         bump,
-        token::mint = token_mint,
-        token::authority = fed_config, // <-- SPL owner = fed_config PDA
+        space = 8 + ValidCollection::INIT_SPACE,
     )]
-    pub protocol_token_treasury_token_account: Account<'info, TokenAccount>,
+    pub valid_collection: Account<'info, ValidCollection>,
 
     pub system_program: Program<'info, System>,
-    pub token_program: Program<'info, Token>,
 }
 
 
-#[derive(Accounts)]
-pub struct ModifyAcceptedMint<'info> {
-    #[account(
-        mut,
-        seeds        = [NF_CONFIG_SEED],
-        bump,
-        constraint = fed_config.admin == admin.key(),
-    )]
-    pub fed_config: Account<'info, FedConfig>,
 
-    #[account(mut)]
-    pub admin: Signer<'info>,
-
-    pub mint: Account<'info, Mint>,
-
-    #[account(
-        mut,
-        seeds = [NF_VALID_PAYMENT_SEED, mint.key().as_ref()],
-        bump = accepted_mint.bump,
-    )]
-    pub accepted_mint: Account<'info, ValidPayment>,
-}
 
 #[derive(Accounts)]
 pub struct AttackAppearanceFreshness<'info> {
-    pub opinions_market_program: Program<'info, opinions_market::program::OpinionsMarket>,
 
-    /// CHECK: validated by opinions-market during CPI
+    /// CHECK: validated by OM
     #[account(mut)]
     pub om_config: UncheckedAccount<'info>,
 
-    /// seeds enforced here so the PDA cannot be swapped
-    /// CHECK: IC PDA that represents issuing authority
-    #[account(
-        seeds = [IC_ISSUE_AUTHORITY_SEED],
-        bump
-    )]
-    pub issue_authority: UncheckedAccount<'info>,
+    /// NFT being used
+    pub nft_mint: Account<'info, Mint>,
 
-    /// CHECK: real user identity (owner of UserAccount and vaults)
+    /// CHECK: Metaplex metadata
+    pub metadata: UncheckedAccount<'info>,
+
+    /// CHECK: extracted from metadata
+    pub collection_mint: UncheckedAccount<'info>,
+
+    #[account(
+        seeds = [FREEPORT_VALID_COLLECTION_SEED, collection_mint.key().as_ref()],
+        bump = valid_collection.bump,
+        constraint = valid_collection.enabled,
+    )]
+    pub valid_collection: Account<'info, ValidCollection>,
+
+    /// CHECK: target user
     #[account(mut)]
     pub target_user: UncheckedAccount<'info>,
 
-    /// CHECK: Target voter account (validated by opinions-market during CPI)
-    #[account(mut)]
-    pub target_user_voter_account: UncheckedAccount<'info>,
-
+    pub opinions_market_program: Program<'info, opinions_market::program::OpinionsMarket>,
     pub system_program: Program<'info, System>,
 }
+
+
 /// User deposits from their wallet into the program-controlled vault.
 /// Also initializes the program-controlled vault if it doesn't exist.
 #[derive(Accounts)]
@@ -156,21 +123,21 @@ pub struct Deposit<'info> {
     #[account(owner = persona::ID)]
     pub user_account: AccountInfo<'info>,
 
-    pub token_mint: Account<'info, Mint>,
+    pub nft_mint: Account<'info, Mint>,
 
     #[account(
-        seeds = [NF_VALID_PAYMENT_SEED, token_mint.key().as_ref()],
+        seeds = [FREEPORT_VALID_COLLECTION_SEED, nft_mint.key().as_ref()],
         bump = valid_payment.bump,
         constraint = valid_payment.enabled @ ErrorCode::MintNotEnabled,
     )]
-    pub valid_payment: Account<'info, ValidPayment>,
+    pub valid_payment: Account<'info, ValidCollection>,
 
     #[account(mut)]
     pub user_token_ata: Account<'info, TokenAccount>,
 
     /// CHECK: Vault authority PDA derived from seeds
     #[account(
-        seeds = [NF_VAULT_AUTHORITY_SEED],
+        seeds = [FREEPORT_VAULT_AUTHORITY_SEED],
         bump,
     )]
     pub vault_authority: UncheckedAccount<'info>,
@@ -178,9 +145,9 @@ pub struct Deposit<'info> {
     #[account(
         init_if_needed,
         payer = payer,
-        seeds = [NF_USER_VAULT_TOKEN_ACCOUNT_SEED, user.key().as_ref(), token_mint.key().as_ref()],
+        seeds = [FREEPORT_USER_VAULT_TOKEN_ACCOUNT_SEED, user.key().as_ref(), nft_mint.key().as_ref()],
         bump,
-        token::mint = token_mint,
+        token::mint = nft_mint,
         token::authority = vault_authority,
     )]
     pub user_vault_token_account: Account<'info, TokenAccount>,
@@ -206,7 +173,7 @@ pub struct Withdraw<'info> {
         owner = persona::ID,
     )]
     pub user_account: AccountInfo<'info>,
-    pub token_mint: Account<'info, Mint>,
+    pub nft_mint: Account<'info, Mint>,
 
     // user’s personal wallet ATA for this mint
     #[account(mut)]
@@ -214,16 +181,16 @@ pub struct Withdraw<'info> {
 
     #[account(
         mut,
-        seeds = [NF_USER_VAULT_TOKEN_ACCOUNT_SEED, user.key().as_ref(), token_mint.key().as_ref()],
+        seeds = [FREEPORT_USER_VAULT_TOKEN_ACCOUNT_SEED, user.key().as_ref(), nft_mint.key().as_ref()],
         bump,
         constraint = user_vault_token_account.owner == vault_authority.key(),
-        constraint = user_vault_token_account.mint == token_mint.key(),
+        constraint = user_vault_token_account.mint == nft_mint.key(),
     )]
     pub user_vault_token_account: Account<'info, TokenAccount>,
 
     /// CHECK: Global vault authority PDA derived from seeds
     #[account(
-        seeds = [NF_VAULT_AUTHORITY_SEED],
+        seeds = [FREEPORT_VAULT_AUTHORITY_SEED],
         bump,
     )]
     pub vault_authority: UncheckedAccount<'info>,
@@ -257,27 +224,27 @@ pub struct SendToken<'info> {
     pub sender_user_account: AccountInfo<'info>,
 
     
-    pub token_mint: Account<'info, Mint>,
+    pub nft_mint: Account<'info, Mint>,
 
     #[account(
-        seeds = [NF_VALID_PAYMENT_SEED, token_mint.key().as_ref()],
+        seeds = [FREEPORT_VALID_COLLECTION_SEED, nft_mint.key().as_ref()],
         bump = valid_payment.bump,
         constraint = valid_payment.enabled @ ErrorCode::MintNotEnabled,
     )]
-    pub valid_payment: Account<'info, ValidPayment>,
+    pub valid_payment: Account<'info, ValidCollection>,
 
     #[account(
         mut,
-        seeds = [NF_USER_VAULT_TOKEN_ACCOUNT_SEED, sender.key().as_ref(), token_mint.key().as_ref()],
+        seeds = [FREEPORT_USER_VAULT_TOKEN_ACCOUNT_SEED, sender.key().as_ref(), nft_mint.key().as_ref()],
         bump,
-        token::mint = token_mint,
+        token::mint = nft_mint,
         token::authority = vault_authority,
     )]
     pub sender_user_vault_token_account: Account<'info, TokenAccount>,
 
     /// CHECK: Global vault authority PDA
     #[account(
-        seeds = [NF_VAULT_AUTHORITY_SEED],
+        seeds = [FREEPORT_VAULT_AUTHORITY_SEED],
         bump,
     )]
     pub vault_authority: UncheckedAccount<'info>,
@@ -285,9 +252,9 @@ pub struct SendToken<'info> {
     #[account(
         init_if_needed,
         payer = payer,
-        seeds = [NF_USER_VAULT_TOKEN_ACCOUNT_SEED, recipient.key().as_ref(), token_mint.key().as_ref()],
+        seeds = [FREEPORT_USER_VAULT_TOKEN_ACCOUNT_SEED, recipient.key().as_ref(), nft_mint.key().as_ref()],
         bump,
-        token::mint = token_mint,
+        token::mint = nft_mint,
         token::authority = vault_authority,
     )]
     pub recipient_user_vault_token_account: Account<'info, TokenAccount>,
