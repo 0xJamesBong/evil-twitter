@@ -23,6 +23,8 @@ anchor-spl = { workspace = true, features = ["token_2022_extensions"] }
 persona = { path = "../persona", features = ["cpi"] }
 opinions-market = { path = "../opinions-market", features = ["cpi"] }
 
+mpl-token-metadata = { workspace = true }
+
 
 spl-tlv-account-resolution = "0.10.0"
 spl-transfer-hook-interface = "0.10.0"

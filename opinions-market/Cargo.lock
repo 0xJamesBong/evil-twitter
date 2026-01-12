@@ -1472,6 +1472,7 @@ dependencies = [
  "anchor-spl",
  "bytemuck",
  "hex",
+ "mpl-token-metadata",
  "opinions-market",
  "persona",
  "spl-pod",

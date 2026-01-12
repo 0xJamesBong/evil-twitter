@@ -6,20 +6,33 @@ pub mod instructions;
 
 pub mod pda_seeds;
 pub mod states;
+pub mod utils;
 
 use instructions::*;
 use states::*;
+use utils::*;
 
 declare_id!("H4Ubn85Eo9rqaSyb9menXWFuDguK1Bc9XrRAyS9pESpX");
 
 #[error_code]
 pub enum ErrorCode {
-    #[msg("Mint is not enabled")]
-    MintNotEnabled,
+    #[msg("Collection is not enabled")]
+    CollectionNotEnabled,
+    #[msg("Collection is not allowed for deposit")]
+    CollectionNotAllowedForDeposit,
+    #[msg("Collection is not allowed for withdrawal")]
+    CollectionNotAllowedForWithdrawal,
     #[msg("Zero amount not allowed")]
     ZeroAmount,
     #[msg("Cannot send tokens to yourself")]
     CannotSendToSelf,
+    #[msg("Not an NFT")]
+    NotNft,
+
+    #[msg("NFT is locked")]
+    NftLocked,
+    #[msg("Unauthorized")]
+    Unauthorized,
 }
 
 #[program]
@@ -58,15 +71,9 @@ pub mod freeport {
         // If the account already exists (same PDA seeds), init will fail before this function is called.
 
         let valid_collection = &mut ctx.accounts.valid_collection;
-        let new_valid_collection = ValidCollection::new(
-            ctx.accounts.collection_mint.key(),
-            base_price_in_dollar,
-            enabled,
-            allow_deposit,
-            allow_withdraw,
-        );
+        let new_valid_collection =
+            ValidCollection::new(base_price_in_dollar, enabled, allow_deposit, allow_withdraw);
 
-        valid_collection.nft_mint = new_valid_collection.nft_mint;
         valid_collection.base_price_in_dollar = new_valid_collection.base_price_in_dollar;
         valid_collection.enabled = new_valid_collection.enabled;
         valid_collection.allow_deposit = new_valid_collection.allow_deposit;
@@ -76,52 +83,68 @@ pub mod freeport {
         Ok(())
     }
 
-    pub fn deposit(ctx: Context<Deposit>, amount: u64) -> Result<()> {
-        require!(amount > 0, ErrorCode::ZeroAmount);
+    pub fn deposit_nft(ctx: Context<DepositNft>) -> Result<()> {
+        // 1) Enforce NFT-ness (minimum viable checks)
+        require!(ctx.accounts.nft_mint.decimals == 0, ErrorCode::NotNft);
+        // supply check depends on Mint fields; with SPL it’s `supply`
+        require!(ctx.accounts.nft_mint.supply == 1, ErrorCode::NotNft);
 
+        // 2) Verify metadata -> verified collection == collection_mint
+        // You must implement this check in code (Anchor constraints can't parse metadata).
+        // Minimal pattern: deserialize mpl_token_metadata::state::Metadata and validate:
+        // - metadata.mint == nft_mint
+        // - metadata.collection.is_some()
+        // - metadata.collection.verified == true
+        // - metadata.collection.key == collection_mint.key()
+        verify_collection(
+            &ctx.accounts.metadata,
+            &ctx.accounts.nft_mint.key(),
+            &ctx.accounts.collection_mint.key(),
+        )?;
+
+        // 3) Transfer 1 token from user ATA into freeport vault
         let cpi_accounts = anchor_spl::token::Transfer {
-            from: ctx.accounts.user_token_ata.to_account_info(),
-            to: ctx.accounts.user_vault_token_account.to_account_info(),
+            from: ctx.accounts.user_nft_ata.to_account_info(),
+            to: ctx.accounts.freeport_nft_vault.to_account_info(),
             authority: ctx.accounts.user.to_account_info(),
         };
-
         let cpi_ctx = CpiContext::new(ctx.accounts.token_program.to_account_info(), cpi_accounts);
+        anchor_spl::token::transfer(cpi_ctx, 1)?;
 
-        anchor_spl::token::transfer(cpi_ctx, amount)?;
         Ok(())
     }
 
-    /// Withdraw with possible penalty based on social interactions.
-    /// You can later implement:
-    ///   effective_amount = amount * (10000 - user.withdraw_penalty_bps()) / 10000
-    pub fn withdraw(ctx: Context<Withdraw>, amount: u64) -> Result<()> {
-        // later you’ll put the social penalty logic here
-        let effective_amount = amount;
+    pub fn withdraw_nft(ctx: Context<WithdrawNft>) -> Result<()> {
+        // Optional but recommended: verify metadata collection again
+        verify_collection(
+            &ctx.accounts.metadata,
+            &ctx.accounts.nft_mint.key(),
+            &ctx.accounts.collection_mint.key(),
+        )?;
 
-        let vault_bump = ctx.bumps.vault_authority;
-        let seeds: &[&[&[u8]]] = &[&[FREEPORT_VAULT_AUTHORITY_SEED, &[vault_bump]]];
+        // Optional: enforce not locked
+        // require!(!ctx.accounts.lock.locked, ErrorCode::NftLocked);
+
+        let bump = ctx.bumps.freeport_authority;
+        let signer_seeds: &[&[&[u8]]] = &[&[FREEPORT_AUTHORITY_SEED, &[bump]]];
 
         let cpi_accounts = anchor_spl::token::Transfer {
-            from: ctx.accounts.user_vault_token_account.to_account_info(),
-            to: ctx.accounts.user_token_dest_ata.to_account_info(),
-            authority: ctx.accounts.vault_authority.to_account_info(),
+            from: ctx.accounts.freeport_nft_vault.to_account_info(),
+            to: ctx.accounts.dest_token_account.to_account_info(),
+            authority: ctx.accounts.freeport_authority.to_account_info(),
         };
         let cpi_ctx = CpiContext::new_with_signer(
             ctx.accounts.token_program.to_account_info(),
             cpi_accounts,
-            seeds,
+            signer_seeds,
         );
-        anchor_spl::token::transfer(cpi_ctx, effective_amount)?;
+        anchor_spl::token::transfer(cpi_ctx, 1)?;
+
         Ok(())
     }
 
-    /// Send tokens from sender's user vault to recipient's user vault.
-    /// Direct vault-to-vault transfer without intermediate accounts.
-    pub fn send_token(ctx: Context<SendToken>, amount: u64) -> Result<()> {
-        let clock = Clock::get()?;
-        let now = clock.unix_timestamp;
-
-        // Auth: session or wallet via CPI
+    pub fn send_nft(ctx: Context<SendNft>) -> Result<()> {
+        // 1) Authenticate caller
         persona::cpi::check_session_or_wallet(
             CpiContext::new(
                 ctx.accounts.persona_program.to_account_info(),
@@ -131,38 +154,41 @@ pub mod freeport {
                     session_authority: ctx.accounts.session_authority.to_account_info(),
                 },
             ),
-            now,
+            Clock::get()?.unix_timestamp,
         )?;
-        // Validate amount
-        require!(amount > 0, ErrorCode::ZeroAmount);
 
-        // Validate recipient != sender
+        let lock = &mut ctx.accounts.lock;
+
+        // 2) Must own NFT
         require!(
-            ctx.accounts.recipient.key() != ctx.accounts.sender_user_account.key(),
-            ErrorCode::CannotSendToSelf
+            lock.owner == ctx.accounts.sender_user_account.key(),
+            ErrorCode::Unauthorized
         );
 
-        // Transfer from sender's vault to recipient's vault
-        let vault_bump = ctx.bumps.vault_authority;
-        let vault_authority_seeds: &[&[&[u8]]] = &[&[FREEPORT_VAULT_AUTHORITY_SEED, &[vault_bump]]];
+        // 3) Must not be locked
+        require!(!lock.locked, ErrorCode::NftLocked);
+
+        // 4) Transfer custody
+        let bump = ctx.bumps.freeport_authority;
+        let seeds: &[&[&[u8]]] = &[&[FREEPORT_AUTHORITY_SEED, &[bump]]];
 
         let cpi_accounts = anchor_spl::token::Transfer {
-            from: ctx
-                .accounts
-                .sender_user_vault_token_account
-                .to_account_info(),
-            to: ctx
-                .accounts
-                .recipient_user_vault_token_account
-                .to_account_info(),
-            authority: ctx.accounts.vault_authority.to_account_info(),
+            from: ctx.accounts.sender_vault.to_account_info(),
+            to: ctx.accounts.recipient_vault.to_account_info(),
+            authority: ctx.accounts.freeport_authority.to_account_info(),
         };
-        let cpi_ctx = CpiContext::new_with_signer(
-            ctx.accounts.token_program.to_account_info(),
-            cpi_accounts,
-            vault_authority_seeds,
-        );
-        anchor_spl::token::transfer(cpi_ctx, amount)?;
+
+        anchor_spl::token::transfer(
+            CpiContext::new_with_signer(
+                ctx.accounts.token_program.to_account_info(),
+                cpi_accounts,
+                seeds,
+            ),
+            1,
+        )?;
+
+        // 5) Update entitlement
+        lock.owner = ctx.accounts.recipient.key();
 
         Ok(())
     }

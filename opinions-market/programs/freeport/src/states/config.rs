@@ -28,7 +28,6 @@ impl FreeportConfig {
 #[account]
 #[derive(InitSpace, Copy, PartialEq, Eq, Debug)]
 pub struct ValidCollection {
-    pub nft_mint: Pubkey,
     /// what's the basic price of the collection in dollars?
     pub base_price_in_dollar: u64,
     // enabled = active and useable in the ecosystem
@@ -42,14 +41,12 @@ pub struct ValidCollection {
 
 impl ValidCollection {
     pub fn new(
-        nft_mint: Pubkey,
         base_price_in_dollar: u64,
         enabled: bool,
         allow_deposit: bool,
         allow_withdraw: bool,
     ) -> Self {
         Self {
-            nft_mint,
             base_price_in_dollar,
             enabled,
             allow_deposit,
@@ -59,22 +56,33 @@ impl ValidCollection {
     }
 }
 
+/// Used to custody NFTs in freeport
 /// Used to prevent MEV-like mischief, where a user uses their NFT but also includes a withdraw() instruction in the same transaction
-
 #[account]
+#[derive(InitSpace, Copy, PartialEq, Eq, Debug)]
 pub struct Lock {
+    /// Logical owner inside freeport (persona user) - required
+    pub owner: Pubkey,
+
+    /// The NFT mint held in custody
     pub nft_mint: Pubkey,
-    pub locker: Pubkey,
+
+    /// Cached for fast checks (validated on deposit)
+    pub collection_mint: Pubkey,
+
+    /// Whether the NFT is currently committed to an effect
     pub locked: bool,
+
     pub bump: u8,
 }
 
 impl Lock {
-    pub fn new(nft_mint: Pubkey, locker: Pubkey, locked: bool) -> Self {
+    pub fn new(owner: Pubkey, nft_mint: Pubkey, collection_mint: Pubkey) -> Self {
         Self {
+            owner,
             nft_mint,
-            locker,
-            locked,
+            collection_mint,
+            locked: false,
             bump: 0,
         }
     }
